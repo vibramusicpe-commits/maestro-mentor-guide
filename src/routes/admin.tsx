@@ -30,6 +30,12 @@ const nav = [
 function AdminLayout() {
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const setActiveRole = useAppStore((s) => s.setActiveRole);
+
+  useEffect(() => {
+    setActiveRole("admin");
+  }, [setActiveRole]);
+
 
   return (
     <div className="flex min-h-screen w-full bg-background">
