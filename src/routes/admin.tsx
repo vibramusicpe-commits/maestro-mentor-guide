@@ -18,11 +18,12 @@ export const Route = createFileRoute("/admin")({
 });
 
 const nav = [
-  { to: "/admin" as const, label: "Dashboard", icon: BarChart3 },
-  { to: "/admin" as const, label: "Agenda", icon: CalendarDays },
-  { to: "/admin" as const, label: "Alumnos", icon: Users2 },
-  { to: "/admin" as const, label: "Facturación", icon: CreditCard },
+  { label: "Dashboard", icon: BarChart3, soon: false },
+  { label: "Agenda", icon: CalendarDays, soon: true },
+  { label: "Alumnos", icon: Users2, soon: true },
+  { label: "Facturación", icon: CreditCard, soon: true },
 ];
+
 
 function AdminLayout() {
   const [open, setOpen] = useState(false);
