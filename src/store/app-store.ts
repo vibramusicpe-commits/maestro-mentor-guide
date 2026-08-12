@@ -137,7 +137,7 @@ export const useAppStore = create<AppState>((set) => ({
     set(kind === "private" ? { privateNote: value } : { publicNote: value }),
 
   kids: initialKids,
-  activeKidId: initialKids[0].id,
+  activeKidId: initialKids[0]!.id,
   billing: initialBilling,
   balance: initialBilling.reduce((acc, l) => acc + l.amount, 0),
   setActiveKid: (id) => set({ activeKidId: id }),
