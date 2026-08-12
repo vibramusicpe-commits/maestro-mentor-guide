@@ -68,11 +68,19 @@ type AppState = {
   remindInvoice: (id: string) => void;
   generateMonthlyInvoices: () => number;
 };
-
+// Crea un item de cola optimista que se vacía solo (simula la escritura en backend).
+function queueItem(label: string): SyncItem {
+  const id = `q-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+  setTimeout(() => {
+    useAppStore.getState().flushSync(id);
+  }, 1500);
+  return { id, label };
+}
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+
       activeRole: "admin",
       setActiveRole: (role) => set({ activeRole: role }),
 
