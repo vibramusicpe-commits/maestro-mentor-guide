@@ -1,5 +1,7 @@
 import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAppStore } from "@/store/app-store";
+
 import {
   BarChart3,
   CalendarDays,
