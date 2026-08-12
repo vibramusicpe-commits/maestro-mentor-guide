@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as FamilyRouteImport } from './routes/family'
 import { Route as TeacherRouteImport } from './routes/teacher'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as FamilyIndexRouteImport } from './routes/family.index'
 import { Route as TeacherIndexRouteImport } from './routes/teacher.index'
 import { Route as TeacherAlumnosRouteImport } from './routes/teacher.alumnos'
 import { Route as TeacherNominaRouteImport } from './routes/teacher.nomina'
@@ -43,6 +44,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const FamilyIndexRoute = FamilyIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => FamilyRoute,
+} as any)
 const TeacherIndexRoute = TeacherIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -62,30 +68,32 @@ const TeacherNominaRoute = TeacherNominaRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
-  '/family': typeof FamilyRoute
+  '/family': typeof FamilyRouteWithChildren
   '/teacher': typeof TeacherRouteWithChildren
   '/teacher/alumnos': typeof TeacherAlumnosRoute
   '/teacher/nomina': typeof TeacherNominaRoute
   '/admin/': typeof AdminIndexRoute
+  '/family/': typeof FamilyIndexRoute
   '/teacher/': typeof TeacherIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/family': typeof FamilyRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
   '/teacher/nomina': typeof TeacherNominaRoute
   '/admin': typeof AdminIndexRoute
+  '/family': typeof FamilyIndexRoute
   '/teacher': typeof TeacherIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
-  '/family': typeof FamilyRoute
+  '/family': typeof FamilyRouteWithChildren
   '/teacher': typeof TeacherRouteWithChildren
   '/teacher/alumnos': typeof TeacherAlumnosRoute
   '/teacher/nomina': typeof TeacherNominaRoute
   '/admin/': typeof AdminIndexRoute
+  '/family/': typeof FamilyIndexRoute
   '/teacher/': typeof TeacherIndexRoute
 }
 export interface FileRouteTypes {
@@ -98,14 +106,15 @@ export interface FileRouteTypes {
     | '/teacher/alumnos'
     | '/teacher/nomina'
     | '/admin/'
+    | '/family/'
     | '/teacher/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/family'
     | '/teacher/alumnos'
     | '/teacher/nomina'
     | '/admin'
+    | '/family'
     | '/teacher'
   id:
     | '__root__'
@@ -116,13 +125,14 @@ export interface FileRouteTypes {
     | '/teacher/alumnos'
     | '/teacher/nomina'
     | '/admin/'
+    | '/family/'
     | '/teacher/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
-  FamilyRoute: typeof FamilyRoute
+  FamilyRoute: typeof FamilyRouteWithChildren
   TeacherRoute: typeof TeacherRouteWithChildren
 }
 
@@ -163,6 +173,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/family/': {
+      id: '/family/'
+      path: '/'
+      fullPath: '/family/'
+      preLoaderRoute: typeof FamilyIndexRouteImport
+      parentRoute: typeof FamilyRoute
+    }
     '/teacher/': {
       id: '/teacher/'
       path: '/'
@@ -197,6 +214,17 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface FamilyRouteChildren {
+  FamilyIndexRoute: typeof FamilyIndexRoute
+}
+
+const FamilyRouteChildren: FamilyRouteChildren = {
+  FamilyIndexRoute: FamilyIndexRoute,
+}
+
+const FamilyRouteWithChildren =
+  FamilyRoute._addFileChildren(FamilyRouteChildren)
+
 interface TeacherRouteChildren {
   TeacherAlumnosRoute: typeof TeacherAlumnosRoute
   TeacherNominaRoute: typeof TeacherNominaRoute
@@ -215,7 +243,7 @@ const TeacherRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
-  FamilyRoute: FamilyRoute,
+  FamilyRoute: FamilyRouteWithChildren,
   TeacherRoute: TeacherRouteWithChildren,
 }
 export const routeTree = rootRouteImport
