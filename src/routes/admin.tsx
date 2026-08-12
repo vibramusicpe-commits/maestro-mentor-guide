@@ -47,18 +47,34 @@ function AdminLayout() {
           </button>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-4">
-          {nav.map((item, i) => {
-            const active = i === 0 && pathname === "/admin";
+          {nav.map((item) => {
+            const active = !item.soon && pathname === "/admin";
+            const classes = `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+              active
+                ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            }`;
+            if (item.soon) {
+              return (
+                <span
+                  key={item.label}
+                  className={`${classes} cursor-not-allowed opacity-60`}
+                  aria-disabled
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                  <span className="ml-auto rounded-full bg-sidebar-accent px-2 py-0.5 text-[10px] font-semibold">
+                    Pronto
+                  </span>
+                </span>
+              );
+            }
             return (
               <Link
                 key={item.label}
-                to={item.to}
+                to="/admin"
                 onClick={() => setOpen(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                }`}
+                className={classes}
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
@@ -66,6 +82,7 @@ function AdminLayout() {
             );
           })}
         </nav>
+
         <div className="border-t border-sidebar-border p-4 text-xs text-sidebar-foreground/60">
           Sede Miraflores · Plan Pro
         </div>
