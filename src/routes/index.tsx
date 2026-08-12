@@ -96,7 +96,10 @@ function Landing() {
               </motion.div>
             ))}
           </div>
+
+          <ResumeLink />
         </div>
+
       </div>
     </main>
   );
