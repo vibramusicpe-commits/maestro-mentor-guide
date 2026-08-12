@@ -1,0 +1,54 @@
+graph LR
+    %% Graphify Data Flow Architecture Graph
+    subgraph Raw Data Sources
+        Excel1[Control Pagos.xlsx]
+        Excel2[Segmentación_de_Clientes Vms.xlsx]
+        Excel3[Registro Asistencia.xlsx]
+        Excel4[Ventas_Compras.xlsx]
+        Excel5[CLASE DEMO.xlsx]
+    end
+
+    subgraph State Layer (Zustand)
+        Store[useAppStore]
+        RoleState[activeRole: super_admin | staff | teacher | family]
+        StudentsState[adminStudents: AdminStudent[]]
+        InvoicesState[invoices: Invoice[]]
+        ScheduleState[schedule: ScheduledLesson[]]
+    end
+
+    subgraph Operations & Privacy Layer
+        PrivacyFilter[Role Privacy Guard]
+        CreditManager[Credit Action: +1 falta / -1 recuperada]
+        PaymentChannel[Payment Method: Yape | Efectivo | Transferencia]
+        AlertEngine[2-Day Due Alert Engine]
+    end
+
+    subgraph Frontend Interfaces
+        DueñaView[Super Admin View: Full Metrics, Incomes, Expenses]
+        StaffView[Staff View: Students, Modalities, Receipts, Birthdays]
+        TeacherView[Teacher View: Class Kiosk & Progress Notes]
+        FamilyView[Family View: Home Portal, Credits & Practice Logs]
+    end
+
+    Excel1 --> Store
+    Excel2 --> Store
+    Excel3 --> Store
+    Excel4 --> Store
+    Excel5 --> Store
+
+    Store --> RoleState
+    Store --> StudentsState
+    Store --> InvoicesState
+    Store --> ScheduleState
+
+    RoleState --> PrivacyFilter
+    StudentsState --> CreditManager
+    InvoicesState --> PaymentChannel
+    InvoicesState --> AlertEngine
+
+    PrivacyFilter --> DueñaView
+    PrivacyFilter --> StaffView
+    CreditManager --> StaffView
+    CreditManager --> FamilyView
+    PaymentChannel --> StaffView
+    AlertEngine --> StaffView

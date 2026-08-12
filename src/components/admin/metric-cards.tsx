@@ -1,38 +1,55 @@
 import { motion } from "motion/react";
-import { ArrowDownRight, ArrowUpRight, CalendarCheck, DollarSign, UserCheck } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CalendarCheck, DollarSign, UserCheck, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-
-const metrics = [
-  {
-    label: "Ingresos del mes",
-    value: "$18,420",
-    delta: "+12.4%",
-    up: true,
-    hint: "vs. julio",
-    icon: DollarSign,
-    tone: "text-primary bg-primary/10",
-  },
-  {
-    label: "Clases impartidas",
-    value: "486",
-    delta: "+38",
-    up: true,
-    hint: "esta semana +112",
-    icon: CalendarCheck,
-    tone: "text-info bg-info/10",
-  },
-  {
-    label: "Tasa de asistencia",
-    value: "91.3%",
-    delta: "-1.8%",
-    up: false,
-    hint: "objetivo 93%",
-    icon: UserCheck,
-    tone: "text-warning bg-warning/15",
-  },
-];
+import { useAppStore } from "@/store/app-store";
 
 export function MetricCards() {
+  const activeRole = useAppStore((s) => s.activeRole);
+
+  const metrics = [
+    ...(activeRole !== "staff"
+      ? [
+          {
+            label: "Ingresos del mes",
+            value: "$18,420",
+            delta: "+12.4%",
+            up: true,
+            hint: "vs. julio",
+            icon: DollarSign,
+            tone: "text-primary bg-primary/10",
+          },
+        ]
+      : [
+          {
+            label: "Alumnos Activos",
+            value: "228",
+            delta: "+14",
+            up: true,
+            hint: "vs. mes anterior",
+            icon: Users,
+            tone: "text-primary bg-primary/10",
+          },
+        ]),
+    {
+      label: "Clases impartidas",
+      value: "486",
+      delta: "+38",
+      up: true,
+      hint: "esta semana +112",
+      icon: CalendarCheck,
+      tone: "text-info bg-info/10",
+    },
+    {
+      label: "Tasa de asistencia",
+      value: "91.3%",
+      delta: "-1.8%",
+      up: false,
+      hint: "objetivo 93%",
+      icon: UserCheck,
+      tone: "text-warning bg-warning/15",
+    },
+  ];
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {metrics.map((m, i) => (

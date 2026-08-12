@@ -18,17 +18,21 @@ import {
   initialInvoices,
   initialSchedule,
   type AdminStudent,
+  type EmergencyContact,
   type Invoice,
+  type InvoiceStatus,
+  type LessonModality,
+  type PaymentMethod,
   type ScheduledLesson,
   type StudentStatus,
   type WeekDay,
 } from "./admin-seeds";
 
 export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow };
-export type { AdminStudent, Invoice, ScheduledLesson, StudentStatus, WeekDay };
+export type { AdminStudent, EmergencyContact, Invoice, InvoiceStatus, LessonModality, PaymentMethod, ScheduledLesson, StudentStatus, WeekDay };
 
 
-export type Role = "admin" | "teacher" | "family";
+export type Role = "super_admin" | "staff" | "teacher" | "family" | "admin";
 export type SyncItem = { id: string; label: string };
 
 type AppState = {
@@ -64,7 +68,16 @@ type AppState = {
   cancelLesson: (id: string) => void;
   setStudentStatus: (id: string, status: StudentStatus) => void;
   assignTeacher: (id: string, teacher: string) => void;
-  markInvoicePaid: (id: string) => void;
+  setStudentModality: (id: string, modality: LessonModality) => void;
+  addStudentCredit: (id: string) => void;
+  consumeStudentCredit: (id: string) => void;  markInvoicePaid: (id: string, method?: PaymentMethod) => void;
+  recordPaymentAbono: (
+    id: string,
+    amount: number,
+    method: PaymentMethod,
+    voucherRef?: string,
+    note?: string,
+  ) => void;
   remindInvoice: (id: string) => void;
   generateMonthlyInvoices: () => number;
 };
@@ -80,7 +93,6 @@ function queueItem(label: string): SyncItem {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-
       activeRole: "admin",
       setActiveRole: (role) => set({ activeRole: role }),
 
@@ -160,13 +172,90 @@ export const useAppStore = create<AppState>()(
           adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, teacher } : st)),
           syncQueue: [...s.syncQueue, queueItem(`Profesor asignado · ${teacher}`)],
         })),
-      markInvoicePaid: (id) =>
+      setStudentModality: (id, modality) =>
+        set((s) => ({
+          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, modality } : st)),
+          syncQueue: [...s.syncQueue, queueItem(`Modalidad actualizada · ${modality}`)],
+        })),
+      addStudentCredit: (id) =>
+        set((s) => ({
+          adminStudents: s.adminStudents.map((st) =>
+            st.id === id ? { ...st, makeupCredits: st.makeupCredits + 1 } : st,
+          ),
+          syncQueue: [...s.syncQueue, queueItem("Crédito de falta añadido")],
+        })),
+      consumeStudentCredit: (id) =>
+        set((s) => ({
+          adminStudents: s.adminStudents.map((st) =>
+            st.id === id ? { ...st, makeupCredits: Math.max(0, st.makeupCredits - 1) } : st,
+          ),
+          syncQueue: [...s.syncQueue, queueItem("Crédito de recuperación utilizado")],
+        })),
+      markInvoicePaid: (id, method = "Yape") =>
         set((s) => ({
           invoices: s.invoices.map((i) =>
-            i.id === id ? { ...i, status: "pagado" as const } : i,
+            i.id === id
+              ? {
+                  ...i,
+                  status: "pagado" as const,
+                  amountPaid: i.amount,
+                  remainingBalance: 0,
+                  paymentMethod: method,
+                  paymentLogs: [
+                    ...i.paymentLogs,
+                    {
+                      id: `log-${Date.now()}`,
+                      timestamp: new Date().toLocaleString("es-PE"),
+                      registeredBy: s.activeRole === "staff" ? "Secretaría (Staff)" : "Dueña",
+                      amount: i.remainingBalance || i.amount,
+                      method,
+                      voucherRef: "PAGO-DIRECTO",
+                      note: "Pago total confirmado",
+                    },
+                  ],
+                }
+              : i,
           ),
-          syncQueue: [...s.syncQueue, queueItem("Recibo marcado como cobrado")],
+          syncQueue: [...s.syncQueue, queueItem(`Recibo cobrado · ${method}`)],
         })),
+      recordPaymentAbono: (id, amount, method, voucherRef = "", note = "") =>
+        set((s) => {
+          const inv = s.invoices.find((i) => i.id === id);
+          if (!inv) return s;
+
+          const newPaid = Math.min(inv.amount, inv.amountPaid + amount);
+          const newRemaining = Math.max(0, inv.amount - newPaid);
+          const newStatus = newRemaining === 0 ? ("pagado" as const) : ("parcial" as const);
+
+          const newLog = {
+            id: `log-${Date.now()}`,
+            timestamp: new Date().toLocaleString("es-PE"),
+            registeredBy: s.activeRole === "staff" ? "Secretaría (Staff)" : "Dueña",
+            amount,
+            method,
+            voucherRef: voucherRef || "WSAP-COMPROBANTE",
+            note: note || "Abono registrado vía WhatsApp",
+          };
+
+          return {
+            invoices: s.invoices.map((i) =>
+              i.id === id
+                ? {
+                    ...i,
+                    amountPaid: newPaid,
+                    remainingBalance: newRemaining,
+                    status: newStatus,
+                    paymentMethod: method,
+                    paymentLogs: [...i.paymentLogs, newLog],
+                  }
+                : i,
+            ),
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(`Abono registrado · S/ ${amount} vía ${method}`),
+            ],
+          };
+        }),
       remindInvoice: (id) =>
         set((s) => ({
           invoices: s.invoices.map((i) =>

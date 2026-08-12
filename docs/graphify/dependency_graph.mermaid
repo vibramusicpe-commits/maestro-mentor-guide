@@ -1,0 +1,62 @@
+graph TD
+    %% Graphify Component & Route Architecture Graph
+    subgraph Storage & Data
+        Seeds[src/store/seeds.ts]
+        AdminSeeds[src/store/admin-seeds.ts]
+        ZustandStore[src/store/app-store.ts]
+    end
+
+    subgraph UI Routing (TanStack Router)
+        Root[src/routes/__root.tsx]
+        Landing[src/routes/index.tsx]
+        AdminLayout[src/routes/admin.tsx]
+        TeacherLayout[src/routes/teacher.tsx]
+        FamilyLayout[src/routes/family.tsx]
+    end
+
+    subgraph Admin Views
+        AdminDashboard[src/routes/admin.index.tsx]
+        AdminAgenda[src/routes/admin.agenda.tsx]
+        AdminAlumnos[src/routes/admin.alumnos.tsx]
+        AdminFacturacion[src/routes/admin.facturacion.tsx]
+    end
+
+    subgraph Admin Components
+        MetricCards[src/components/admin/metric-cards.tsx]
+        RiskFamilies[src/components/admin/risk-families-table.tsx]
+        AlertsPanel[src/components/admin/alerts-panel.tsx]
+        BirthdayWidget[src/components/admin/birthday-widget.tsx]
+        AgendaBoard[src/components/admin/agenda-board.tsx]
+        StudentsTable[src/components/admin/students-table.tsx]
+        RoleSwitcher[src/components/role-switcher.tsx]
+    end
+
+    subgraph Teacher & Family Components
+        TeacherKiosk[src/routes/teacher.index.tsx]
+        TeacherAlumnos[src/routes/teacher.alumnos.tsx]
+        TeacherNomina[src/routes/teacher.nomina.tsx]
+        FamilyPortal[src/routes/family.index.tsx]
+        KidSummary[src/components/family/kid-summary.tsx]
+    end
+
+    %% Dependencies
+    Seeds --> ZustandStore
+    AdminSeeds --> ZustandStore
+    ZustandStore --> RoleSwitcher
+    ZustandStore --> AdminLayout
+    
+    AdminLayout --> AdminDashboard
+    AdminLayout --> AdminAgenda
+    AdminLayout --> AdminAlumnos
+    AdminLayout --> AdminFacturacion
+
+    AdminDashboard --> MetricCards
+    AdminDashboard --> RiskFamilies
+    AdminDashboard --> AlertsPanel
+    AdminDashboard --> BirthdayWidget
+
+    AdminAgenda --> AgendaBoard
+    AdminAlumnos --> StudentsTable
+    
+    FamilyLayout --> FamilyPortal
+    FamilyPortal --> KidSummary

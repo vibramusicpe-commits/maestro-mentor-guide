@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, type Role } from "@/store/app-store";
 import { motion } from "motion/react";
 import { ArrowRight, Building2, Guitar, Users, Music4 } from "lucide-react";
 
@@ -23,18 +23,41 @@ export const Route = createFileRoute("/")({
   component: Landing,
 });
 
-const roles = [
+import { ShieldCheck, UserCheck } from "lucide-react";
+
+const roles: {
+  to: "/admin" | "/teacher" | "/family";
+  role: Role;
+  icon: typeof Building2;
+  name: string;
+  tag: string;
+  desc: string;
+  accent: string;
+  ring: string;
+}[] = [
   {
-    to: "/admin" as const,
-    icon: Building2,
-    name: "Dirección",
-    tag: "Torre de control",
-    desc: "Ingresos, morosidad, ocupación de salas y alertas operativas en una sola pantalla.",
+    to: "/admin",
+    role: "super_admin",
+    icon: ShieldCheck,
+    name: "Super Admin (Dueña)",
+    tag: "Acceso Total",
+    desc: "Ingresos, morosidad, facturación, ocupación de salas y alertas operativas.",
     accent: "text-info",
     ring: "hover:border-info/50",
   },
   {
-    to: "/teacher" as const,
+    to: "/admin",
+    role: "staff",
+    icon: UserCheck,
+    name: "Staff (Secretaria)",
+    tag: "Operaciones y Agenda",
+    desc: "Gestión de alumnos, agenda de clases y asistencia sin métricas ni módulos de facturación.",
+    accent: "text-accent-foreground",
+    ring: "hover:border-accent-foreground/50",
+  },
+  {
+    to: "/teacher",
+    role: "teacher",
     icon: Guitar,
     name: "Profesor",
     tag: "Kiosco móvil",
@@ -43,7 +66,8 @@ const roles = [
     ring: "hover:border-primary/50",
   },
   {
-    to: "/family" as const,
+    to: "/family",
+    role: "family",
     icon: Users,
     name: "Familia",
     tag: "Portal del hogar",
@@ -54,6 +78,8 @@ const roles = [
 ];
 
 function Landing() {
+  const setActiveRole = useAppStore((s) => s.setActiveRole);
+
   return (
     <main className="min-h-screen bg-background">
       <div className="relative overflow-hidden">
@@ -64,34 +90,35 @@ function Landing() {
             CADENCIA
           </div>
           <h1 className="mt-6 max-w-3xl text-4xl font-bold leading-tight sm:text-6xl">
-            Una academia de música. Tres formas de vivirla.
+            Una academia de música. Vistas adaptadas por rol.
           </h1>
           <p className="mt-5 max-w-2xl text-lg text-muted-foreground">
-            Dirección, profesorado y familias comparten los mismos datos pero necesitan
-            interfaces opuestas. Entra en cualquiera de las tres experiencias y compruébalo.
+            Dirección, secretaria, profesorado y familias comparten los mismos datos pero necesitan
+            interfaces adaptadas a su rol y privacidad.
           </p>
 
-          <div className="mt-12 grid gap-5 md:grid-cols-3">
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {roles.map((role, i) => (
               <motion.div
-                key={role.to}
+                key={role.role}
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.08, duration: 0.4 }}
               >
                 <Link
                   to={role.to}
-                  className={`group flex h-full flex-col rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg ${role.ring}`}
+                  onClick={() => setActiveRole(role.role)}
+                  className={`group flex h-full flex-col rounded-2xl border border-border bg-card p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg ${role.ring}`}
                 >
-                  <role.icon className={`h-8 w-8 ${role.accent}`} />
-                  <p className="mt-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  <role.icon className={`h-7 w-7 ${role.accent}`} />
+                  <p className="mt-4 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     {role.tag}
                   </p>
-                  <h2 className="mt-1 text-xl font-semibold">{role.name}</h2>
-                  <p className="mt-3 flex-1 text-sm text-muted-foreground">{role.desc}</p>
-                  <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <h2 className="mt-1 text-lg font-semibold">{role.name}</h2>
+                  <p className="mt-2 flex-1 text-xs text-muted-foreground">{role.desc}</p>
+                  <span className="mt-5 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
                     Entrar
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                   </span>
                 </Link>
               </motion.div>
@@ -100,7 +127,6 @@ function Landing() {
 
           <ResumeLink />
         </div>
-
       </div>
     </main>
   );
@@ -111,11 +137,20 @@ function ResumeLink() {
   const target =
     activeRole === "teacher" ? "/teacher" : activeRole === "family" ? "/family" : "/admin";
 
+  const label =
+    activeRole === "super_admin"
+      ? "Super Admin (Dueña)"
+      : activeRole === "staff"
+        ? "Staff (Secretaria)"
+        : activeRole === "teacher"
+          ? "Profesor"
+          : "Familia";
+
   return (
     <p className="mt-8 text-sm text-muted-foreground">
       La última vez estuviste en{" "}
       <Link to={target} className="font-semibold text-primary underline-offset-4 hover:underline">
-        {activeRole === "teacher" ? "Profesor" : activeRole === "family" ? "Familia" : "Admin"}
+        {label}
       </Link>
       .
     </p>

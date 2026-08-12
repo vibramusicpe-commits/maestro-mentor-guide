@@ -25,6 +25,13 @@ export type ScheduledLesson = {
 
 export type StudentStatus = "activo" | "pausa" | "baja";
 export type PaymentStatus = "al-dia" | "pendiente" | "vencido";
+export type LessonModality = "Regular (8 clases / 45 min)" | "Intensivo (4 clases / 90 min)";
+
+export type EmergencyContact = {
+  name: string;
+  phone: string;
+  relation: string;
+};
 
 export type AdminStudent = {
   id: string;
@@ -33,6 +40,7 @@ export type AdminStudent = {
   instrument: string;
   level: string;
   teacher: string;
+  modality: LessonModality;
   status: StudentStatus;
   attendanceRate: number;
   payment: PaymentStatus;
@@ -42,19 +50,39 @@ export type AdminStudent = {
   balance: number;
   recentAttendance: ("presente" | "ausente" | "tarde")[];
   teacherNote: string;
+  email: string;
+  phone: string;
+  emergencyContact: EmergencyContact;
+  birthdate: string;
 };
 
-export type InvoiceStatus = "pagado" | "pendiente" | "vencido";
+export type InvoiceStatus = "pagado" | "parcial" | "pendiente" | "vencido";
+export type PaymentMethod = "Yape" | "Efectivo" | "Transferencia";
+
+export type PaymentLog = {
+  id: string;
+  timestamp: string;
+  registeredBy: string; // ej: "Secretaría (Staff)" o "Dueña"
+  amount: number;
+  method: PaymentMethod;
+  voucherRef?: string; // N° de Operación / Comprobante WhatsApp
+  note?: string;
+};
 
 export type Invoice = {
   id: string;
   family: string;
   concept: string;
   students: number;
-  amount: number;
+  amount: number; // Precio total inmutable
+  amountPaid: number; // Monto abonado hasta el momento
+  remainingBalance: number; // Saldo pendiente
   dueDate: string;
+  daysToDue: number; // Alerta a los 2 días de vencer
   status: InvoiceStatus;
+  paymentMethod?: PaymentMethod | null;
   remindedAt: string | null;
+  paymentLogs: PaymentLog[];
 };
 
 export type RecurringConcept = {
@@ -96,6 +124,7 @@ export const adminStudents: AdminStudent[] = [
     instrument: "Guitarra clásica",
     level: "Nivel 2",
     teacher: "Prof. Elena Márquez",
+    modality: "Regular (8 clases / 45 min)",
     status: "activo",
     attendanceRate: 96,
     payment: "pendiente",
@@ -105,6 +134,10 @@ export const adminStudents: AdminStudent[] = [
     balance: 203,
     recentAttendance: ["presente", "presente", "tarde", "presente", "presente"],
     teacherNote: "Avanza muy bien con arpegios. Listo para repertorio nivel 3.",
+    email: "fam.rivas@gmail.com",
+    phone: "+51 984 123 456",
+    emergencyContact: { name: "Carlos Rivas (Padre)", phone: "+51 984 123 400", relation: "Padre" },
+    birthdate: "18 de Agosto",
   },
   {
     id: "as2",
@@ -113,6 +146,7 @@ export const adminStudents: AdminStudent[] = [
     instrument: "Piano",
     level: "Nivel 1",
     teacher: "Prof. Daniel Ocampo",
+    modality: "Regular (8 clases / 45 min)",
     status: "activo",
     attendanceRate: 88,
     payment: "pendiente",
@@ -122,6 +156,10 @@ export const adminStudents: AdminStudent[] = [
     balance: 203,
     recentAttendance: ["presente", "ausente", "presente", "presente", "tarde"],
     teacherNote: "Necesita reforzar lectura rítmica en casa.",
+    email: "fam.rivas@gmail.com",
+    phone: "+51 984 123 456",
+    emergencyContact: { name: "Carlos Rivas (Padre)", phone: "+51 984 123 400", relation: "Padre" },
+    birthdate: "24 de Agosto",
   },
   {
     id: "as3",
@@ -130,6 +168,7 @@ export const adminStudents: AdminStudent[] = [
     instrument: "Violín",
     level: "Nivel 3",
     teacher: "Prof. Elena Márquez",
+    modality: "Intensivo (4 clases / 90 min)",
     status: "activo",
     attendanceRate: 74,
     payment: "vencido",
@@ -139,6 +178,10 @@ export const adminStudents: AdminStudent[] = [
     balance: 145,
     recentAttendance: ["ausente", "ausente", "presente", "tarde", "presente"],
     teacherNote: "Tres faltas seguidas el mes pasado. Conviene llamar a la familia.",
+    email: "prado.musica@hotmail.com",
+    phone: "+51 972 888 112",
+    emergencyContact: { name: "Mariana Prado (Madre)", phone: "+51 972 888 999", relation: "Madre" },
+    birthdate: "02 de Septiembre",
   },
   {
     id: "as4",
@@ -147,6 +190,7 @@ export const adminStudents: AdminStudent[] = [
     instrument: "Batería",
     level: "Nivel 2",
     teacher: "Prof. Bruno Sáenz",
+    modality: "Regular (8 clases / 45 min)",
     status: "activo",
     attendanceRate: 91,
     payment: "al-dia",
@@ -156,6 +200,10 @@ export const adminStudents: AdminStudent[] = [
     balance: 0,
     recentAttendance: ["presente", "presente", "presente", "ausente", "presente"],
     teacherNote: "Muy constante. Interesado en la banda de la academia.",
+    email: "iker.solano@outlook.com",
+    phone: "+51 991 345 678",
+    emergencyContact: { name: "Jorge Solano (Padre)", phone: "+51 991 345 000", relation: "Padre" },
+    birthdate: "14 de Agosto",
   },
   {
     id: "as5",
@@ -164,6 +212,7 @@ export const adminStudents: AdminStudent[] = [
     instrument: "Canto",
     level: "Nivel 4",
     teacher: "Prof. Nadia Ruiz",
+    modality: "Intensivo (4 clases / 90 min)",
     status: "activo",
     attendanceRate: 99,
     payment: "al-dia",
@@ -173,6 +222,10 @@ export const adminStudents: AdminStudent[] = [
     balance: 0,
     recentAttendance: ["presente", "presente", "presente", "presente", "presente"],
     teacherNote: "Preparando audición de fin de ciclo.",
+    email: "camila.ferrer@gmail.com",
+    phone: "+51 955 777 222",
+    emergencyContact: { name: "Rosa Ferrer (Tía)", phone: "+51 955 777 111", relation: "Tía" },
+    birthdate: "29 de Agosto",
   },
   {
     id: "as6",
@@ -181,6 +234,7 @@ export const adminStudents: AdminStudent[] = [
     instrument: "Guitarra eléctrica",
     level: "Nivel 1",
     teacher: "Prof. Bruno Sáenz",
+    modality: "Regular (8 clases / 45 min)",
     status: "pausa",
     attendanceRate: 63,
     payment: "vencido",
@@ -190,6 +244,10 @@ export const adminStudents: AdminStudent[] = [
     balance: 260,
     recentAttendance: ["ausente", "ausente", "ausente", "presente", "ausente"],
     teacherNote: "Pausa por viaje familiar. Riesgo alto de no volver.",
+    email: "aguirre.fam@yahoo.com",
+    phone: "+51 961 444 333",
+    emergencyContact: { name: "Alberto Aguirre (Padre)", phone: "+51 961 444 000", relation: "Padre" },
+    birthdate: "10 de Octubre",
   },
   {
     id: "as7",
@@ -198,6 +256,7 @@ export const adminStudents: AdminStudent[] = [
     instrument: "Piano",
     level: "Nivel 2",
     teacher: "Prof. Daniel Ocampo",
+    modality: "Regular (8 clases / 45 min)",
     status: "activo",
     attendanceRate: 82,
     payment: "pendiente",
@@ -207,6 +266,10 @@ export const adminStudents: AdminStudent[] = [
     balance: 90,
     recentAttendance: ["presente", "tarde", "presente", "ausente", "presente"],
     teacherNote: "Buena técnica, poca práctica en casa.",
+    email: "valeria.nunez@gmail.com",
+    phone: "+51 988 222 111",
+    emergencyContact: { name: "Carmen Núñez (Madre)", phone: "+51 988 222 000", relation: "Madre" },
+    birthdate: "19 de Agosto",
   },
   {
     id: "as8",
@@ -215,6 +278,7 @@ export const adminStudents: AdminStudent[] = [
     instrument: "Violín",
     level: "Nivel 1",
     teacher: "Prof. Elena Márquez",
+    modality: "Regular (8 clases / 45 min)",
     status: "baja",
     attendanceRate: 41,
     payment: "vencido",
@@ -224,18 +288,174 @@ export const adminStudents: AdminStudent[] = [
     balance: 180,
     recentAttendance: ["ausente", "ausente", "ausente", "ausente", "ausente"],
     teacherNote: "Baja solicitada en julio. Queda saldo por cobrar.",
+    email: "vera.familia@gmail.com",
+    phone: "+51 933 111 222",
+    emergencyContact: { name: "Hernán Vera (Padre)", phone: "+51 933 111 000", relation: "Padre" },
+    birthdate: "05 de Noviembre",
   },
 ];
 
 export const initialInvoices: Invoice[] = [
-  { id: "inv1", family: "Familia Rivas", concept: "Plan mensual · agosto", students: 2, amount: 203, dueDate: "20 ago", status: "pendiente", remindedAt: null },
-  { id: "inv2", family: "Familia Prado", concept: "Plan mensual · agosto", students: 1, amount: 145, dueDate: "5 ago", status: "vencido", remindedAt: null },
-  { id: "inv3", family: "Familia Solano", concept: "Plan mensual · agosto", students: 1, amount: 120, dueDate: "10 ago", status: "pagado", remindedAt: null },
-  { id: "inv4", family: "Familia Ferrer", concept: "Plan mensual + canto extra", students: 1, amount: 168, dueDate: "10 ago", status: "pagado", remindedAt: null },
-  { id: "inv5", family: "Familia Aguirre", concept: "Plan mensual · julio y agosto", students: 1, amount: 260, dueDate: "1 ago", status: "vencido", remindedAt: null },
-  { id: "inv6", family: "Familia Núñez", concept: "Plan mensual · agosto", students: 1, amount: 90, dueDate: "25 ago", status: "pendiente", remindedAt: null },
-  { id: "inv7", family: "Familia Vera", concept: "Saldo pendiente de baja", students: 1, amount: 180, dueDate: "15 jul", status: "vencido", remindedAt: null },
-  { id: "inv8", family: "Familia Castro", concept: "Plan mensual · agosto", students: 2, amount: 210, dueDate: "20 ago", status: "pagado", remindedAt: null },
+  {
+    id: "inv1",
+    family: "Familia Rivas",
+    concept: "Plan mensual · agosto",
+    students: 2,
+    amount: 297,
+    amountPaid: 100,
+    remainingBalance: 197,
+    dueDate: "14 ago",
+    daysToDue: 2,
+    status: "parcial",
+    remindedAt: null,
+    paymentMethod: "Yape",
+    paymentLogs: [
+      {
+        id: "log1",
+        timestamp: "2026-08-10 16:30",
+        registeredBy: "Secretaría (Staff)",
+        amount: 100,
+        method: "Yape",
+        voucherRef: "YAPE-998241",
+        note: "Abono parcial recibido por WhatsApp (captura)",
+      },
+    ],
+  },
+  {
+    id: "inv2",
+    family: "Familia Prado",
+    concept: "Plan mensual · agosto",
+    students: 1,
+    amount: 145,
+    amountPaid: 0,
+    remainingBalance: 145,
+    dueDate: "5 ago",
+    daysToDue: -7,
+    status: "vencido",
+    remindedAt: null,
+    paymentMethod: null,
+    paymentLogs: [],
+  },
+  {
+    id: "inv3",
+    family: "Familia Solano",
+    concept: "Plan mensual · agosto",
+    students: 1,
+    amount: 252,
+    amountPaid: 252,
+    remainingBalance: 0,
+    dueDate: "10 ago",
+    daysToDue: -2,
+    status: "pagado",
+    remindedAt: "10 ago",
+    paymentMethod: "Yape",
+    paymentLogs: [
+      {
+        id: "log2",
+        timestamp: "2026-08-10 11:15",
+        registeredBy: "Secretaría (Staff)",
+        amount: 252,
+        method: "Yape",
+        voucherRef: "YAPE-102938",
+        note: "Cancelado completo según comprobante de WhatsApp",
+      },
+    ],
+  },
+  {
+    id: "inv4",
+    family: "Familia Ferrer",
+    concept: "Plan mensual + canto extra",
+    students: 1,
+    amount: 297,
+    amountPaid: 297,
+    remainingBalance: 0,
+    dueDate: "10 ago",
+    daysToDue: -2,
+    status: "pagado",
+    remindedAt: "09 ago",
+    paymentMethod: "Transferencia",
+    paymentLogs: [
+      {
+        id: "log3",
+        timestamp: "2026-08-09 09:40",
+        registeredBy: "Secretaría (Staff)",
+        amount: 297,
+        method: "Transferencia",
+        voucherRef: "BCP-4882190",
+        note: "Abono a cuenta corriente reportado en WhatsApp",
+      },
+    ],
+  },
+  {
+    id: "inv5",
+    family: "Familia Aguirre",
+    concept: "Plan mensual · julio y agosto",
+    students: 1,
+    amount: 260,
+    amountPaid: 0,
+    remainingBalance: 260,
+    dueDate: "1 ago",
+    daysToDue: -11,
+    status: "vencido",
+    remindedAt: null,
+    paymentMethod: null,
+    paymentLogs: [],
+  },
+  {
+    id: "inv6",
+    family: "Familia Núñez",
+    concept: "Plan mensual · agosto",
+    students: 1,
+    amount: 197,
+    amountPaid: 0,
+    remainingBalance: 197,
+    dueDate: "14 ago",
+    daysToDue: 2,
+    status: "pendiente",
+    remindedAt: null,
+    paymentMethod: null,
+    paymentLogs: [],
+  },
+  {
+    id: "inv7",
+    family: "Familia Vera",
+    concept: "Saldo pendiente de baja",
+    students: 1,
+    amount: 180,
+    amountPaid: 0,
+    remainingBalance: 180,
+    dueDate: "15 jul",
+    daysToDue: -28,
+    status: "vencido",
+    remindedAt: null,
+    paymentMethod: null,
+    paymentLogs: [],
+  },
+  {
+    id: "inv8",
+    family: "Familia Castro",
+    concept: "Plan mensual · agosto",
+    students: 2,
+    amount: 297,
+    amountPaid: 297,
+    remainingBalance: 0,
+    dueDate: "12 ago",
+    daysToDue: 0,
+    status: "pagado",
+    remindedAt: "11 ago",
+    paymentMethod: "Efectivo",
+    paymentLogs: [
+      {
+        id: "log4",
+        timestamp: "2026-08-11 17:00",
+        registeredBy: "Secretaría (Staff)",
+        amount: 297,
+        method: "Efectivo",
+        voucherRef: "RECIBO-FISICO-042",
+        note: "Pago en caja presencial en academia",
+      },
+    ],
+  },
 ];
 
 export const recurringConcepts: RecurringConcept[] = [

@@ -14,6 +14,9 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as FamilyRouteImport } from './routes/family'
 import { Route as TeacherRouteImport } from './routes/teacher'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminAgendaRouteImport } from './routes/admin.agenda'
+import { Route as AdminAlumnosRouteImport } from './routes/admin.alumnos'
+import { Route as AdminFacturacionRouteImport } from './routes/admin.facturacion'
 import { Route as FamilyIndexRouteImport } from './routes/family.index'
 import { Route as TeacherIndexRouteImport } from './routes/teacher.index'
 import { Route as TeacherAlumnosRouteImport } from './routes/teacher.alumnos'
@@ -44,6 +47,21 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminAgendaRoute = AdminAgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAlumnosRoute = AdminAlumnosRouteImport.update({
+  id: '/alumnos',
+  path: '/alumnos',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminFacturacionRoute = AdminFacturacionRouteImport.update({
+  id: '/facturacion',
+  path: '/facturacion',
+  getParentRoute: () => AdminRoute,
+} as any)
 const FamilyIndexRoute = FamilyIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -70,6 +88,9 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/family': typeof FamilyRouteWithChildren
   '/teacher': typeof TeacherRouteWithChildren
+  '/admin/agenda': typeof AdminAgendaRoute
+  '/admin/alumnos': typeof AdminAlumnosRoute
+  '/admin/facturacion': typeof AdminFacturacionRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
   '/teacher/nomina': typeof TeacherNominaRoute
   '/admin/': typeof AdminIndexRoute
@@ -78,6 +99,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin/agenda': typeof AdminAgendaRoute
+  '/admin/alumnos': typeof AdminAlumnosRoute
+  '/admin/facturacion': typeof AdminFacturacionRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
   '/teacher/nomina': typeof TeacherNominaRoute
   '/admin': typeof AdminIndexRoute
@@ -90,6 +114,9 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/family': typeof FamilyRouteWithChildren
   '/teacher': typeof TeacherRouteWithChildren
+  '/admin/agenda': typeof AdminAgendaRoute
+  '/admin/alumnos': typeof AdminAlumnosRoute
+  '/admin/facturacion': typeof AdminFacturacionRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
   '/teacher/nomina': typeof TeacherNominaRoute
   '/admin/': typeof AdminIndexRoute
@@ -103,6 +130,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/family'
     | '/teacher'
+    | '/admin/agenda'
+    | '/admin/alumnos'
+    | '/admin/facturacion'
     | '/teacher/alumnos'
     | '/teacher/nomina'
     | '/admin/'
@@ -111,6 +141,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin/agenda'
+    | '/admin/alumnos'
+    | '/admin/facturacion'
     | '/teacher/alumnos'
     | '/teacher/nomina'
     | '/admin'
@@ -122,6 +155,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/family'
     | '/teacher'
+    | '/admin/agenda'
+    | '/admin/alumnos'
+    | '/admin/facturacion'
     | '/teacher/alumnos'
     | '/teacher/nomina'
     | '/admin/'
@@ -173,6 +209,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/agenda': {
+      id: '/admin/agenda'
+      path: '/agenda'
+      fullPath: '/admin/agenda'
+      preLoaderRoute: typeof AdminAgendaRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/alumnos': {
+      id: '/admin/alumnos'
+      path: '/alumnos'
+      fullPath: '/admin/alumnos'
+      preLoaderRoute: typeof AdminAlumnosRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/facturacion': {
+      id: '/admin/facturacion'
+      path: '/facturacion'
+      fullPath: '/admin/facturacion'
+      preLoaderRoute: typeof AdminFacturacionRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/family/': {
       id: '/family/'
       path: '/'
@@ -205,10 +262,16 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminAgendaRoute: typeof AdminAgendaRoute
+  AdminAlumnosRoute: typeof AdminAlumnosRoute
+  AdminFacturacionRoute: typeof AdminFacturacionRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminAgendaRoute: AdminAgendaRoute,
+  AdminAlumnosRoute: AdminAlumnosRoute,
+  AdminFacturacionRoute: AdminFacturacionRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 

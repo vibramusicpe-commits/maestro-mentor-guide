@@ -1,0 +1,50 @@
+{
+  "system": "Cadencia / Maestro Mentor Guide - Vibra Music",
+  "version": "1.0.0",
+  "updatedAt": "2026-08-12T15:32:00-05:00",
+  "nodes": [
+    {
+      "id": "role_super_admin",
+      "label": "Super Admin (Dueña)",
+      "permissions": ["all", "incomes", "expenses", "bank_accounts", "margins"]
+    },
+    {
+      "id": "role_staff",
+      "label": "Staff (Secretaria)",
+      "permissions": ["students", "modalities", "agenda", "record_income", "notify_due_soon", "birthdays"],
+      "restrictions": ["expenses", "bank_accounts", "global_margins"]
+    },
+    {
+      "id": "modality_regular",
+      "label": "Regular",
+      "details": "8 clases al mes, 2 veces por semana, 45 min por clase"
+    },
+    {
+      "id": "modality_intensivo",
+      "label": "Intensivo",
+      "details": "4 clases al mes, 1 vez por semana, 90 min por clase"
+    },
+    {
+      "id": "credit_system",
+      "label": "Sistema de Créditos por Falta",
+      "logic": "Ausencia justificada sumará +1 crédito; Asistencia a clase de recuperación restará -1 crédito"
+    },
+    {
+      "id": "payment_notifications",
+      "label": "Notificación a 2 Días de Vencer",
+      "logic": "Aviso automático vía WhatsApp/Email cuando restan <= 2 días para la fecha fija de pago"
+    },
+    {
+      "id": "payment_methods",
+      "label": "Medios de Pago Admitidos",
+      "options": ["Yape", "Efectivo", "Transferencia"]
+    }
+  ],
+  "edges": [
+    { "from": "role_staff", "to": "modality_regular", "relation": "manages" },
+    { "from": "role_staff", "to": "modality_intensivo", "relation": "manages" },
+    { "from": "role_staff", "to": "credit_system", "relation": "administers" },
+    { "from": "role_staff", "to": "payment_notifications", "relation": "triggers" },
+    { "from": "role_staff", "to": "payment_methods", "relation": "registers" }
+  ]
+}
