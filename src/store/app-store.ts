@@ -120,7 +120,59 @@ export const useAppStore = create<AppState>()(
           ),
         })),
       payBalance: () => set({ balance: 0 }),
+
+      // ===== Dirección =====
+      schedule: initialSchedule,
+      adminStudents: adminStudents,
+      invoices: initialInvoices,
+      rescheduleLesson: (id, day, time) =>
+        set((s) => ({
+          schedule: s.schedule.map((l) => (l.id === id ? { ...l, day, time } : l)),
+          syncQueue: [...s.syncQueue, queueItem(`Clase reprogramada · ${day} ${time}`)],
+        })),
+      cancelLesson: (id) =>
+        set((s) => ({
+          schedule: s.schedule.map((l) =>
+            l.id === id ? { ...l, status: "cancelada" as const } : l,
+          ),
+          syncQueue: [...s.syncQueue, queueItem("Clase cancelada · crédito emitido")],
+          adminStudents: s.adminStudents.map((st) =>
+            st.name === s.schedule.find((l) => l.id === id)?.student
+              ? { ...st, makeupCredits: st.makeupCredits + 1 }
+              : st,
+          ),
+        })),
+      setStudentStatus: (id, status) =>
+        set((s) => ({
+          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, status } : st)),
+          syncQueue: [...s.syncQueue, queueItem(`Estado actualizado · ${status}`)],
+        })),
+      assignTeacher: (id, teacher) =>
+        set((s) => ({
+          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, teacher } : st)),
+          syncQueue: [...s.syncQueue, queueItem(`Profesor asignado · ${teacher}`)],
+        })),
+      markInvoicePaid: (id) =>
+        set((s) => ({
+          invoices: s.invoices.map((i) =>
+            i.id === id ? { ...i, status: "pagado" as const } : i,
+          ),
+          syncQueue: [...s.syncQueue, queueItem("Recibo marcado como cobrado")],
+        })),
+      remindInvoice: (id) =>
+        set((s) => ({
+          invoices: s.invoices.map((i) =>
+            i.id === id ? { ...i, remindedAt: "Hoy" } : i,
+          ),
+          syncQueue: [...s.syncQueue, queueItem("Recordatorio enviado")],
+        })),
+      generateMonthlyInvoices: () => {
+        const pending = useAppStore.getState().invoices.filter((i) => i.status !== "pagado");
+        set((s) => ({ syncQueue: [...s.syncQueue, queueItem("Recibos del mes generados")] }));
+        return pending.length;
+      },
     }),
+
     {
       name: "cadencia-app",
       storage: createJSONStorage(() => localStorage),
