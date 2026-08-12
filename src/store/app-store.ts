@@ -13,8 +13,20 @@ import {
   type PayrollWeek,
   type StudentRow,
 } from "./seeds";
+import {
+  adminStudents,
+  initialInvoices,
+  initialSchedule,
+  type AdminStudent,
+  type Invoice,
+  type ScheduledLesson,
+  type StudentStatus,
+  type WeekDay,
+} from "./admin-seeds";
 
 export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow };
+export type { AdminStudent, Invoice, ScheduledLesson, StudentStatus, WeekDay };
+
 
 export type Role = "admin" | "teacher" | "family";
 export type SyncItem = { id: string; label: string };
@@ -43,11 +55,32 @@ type AppState = {
   setActiveKid: (id: string) => void;
   addPractice: (kidId: string, minutes: number) => void;
   payBalance: () => void;
+
+  // Dirección (admin)
+  schedule: ScheduledLesson[];
+  adminStudents: AdminStudent[];
+  invoices: Invoice[];
+  rescheduleLesson: (id: string, day: WeekDay, time: string) => void;
+  cancelLesson: (id: string) => void;
+  setStudentStatus: (id: string, status: StudentStatus) => void;
+  assignTeacher: (id: string, teacher: string) => void;
+  markInvoicePaid: (id: string) => void;
+  remindInvoice: (id: string) => void;
+  generateMonthlyInvoices: () => number;
 };
+// Crea un item de cola optimista que se vacía solo (simula la escritura en backend).
+function queueItem(label: string): SyncItem {
+  const id = `q-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+  setTimeout(() => {
+    useAppStore.getState().flushSync(id);
+  }, 1500);
+  return { id, label };
+}
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+
       activeRole: "admin",
       setActiveRole: (role) => set({ activeRole: role }),
 
@@ -95,7 +128,60 @@ export const useAppStore = create<AppState>()(
           ),
         })),
       payBalance: () => set({ balance: 0 }),
+
+      // ===== Dirección =====
+      schedule: initialSchedule,
+      adminStudents: adminStudents,
+      invoices: initialInvoices,
+      rescheduleLesson: (id, day, time) =>
+        set((s) => ({
+          schedule: s.schedule.map((l) => (l.id === id ? { ...l, day, time } : l)),
+          syncQueue: [...s.syncQueue, queueItem(`Clase reprogramada · ${day} ${time}`)],
+        })),
+      cancelLesson: (id) =>
+        set((s) => ({
+          schedule: s.schedule.map((l) =>
+            l.id === id ? { ...l, status: "cancelada" as const } : l,
+          ),
+          syncQueue: [...s.syncQueue, queueItem("Clase cancelada · crédito emitido")],
+          adminStudents: s.adminStudents.map((st) =>
+            st.name === s.schedule.find((l) => l.id === id)?.student
+              ? { ...st, makeupCredits: st.makeupCredits + 1 }
+              : st,
+          ),
+        })),
+      setStudentStatus: (id, status) =>
+        set((s) => ({
+          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, status } : st)),
+          syncQueue: [...s.syncQueue, queueItem(`Estado actualizado · ${status}`)],
+        })),
+      assignTeacher: (id, teacher) =>
+        set((s) => ({
+          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, teacher } : st)),
+          syncQueue: [...s.syncQueue, queueItem(`Profesor asignado · ${teacher}`)],
+        })),
+      markInvoicePaid: (id) =>
+        set((s) => ({
+          invoices: s.invoices.map((i) =>
+            i.id === id ? { ...i, status: "pagado" as const } : i,
+          ),
+          syncQueue: [...s.syncQueue, queueItem("Recibo marcado como cobrado")],
+        })),
+      remindInvoice: (id) =>
+        set((s) => ({
+          invoices: s.invoices.map((i) =>
+            i.id === id ? { ...i, remindedAt: "Hoy" } : i,
+          ),
+          syncQueue: [...s.syncQueue, queueItem("Recordatorio enviado")],
+        })),
+      generateMonthlyInvoices: (): number => {
+        const pending = get().invoices.filter((i: Invoice) => i.status !== "pagado");
+        set((s) => ({ syncQueue: [...s.syncQueue, queueItem("Recibos del mes generados")] }));
+        return pending.length;
+      },
+
     }),
+
     {
       name: "cadencia-app",
       storage: createJSONStorage(() => localStorage),
