@@ -55,7 +55,20 @@ type AppState = {
   setActiveKid: (id: string) => void;
   addPractice: (kidId: string, minutes: number) => void;
   payBalance: () => void;
+
+  // Dirección (admin)
+  schedule: ScheduledLesson[];
+  adminStudents: AdminStudent[];
+  invoices: Invoice[];
+  rescheduleLesson: (id: string, day: WeekDay, time: string) => void;
+  cancelLesson: (id: string) => void;
+  setStudentStatus: (id: string, status: StudentStatus) => void;
+  assignTeacher: (id: string, teacher: string) => void;
+  markInvoicePaid: (id: string) => void;
+  remindInvoice: (id: string) => void;
+  generateMonthlyInvoices: () => number;
 };
+
 
 export const useAppStore = create<AppState>()(
   persist(
