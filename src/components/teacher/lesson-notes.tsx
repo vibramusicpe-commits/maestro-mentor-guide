@@ -4,11 +4,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAppStore } from "@/store/app-store";
 
 export function LessonNotes() {
-  const { privateNote, publicNote, setNote } = useAppStore((s) => ({
-    privateNote: s.privateNote,
-    publicNote: s.publicNote,
-    setNote: s.setNote,
-  }));
+  const privateNote = useAppStore((s) => s.privateNote);
+  const publicNote = useAppStore((s) => s.publicNote);
+  const setNote = useAppStore((s) => s.setNote);
+
 
   return (
     <Tabs defaultValue="private" className="w-full">
