@@ -174,11 +174,12 @@ export const useAppStore = create<AppState>()(
           ),
           syncQueue: [...s.syncQueue, queueItem("Recordatorio enviado")],
         })),
-      generateMonthlyInvoices: () => {
-        const pending = useAppStore.getState().invoices.filter((i) => i.status !== "pagado");
+      generateMonthlyInvoices: (): number => {
+        const pending = get().invoices.filter((i: Invoice) => i.status !== "pagado");
         set((s) => ({ syncQueue: [...s.syncQueue, queueItem("Recibos del mes generados")] }));
         return pending.length;
       },
+
     }),
 
     {
