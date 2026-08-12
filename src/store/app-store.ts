@@ -1,38 +1,33 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import {
+  initialBilling,
+  initialKids,
+  initialLessons,
+  initialStudents,
+  payrollWeeks,
+  type AttendanceStatus,
+  type BillingLine,
+  type Kid,
+  type Lesson,
+  type PayrollWeek,
+  type StudentRow,
+} from "./seeds";
 
-export type AttendanceStatus = "pendiente" | "presente" | "ausente" | "tarde";
+export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow };
 
-export type Lesson = {
-  id: string;
-  time: string;
-  student: string;
-  instrument: string;
-  room: string;
-  status: AttendanceStatus;
-};
-
-export type Kid = {
-  id: string;
-  name: string;
-  instrument: string;
-  teacher: string;
-  weeklyGoalMinutes: number;
-  practicedMinutes: number;
-  makeupCredits: number;
-};
-
-export type BillingLine = {
-  id: string;
-  label: string;
-  amount: number;
-  kind: "flat" | "extra" | "credit";
-};
-
+export type Role = "admin" | "teacher" | "family";
 export type SyncItem = { id: string; label: string };
 
 type AppState = {
-  // Teacher
+  // Rol activo
+  activeRole: Role;
+  setActiveRole: (role: Role) => void;
+
+  // Profesor
   lessons: Lesson[];
+  students: StudentRow[];
+  payroll: PayrollWeek[];
   syncQueue: SyncItem[];
   privateNote: string;
   publicNote: string;
@@ -40,7 +35,7 @@ type AppState = {
   flushSync: (id: string) => void;
   setNote: (kind: "private" | "public", value: string) => void;
 
-  // Family
+  // Familia
   kids: Kid[];
   activeKidId: string;
   billing: BillingLine[];
@@ -50,102 +45,61 @@ type AppState = {
   payBalance: () => void;
 };
 
-const initialLessons: Lesson[] = [
-  {
-    id: "l1",
-    time: "16:00",
-    student: "Mateo Rivas",
-    instrument: "Guitarra clásica",
-    room: "Sala 3",
-    status: "pendiente",
-  },
-  {
-    id: "l2",
-    time: "16:45",
-    student: "Sofía Rivas",
-    instrument: "Piano",
-    room: "Sala 1",
-    status: "pendiente",
-  },
-  {
-    id: "l3",
-    time: "17:30",
-    student: "Luana Prado",
-    instrument: "Violín",
-    room: "Sala 2",
-    status: "pendiente",
-  },
-  {
-    id: "l4",
-    time: "18:15",
-    student: "Iker Solano",
-    instrument: "Batería",
-    room: "Sala 5",
-    status: "pendiente",
-  },
-];
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      activeRole: "admin",
+      setActiveRole: (role) => set({ activeRole: role }),
 
-const initialKids: Kid[] = [
-  {
-    id: "k1",
-    name: "Mateo",
-    instrument: "Guitarra clásica",
-    teacher: "Prof. Elena Márquez",
-    weeklyGoalMinutes: 150,
-    practicedMinutes: 85,
-    makeupCredits: 2,
-  },
-  {
-    id: "k2",
-    name: "Sofía",
-    instrument: "Piano",
-    teacher: "Prof. Daniel Ocampo",
-    weeklyGoalMinutes: 120,
-    practicedMinutes: 40,
-    makeupCredits: 1,
-  },
-];
+      lessons: initialLessons,
+      students: initialStudents,
+      payroll: payrollWeeks,
+      syncQueue: [],
+      privateNote: "",
+      publicNote: "",
+      setAttendance: (lessonId, status) =>
+        set((s) => {
+          const lesson = s.lessons.find((l) => l.id === lessonId);
+          const syncId = `${lessonId}-${Date.now()}`;
+          // Se vacía sola: UI optimista con cola de sincronización simulada.
+          setTimeout(() => {
+            useAppStore.getState().flushSync(syncId);
+          }, 1500);
+          return {
+            lessons: s.lessons.map((l) => (l.id === lessonId ? { ...l, status } : l)),
+            syncQueue: [
+              ...s.syncQueue,
+              { id: syncId, label: `${lesson?.student ?? "Alumno"} · ${status}` },
+            ],
+          };
+        }),
+      flushSync: (id) => set((s) => ({ syncQueue: s.syncQueue.filter((i) => i.id !== id) })),
+      setNote: (kind, value) =>
+        set(kind === "private" ? { privateNote: value } : { publicNote: value }),
 
-const initialBilling: BillingLine[] = [
-  { id: "b1", label: "Plan mensual · 2 alumnos", amount: 180, kind: "flat" },
-  { id: "b2", label: "Alquiler de violín (Luana)", amount: 25, kind: "extra" },
-  { id: "b3", label: "Clase extra de teoría", amount: 18, kind: "extra" },
-  { id: "b4", label: "Descuento hermanos", amount: -20, kind: "credit" },
-];
-
-export const useAppStore = create<AppState>((set) => ({
-  lessons: initialLessons,
-  syncQueue: [],
-  privateNote: "",
-  publicNote: "",
-  setAttendance: (lessonId, status) =>
-    set((s) => {
-      const lesson = s.lessons.find((l) => l.id === lessonId);
-      return {
-        lessons: s.lessons.map((l) => (l.id === lessonId ? { ...l, status } : l)),
-        syncQueue: [
-          ...s.syncQueue,
-          {
-            id: `${lessonId}-${Date.now()}`,
-            label: `${lesson?.student ?? "Alumno"} · ${status}`,
-          },
-        ],
-      };
+      kids: initialKids,
+      activeKidId: initialKids[0]!.id,
+      billing: initialBilling,
+      balance: initialBilling.reduce((acc, l) => acc + l.amount, 0),
+      setActiveKid: (id) => set({ activeKidId: id }),
+      addPractice: (kidId, minutes) =>
+        set((s) => ({
+          kids: s.kids.map((k) =>
+            k.id === kidId
+              ? {
+                  ...k,
+                  practicedMinutes: k.practicedMinutes + minutes,
+                  practiceSessions: k.practiceSessions + 1,
+                }
+              : k,
+          ),
+        })),
+      payBalance: () => set({ balance: 0 }),
     }),
-  flushSync: (id) => set((s) => ({ syncQueue: s.syncQueue.filter((i) => i.id !== id) })),
-  setNote: (kind, value) =>
-    set(kind === "private" ? { privateNote: value } : { publicNote: value }),
-
-  kids: initialKids,
-  activeKidId: initialKids[0]!.id,
-  billing: initialBilling,
-  balance: initialBilling.reduce((acc, l) => acc + l.amount, 0),
-  setActiveKid: (id) => set({ activeKidId: id }),
-  addPractice: (kidId, minutes) =>
-    set((s) => ({
-      kids: s.kids.map((k) =>
-        k.id === kidId ? { ...k, practicedMinutes: k.practicedMinutes + minutes } : k,
-      ),
-    })),
-  payBalance: () => set({ balance: 0 }),
-}));
+    {
+      name: "cadencia-app",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s) => ({ activeRole: s.activeRole }) as unknown as AppState,
+    },
+  ),
+);

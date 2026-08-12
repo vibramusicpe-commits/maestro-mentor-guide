@@ -1,5 +1,7 @@
 import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAppStore } from "@/store/app-store";
+
 import {
   BarChart3,
   CalendarDays,
@@ -18,15 +20,22 @@ export const Route = createFileRoute("/admin")({
 });
 
 const nav = [
-  { to: "/admin" as const, label: "Dashboard", icon: BarChart3 },
-  { to: "/admin" as const, label: "Agenda", icon: CalendarDays },
-  { to: "/admin" as const, label: "Alumnos", icon: Users2 },
-  { to: "/admin" as const, label: "Facturación", icon: CreditCard },
+  { label: "Dashboard", icon: BarChart3, soon: false },
+  { label: "Agenda", icon: CalendarDays, soon: true },
+  { label: "Alumnos", icon: Users2, soon: true },
+  { label: "Facturación", icon: CreditCard, soon: true },
 ];
+
 
 function AdminLayout() {
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const setActiveRole = useAppStore((s) => s.setActiveRole);
+
+  useEffect(() => {
+    setActiveRole("admin");
+  }, [setActiveRole]);
+
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -46,18 +55,34 @@ function AdminLayout() {
           </button>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-4">
-          {nav.map((item, i) => {
-            const active = i === 0 && pathname === "/admin";
+          {nav.map((item) => {
+            const active = !item.soon && pathname === "/admin";
+            const classes = `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+              active
+                ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            }`;
+            if (item.soon) {
+              return (
+                <span
+                  key={item.label}
+                  className={`${classes} cursor-not-allowed opacity-60`}
+                  aria-disabled
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                  <span className="ml-auto rounded-full bg-sidebar-accent px-2 py-0.5 text-[10px] font-semibold">
+                    Pronto
+                  </span>
+                </span>
+              );
+            }
             return (
               <Link
                 key={item.label}
-                to={item.to}
+                to="/admin"
                 onClick={() => setOpen(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                }`}
+                className={classes}
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
@@ -65,6 +90,7 @@ function AdminLayout() {
             );
           })}
         </nav>
+
         <div className="border-t border-sidebar-border p-4 text-xs text-sidebar-foreground/60">
           Sede Miraflores · Plan Pro
         </div>

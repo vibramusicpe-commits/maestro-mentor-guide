@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAppStore } from "@/store/app-store";
 import { motion } from "motion/react";
 import { ArrowRight, Building2, Guitar, Users, Music4 } from "lucide-react";
 
@@ -96,8 +97,27 @@ function Landing() {
               </motion.div>
             ))}
           </div>
+
+          <ResumeLink />
         </div>
+
       </div>
     </main>
+  );
+}
+
+function ResumeLink() {
+  const activeRole = useAppStore((s) => s.activeRole);
+  const target =
+    activeRole === "teacher" ? "/teacher" : activeRole === "family" ? "/family" : "/admin";
+
+  return (
+    <p className="mt-8 text-sm text-muted-foreground">
+      La última vez estuviste en{" "}
+      <Link to={target} className="font-semibold text-primary underline-offset-4 hover:underline">
+        {activeRole === "teacher" ? "Profesor" : activeRole === "family" ? "Familia" : "Admin"}
+      </Link>
+      .
+    </p>
   );
 }
