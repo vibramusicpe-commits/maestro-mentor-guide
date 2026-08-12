@@ -13,8 +13,20 @@ import {
   type PayrollWeek,
   type StudentRow,
 } from "./seeds";
+import {
+  adminStudents,
+  initialInvoices,
+  initialSchedule,
+  type AdminStudent,
+  type Invoice,
+  type ScheduledLesson,
+  type StudentStatus,
+  type WeekDay,
+} from "./admin-seeds";
 
 export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow };
+export type { AdminStudent, Invoice, ScheduledLesson, StudentStatus, WeekDay };
+
 
 export type Role = "admin" | "teacher" | "family";
 export type SyncItem = { id: string; label: string };
