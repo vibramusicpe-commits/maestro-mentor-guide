@@ -1,15 +1,46 @@
-import { createFileRoute, Outlet, Link } from "@tanstack/react-router";
+import { createFileRoute, Outlet, Link, redirect } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Cloud, CloudOff, ClipboardList, Users2, Wallet } from "lucide-react";
+import { Cloud, CloudOff, ClipboardList, Users2, Wallet, CalendarDays } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { RoleSwitcher } from "@/components/role-switcher";
 
 export const Route = createFileRoute("/teacher")({
+  // ─────────────────────────────────────────────────
+  // ROUTE GUARD — Kiosco del Profesor
+  // Roles permitidos: teacher
+  // Admins pueden entrar para soporte, redirigidos igual a su ruta.
+  // ─────────────────────────────────────────────────
+  beforeLoad: () => {
+    const { activeRole, isAuthenticated } = useAppStore.getState();
+
+    // 🔒 GUARD DE AUTENTICACIÓN: Sin iniciar sesión → Redirige al Login (Landing)
+    if (!isAuthenticated) {
+      throw redirect({ to: "/", replace: true });
+    }
+
+    // Sin sesión → Landing
+    if (!activeRole || activeRole === ("admin" as unknown)) {
+      throw redirect({ to: "/", replace: true });
+    }
+
+    // Familia → su portal
+    if (activeRole === "family") {
+      throw redirect({ to: "/family", replace: true });
+    }
+
+    // Admin/Staff intentando entrar al kiosco → redirige a admin
+    if (activeRole === "super_admin" || activeRole === "staff") {
+      throw redirect({ to: "/admin", replace: true });
+    }
+
+    // activeRole === 'teacher' → pasa
+  },
   component: TeacherLayout,
 });
 
 const nav = [
   { to: "/teacher" as const, label: "Kiosco", icon: ClipboardList, exact: true },
+  { to: "/teacher/agenda" as const, label: "Agenda", icon: CalendarDays, exact: false },
   { to: "/teacher/alumnos" as const, label: "Alumnos", icon: Users2, exact: false },
   { to: "/teacher/nomina" as const, label: "Nómina", icon: Wallet, exact: false },
 ];
@@ -17,6 +48,7 @@ const nav = [
 function TeacherLayout() {
   const syncing = useAppStore((s) => s.syncQueue.length > 0);
   const setActiveRole = useAppStore((s) => s.setActiveRole);
+  const currentUser = useAppStore((s) => s.currentUser);
 
   useEffect(() => {
     setActiveRole("teacher");
@@ -27,7 +59,7 @@ function TeacherLayout() {
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background shadow-xl sm:min-h-[80vh] sm:rounded-3xl sm:border sm:border-border">
         <header className="sticky top-0 z-20 flex items-center gap-3 rounded-t-3xl border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">Prof. Elena Márquez</p>
+            <p className="truncate text-sm font-semibold">{currentUser?.name ?? "Profesor/a Vibra"}</p>
             <p className="truncate text-xs text-muted-foreground">Sede Miraflores · Hoy</p>
           </div>
           <span
@@ -63,10 +95,6 @@ function TeacherLayout() {
             </Link>
           ))}
         </nav>
-      </div>
-
-      <div className="mt-4 flex justify-center pb-6">
-        <RoleSwitcher />
       </div>
     </div>
   );

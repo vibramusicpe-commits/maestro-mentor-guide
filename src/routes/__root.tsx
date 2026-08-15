@@ -79,11 +79,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Cadencia — Gestión de academias de música" },
+      { title: "VM STAFF — Sistema Integral Vibra Music" },
       {
         name: "description",
         content:
-          "Plataforma de gestión para academias de música: torre de control para dirección, kiosco móvil para profesores y portal para familias.",
+          "Sistema Integral de Gestión de Vibra Music para Dirección, Secretaría, Docentes y Familias.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

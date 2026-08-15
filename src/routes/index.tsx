@@ -1,158 +1,250 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAppStore, type Role } from "@/store/app-store";
 import { motion } from "motion/react";
-import { ArrowRight, Building2, Guitar, Users, Music4 } from "lucide-react";
+import { Music4, ShieldCheck, UserCheck, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useState } from "react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Cadencia — Un sistema, tres experiencias" },
+      { title: "VM STAFF — Acceso al Panel Vibra Music" },
       {
         name: "description",
         content:
-          "Elige tu experiencia: torre de control para dirección, kiosco móvil para profesores o portal familiar con pagos y práctica.",
+          "Acceso exclusivo para el equipo de dirección y administración de Vibra Music.",
       },
-      { property: "og:title", content: "Cadencia — Un sistema, tres experiencias" },
-      {
-        property: "og:description",
-        content:
-          "Gestión de academias de música con vistas dedicadas para dirección, profesores y familias.",
-      },
+      { property: "og:title", content: "VM STAFF — Vibra Music" },
     ],
   }),
-  component: Landing,
+  component: AdminLoginPage,
 });
 
-import { ShieldCheck, UserCheck } from "lucide-react";
+// ────────────────────────────────────────────────────────────
+// Esta página es SOLO para la Dueña y la Secretaria.
+// Profesores y Familias acceden por su link de invitación.
+// ────────────────────────────────────────────────────────────
 
-const roles: {
-  to: "/admin" | "/teacher" | "/family";
-  role: Role;
-  icon: typeof Building2;
-  name: string;
+type AdminRole = "super_admin" | "staff";
+
+const adminRoles: {
+  role: AdminRole;
+  icon: typeof ShieldCheck;
+  label: string;
   tag: string;
-  desc: string;
   accent: string;
-  ring: string;
 }[] = [
   {
-    to: "/admin",
     role: "super_admin",
     icon: ShieldCheck,
-    name: "Super Admin (Dueña)",
+    label: "Dueña (Super Admin)",
     tag: "Acceso Total",
-    desc: "Ingresos, morosidad, facturación, ocupación de salas y alertas operativas.",
     accent: "text-info",
-    ring: "hover:border-info/50",
   },
   {
-    to: "/admin",
     role: "staff",
     icon: UserCheck,
-    name: "Staff (Secretaria)",
-    tag: "Operaciones y Agenda",
-    desc: "Gestión de alumnos, agenda de clases y asistencia sin métricas ni módulos de facturación.",
-    accent: "text-accent-foreground",
-    ring: "hover:border-accent-foreground/50",
-  },
-  {
-    to: "/teacher",
-    role: "teacher",
-    icon: Guitar,
-    name: "Profesor",
-    tag: "Kiosco móvil",
-    desc: "Asistencia en dos toques, notas privadas y públicas, y sincronización optimista.",
+    label: "Secretaria (Staff)",
+    tag: "Gestión Operativa",
     accent: "text-primary",
-    ring: "hover:border-primary/50",
-  },
-  {
-    to: "/family",
-    role: "family",
-    icon: Users,
-    name: "Familia",
-    tag: "Portal del hogar",
-    desc: "Un solo cobro para todos los hijos, créditos de recuperación y registro de práctica.",
-    accent: "text-warning",
-    ring: "hover:border-warning/50",
   },
 ];
 
-function Landing() {
-  const setActiveRole = useAppStore((s) => s.setActiveRole);
+function AdminLoginPage() {
+  const navigate = useNavigate();
+  const { login, isAuthenticated, activeRole, logout, currentUser } = useAppStore();
+
+  const [selectedRole, setSelectedRole] = useState<AdminRole | null>(null);
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Si ya está autenticado, mostrar su portal correspondiente
+  if (isAuthenticated && currentUser) {
+    const isTeacher = activeRole === "teacher";
+    const isFamily = activeRole === "family";
+    const isAdmin = activeRole === "super_admin" || activeRole === "staff";
+
+    const targetUrl = isTeacher ? "/teacher" : isFamily ? "/family" : "/admin";
+    const roleTitle = isTeacher
+      ? "Profesor/a"
+      : isFamily
+      ? "Familia / Alumno"
+      : activeRole === "super_admin"
+      ? "Dueña (Dirección)"
+      : "Secretaria (Staff)";
+
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm text-center">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+            <Music4 className="h-7 w-7 text-primary" />
+          </div>
+          <h1 className="mt-4 text-xl font-bold text-foreground">
+            Hola, {currentUser?.name} 👋
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Tienes una sesión activa como{" "}
+            <span className="font-semibold text-foreground">{roleTitle}</span>.
+          </p>
+          <div className="mt-6 flex flex-col gap-2">
+            <Link
+              to={targetUrl}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Ir a tu Portal ({isTeacher ? "Kiosco" : isFamily ? "Mi Cuenta" : "Administración"}) →
+            </Link>
+            <button
+              onClick={() => logout()}
+              className="text-xs text-muted-foreground hover:text-destructive underline-offset-4 hover:underline"
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedRole) return;
+    setErrorMsg("");
+    setSubmitting(true);
+
+    try {
+      // Credenciales oficiales de seguridad para acceso de dirección
+      const validCredentials: Record<AdminRole, { pw: string; email: string; name: string }> = {
+        super_admin: {
+          pw: "VibraDuena2026!",
+          email: "direccion@vibramusic.pe",
+          name: "Dirección (Dueña)",
+        },
+        staff: {
+          pw: "NayeliVibra2026*",
+          email: "nayeli@vibramusic.pe",
+          name: "Nayeli (Secretaria)",
+        },
+      };
+
+      const expected = validCredentials[selectedRole];
+      if (password !== expected.pw) {
+        setErrorMsg("Contraseña incorrecta para este perfil. Verifica tus credenciales.");
+        return;
+      }
+
+      login(expected.email, selectedRole);
+      navigate({ to: "/admin" });
+    } catch {
+      setErrorMsg("Error al iniciar sesión. Intenta nuevamente.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="relative overflow-hidden">
-        <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
-        <div className="relative mx-auto max-w-5xl px-6 py-20 sm:py-28">
-          <div className="flex items-center gap-2 text-sm font-semibold tracking-wide text-primary">
-            <Music4 className="h-5 w-5" />
-            CADENCIA
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+      <div className="w-full max-w-sm">
+        {/* Header */}
+        <div className="mb-8 flex flex-col items-center gap-2">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md">
+            <Music4 className="h-7 w-7" />
           </div>
-          <h1 className="mt-6 max-w-3xl text-4xl font-bold leading-tight sm:text-6xl">
-            Una academia de música. Vistas adaptadas por rol.
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg text-muted-foreground">
-            Dirección, secretaria, profesorado y familias comparten los mismos datos pero necesitan
-            interfaces adaptadas a su rol y privacidad.
+          <p className="text-sm font-bold tracking-widest text-primary uppercase">VM STAFF</p>
+          <p className="text-xs text-muted-foreground">Vibra Music — Panel de Gestión</p>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <h1 className="text-lg font-bold text-foreground">Acceso al equipo</h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Selecciona tu perfil e ingresa tu contraseña.
           </p>
 
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {roles.map((role, i) => (
-              <motion.div
-                key={role.role}
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08, duration: 0.4 }}
+          {/* Selector de rol */}
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {adminRoles.map((r) => (
+              <button
+                key={r.role}
+                type="button"
+                onClick={() => { setSelectedRole(r.role); setErrorMsg(""); }}
+                className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all ${
+                  selectedRole === r.role
+                    ? "border-primary bg-primary/5 ring-2 ring-primary/30"
+                    : "border-border bg-background hover:border-primary/40"
+                }`}
               >
-                <Link
-                  to={role.to}
-                  onClick={() => setActiveRole(role.role)}
-                  className={`group flex h-full flex-col rounded-2xl border border-border bg-card p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg ${role.ring}`}
-                >
-                  <role.icon className={`h-7 w-7 ${role.accent}`} />
-                  <p className="mt-4 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    {role.tag}
-                  </p>
-                  <h2 className="mt-1 text-lg font-semibold">{role.name}</h2>
-                  <p className="mt-2 flex-1 text-xs text-muted-foreground">{role.desc}</p>
-                  <span className="mt-5 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    Entrar
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                  </span>
-                </Link>
-              </motion.div>
+                <r.icon className={`h-5 w-5 ${r.accent}`} />
+                <span className="text-[11px] font-semibold leading-tight text-foreground">
+                  {r.label}
+                </span>
+                <span className="text-[10px] text-muted-foreground">{r.tag}</span>
+              </button>
             ))}
           </div>
 
-          <ResumeLink />
+          {/* Campo de contraseña */}
+          {selectedRole && (
+            <form onSubmit={handleLogin} className="mt-4 space-y-3">
+              <div>
+                <label htmlFor="admin-password" className="block text-xs font-semibold text-foreground mb-1.5">
+                  Contraseña
+                </label>
+                <div className="relative">
+                  <input
+                    id="admin-password"
+                    type={showPw ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Tu contraseña de acceso"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2.5 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground"
+                    autoComplete="current-password"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showPw ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  >
+                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {errorMsg && (
+                <p className="text-xs text-destructive font-medium">{errorMsg}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60 cursor-pointer"
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Lock className="h-4 w-4" />
+                )}
+                Ingresar al panel
+              </button>
+            </form>
+          )}
         </div>
+
+        {/* Nota para Profesores y Familias */}
+        <div className="mt-4 rounded-xl border border-border bg-muted/50 px-4 py-3 text-center">
+          <p className="text-xs text-muted-foreground">
+            ¿Eres Profesor o Apoderado?{" "}
+            <span className="font-semibold text-foreground">
+              Usa el enlace de acceso que te enviamos por WhatsApp.
+            </span>
+          </p>
+        </div>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          🔒 Panel privado — Solo equipo Vibra Music
+        </p>
       </div>
-    </main>
-  );
-}
-
-function ResumeLink() {
-  const activeRole = useAppStore((s) => s.activeRole);
-  const target =
-    activeRole === "teacher" ? "/teacher" : activeRole === "family" ? "/family" : "/admin";
-
-  const label =
-    activeRole === "super_admin"
-      ? "Super Admin (Dueña)"
-      : activeRole === "staff"
-        ? "Staff (Secretaria)"
-        : activeRole === "teacher"
-          ? "Profesor"
-          : "Familia";
-
-  return (
-    <p className="mt-8 text-sm text-muted-foreground">
-      La última vez estuviste en{" "}
-      <Link to={target} className="font-semibold text-primary underline-offset-4 hover:underline">
-        {label}
-      </Link>
-      .
-    </p>
+    </div>
   );
 }

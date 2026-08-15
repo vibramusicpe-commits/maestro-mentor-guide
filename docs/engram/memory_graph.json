@@ -1,50 +1,52 @@
 {
-  "system": "Cadencia / Maestro Mentor Guide - Vibra Music",
-  "version": "1.0.0",
-  "updatedAt": "2026-08-12T15:32:00-05:00",
-  "nodes": [
-    {
-      "id": "role_super_admin",
-      "label": "Super Admin (Dueña)",
-      "permissions": ["all", "incomes", "expenses", "bank_accounts", "margins"]
+  "system": "Cadencia - Vibra Music Management Platform",
+  "version": "2.1.0-prod",
+  "last_updated": "2026-08-15T10:31:00-05:00",
+  "database": {
+    "provider": "Insforge PostgreSQL (MCP)",
+    "schema": "public",
+    "total_tables": 18,
+    "core_tables": [
+      "students",
+      "lessons",
+      "invoices",
+      "attendance_logs",
+      "payment_audit_logs",
+      "invitations",
+      "user_passwords",
+      "daily_closings",
+      "teacher_time_logs"
+    ]
+  },
+  "modules": {
+    "secretary_functions": {
+      "f1_attendance": "Marcado rápido y recálculo reactivo de attendanceRate",
+      "f2_matriculas": "Alta con cálculo de vigencia temporal y agendado +Horario",
+      "f3_reprogramaciones": "Scope: Solo esta semana vs Todo el mes",
+      "f4_whatsapp": "Integración directa con wa.me para bienvenida, cobro y recibos",
+      "f5_retiros": "Pausas y Bajas con historial de reingresantes",
+      "f6_cobranzas": "Abonos parciales/totales con N° operación y bitácora auditada"
     },
-    {
-      "id": "role_staff",
-      "label": "Staff (Secretaria)",
-      "permissions": ["students", "modalities", "agenda", "record_income", "notify_due_soon", "birthdays"],
-      "restrictions": ["expenses", "bank_accounts", "global_margins"]
+    "deletion_security": {
+      "staff_restriction": "No puede eliminar permanentemente. Genera DeletionRequest.",
+      "super_admin_actions": ["Aceptar y Eliminar", "Denegar", "Ver Reporte con Timestamp"]
     },
-    {
-      "id": "modality_regular",
-      "label": "Regular",
-      "details": "8 clases al mes, 2 veces por semana, 45 min por clase"
+    "schedule": {
+      "path": "src/components/admin/agenda-board.tsx",
+      "status": "clean_production",
+      "features": ["Matriz 3 Columnas Docente", "Personalizadas Celeste con Puntitos de Edad", "No Recuperación en Personalizadas", "Automated School Bell"]
     },
-    {
-      "id": "modality_intensivo",
-      "label": "Intensivo",
-      "details": "4 clases al mes, 1 vez por semana, 90 min por clase"
-    },
-    {
-      "id": "credit_system",
-      "label": "Sistema de Créditos por Falta",
-      "logic": "Ausencia justificada sumará +1 crédito; Asistencia a clase de recuperación restará -1 crédito"
-    },
-    {
-      "id": "payment_notifications",
-      "label": "Notificación a 2 Días de Vencer",
-      "logic": "Aviso automático vía WhatsApp/Email cuando restan <= 2 días para la fecha fija de pago"
-    },
-    {
-      "id": "payment_methods",
-      "label": "Medios de Pago Admitidos",
-      "options": ["Yape", "Efectivo", "Transferencia"]
+    "students": {
+      "path": "src/components/admin/students-table.tsx",
+      "status": "clean_production"
     }
+  },
+  "graphify_graphs": [
+    "docs/graphify/data_flow_graph.mermaid",
+    "docs/graphify/dependency_graph.mermaid"
   ],
-  "edges": [
-    { "from": "role_staff", "to": "modality_regular", "relation": "manages" },
-    { "from": "role_staff", "to": "modality_intensivo", "relation": "manages" },
-    { "from": "role_staff", "to": "credit_system", "relation": "administers" },
-    { "from": "role_staff", "to": "payment_notifications", "relation": "triggers" },
-    { "from": "role_staff", "to": "payment_methods", "relation": "registers" }
+  "engram_memory": [
+    "docs/engram/ENGRAM.md",
+    "docs/engram/memory_graph.json"
   ]
 }

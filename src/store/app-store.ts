@@ -26,19 +26,41 @@ import {
   type ScheduledLesson,
   type StudentStatus,
   type WeekDay,
+  type VibraPlanType,
+  type MatriculaType,
+  VIBRA_PRICING,
 } from "./admin-seeds";
 
 export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow };
-export type { AdminStudent, EmergencyContact, Invoice, InvoiceStatus, LessonModality, PaymentMethod, ScheduledLesson, StudentStatus, WeekDay };
+export type {
+  AdminStudent,
+  AgeCategory,
+  EmergencyContact,
+  Invoice,
+  InvoiceStatus,
+  LessonModality,
+  PaymentMethod,
+  ScheduledLesson,
+  StudentStatus,
+  WeekDay,
+  VibraPlanType,
+  MatriculaType,
+};
+export { VIBRA_PRICING };
 
 
 export type Role = "super_admin" | "staff" | "teacher" | "family" | "admin";
 export type SyncItem = { id: string; label: string };
 
 type AppState = {
-  // Rol activo
+  // Auth & Rol activo
   activeRole: Role;
+  isAuthenticated: boolean;
+  currentUser: { email: string; name: string } | null;
   setActiveRole: (role: Role) => void;
+  updateUserName: (name: string) => void;
+  login: (email: string, role: Role, customName?: string) => void;
+  logout: () => void;
 
   // Profesor
   lessons: Lesson[];
@@ -64,13 +86,23 @@ type AppState = {
   schedule: ScheduledLesson[];
   adminStudents: AdminStudent[];
   invoices: Invoice[];
-  rescheduleLesson: (id: string, day: WeekDay, time: string) => void;
+  rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number) => void;
   cancelLesson: (id: string) => void;
+  removeLessonFromSchedule: (id: string) => void;
+  addLessonToSchedule: (lesson: Omit<ScheduledLesson, "id">) => void;
+  importScheduleFromCSV: (newLessons: ScheduledLesson[]) => void;
+  clearSchedule: () => void;
+  importStudentsFromCSV: (newStudents: AdminStudent[]) => void;
+  clearStudents: () => void;
+  deleteStudent: (id: string) => void;
+  deleteStudents: (ids: string[]) => void;
+  updateStudentDetails: (id: string, updates: Partial<AdminStudent>) => void;
   setStudentStatus: (id: string, status: StudentStatus) => void;
   assignTeacher: (id: string, teacher: string) => void;
   setStudentModality: (id: string, modality: LessonModality) => void;
   addStudentCredit: (id: string) => void;
-  consumeStudentCredit: (id: string) => void;  markInvoicePaid: (id: string, method?: PaymentMethod) => void;
+  consumeStudentCredit: (id: string) => void;
+  markInvoicePaid: (id: string, method?: PaymentMethod) => void;
   recordPaymentAbono: (
     id: string,
     amount: number,
@@ -78,8 +110,60 @@ type AppState = {
     voucherRef?: string,
     note?: string,
   ) => void;
-  remindInvoice: (id: string) => void;
-  generateMonthlyInvoices: () => number;
+  // Configuración de Timbre Acústico (school bell.mp3)
+  chimeSettings: {
+    autoPlayEnabled: boolean;
+    playOnClassStart: boolean;
+    playOnClassEnd: boolean;
+    volume: number; // 0 a 1
+  };
+  setChimeSettings: (settings: Partial<{ autoPlayEnabled: boolean; playOnClassStart: boolean; playOnClassEnd: boolean; volume: number }>) => void;
+  playOfficialChime: () => void;
+
+  // Alertas / Incidencias operativas de Alumnos (Dashboard Alerts)
+  studentAlerts: Array<{
+    id: string;
+    studentId?: string;
+    studentName: string;
+    type: "salud" | "comportamiento" | "logro" | "coordinacion" | "otro";
+    severity: "alta" | "media" | "baja" | "positiva";
+    message: string;
+    createdAt: string;
+    status: "pendiente" | "resuelto";
+  }>;
+  addStudentAlert: (alert: {
+    studentId?: string;
+    studentName: string;
+    type: "salud" | "comportamiento" | "logro" | "coordinacion" | "otro";
+    severity: "alta" | "media" | "baja" | "positiva";
+    message: string;
+  }) => void;
+  resolveStudentAlert: (alertId: string) => void;
+
+  // Sistema de Solicitudes de Eliminación Protegidas (Nayeli solicita -> Dueña aprueba/deniega con reporte)
+  deletionRequests: Array<{
+    id: string;
+    entityType: "student" | "lesson" | "invoice" | "alert";
+    entityId: string;
+    entityName: string;
+    details: string;
+    requestedBy: string;
+    requestedAt: string; // ISO o fecha legible
+    reason: string;
+    status: "pendiente" | "aprobado" | "rechazado";
+    reviewedBy?: string;
+    reviewedAt?: string;
+    reviewNotes?: string;
+  }>;
+  createDeletionRequest: (request: {
+    entityType: "student" | "lesson" | "invoice" | "alert";
+    entityId: string;
+    entityName: string;
+    details: string;
+    reason: string;
+  }) => void;
+  approveDeletionRequest: (requestId: string, notes?: string) => void;
+  rejectDeletionRequest: (requestId: string, notes?: string) => void;
 };
 // Crea un item de cola optimista que se vacía solo (simula la escritura en backend).
 function queueItem(label: string): SyncItem {
@@ -93,8 +177,32 @@ function queueItem(label: string): SyncItem {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      activeRole: "admin",
+      activeRole: "super_admin",
+      isAuthenticated: false,
+      currentUser: null,
       setActiveRole: (role) => set({ activeRole: role }),
+      updateUserName: (name: string) =>
+        set((s) => ({
+          currentUser: s.currentUser ? { ...s.currentUser, name } : { email: "usuario@vibramusic.pe", name },
+        })),
+      login: (email, role, customName) =>
+        set({
+          activeRole: role,
+          isAuthenticated: true,
+          currentUser: {
+            email,
+            name:
+              customName ||
+              (role === "super_admin"
+                ? "Dirección (Dueña)"
+                : role === "staff"
+                ? "Nayeli"
+                : role === "teacher"
+                ? "Prof. Jeremy"
+                : "Familia García"),
+          },
+        }),
+      logout: () => set({ isAuthenticated: false, currentUser: null }),
 
       lessons: initialLessons,
       students: initialStudents,
@@ -123,7 +231,7 @@ export const useAppStore = create<AppState>()(
         set(kind === "private" ? { privateNote: value } : { publicNote: value }),
 
       kids: initialKids,
-      activeKidId: initialKids[0]!.id,
+      activeKidId: initialKids[0]?.id ?? "",
       billing: initialBilling,
       balance: initialBilling.reduce((acc, l) => acc + l.amount, 0),
       setActiveKid: (id) => set({ activeKidId: id }),
@@ -145,22 +253,135 @@ export const useAppStore = create<AppState>()(
       schedule: initialSchedule,
       adminStudents: adminStudents,
       invoices: initialInvoices,
-      rescheduleLesson: (id, day, time) =>
-        set((s) => ({
-          schedule: s.schedule.map((l) => (l.id === id ? { ...l, day, time } : l)),
-          syncQueue: [...s.syncQueue, queueItem(`Clase reprogramada · ${day} ${time}`)],
-        })),
+      rescheduleLesson: (id, day, time, scope = "all", targetWeekIndex) =>
+        set((s) => {
+          const targetLesson = s.schedule.find((l) => l.id === id);
+          if (!targetLesson) return s;
+
+          if (scope === "only-this-week" && targetWeekIndex !== undefined) {
+            // Si es solo para esta semana:
+            // Si la lección no tenía weekIndex (aplicaba a todas las semanas), creamos una copia específica para esta semana
+            // y marcamos las otras semanas conservando el horario previo.
+            const updated = s.schedule.map((l) => {
+              if (l.id === id) {
+                return { ...l, day, time, weekIndex: targetWeekIndex };
+              }
+              return l;
+            });
+            return {
+              schedule: updated,
+              syncQueue: [...s.syncQueue, queueItem(`Clase reprogramada (Solo Semana ${targetWeekIndex + 1}) · ${day} ${time}`)],
+            };
+          }
+
+          // Por defecto: Aplica a todo el mes (las 4 semanas)
+          return {
+            schedule: s.schedule.map((l) => (l.id === id ? { ...l, day, time, weekIndex: undefined } : l)),
+            syncQueue: [...s.syncQueue, queueItem(`Clase reprogramada (Mes completo) · ${day} ${time}`)],
+          };
+        }),
       cancelLesson: (id) =>
+        set((s) => {
+          const targetLesson = s.schedule.find((l) => l.id === id);
+          const isPersonalizada = targetLesson?.category === "PERSONALIZADA";
+
+          return {
+            schedule: s.schedule.map((l) =>
+              l.id === id ? { ...l, status: "cancelada" as const } : l,
+            ),
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(
+                isPersonalizada
+                  ? "Clase personalizada cancelada (Sin crédito según política)"
+                  : "Clase regular cancelada · crédito emitido"
+              ),
+            ],
+            // Si es PERSONALIZADA, NUNCA se emite crédito de recuperación
+            adminStudents: isPersonalizada
+              ? s.adminStudents
+              : s.adminStudents.map((st) =>
+                  st.name === targetLesson?.student
+                    ? { ...st, makeupCredits: st.makeupCredits + 1 }
+                    : st,
+                ),
+          };
+        }),
+      removeLessonFromSchedule: (id) =>
         set((s) => ({
-          schedule: s.schedule.map((l) =>
-            l.id === id ? { ...l, status: "cancelada" as const } : l,
-          ),
-          syncQueue: [...s.syncQueue, queueItem("Clase cancelada · crédito emitido")],
-          adminStudents: s.adminStudents.map((st) =>
-            st.name === s.schedule.find((l) => l.id === id)?.student
-              ? { ...st, makeupCredits: st.makeupCredits + 1 }
-              : st,
-          ),
+          schedule: s.schedule.filter((l) => l.id !== id),
+          syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
+        })),
+      addLessonToSchedule: (lesson) =>
+        set((s) => {
+          const newLesson: ScheduledLesson = {
+            ...lesson,
+            id: `sch-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          };
+          return {
+            schedule: [...s.schedule, newLesson],
+            syncQueue: [...s.syncQueue, queueItem(`Clase programada: ${lesson.student} (${lesson.day} ${lesson.time})`)],
+          };
+        }),
+      importScheduleFromCSV: (newLessons) =>
+        set((s) => ({
+          schedule: newLessons,
+          syncQueue: [
+            ...s.syncQueue,
+            queueItem(`Importación masiva CSV: ${newLessons.length} clases cargadas al horario`),
+          ],
+        })),
+      clearSchedule: () =>
+        set((s) => ({
+          schedule: [],
+          syncQueue: [...s.syncQueue, queueItem("Horario limpiado por completo")],
+        })),
+      importStudentsFromCSV: (newStudents) =>
+        set((s) => ({
+          adminStudents: newStudents,
+          syncQueue: [
+            ...s.syncQueue,
+            queueItem(`Importación masiva CSV: ${newStudents.length} alumnos registrados`),
+          ],
+        })),
+      clearStudents: () =>
+        set((s) => ({
+          adminStudents: [],
+          syncQueue: [...s.syncQueue, queueItem("Directorio de alumnos limpiado por completo")],
+        })),
+      deleteStudent: (id) =>
+        set((s) => {
+          const studentToDelete = s.adminStudents.find((st) => st.id === id);
+          const studentName = studentToDelete?.name;
+
+          return {
+            adminStudents: s.adminStudents.filter((st) => st.id !== id),
+            // Eliminación en cascada del horario del alumno
+            schedule: studentName
+              ? s.schedule.filter((l) => l.student.toLowerCase() !== studentName.toLowerCase())
+              : s.schedule,
+            syncQueue: [...s.syncQueue, queueItem(`Alumno ${studentName || id} y sus horarios eliminados`)],
+          };
+        }),
+      deleteStudents: (ids) =>
+        set((s) => {
+          const namesToDelete = s.adminStudents
+            .filter((st) => ids.includes(st.id))
+            .map((st) => st.name.toLowerCase());
+
+          return {
+            adminStudents: s.adminStudents.filter((st) => !ids.includes(st.id)),
+            // Eliminación en cascada del horario de todos los alumnos seleccionados
+            schedule: s.schedule.filter(
+              (l) => !namesToDelete.includes(l.student.toLowerCase()),
+            ),
+            syncQueue: [...s.syncQueue, queueItem(`${ids.length} alumnos y sus respectivos horarios eliminados`)],
+          };
+        }),
+      updateStudentDetails: (id, updates) =>
+        set((s) => ({
+          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, ...updates } : st)),
+          syncQueue: [...s.syncQueue, queueItem("Ficha de alumno actualizada")],
         })),
       setStudentStatus: (id, status) =>
         set((s) => ({
@@ -264,17 +485,218 @@ export const useAppStore = create<AppState>()(
           syncQueue: [...s.syncQueue, queueItem("Recordatorio enviado")],
         })),
       generateMonthlyInvoices: (): number => {
-        const pending = get().invoices.filter((i: Invoice) => i.status !== "pagado");
-        set((s) => ({ syncQueue: [...s.syncQueue, queueItem("Recibos del mes generados")] }));
-        return pending.length;
-      },
+        const currentStudents = get().adminStudents;
+        const generatedInvoices: Invoice[] = currentStudents.map((st, idx) => {
+          const planAmount = st.planPrice || (st.planType === "Trimestral" ? 289.4 : st.planType === "Anual" ? 263.2 : 329.0);
+          const conceptLabel = `Mensualidad ${st.planType || "Mensual"} · ${st.instrument} (${st.teacher})`;
+          
+          return {
+            id: `inv-${Date.now()}-${idx}`,
+            family: st.family || `Familia ${st.name.split(" ")[1] || st.name}`,
+            concept: conceptLabel,
+            students: 1,
+            amount: planAmount,
+            amountPaid: 0,
+            remainingBalance: planAmount,
+            dueDate: "2026-08-20",
+            daysToDue: 6,
+            status: "pendiente" as const,
+            paymentMethod: null,
+            remindedAt: null,
+            paymentLogs: [],
+          };
+        });
 
+        set((s) => ({
+          invoices: generatedInvoices,
+          syncQueue: [...s.syncQueue, queueItem(`Recibos del mes generados para ${generatedInvoices.length} familias`)],
+        }));
+        return generatedInvoices.length;
+      },
+      addNewStudent: (newSt) =>
+        set((s) => {
+          const created: AdminStudent = {
+            id: `st-${Date.now()}`,
+            ...newSt,
+            risk: 10,
+            joinedAt: new Date().toLocaleDateString("es-PE"),
+            attendanceRate: 100,
+            makeupCredits: 0,
+            balance: 0,
+            recentAttendance: ["presente"],
+            teacherNote: "Alumno nuevo matriculado.",
+          };
+          return {
+            adminStudents: [created, ...s.adminStudents],
+            syncQueue: [...s.syncQueue, queueItem(`Nuevo alumno matriculado · ${created.name}`)],
+          };
+        }),
+
+      // Configuración de Timbre Acústico Oficial
+      chimeSettings: {
+        autoPlayEnabled: true,
+        playOnClassStart: true,
+        playOnClassEnd: true,
+        volume: 0.8,
+      },
+      setChimeSettings: (settings) =>
+        set((s) => ({
+          chimeSettings: { ...s.chimeSettings, ...settings },
+        })),
+      playOfficialChime: () => {
+        try {
+          const audio = new Audio("/school bell.mp3");
+          const vol = get().chimeSettings?.volume ?? 0.8;
+          audio.volume = Math.max(0, Math.min(1, vol));
+          audio.play().catch((err) => {
+            console.warn("Autoplay bloqueado o archivo no reproducible, usando fallback Web Audio API:", err);
+          });
+        } catch (e) {
+          console.error("Error reproduciendo timbre oficial:", e);
+        }
+      },
+      // Alertas / Incidencias operativas de Alumnos
+      studentAlerts: [],
+      addStudentAlert: (alert) =>
+        set((s) => {
+          const newAlert = {
+            id: `st-alert-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            ...alert,
+            createdAt: "Hoy",
+            status: "pendiente" as const,
+          };
+          return {
+            studentAlerts: [newAlert, ...s.studentAlerts],
+            syncQueue: [...s.syncQueue, queueItem(`Alerta registrada para ${alert.studentName}`)],
+          };
+        }),
+      resolveStudentAlert: (alertId) =>
+        set((s) => ({
+          studentAlerts: s.studentAlerts.map((a) =>
+            a.id === alertId ? { ...a, status: "resuelto" as const } : a,
+          ),
+          syncQueue: [...s.syncQueue, queueItem("Alerta de alumno resuelta")],
+        })),
+
+      // Sistema de Solicitudes de Eliminación Protegidas
+      deletionRequests: [],
+      createDeletionRequest: (req) =>
+        set((s) => {
+          const now = new Date();
+          const formattedDate = `${now.toLocaleDateString("es-PE")} ${now.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`;
+          const newReq = {
+            id: `del-req-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            ...req,
+            requestedBy: s.activeRole === "staff" ? "Nayeli (Secretaría)" : "Dirección (Dueña)",
+            requestedAt: formattedDate,
+            status: "pendiente" as const,
+          };
+          return {
+            deletionRequests: [newReq, ...s.deletionRequests],
+            syncQueue: [...s.syncQueue, queueItem(`Solicitud de eliminación enviada a Dirección · ${req.entityName}`)],
+          };
+        }),
+
+      approveDeletionRequest: (requestId, notes) =>
+        set((s) => {
+          const req = s.deletionRequests.find((r) => r.id === requestId);
+          if (!req) return s;
+
+          const now = new Date();
+          const formattedDate = `${now.toLocaleDateString("es-PE")} ${now.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`;
+
+          // 1. Ejecutar la eliminación real según la entidad
+          let updatedStudents = s.adminStudents;
+          let updatedSchedule = s.schedule;
+          let updatedInvoices = s.invoices;
+          let updatedAlerts = s.studentAlerts;
+
+          if (req.entityType === "student") {
+            const studentToDelete = s.adminStudents.find((st) => st.id === req.entityId || st.name.toLowerCase() === req.entityName.toLowerCase());
+            const studentName = studentToDelete?.name || req.entityName;
+            updatedStudents = s.adminStudents.filter((st) => st.id !== req.entityId && st.name.toLowerCase() !== studentName.toLowerCase());
+            updatedSchedule = s.schedule.filter((l) => l.student.toLowerCase() !== studentName.toLowerCase());
+          } else if (req.entityType === "lesson") {
+            updatedSchedule = s.schedule.filter((l) => l.id !== req.entityId);
+          } else if (req.entityType === "invoice") {
+            updatedInvoices = s.invoices.filter((i) => i.id !== req.entityId);
+          } else if (req.entityType === "alert") {
+            updatedAlerts = s.studentAlerts.filter((a) => a.id !== req.entityId);
+          }
+
+          // 2. Marcar la solicitud como aprobada
+          const updatedRequests = s.deletionRequests.map((r) =>
+            r.id === requestId
+              ? {
+                  ...r,
+                  status: "aprobado" as const,
+                  reviewedBy: "Dueña (Super Admin)",
+                  reviewedAt: formattedDate,
+                  reviewNotes: notes || "Aprobado por Dirección",
+                }
+              : r,
+          );
+
+          return {
+            adminStudents: updatedStudents,
+            schedule: updatedSchedule,
+            invoices: updatedInvoices,
+            studentAlerts: updatedAlerts,
+            deletionRequests: updatedRequests,
+            syncQueue: [...s.syncQueue, queueItem(`Eliminación aprobada y ejecutada por Dirección · ${req.entityName}`)],
+          };
+        }),
+
+      rejectDeletionRequest: (requestId, notes) =>
+        set((s) => {
+          const now = new Date();
+          const formattedDate = `${now.toLocaleDateString("es-PE")} ${now.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`;
+
+          const updatedRequests = s.deletionRequests.map((r) =>
+            r.id === requestId
+              ? {
+                  ...r,
+                  status: "rechazado" as const,
+                  reviewedBy: "Dueña (Super Admin)",
+                  reviewedAt: formattedDate,
+                  reviewNotes: notes || "Denegado por Dirección. Se mantiene el registro activo.",
+                }
+              : r,
+          );
+
+          return {
+            deletionRequests: updatedRequests,
+            syncQueue: [...s.syncQueue, queueItem(`Solicitud de eliminación denegada por Dirección`)],
+          };
+        }),
     }),
 
     {
-      name: "cadencia-app",
+      name: "cadencia-app-v8",
+      version: 8,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ activeRole: s.activeRole }) as unknown as AppState,
+      migrate: (persistedState: any, version: number) => {
+        if (version < 8 || !persistedState?.adminStudents?.length || !persistedState?.schedule?.length) {
+          return {
+            ...persistedState,
+            adminStudents: adminStudents,
+            schedule: initialSchedule,
+          };
+        }
+        return persistedState;
+      },
+      partialize: (s) =>
+        ({
+          activeRole: s.activeRole,
+          isAuthenticated: s.isAuthenticated,
+          currentUser: s.currentUser,
+          adminStudents: s.adminStudents,
+          schedule: s.schedule,
+          invoices: s.invoices,
+          lessons: s.lessons,
+          chimeSettings: s.chimeSettings,
+          studentAlerts: s.studentAlerts,
+        }) as unknown as AppState,
     },
   ),
 );

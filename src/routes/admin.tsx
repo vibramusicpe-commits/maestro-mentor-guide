@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Outlet, Link, useRouterState, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/app-store";
 
@@ -10,20 +10,54 @@ import {
   Music4,
   Users2,
   X,
+  Clock,
 } from "lucide-react";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export const Route = createFileRoute("/admin")({
+  // ────────────────────────────────────────────────────────────
+  // ROUTE GUARD — Protección de acceso al área de administración
+  // Roles permitidos: super_admin, staff
+  // Cualquier otro rol es redirigido a su portal correcto.
+  // ────────────────────────────────────────────────────────────
+  beforeLoad: () => {
+    const { activeRole, isAuthenticated } = useAppStore.getState();
+
+    // 🔒 GUARD DE AUTENTICACIÓN: Sin iniciar sesión → Redirige al Login (Landing)
+    if (!isAuthenticated) {
+      throw redirect({ to: "/", replace: true });
+    }
+
+    // Sin sesión válida (rol nulo o 'admin' legacy) → redirige al Landing
+    if (!activeRole || activeRole === ("admin" as unknown)) {
+      throw redirect({ to: "/", replace: true });
+    }
+
+    // Profesor → su kiosco
+    if (activeRole === "teacher") {
+      throw redirect({ to: "/teacher", replace: true });
+    }
+
+    // Familia → su portal
+    if (activeRole === "family") {
+      throw redirect({ to: "/family", replace: true });
+    }
+
+    // super_admin y staff → pasan. El renderizado condicional
+    // (ocultar finanzas a staff) se mantiene dentro del componente.
+  },
   component: AdminLayout,
 });
 
 const nav = [
   { label: "Dashboard", to: "/admin" as const, icon: BarChart3, exact: true },
-  { label: "Agenda", to: "/admin/agenda" as const, icon: CalendarDays },
+  { label: "Horario de Clases", to: "/admin/agenda" as const, icon: CalendarDays },
   { label: "Alumnos", to: "/admin/alumnos" as const, icon: Users2 },
-  { label: "Facturación", to: "/admin/facturacion" as const, icon: CreditCard, requiresSuperAdmin: true },
+  { label: "Cobros y Abonos", to: "/admin/facturacion" as const, icon: CreditCard },
+  { label: "Invitaciones", to: "/admin/invitaciones" as const, icon: Users2 },
+  { label: "Control Horario", to: "/admin/control-horario" as const, icon: Clock },
 ];
 
 function AdminLayout() {
@@ -32,11 +66,8 @@ function AdminLayout() {
   const activeRole = useAppStore((s) => s.activeRole);
   const setActiveRole = useAppStore((s) => s.setActiveRole);
 
-  useEffect(() => {
-    if (activeRole !== "super_admin" && activeRole !== "staff") {
-      setActiveRole("super_admin");
-    }
-  }, [activeRole, setActiveRole]);
+  // Preservar el rol auténtico de la sesión (super_admin o staff)
+  const isStaff = activeRole === "staff";
 
   const visibleNav = nav.filter((item) => !(item.requiresSuperAdmin && activeRole === "staff"));
 
@@ -49,10 +80,14 @@ function AdminLayout() {
         }`}
       >
         <div className="flex h-16 items-center justify-between px-5">
-          <Link to="/" className="flex items-center gap-2 font-display font-semibold">
-            <Music4 className="h-5 w-5 text-sidebar-primary" />
-            Cadencia
-          </Link>
+          <div className="flex items-center gap-2 font-display font-semibold">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs">
+              <Music4 className="h-5 w-5" />
+            </div>
+            <span className="font-sans text-xl font-bold tracking-tight text-foreground">
+              VM STAFF
+            </span>
+          </div>
           <button className="lg:hidden" onClick={() => setOpen(false)} aria-label="Cerrar menú">
             <X className="h-5 w-5" />
           </button>
@@ -110,7 +145,12 @@ function AdminLayout() {
               Torre de control {activeRole === "staff" && <span className="text-xs font-normal text-muted-foreground">(Personal de Secretaria)</span>}
             </p>
           </div>
-          <RoleSwitcher className="hidden sm:inline-flex" />
+          <button
+            onClick={() => useAppStore.getState().logout()}
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            Cerrar Sesión
+          </button>
           <Avatar className="h-9 w-9">
             <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">
               {activeRole === "staff" ? "ST" : "RM"}

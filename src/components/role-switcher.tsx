@@ -11,8 +11,7 @@ const roles: { to: "/admin" | "/teacher" | "/family"; label: string; role: Role;
 
 export function RoleSwitcher({ className = "" }: { className?: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const activeRole = useAppStore((s) => s.activeRole);
-  const setActiveRole = useAppStore((s) => s.setActiveRole);
+  const { activeRole, login, logout } = useAppStore();
 
   return (
     <div
@@ -29,7 +28,7 @@ export function RoleSwitcher({ className = "" }: { className?: string }) {
           <Link
             key={r.role}
             to={r.to}
-            onClick={() => setActiveRole(r.role)}
+            onClick={() => login(`${r.role}@vibramusic.pe`, r.role)}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
               active
                 ? "bg-primary text-primary-foreground"
@@ -41,6 +40,12 @@ export function RoleSwitcher({ className = "" }: { className?: string }) {
           </Link>
         );
       })}
+      <button
+        onClick={() => logout()}
+        className="ml-1 text-[11px] font-semibold text-destructive hover:bg-destructive/10 px-2 py-1 rounded-full transition-colors"
+      >
+        Salir
+      </button>
     </div>
   );
 }

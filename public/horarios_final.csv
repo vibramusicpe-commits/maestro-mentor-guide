@@ -1,0 +1,139 @@
+﻿Alumno,Dia,Hora,Sala,Profesor,Instrumento,Categoria
+Asaf Chipana Urribarri,Lun,16:00,Sala 1,Jeremy,Batería,JUNIOR
+Mattew Castillo,Lun,16:00,Sala 2,Fernando,Violín,JUNIOR
+Aaron Balarezo Sosa,Lun,16:00,Sala 2,Fernando,Violín,JUVENIL
+Kiara Mariño Huachuilca,Lun,16:00,Sala 3,Nathaly,Canto,JUVENIL
+Adonis Yared,Lun,16:00,Sala 3,Nathaly,Canto,JUVENIL
+Micaela Vilchez Oroncoy,Lun,16:45,Sala 1,Jeremy,Guitarra,JUNIOR
+Emmanuel Rospligiosi Gonzales,Lun,16:45,Sala 1,Jeremy,Guitarra,JUNIOR
+Mishel Suarez Cardenas,Lun,16:45,Sala 1,Jeremy,Guitarra,JUNIOR
+Joan Paolo,Lun,16:45,Sala 3,Nathaly,Canto,JUNIOR
+Yamir Suarez Salazar,Lun,17:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Layla Mariapaula Florindez Aguilar,Lun,17:30,Sala 2,Fernando,Violín,JUNIOR
+Eithan David Florindez Aguilar,Lun,17:30,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Ethan Paolo Jara Saldarriaga,Lun,17:30,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Johandry Sanchez Justa,Lun,18:15,Sala 1,Jeremy,Batería,JUVENIL
+Francesco Irribarren Paz,Lun,18:15,Sala 2,Fernando,Piano,JUNIOR
+Karen Gutierrez,Lun,18:15,Sala 3,Nathaly,Canto,ADULTO
+Carolina Luna Tito,Lun,19:00,Sala 1,Jeremy,Guitarra,ADULTO
+Antonela Diaz Sanchez,Lun,19:00,Sala 3,Nathaly,Canto,JUVENIL
+Karen Gutierrez,Lun,19:00,Sala 3,Nathaly,Canto,JUVENIL
+Valerie Angulo Chipana,Mar,16:00,Sala 2,Fernando,Violín,JUNIOR
+Aaron Balarezo Sosa,Mar,16:00,Sala 2,Fernando,Violín,JUNIOR
+Francezca Esther Aylas Naupari,Mar,16:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Leonardo Franco Cabrera,Mar,16:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Raphaela Yangali,Mar,16:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Isabella Yangali,Mar,16:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Thaisa Oyarce,Mar,16:45,Sala 1,Jeremy,Batería,JUNIOR
+Fabiana Arroyo Tineo,Mar,16:45,Sala 2,Fernando,Piano,JUNIOR
+Iker Samán Conislla Huerta,Mar,16:45,Sala 2,Fernando,Piano,JUNIOR
+Sara Ximena Ortiz Vivas,Mar,17:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Marco Antonio Adrian,Mar,17:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Samantha Castillo Rivera,Mar,17:30,Sala 2,Fernando,Violín,JUNIOR
+Camila Pastor Conco,Mar,17:30,Sala 2,Fernando,Violín,JUNIOR
+Celeste Elizabeth García Zúñiga,Mar,17:30,Sala 3,Nathaly,Canto,JUVENIL
+Sasha Contreras,Mar,17:30,Sala 3,Nathaly,Canto,JUVENIL
+Kenny Armando Llallahui Alvarado,Mar,18:15,Sala 1,Jeremy,Guitarra,JUVENIL
+Angel Bruno Marcelo,Mar,18:15,Sala 1,Jeremy,Guitarra,JUVENIL
+Edward Rios de la Cruz,Mar,18:15,Sala 1,Jeremy,Guitarra,JUVENIL
+Mirko Malpartida,Mar,18:15,Sala 2,Fernando,Piano,JUNIOR
+Joan Paolo,Mar,18:15,Sala 3,Nathaly,Canto,JUNIOR
+Santiago Valladolid,Mar,19:00,Sala 1,Jeremy,Batería,JUNIOR
+Gabriel Alvarez Galarreta,Mar,19:00,Sala 1,Jeremy,Batería,JUNIOR
+Boris Axel Marcelo,Mar,19:00,Sala 2,Fernando,Piano,JUVENIL
+Miranda Aquino,Mar,19:00,Sala 2,Fernando,Piano,JUVENIL
+Mathias Lopez Loayza,Mar,19:00,Sala 3,Nathaly,Canto,JUVENIL
+Asaf Chipana Urribarri,Mié,16:00,Sala 1,Jeremy,Batería,JUNIOR
+Thaisa Oyarce,Mié,16:00,Sala 1,Jeremy,Batería,JUVENIL
+Mattew Castillo,Mié,16:00,Sala 2,Fernando,Violín,JUNIOR
+Kiara Mariño Huachuilca,Mié,16:00,Sala 3,Nathaly,Canto,JUVENIL
+Adonis Yared,Mié,16:00,Sala 3,Nathaly,Canto,JUVENIL
+Micaela Vilchez Oroncoy,Mié,16:45,Sala 1,Jeremy,Guitarra,JUNIOR
+Emmanuel Rospligiosi Gonzales,Mié,16:45,Sala 1,Jeremy,Guitarra,JUNIOR
+Mishel Suarez Cardenas,Mié,16:45,Sala 1,Jeremy,Guitarra,JUNIOR
+Fabiana Arroyo Tineo,Mié,16:45,Sala 2,Fernando,Piano,JUVENIL
+Joan Paolo,Mié,16:45,Sala 3,Nathaly,Canto,JUNIOR
+Yamir Suarez Salazar,Mié,17:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Layla Mariapaula Florindez Aguilar,Mié,17:30,Sala 2,Fernando,Violín,JUNIOR
+Eithan David Florindez Aguilar,Mié,17:30,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Ethan Paolo Jara Saldarriaga,Mié,17:30,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Raphaela Yangali,Mié,17:30,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Isabella Yangali,Mié,17:30,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Johandry Sanchez Justa,Mié,18:15,Sala 1,Jeremy,Batería,JUVENIL
+Francesco Irribarren Paz,Mié,18:15,Sala 2,Fernando,Piano,JUNIOR
+Carolina Luna Tito,Mié,19:00,Sala 1,Jeremy,Guitarra,ADULTO
+Antonela Diaz Sanchez,Mié,19:00,Sala 3,Nathaly,Canto,JUVENIL
+Karen Gutierrez,Mié,19:00,Sala 3,Nathaly,Canto,JUVENIL
+Andrea Mesa Llallahui,Jue,16:00,Sala 1,Jeremy,Batería,JUVENIL
+Giuseppe Granda Suarez,Jue,16:00,Sala 1,Jeremy,Batería,JUNIOR
+Valerie Angulo Chipana,Jue,16:00,Sala 2,Fernando,Violín,JUNIOR
+Aaron Balarezo Sosa,Jue,16:00,Sala 2,Fernando,Violín,JUNIOR
+Francezca Esther Aylas Naupari,Jue,16:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Leonardo Franco Cabrera,Jue,16:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Raphaela Yangali,Jue,16:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Isabella Yangali,Jue,16:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Giuseppe Granda Suarez,Jue,16:45,Sala 1,Jeremy,Batería,JUNIOR
+Thaisa Oyarce,Jue,16:45,Sala 1,Jeremy,Batería,JUNIOR
+Fabiana Arroyo Tineo,Jue,16:45,Sala 2,Fernando,Piano,JUNIOR
+Iker Samán Conislla Huerta,Jue,16:45,Sala 2,Fernando,Piano,JUNIOR
+Ivanna Soto,Jue,16:45,Sala 2,Fernando,Piano,JUVENIL
+Luis Soto,Jue,16:45,Sala 3,Nathaly,Canto,JUVENIL
+Luciano Franco Cabrera,Jue,16:45,Sala 3,Nathaly,Canto,JUVENIL
+Sara Ximena Ortiz Vivas,Jue,17:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Marco Antonio Adrian,Jue,17:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Angel Bruno Marcelo,Jue,17:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Camila Pastor Conco,Jue,17:30,Sala 2,Fernando,Violín,JUNIOR
+Celeste Elizabeth García Zúñiga,Jue,17:30,Sala 3,Nathaly,Canto,JUVENIL
+Sasha Contreras,Jue,17:30,Sala 3,Nathaly,Canto,JUVENIL
+Adonis Yeret Tocas Vasquez,Jue,17:30,Sala 3,Nathaly,Canto,JUVENIL
+Kenny Armando Llallahui Alvarado,Jue,18:15,Sala 1,Jeremy,Guitarra,JUVENIL
+Angel Bruno Marcelo,Jue,18:15,Sala 1,Jeremy,Guitarra,JUVENIL
+Edward Rios de la Cruz,Jue,18:15,Sala 1,Jeremy,Guitarra,JUVENIL
+Iker Samán Conislla Huerta,Jue,18:15,Sala 2,Fernando,Piano,JUVENIL
+Boris Axel Marcelo,Jue,18:15,Sala 2,Fernando,Piano,JUVENIL
+Gabriel Alvarez Galarreta,Jue,19:00,Sala 1,Jeremy,Batería,JUNIOR
+Santiago Valladolid,Jue,19:00,Sala 1,Jeremy,Batería,JUNIOR
+Boris Axel Marcelo,Jue,19:00,Sala 2,Fernando,Piano,JUVENIL
+Mathias Lopez Loayza,Jue,19:00,Sala 3,Nathaly,Canto,JUVENIL
+Antonela Diaz Sanchez,Jue,19:00,Sala 3,Nathaly,Canto,JUVENIL
+Flavia Concepción Cutisac,Vie,16:00,Sala 2,Fernando,Piano,JUNIOR
+Antonella Osorio Huaman,Vie,16:00,Sala 2,Fernando,Piano,JUNIOR
+Ethan Romero Manrique,Vie,16:00,Sala 2,Fernando,Piano,JUNIOR
+Emma Sevilla Perez,Vie,16:00,Sala 2,Fernando,Piano,JUNIOR
+Juan Mateo Azael,Vie,16:00,Sala 3,Nathaly,Canto,JUNIOR
+Ethan Romero Manrique,Vie,16:45,Sala 1,Jeremy,Guitarra,JUNIOR
+Juan Mateo Azael,Vie,16:45,Sala 3,Nathaly,Canto,JUNIOR
+Krizia Verástegui Picón,Vie,17:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Geraldine Dulce,Vie,17:30,Sala 2,Fernando,Piano,JUVENIL
+Dulce,Vie,17:30,Sala 3,Nathaly,Canto,JUVENIL
+Carolina Luna Tito,Vie,18:15,Sala 1,Jeremy,Guitarra,ADULTO
+Abigail Zarate,Vie,18:15,Sala 2,Fernando,Piano,JUVENIL
+Andrea Mesa Llallahui,Vie,19:00,Sala 1,Jeremy,Batería,JUVENIL
+Thiago Manuel Verástegui Picón,Vie,19:00,Sala 1,Jeremy,Batería,JUVENIL
+Samantha Castillo Rivera,Vie,19:00,Sala 2,Fernando,Violín,JUNIOR
+Camila Pastor Conco,Vie,19:00,Sala 2,Fernando,Violín,JUVENIL
+Krizia Verástegui Picón,Vie,19:00,Sala 3,Nathaly,Canto,JUVENIL
+Uriel Anton,Sáb,09:00,Sala 1,Jeremy,Batería,JUNIOR
+Juan Diego Flores Basturen,Sáb,09:00,Sala 1,Jeremy,Batería,JUNIOR
+Stefan Yrco Samaniego,Sáb,09:00,Sala 1,Jeremy,Batería,JUNIOR
+Gabriel Alvarez Galarreta,Sáb,09:00,Sala 1,Jeremy,Batería,JUVENIL
+Eitan Anton Chapi,Sáb,09:00,Sala 2,Fernando,Piano,JUNIOR
+Aithana Rivas Badajoz,Sáb,09:00,Sala 2,Fernando,Piano,JUNIOR
+Liam Jesús Sánchez Sánchez,Sáb,09:00,Sala 2,Fernando,Piano,JUNIOR
+Ivanna Soto Soto,Sáb,09:00,Sala 2,Fernando,Piano,JUNIOR
+Niah Jimena Montalvo Huerta,Sáb,09:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Luis Soto Soto,Sáb,09:00,Sala 3,Nathaly,Piano Infantil,INFANTIL
+Junior Gabriel Anton,Sáb,10:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Yajaira Ayquipa Zae,Sáb,10:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Juan Diego Huerta Mitma,Sáb,10:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Maryfer Farfan Mendoza,Sáb,10:30,Sala 1,Jeremy,Guitarra,JUVENIL
+Marycielo Nicole Farfan Mendoza,Sáb,10:30,Sala 2,Fernando,Piano,JUVENIL
+Abigail Zarate Alcatraz,Sáb,10:30,Sala 2,Fernando,Piano,JUVENIL
+Miguel Angel,Sáb,10:30,Sala 2,Fernando,Piano,JUVENIL
+Mia Lucero Bellido Alvan,Sáb,10:30,Sala 3,Nathaly,Canto,JUNIOR
+Sofía Valentina Conde,Sáb,10:30,Sala 3,Nathaly,Canto,JUNIOR
+Joshua Leon Gonzales,Sáb,12:00,Sala 1,Jeremy,Guitarra,JUVENIL
+Mateo Salvador Malpartida Ramos,Sáb,12:00,Sala 1,Jeremy,Guitarra,JUVENIL
+Carlos Carhuachin Sahuaraura,Sáb,12:00,Sala 2,Fernando,Violín,JUVENIL
+Sofía de la Cruz Vellaneda,Sáb,12:00,Sala 2,Fernando,Violín,JUVENIL
+Matias Gabriel Quispe Vilcapoma,Sáb,12:00,Sala 3,Nathaly,Canto,JUVENIL

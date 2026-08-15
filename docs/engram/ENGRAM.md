@@ -1,6 +1,6 @@
 # Mapa de Memoria y Conocimiento (Engram): Vibra Music
 
-Este documento constituye la memoria del sistema (**Engram**) que persiste el conocimiento de dominio, las reglas del negocio de la escuela de música Vibra Music y las restricciones arquitectónicas para la futura migración.
+Este documento constituye la memoria del sistema (**Engram**) que persiste el conocimiento de dominio, las reglas del negocio de la escuela de música Vibra Music y las restricciones arquitectónicas para la futura migración y trabajo en casa.
 
 ---
 
@@ -8,32 +8,44 @@ Este documento constituye la memoria del sistema (**Engram**) que persiste el co
 
 ```mermaid
 graph TD
-    Node_SuperAdmin[Node: Super Admin / Dueña] -->|Control Total| Node_Expenses[Egresos Corporativos & Cuentas]
-    Node_Staff[Node: Staff / Secretaria] -->|Gestión Directa| Node_Students[Directorio de Alumnos]
-    Node_Staff -->|Rejilla Semanal| Node_Agenda[Agenda de Clases]
-    Node_Staff -->|Registra Abonos| Node_Payments[Cobros Yape / Efectivo / Transferencia]
-    Node_Staff -->|Dispara Avisos| Node_Alerts[Avisos a 2 Días de Vencer]
+    Node_SuperAdmin[Node: Super Admin / Dueña] -->|Control Total & Autorización| Node_Security[Aprobación de Eliminaciones & Wipe]
+    Node_SuperAdmin -->|Finanzas & Egresos| Node_Expenses[Egresos Corporativos & Cuentas]
+    
+    Node_Staff[Node: Staff / Nayeli Secretaria] -->|6 Funciones Operativas| Node_SecFunctions[Operaciones Diarias]
+    Node_SecFunctions -->|F1: Asistencia| Node_Attendance[Marcado en Vivo & Tasa Real]
+    Node_SecFunctions -->|F2: Matrículas| Node_Matriculas[Alta Alumnos & Fechas Exactas]
+    Node_SecFunctions -->|F3: Reprogramaciones| Node_Reschedule[Scope: Semana vs Mes]
+    Node_SecFunctions -->|F4: WhatsApp Business| Node_WhatsApp[Bienvenida, Cobros y Recibos]
+    Node_SecFunctions -->|F5: Retiros / Pausas| Node_Retiros[Pausas & Bajas con Historial]
+    Node_SecFunctions -->|F6: Cobranzas & Abonos| Node_Cobranzas[Yape/Plin/Transf con N° Op]
 
-    Node_Students -->|Modalidad A| Node_Regular[Regular: 8 clases / 45m]
-    Node_Students -->|Modalidad B| Node_Intensivo[Intensivo: 4 clases / 90m]
-    Node_Students -->|Faltas & Recuperación| Node_Credits[Créditos: +1 Falta / -1 Recuperación]
-    Node_Students -->|Atención Social| Node_Birthdays[Cumpleaños & 25% Desc]
+    Node_SecFunctions -.->|Intento de Borrado| Node_DeletionReq[Solicitud de Eliminación Protegida]
+    Node_DeletionReq -->|Revisión Dueña| Node_SuperAdmin
+
+    Node_Students[Directorio de Alumnos] -->|Planes Dossier| Node_Planes[Mensual S/ 329 | Trim S/ 289.40 | Anual S/ 263.20]
+    Node_Students -->|Clase Personalizada| Node_Personalizada[S/ 50 por clase · Sin Matrícula · Sin Recuperación]
+    Node_Personalizada -->|Puntitos de Edad| Node_AgeDots[Verde: Juvenil | Plomo: Adulto | Amarillo: Junior]
 ```
 
 ---
 
-## 📌 Principios de Memoria Operativa Engram
-1. **Segregación de Roles**: Super Admin vs Staff (Egresos protegidos vs Ingresos operativos).
-2. **Modalidades Oficiales**:
-   - Regular (8 clases x 45 min).
-   - Intensivo (4 clases x 90 min).
-3. **Gestión Transparente de Créditos**: Acumulación por inasistencia y deducción por recuperación asistida.
-4. **Ciclo de Cobros a 2 Días**: Alertas preventivas previas a la fecha fija de vencimiento.
+## 📌 Principios de Memoria Operativa Engram (Versión v8)
+1. **Segregación Estricta de Roles**:
+   - Super Admin (Dueña): Autoriza eliminaciones, vaciados protegidos, reportes y configuración maestra.
+   - Staff (Secretaría Nayeli): Opera las 6 funciones completas sin permisos de borrado físico directo.
+2. **Clases Personalizadas (S/ 50)**:
+   - No generan créditos de recuperación (`makeupCredits`) al cancelarse (ADR 004).
+   - Fondo celeste (`#B2EBF2`) con puntito discreto en la esquina según rango de edad.
+3. **Control Temporal Meticuloso**:
+   - Fechas exactas `planStartDate` y `planEndDate` con cálculo determinista de fin (+1m, +3m, +12m).
+   - La agenda de clases solo muestra las sesiones dentro del rango activo.
+4. **Base de Datos Insforge PostgreSQL (MCP)**:
+   - 18 tablas operativas sincronizadas en el esquema `public`.
 
 ---
 
 ## 🔗 Referencias de Arquitectura y Grafos
-- **Grafo de Dependencias (Graphify)**: [`docs/graphify/dependency_graph.mermaid`](file:///c:/Users/USER/my%20music%20staff/docs/graphify/dependency_graph.mermaid)
-- **Grafo de Flujo de Datos (Graphify)**: [`docs/graphify/data_flow_graph.mermaid`](file:///c:/Users/USER/my%20music%20staff/docs/graphify/data_flow_graph.mermaid)
-- **Matriz de Memoria JSON (Engram)**: [`docs/engram/memory_graph.json`](file:///c:/Users/USER/my%20music%20staff/docs/engram/memory_graph.json)
-- **Registro de Auditoría de Bucles**: [`docs/logs/execution_tracker.log`](file:///c:/Users/USER/my%20music%20staff/docs/logs/execution_tracker.log)
+- **Grafo de Dependencias (Graphify)**: [`docs/graphify/dependency_graph.mermaid`](file:///C:/Users/USER/my%20music%20staff%20backend/docs/graphify/dependency_graph.mermaid)
+- **Grafo de Flujo de Datos (Graphify)**: [`docs/graphify/data_flow_graph.mermaid`](file:///C:/Users/USER/my%20music%20staff%20backend/docs/graphify/data_flow_graph.mermaid)
+- **Matriz de Memoria JSON (Engram)**: [`docs/engram/memory_graph.json`](file:///C:/Users/USER/my%20music%20staff%20backend/docs/engram/memory_graph.json)
+- **Registro de Auditoría de Bucles**: [`docs/logs/system_audit.log`](file:///C:/Users/USER/my%20music%20staff%20backend/docs/logs/system_audit.log)

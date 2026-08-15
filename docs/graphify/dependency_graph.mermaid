@@ -1,62 +1,69 @@
-graph TD
-    %% Graphify Component & Route Architecture Graph
-    subgraph Storage & Data
-        Seeds[src/store/seeds.ts]
-        AdminSeeds[src/store/admin-seeds.ts]
-        ZustandStore[src/store/app-store.ts]
+# Grafo de Dependencias de Componentes y Servicios (Graphify - Actualizado 2026-08-15)
+
+```mermaid
+graph LR
+    %% UI Components
+    subgraph UI_Layer ["Capa de Interfaz de Usuario"]
+        AgendaBoardComp["agenda-board.tsx"]
+        StudentsTableComp["students-table.tsx"]
+        DeletionPanelComp["deletion-requests-panel.tsx"]
+        AlertsPanelComp["alerts-panel.tsx"]
+        RiskFamiliesComp["risk-families-table.tsx"]
+        ControlHorarioComp["admin.control-horario.tsx"]
+        InvitacionesComp["admin.invitaciones.tsx"]
+        FacturacionComp["admin.facturacion.tsx"]
+        TeacherAlumnosComp["teacher.alumnos.tsx"]
     end
 
-    subgraph UI Routing (TanStack Router)
-        Root[src/routes/__root.tsx]
-        Landing[src/routes/index.tsx]
-        AdminLayout[src/routes/admin.tsx]
-        TeacherLayout[src/routes/teacher.tsx]
-        FamilyLayout[src/routes/family.tsx]
+    %% State & Logic
+    subgraph State_Layer ["Capa de Estado y Lógica Local"]
+        Store["app-store.ts (Zustand + Persist v8)"]
+        Seeds["admin-seeds.ts & official-seeds.ts"]
     end
 
-    subgraph Admin Views
-        AdminDashboard[src/routes/admin.index.tsx]
-        AdminAgenda[src/routes/admin.agenda.tsx]
-        AdminAlumnos[src/routes/admin.alumnos.tsx]
-        AdminFacturacion[src/routes/admin.facturacion.tsx]
+    %% Audio & Media
+    subgraph Media_Layer ["Audio & Timbre Oficial"]
+        SchoolBellMp3["/school bell.mp3"]
+        AudioCtx["Web Audio API Fallback"]
     end
 
-    subgraph Admin Components
-        MetricCards[src/components/admin/metric-cards.tsx]
-        RiskFamilies[src/components/admin/risk-families-table.tsx]
-        AlertsPanel[src/components/admin/alerts-panel.tsx]
-        BirthdayWidget[src/components/admin/birthday-widget.tsx]
-        AgendaBoard[src/components/admin/agenda-board.tsx]
-        StudentsTable[src/components/admin/students-table.tsx]
-        RoleSwitcher[src/components/role-switcher.tsx]
+    %% External APIs
+    subgraph External_APIs ["APIs Externas"]
+        WhatsApp["WhatsApp Business API (wa.me)"]
     end
 
-    subgraph Teacher & Family Components
-        TeacherKiosk[src/routes/teacher.index.tsx]
-        TeacherAlumnos[src/routes/teacher.alumnos.tsx]
-        TeacherNomina[src/routes/teacher.nomina.tsx]
-        FamilyPortal[src/routes/family.index.tsx]
-        KidSummary[src/components/family/kid-summary.tsx]
+    %% Backend Services
+    subgraph Backend_Layer ["Capa de Backend (Insforge PostgREST)"]
+        InsforgeClient["insforge.ts Client"]
+        StudentsSvc["students.service.ts"]
+        AttendanceSvc["attendance.service.ts"]
+        InvitationsSvc["invitations.service.ts"]
+        InvoicesSvc["invoices.service.ts"]
+        AuthSvc["auth.service.ts"]
+        PgTables[("PostgreSQL Database (Insforge MCP)")]
     end
 
-    %% Dependencies
-    Seeds --> ZustandStore
-    AdminSeeds --> ZustandStore
-    ZustandStore --> RoleSwitcher
-    ZustandStore --> AdminLayout
-    
-    AdminLayout --> AdminDashboard
-    AdminLayout --> AdminAgenda
-    AdminLayout --> AdminAlumnos
-    AdminLayout --> AdminFacturacion
+    %% Relaciones
+    AgendaBoardComp --> Store
+    StudentsTableComp --> Store
+    DeletionPanelComp --> Store
+    AlertsPanelComp --> Store
+    RiskFamiliesComp --> Store
+    TeacherAlumnosComp --> Store
+    ControlHorarioComp --> Store
+    InvitacionesComp --> InvitationsSvc
+    FacturacionComp --> InvoicesSvc
+    StudentsTableComp --> WhatsApp
+    RiskFamiliesComp --> WhatsApp
+    FacturacionComp --> WhatsApp
 
-    AdminDashboard --> MetricCards
-    AdminDashboard --> RiskFamilies
-    AdminDashboard --> AlertsPanel
-    AdminDashboard --> BirthdayWidget
-
-    AdminAgenda --> AgendaBoard
-    AdminAlumnos --> StudentsTable
-    
-    FamilyLayout --> FamilyPortal
-    FamilyPortal --> KidSummary
+    Store --> Seeds
+    Store --> SchoolBellMp3
+    Store --> AudioCtx
+    StudentsSvc --> InsforgeClient
+    AttendanceSvc --> InsforgeClient
+    InvitationsSvc --> InsforgeClient
+    InvoicesSvc --> InsforgeClient
+    AuthSvc --> InsforgeClient
+    InsforgeClient --> PgTables
+```

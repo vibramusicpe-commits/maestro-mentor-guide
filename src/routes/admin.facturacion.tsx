@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -22,6 +22,32 @@ import {
   type PaymentMethod,
 } from "@/store/app-store";
 import { billingTrend, recurringConcepts, type Invoice } from "@/store/admin-seeds";
+
+export const Route = createFileRoute("/admin/facturacion")({
+  beforeLoad: () => {
+    const { activeRole } = useAppStore.getState();
+    // 🔒 GUARD: Solo roles de administración (super_admin y staff) pueden ingresar
+    if (activeRole !== "super_admin" && activeRole !== "staff") {
+      throw redirect({ to: "/admin", replace: true });
+    }
+  },
+  head: () => ({
+    meta: [
+      { title: "Cobros, Abonos e Historial WhatsApp — VM STAFF" },
+      {
+        name: "description",
+        content:
+          "Registro de abonos recibidos por WhatsApp (Yape, Efectivo, Transferencia) con bitácora inmutable de auditoría.",
+      },
+      { property: "og:title", content: "Cobros, Abonos e Historial WhatsApp — VM STAFF" },
+      {
+        property: "og:description",
+        content: "Gestión de recibos por familia, abonos parciales y bitácora anti-fraude.",
+      },
+    ],
+  }),
+  component: AdminFacturacionPage,
+});
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,25 +75,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { money } from "@/lib/format";
-
-export const Route = createFileRoute("/admin/facturacion")({
-  head: () => ({
-    meta: [
-      { title: "Cobros, Abonos e Historial WhatsApp — Cadencia" },
-      {
-        name: "description",
-        content:
-          "Registro de abonos recibidos por WhatsApp (Yape, Efectivo, Transferencia) con bitácora inmutable de auditoría.",
-      },
-      { property: "og:title", content: "Cobros, Abonos e Historial WhatsApp — Cadencia" },
-      {
-        property: "og:description",
-        content: "Gestión de recibos por familia, abonos parciales y bitácora anti-fraude.",
-      },
-    ],
-  }),
-  component: AdminFacturacionPage,
-});
 
 function invoiceStatusBadge(inv: Invoice) {
   if (inv.status === "pagado") {
@@ -398,11 +405,28 @@ function AdminFacturacionPage() {
                             size="sm"
                             variant="default"
                             onClick={() => handleOpenAbonoModal(inv)}
+                            className="text-xs font-bold"
                           >
                             <FileCheck className="mr-1 h-3.5 w-3.5" />
-                            Registrar Abono
+                            Abonar
                           </Button>
                         )}
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const rawPhone = "51900000000";
+                            const msg = `Hola Familia ${inv.family}, cordial saludo de Secretaría Vibra Music. Les compartimos el detalle del recibo de ${inv.concept}: Monto: ${money(inv.amount)} (Saldo pendiente: ${money(inv.remainingBalance ?? inv.amount)}). Agradecemos confirmar su abono por este medio.`;
+                            window.open(`https://wa.me/${rawPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+                            remindInvoice(inv.id);
+                            toast.success(`Abriendo WhatsApp para Familia ${inv.family}`);
+                          }}
+                          className="h-8 w-8 p-0 text-success hover:bg-success/10 border-success/30"
+                          title="Enviar aviso por WhatsApp"
+                        >
+                          <Send className="h-3.5 w-3.5 text-success" />
+                        </Button>
 
                         <Button
                           size="sm"
@@ -411,20 +435,7 @@ function AdminFacturacionPage() {
                           title="Ver Bitácora inmutable de auditoría"
                         >
                           <History className="h-3.5 w-3.5" />
-                          <span className="sr-only sm:not-sr-only sm:ml-1">Audit</span>
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            remindInvoice(inv.id);
-                            toast.info(`Aviso enviado a ${inv.family}`, {
-                              description: "Mensaje preventivo enviado a WhatsApp.",
-                            });
-                          }}
-                        >
-                          <Send className="h-3.5 w-3.5" />
+                          <span className="sr-only sm:not-sr-only sm:ml-1 text-xs">Bitácora</span>
                         </Button>
                       </div>
                     </TableCell>

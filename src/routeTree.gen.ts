@@ -16,9 +16,14 @@ import { Route as TeacherRouteImport } from './routes/teacher'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAgendaRouteImport } from './routes/admin.agenda'
 import { Route as AdminAlumnosRouteImport } from './routes/admin.alumnos'
+import { Route as AdminControlHorarioRouteImport } from './routes/admin.control-horario'
 import { Route as AdminFacturacionRouteImport } from './routes/admin.facturacion'
+import { Route as AdminInvitacionesRouteImport } from './routes/admin.invitaciones'
 import { Route as FamilyIndexRouteImport } from './routes/family.index'
+import { Route as FamilyAgendaRouteImport } from './routes/family.agenda'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as TeacherIndexRouteImport } from './routes/teacher.index'
+import { Route as TeacherAgendaRouteImport } from './routes/teacher.agenda'
 import { Route as TeacherAlumnosRouteImport } from './routes/teacher.alumnos'
 import { Route as TeacherNominaRouteImport } from './routes/teacher.nomina'
 
@@ -57,9 +62,19 @@ const AdminAlumnosRoute = AdminAlumnosRouteImport.update({
   path: '/alumnos',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminControlHorarioRoute = AdminControlHorarioRouteImport.update({
+  id: '/control-horario',
+  path: '/control-horario',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminFacturacionRoute = AdminFacturacionRouteImport.update({
   id: '/facturacion',
   path: '/facturacion',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminInvitacionesRoute = AdminInvitacionesRouteImport.update({
+  id: '/invitaciones',
+  path: '/invitaciones',
   getParentRoute: () => AdminRoute,
 } as any)
 const FamilyIndexRoute = FamilyIndexRouteImport.update({
@@ -67,9 +82,24 @@ const FamilyIndexRoute = FamilyIndexRouteImport.update({
   path: '/',
   getParentRoute: () => FamilyRoute,
 } as any)
+const FamilyAgendaRoute = FamilyAgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
+  getParentRoute: () => FamilyRoute,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TeacherIndexRoute = TeacherIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => TeacherRoute,
+} as any)
+const TeacherAgendaRoute = TeacherAgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
   getParentRoute: () => TeacherRoute,
 } as any)
 const TeacherAlumnosRoute = TeacherAlumnosRouteImport.update({
@@ -90,7 +120,12 @@ export interface FileRoutesByFullPath {
   '/teacher': typeof TeacherRouteWithChildren
   '/admin/agenda': typeof AdminAgendaRoute
   '/admin/alumnos': typeof AdminAlumnosRoute
+  '/admin/control-horario': typeof AdminControlHorarioRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
+  '/admin/invitaciones': typeof AdminInvitacionesRoute
+  '/family/agenda': typeof FamilyAgendaRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/teacher/agenda': typeof TeacherAgendaRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
   '/teacher/nomina': typeof TeacherNominaRoute
   '/admin/': typeof AdminIndexRoute
@@ -101,7 +136,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/agenda': typeof AdminAgendaRoute
   '/admin/alumnos': typeof AdminAlumnosRoute
+  '/admin/control-horario': typeof AdminControlHorarioRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
+  '/admin/invitaciones': typeof AdminInvitacionesRoute
+  '/family/agenda': typeof FamilyAgendaRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/teacher/agenda': typeof TeacherAgendaRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
   '/teacher/nomina': typeof TeacherNominaRoute
   '/admin': typeof AdminIndexRoute
@@ -116,7 +156,12 @@ export interface FileRoutesById {
   '/teacher': typeof TeacherRouteWithChildren
   '/admin/agenda': typeof AdminAgendaRoute
   '/admin/alumnos': typeof AdminAlumnosRoute
+  '/admin/control-horario': typeof AdminControlHorarioRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
+  '/admin/invitaciones': typeof AdminInvitacionesRoute
+  '/family/agenda': typeof FamilyAgendaRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/teacher/agenda': typeof TeacherAgendaRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
   '/teacher/nomina': typeof TeacherNominaRoute
   '/admin/': typeof AdminIndexRoute
@@ -132,7 +177,12 @@ export interface FileRouteTypes {
     | '/teacher'
     | '/admin/agenda'
     | '/admin/alumnos'
+    | '/admin/control-horario'
     | '/admin/facturacion'
+    | '/admin/invitaciones'
+    | '/family/agenda'
+    | '/invite/$token'
+    | '/teacher/agenda'
     | '/teacher/alumnos'
     | '/teacher/nomina'
     | '/admin/'
@@ -143,7 +193,12 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/agenda'
     | '/admin/alumnos'
+    | '/admin/control-horario'
     | '/admin/facturacion'
+    | '/admin/invitaciones'
+    | '/family/agenda'
+    | '/invite/$token'
+    | '/teacher/agenda'
     | '/teacher/alumnos'
     | '/teacher/nomina'
     | '/admin'
@@ -157,7 +212,12 @@ export interface FileRouteTypes {
     | '/teacher'
     | '/admin/agenda'
     | '/admin/alumnos'
+    | '/admin/control-horario'
     | '/admin/facturacion'
+    | '/admin/invitaciones'
+    | '/family/agenda'
+    | '/invite/$token'
+    | '/teacher/agenda'
     | '/teacher/alumnos'
     | '/teacher/nomina'
     | '/admin/'
@@ -170,6 +230,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   FamilyRoute: typeof FamilyRouteWithChildren
   TeacherRoute: typeof TeacherRouteWithChildren
+  InviteTokenRoute: typeof InviteTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -223,11 +284,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAlumnosRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/control-horario': {
+      id: '/admin/control-horario'
+      path: '/control-horario'
+      fullPath: '/admin/control-horario'
+      preLoaderRoute: typeof AdminControlHorarioRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/facturacion': {
       id: '/admin/facturacion'
       path: '/facturacion'
       fullPath: '/admin/facturacion'
       preLoaderRoute: typeof AdminFacturacionRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/invitaciones': {
+      id: '/admin/invitaciones'
+      path: '/invitaciones'
+      fullPath: '/admin/invitaciones'
+      preLoaderRoute: typeof AdminInvitacionesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/family/': {
@@ -237,11 +312,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FamilyIndexRouteImport
       parentRoute: typeof FamilyRoute
     }
+    '/family/agenda': {
+      id: '/family/agenda'
+      path: '/agenda'
+      fullPath: '/family/agenda'
+      preLoaderRoute: typeof FamilyAgendaRouteImport
+      parentRoute: typeof FamilyRoute
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/teacher/': {
       id: '/teacher/'
       path: '/'
       fullPath: '/teacher/'
       preLoaderRoute: typeof TeacherIndexRouteImport
+      parentRoute: typeof TeacherRoute
+    }
+    '/teacher/agenda': {
+      id: '/teacher/agenda'
+      path: '/agenda'
+      fullPath: '/teacher/agenda'
+      preLoaderRoute: typeof TeacherAgendaRouteImport
       parentRoute: typeof TeacherRoute
     }
     '/teacher/alumnos': {
@@ -264,24 +360,30 @@ declare module '@tanstack/react-router' {
 interface AdminRouteChildren {
   AdminAgendaRoute: typeof AdminAgendaRoute
   AdminAlumnosRoute: typeof AdminAlumnosRoute
+  AdminControlHorarioRoute: typeof AdminControlHorarioRoute
   AdminFacturacionRoute: typeof AdminFacturacionRoute
+  AdminInvitacionesRoute: typeof AdminInvitacionesRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAgendaRoute: AdminAgendaRoute,
   AdminAlumnosRoute: AdminAlumnosRoute,
+  AdminControlHorarioRoute: AdminControlHorarioRoute,
   AdminFacturacionRoute: AdminFacturacionRoute,
+  AdminInvitacionesRoute: AdminInvitacionesRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface FamilyRouteChildren {
+  FamilyAgendaRoute: typeof FamilyAgendaRoute
   FamilyIndexRoute: typeof FamilyIndexRoute
 }
 
 const FamilyRouteChildren: FamilyRouteChildren = {
+  FamilyAgendaRoute: FamilyAgendaRoute,
   FamilyIndexRoute: FamilyIndexRoute,
 }
 
@@ -289,12 +391,14 @@ const FamilyRouteWithChildren =
   FamilyRoute._addFileChildren(FamilyRouteChildren)
 
 interface TeacherRouteChildren {
+  TeacherAgendaRoute: typeof TeacherAgendaRoute
   TeacherAlumnosRoute: typeof TeacherAlumnosRoute
   TeacherNominaRoute: typeof TeacherNominaRoute
   TeacherIndexRoute: typeof TeacherIndexRoute
 }
 
 const TeacherRouteChildren: TeacherRouteChildren = {
+  TeacherAgendaRoute: TeacherAgendaRoute,
   TeacherAlumnosRoute: TeacherAlumnosRoute,
   TeacherNominaRoute: TeacherNominaRoute,
   TeacherIndexRoute: TeacherIndexRoute,
@@ -308,6 +412,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   FamilyRoute: FamilyRouteWithChildren,
   TeacherRoute: TeacherRouteWithChildren,
+  InviteTokenRoute: InviteTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
