@@ -58,7 +58,7 @@ export function AlertsPanel() {
   });
 
   const [isNewReportOpen, setIsNewReportOpen] = useState(false);
-  const [reportRoom, setReportRoom] = useState(rooms[0] || "Sala 1");
+  const [reportRoom, setReportRoom] = useState(rooms[0] || "Sala A");
   const [reportItem, setReportItem] = useState("Piano");
   const [reportDesc, setReportDesc] = useState("");
   const [reportPriority, setReportPriority] = useState<"alta" | "media" | "baja">("media");

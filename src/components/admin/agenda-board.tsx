@@ -24,14 +24,15 @@ import {
   Volume2,
   Sliders,
   PlusCircle,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
-// Función del Timbre Acústico de Fin/Inicio de Clase (school bell.mp3 con fallback)
+// Función del Timbre Acústico de Fin/Inicio de Clase (nuevo timbre alto pitch)
 export function playClassChime() {
   try {
-    const audio = new Audio("/school bell.mp3");
-    audio.volume = 0.85;
+    const audio = new Audio("/school bell.mp3?v=highpitch");
+    audio.volume = 0.9;
     audio.play().catch((err) => {
       console.warn("Reproduciendo con Web Audio API fallback:", err);
       playSyntheticChime();
@@ -140,9 +141,12 @@ export function AgendaBoard() {
 
   const [viewMode, setViewMode] = useState<"semanal" | "diario" | "excel">("excel");
   const [selectedDayIndex, setSelectedDayIndex] = useState(0); // Lunes por defecto
+  const [selectedPairIndex, setSelectedPairIndex] = useState(0); // Par 0: Lunes - Miércoles por defecto
   const [teacher, setTeacher] = useState(ALL);
   const [room, setRoom] = useState(ALL);
   const [instrument, setInstrument] = useState(ALL);
+  const [category, setCategory] = useState(ALL);
+  const [dayGroup, setDayGroup] = useState(ALL);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [moveDay, setMoveDay] = useState<WeekDay>("Lun");
   const [moveTime, setMoveTime] = useState(timeSlots[0]!);
@@ -165,7 +169,13 @@ export function AgendaBoard() {
   const chimeSettings = useAppStore((s) => s.chimeSettings);
   const setChimeSettings = useAppStore((s) => s.setChimeSettings);
   const playOfficialChime = useAppStore((s) => s.playOfficialChime);
+  const markLessonAttendance = useAppStore((s) => s.markLessonAttendance);
+  const scheduleMakeupLesson = useAppStore((s) => s.scheduleMakeupLesson);
   const [isChimeSettingsOpen, setIsChimeSettingsOpen] = useState(false);
+
+  // Sub-modo de Vista Didáctica: "pareado" (2x2) | "individual" (1x1)
+  const [excelSubMode, setExcelSubMode] = useState<"pareado" | "individual">("pareado");
+  const [excelSingleDayIndex, setExcelSingleDayIndex] = useState(0); // 0=Lun, 1=Mar, 2=Mié, 3=Jue, 4=Vie, 5=Sáb
 
   // Estados de Programar Nueva Clase individual
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
@@ -175,8 +185,19 @@ export function AgendaBoard() {
   const [newLessonInstrument, setNewLessonInstrument] = useState(musicalInstruments[0] || "Piano");
   const [newLessonDay, setNewLessonDay] = useState<WeekDay>("Lun");
   const [newLessonTime, setNewLessonTime] = useState(timeSlotsWeekday[0] || "16:00");
-  const [newLessonRoom, setNewLessonRoom] = useState(rooms[0] || "Sala 1");
+  const [newLessonRoom, setNewLessonRoom] = useState(rooms[0] || "Sala A");
   const [newLessonCategory, setNewLessonCategory] = useState<AgeCategory>("JUNIOR");
+
+  // Estados de Programar Recuperación de Clase para Alumnos
+  const [isMakeupModalOpen, setIsMakeupModalOpen] = useState(false);
+  const [makeupStudent, setMakeupStudent] = useState("");
+  const [makeupTeacher, setMakeupTeacher] = useState("");
+  const [makeupInstrument, setMakeupInstrument] = useState("Piano");
+  const [makeupDay, setMakeupDay] = useState<WeekDay>("Lun");
+  const [makeupTime, setMakeupTime] = useState("16:00");
+  const [makeupRoom, setMakeupRoom] = useState("Sala A");
+  const [makeupCategory, setMakeupCategory] = useState<AgeCategory>("JUNIOR");
+  const [makeupOriginalDate, setMakeupOriginalDate] = useState("");
 
   // Estados de Vaciar Horario Seguro (Exclusivo Dueña con 2 filtros: Contraseña + Reconfirmación GitHub Style)
   const [isClearSecureOpen, setIsClearSecureOpen] = useState(false);
@@ -247,6 +268,7 @@ export function AgendaBoard() {
   const selectedMonth = selectedDate.getMonth(); // 0 = Enero, 7 = Agosto
   const selectedYearMonthStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
 
+  // Filtrado reactivo estricto para eliminar cruces o datos no solicitados (Bugfix Crítico)
   const visible = useMemo(
     () =>
       schedule.filter(
@@ -270,15 +292,47 @@ export function AgendaBoard() {
             if (!matchesDate) return false;
           }
 
-          return (
-            (l.weekIndex === undefined || l.weekIndex === currentWeekIndex) &&
-            (teacher === ALL || l.teacher === teacher) &&
-            (room === ALL || l.room === room) &&
-            (instrument === ALL || l.instrument === instrument)
-          );
+          // 2. Filtro de semana específica (si aplica a semana individual o al mes completo)
+          if (l.weekIndex !== undefined && l.weekIndex !== currentWeekIndex) {
+            return false;
+          }
+
+          // 3. Filtro por Profesor
+          if (teacher !== ALL) {
+            const teacherMatch = l.teacher.toLowerCase().includes(teacher.toLowerCase());
+            if (!teacherMatch) return false;
+          }
+
+          // 4. Filtro por Sala (Sala A, B, C, D)
+          if (room !== ALL) {
+            const roomMatch = l.room.toLowerCase().trim() === room.toLowerCase().trim();
+            if (!roomMatch) return false;
+          }
+
+          // 5. Filtro por Instrumento
+          if (instrument !== ALL) {
+            const instMatch = l.instrument.toLowerCase().trim() === instrument.toLowerCase().trim();
+            if (!instMatch) return false;
+          }
+
+          // 6. Filtro por Categoría de Edad
+          if (category !== ALL) {
+            if (l.category !== category) return false;
+          }
+
+          // 7. Filtro por Modalidad de Días (L-M, M-J, Viernes Intensivo, Sábado Intensivo, Personalizado)
+          if (dayGroup !== ALL) {
+            if (dayGroup === "L-M" && l.day !== "Lun" && l.day !== "Mié") return false;
+            if (dayGroup === "M-J" && l.day !== "Mar" && l.day !== "Jue") return false;
+            if (dayGroup === "Vie" && l.day !== "Vie") return false;
+            if (dayGroup === "Sáb" && l.day !== "Sáb") return false;
+            if (dayGroup === "Personalizado" && l.category !== "PERSONALIZADA") return false;
+          }
+
+          return true;
         },
       ),
-    [schedule, adminStudents, teacher, room, instrument, currentWeekIndex, selectedYear, selectedMonth, selectedYearMonthStr],
+    [schedule, adminStudents, teacher, room, instrument, category, dayGroup, currentWeekIndex, selectedYear, selectedMonth, selectedYearMonthStr],
   );
 
   // Clases del día seleccionado para la vista diaria (swipe)
@@ -366,7 +420,7 @@ export function AgendaBoard() {
     const errors: string[] = [];
     const parsed: ScheduledLesson[] = [];
     const validDays: WeekDay[] = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-    const validRooms = ["Sala 1", "Sala 2", "Sala 3", "Sala 4"];
+    const validRooms = ["Sala A", "Sala B", "Sala C", "Sala D"];
 
     // Detectar si la primera línea es cabecera
     const firstLineLower = lines[0]!.toLowerCase();
@@ -411,14 +465,15 @@ export function AgendaBoard() {
       // Normalizar hora (ej. 16:00, 16:45, 17:30, 09:00, etc.)
       const time = (timeRaw || "16:00").trim();
 
-      // Normalizar sala
-      let room = roomRaw || "Sala 1";
+      // Normalizar sala (Sala A, B, C, D)
+      let room = roomRaw || "Sala A";
       if (!validRooms.includes(room)) {
-        if (room.includes("1")) room = "Sala 1";
-        else if (room.includes("2")) room = "Sala 2";
-        else if (room.includes("3")) room = "Sala 3";
-        else if (room.includes("4")) room = "Sala 4";
-        else room = "Sala 1";
+        const rLower = room.toLowerCase();
+        if (rLower.includes("a") || rLower.includes("1")) room = "Sala A";
+        else if (rLower.includes("b") || rLower.includes("2")) room = "Sala B";
+        else if (rLower.includes("c") || rLower.includes("3")) room = "Sala C";
+        else if (rLower.includes("d") || rLower.includes("4") || rLower.includes("5")) room = "Sala D";
+        else room = "Sala A";
       }
 
       const teacher = teacherRaw || "Prof. por Asignar";
@@ -482,10 +537,10 @@ export function AgendaBoard() {
   function downloadCsvTemplate() {
     const header = "Alumno,Dia,Hora,Sala,Profesor,Instrumento,Categoria\n";
     const samples = [
-      "Valentina Ríos,Lun,16:00,Sala 1,Prof. Jeremy,Batería,JUNIOR",
-      "Lucas Medina,Lun,16:45,Sala 2,Prof. Fernando,Piano,INFANTIL",
-      "Camila Morales,Mar,17:30,Sala 3,Prof. Nathaly,Canto,JUVENIL",
-      "Mateo Salazar,Sáb,09:00,Sala 1,Prof. Jeremy,Guitarra clásica,ADULTO",
+      "Valentina Ríos,Lun,16:00,Sala A,Prof. Jeremy,Batería,JUNIOR",
+      "Lucas Medina,Lun,16:45,Sala B,Prof. Fernando,Piano,INFANTIL",
+      "Camila Morales,Mar,17:30,Sala C,Prof. Nathaly,Canto,JUVENIL",
+      "Mateo Salazar,Sáb,09:00,Sala A,Prof. Jeremy,Guitarra clásica,ADULTO",
     ].join("\n");
 
     const blob = new Blob([header + samples], { type: "text/csv;charset=utf-8;" });
@@ -673,6 +728,26 @@ export function AgendaBoard() {
             + Programar Clase
           </Button>
 
+          {/* Botón de Programar Clase de Recuperación */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const studentWithCredit = adminStudents.find((st) => st.makeupCredits > 0) || adminStudents[0];
+              if (studentWithCredit) {
+                setMakeupStudent(studentWithCredit.name);
+                setMakeupTeacher(studentWithCredit.teacher || availableTeachers[0] || "Jeremy");
+                setMakeupInstrument(studentWithCredit.instrument || "Piano");
+                setMakeupCategory(studentWithCredit.ageCategory || "JUNIOR");
+              }
+              setIsMakeupModalOpen(true);
+            }}
+            className="gap-1.5 font-bold border-red-500/40 text-red-700 dark:text-red-300 bg-red-500/10 hover:bg-red-500/20"
+          >
+            <RotateCcw className="h-4 w-4 text-red-600" />
+            🔄 Programar Recuperación
+          </Button>
+
           {/* Botón de Registro Histórico de Alumnos Reingresantes / Bajas */}
           <Button
             variant="outline"
@@ -723,7 +798,7 @@ export function AgendaBoard() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <FilterSelect value={teacher} onChange={setTeacher} placeholder="Profesor" options={availableTeachers} />
           <FilterSelect value={room} onChange={setRoom} placeholder="Sala" options={rooms} />
           <FilterSelect
@@ -732,25 +807,53 @@ export function AgendaBoard() {
             placeholder="Instrumento"
             options={instruments}
           />
-          {(teacher !== ALL || room !== ALL || instrument !== ALL) && (
+          <FilterSelect
+            value={category}
+            onChange={setCategory}
+            placeholder="Categoría / Edad"
+            options={[
+              { value: "JUNIOR", label: "🟡 Junior (7 a 12)" },
+              { value: "JUVENIL", label: "🟢 Juvenil (13 a 17)" },
+              { value: "ADULTO", label: "⚫ Adulto (18 a +)" },
+              { value: "INFANTIL", label: "🟣 Infantil (5 y 6)" },
+              { value: "PERSONALIZADA", label: "🔵 Personalizada" },
+              { value: "RECUPERACION", label: "🔴 Recuperación" },
+            ]}
+          />
+          <FilterSelect
+            value={dayGroup}
+            onChange={setDayGroup}
+            placeholder="Modalidad / Días"
+            options={[
+              { value: "L-M", label: "Lunes y Miércoles (Regular)" },
+              { value: "M-J", label: "Martes y Jueves (Regular)" },
+              { value: "Vie", label: "Viernes Intensivo" },
+              { value: "Sáb", label: "Sábado Intensivo" },
+              { value: "Personalizado", label: "Solo Personalizadas" },
+            ]}
+          />
+          {(teacher !== ALL || room !== ALL || instrument !== ALL || category !== ALL || dayGroup !== ALL) && (
             <Button
               variant="ghost"
               size="sm"
+              className="h-8 text-xs font-semibold text-primary hover:underline"
               onClick={() => {
                 setTeacher(ALL);
                 setRoom(ALL);
                 setInstrument(ALL);
+                setCategory(ALL);
+                setDayGroup(ALL);
               }}
             >
-              Limpiar
+              Restablecer filtros
             </Button>
           )}
         </div>
       </div>
 
-      {/* VISTA 0: VISTA DIDÁCTICA ULTRA-COMPACTA (EXCEL NAYELI) */}
+      {/* VISTA 0: VISTA DIDÁCTICA ULTRA-COMPACTA (EXCEL NAYELI - 2 DÍAS PAREADOS) */}
       {viewMode === "excel" && (
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           {/* Leyenda de Colores del Excel de Nayeli */}
           <div className="flex flex-wrap items-center justify-between gap-2 bg-card p-2.5 rounded-2xl border border-border text-xs">
             <span className="font-black text-foreground">Leyenda de Categorías:</span>
@@ -766,180 +869,376 @@ export function AgendaBoard() {
             </div>
           </div>
 
-          {/* Barra de Día y Navegación Rápida */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border shadow-xs">
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" onClick={handlePrevDay} className="h-8 px-2.5 text-xs font-bold gap-1">
-                ← Anterior
-              </Button>
-              <div className="flex items-center gap-1 bg-muted p-1 rounded-xl">
-                {weekDays.map((d, idx) => {
-                  const dayNum = 3 + (currentWeekIndex * 7) + idx;
-                  return (
-                    <button
-                      key={d}
-                      onClick={() => setSelectedDayIndex(idx)}
-                      className={`px-3 py-1 text-xs font-black rounded-lg transition-all ${
-                        selectedDayIndex === idx
-                          ? "bg-success text-success-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground hover:bg-background/80"
-                      }`}
-                    >
-                      {d} {dayNum}
-                    </button>
-                  );
-                })}
-              </div>
-              <Button variant="outline" size="sm" onClick={handleNextDay} className="h-8 px-2.5 text-xs font-bold gap-1">
-                Siguiente →
-              </Button>
-            </div>
+          {/* Navegador de Pares de Días (Formato Original Excel Nayeli) */}
+          {(() => {
+            const pairs: Array<{
+              id: string;
+              title: string;
+              badge: string;
+              day1: WeekDay;
+              day2: WeekDay;
+              day1Offset: number;
+              day2Offset: number;
+            }> = [
+              {
+                id: "L-M",
+                title: "Lunes y Miércoles",
+                badge: "Plan Regular (2x semana)",
+                day1: "Lun",
+                day2: "Mié",
+                day1Offset: 0,
+                day2Offset: 2,
+              },
+              {
+                id: "M-J",
+                title: "Martes y Jueves",
+                badge: "Plan Regular (2x semana)",
+                day1: "Mar",
+                day2: "Jue",
+                day1Offset: 1,
+                day2Offset: 3,
+              },
+              {
+                id: "V-S",
+                title: "Viernes y Sábado",
+                badge: "Turno Intensivo (Fines de Semana)",
+                day1: "Vie",
+                day2: "Sáb",
+                day1Offset: 4,
+                day2Offset: 5,
+              },
+            ];
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-foreground uppercase tracking-wide">
-                Día: {currentDayName} ({dayLessons.length} Clases Programadas)
-              </span>
-            </div>
-          </div>
+            const activePair = pairs[selectedPairIndex] || pairs[0]!;
+            const monthName = monthsName[selectedDate.getMonth()];
+            const baseDayNum = 3 + currentWeekIndex * 7; // Agosto 2026
 
-          {/* Cuadrícula Compacta Fiel al Excel de Nayeli */}
-          <div className="rounded-2xl border-2 border-slate-400 bg-white dark:bg-slate-950 shadow-md overflow-x-auto">
-            <table className="w-full border-collapse text-xs font-sans">
-              <thead>
-                <tr className="border-b-2 border-slate-400 bg-slate-100 dark:bg-slate-900 text-center font-black text-xs uppercase tracking-wider">
-                  <th className="w-[120px] p-2.5 border-r-2 border-slate-400 bg-[#F4A59C] text-slate-950 font-black text-center">
-                    HORA
-                  </th>
-                  <th className="w-1/3 p-2.5 border-r-2 border-slate-400 text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800/80 font-black">
-                    JEREMY
-                  </th>
-                  <th className="w-1/3 p-2.5 border-r-2 border-slate-400 text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800/80 font-black">
-                    FERNANDO
-                  </th>
-                  <th className="w-1/3 p-2.5 text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800/80 font-black">
-                    NATHALY
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y-2 divide-slate-300 dark:divide-slate-800">
-                {(() => {
-                  const currentSlots = currentDayName === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
-                  const mainTeachers = ["Jeremy", "Fernando", "Nathaly"];
+            const renderSingleDayTable = (dayName: WeekDay, dayOffset: number) => {
+              const dayLessonsForTable = visible.filter((l) => l.day === dayName && l.status !== "cancelada");
+              const currentSlots = dayName === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
+              const mainTeachersList = [
+                { name: "Jeremy", room: "Sala A", instrumentHint: "Guitarra y Batería" },
+                { name: "Fernando", room: "Sala B", instrumentHint: "Violín y Piano" },
+                { name: "Nathaly", room: "Sala C", instrumentHint: "Canto y Piano Infantil" },
+                { name: "Demo", room: "Sala D", instrumentHint: "Demos y Proyección" },
+              ];
 
-                  return currentSlots.map((timeSlot) => {
-                    const [hh, mm] = timeSlot.split(":").map((v) => parseInt(v, 10));
-                    const endMinuteTotal = hh! * 60 + mm! + 45;
-                    const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
-                    const endM = String(endMinuteTotal % 60).padStart(2, "0");
+              const actualDateNum = baseDayNum + dayOffset;
 
-                    return (
-                      <tr key={timeSlot} className="border-b border-slate-300 dark:border-slate-800 min-h-[55px]">
-                        {/* Columna HORA Salmón Oficial */}
-                        <td className="p-2 border-r-2 border-slate-400 bg-[#FCD7D2] text-center font-mono font-black text-xs text-slate-950 whitespace-nowrap">
-                          {timeSlot} {endH}:{endM}
-                        </td>
+              return (
+                <div className="flex-1 rounded-2xl border-2 border-slate-400 bg-white dark:bg-slate-950 shadow-md overflow-hidden flex flex-col w-full">
+                  {/* Encabezado del Día */}
+                  <div className="bg-[#FCD7D2] px-3 py-1.5 border-b-2 border-slate-400 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-xs sm:text-sm text-slate-950 uppercase tracking-wide">
+                        {dayName === "Lun"
+                          ? "LUNES"
+                          : dayName === "Mar"
+                          ? "MARTES"
+                          : dayName === "Mié"
+                          ? "MIÉRCOLES"
+                          : dayName === "Jue"
+                          ? "JUEVES"
+                          : dayName === "Vie"
+                          ? "VIERNES"
+                          : "SÁBADO"}{" "}
+                        {actualDateNum} {monthName?.slice(0, 3)}
+                      </span>
+                    </div>
+                    <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-slate-950/10 text-slate-950 shrink-0">
+                      {dayLessonsForTable.length} Clases
+                    </span>
+                  </div>
 
-                        {/* 3 Columnas por Profesor */}
-                        {mainTeachers.map((tName, tIdx) => {
-                          const lessons = dayLessons.filter(
-                            (l) =>
-                              l.time === timeSlot &&
-                              l.teacher.toLowerCase().includes(tName.toLowerCase())
-                          );
-
-                          return (
-                            <td
-                              key={tName}
-                              className={`p-0 border-r-2 border-slate-400 last:border-r-0 align-top ${
-                                tIdx === 2 ? "border-r-0" : ""
+                  {/* Tabla del Día con ancho 100% fluido y sin scrollbar horizontal */}
+                  <div className="w-full">
+                    <table className="w-full table-fixed border-collapse text-xs font-sans">
+                      <colgroup>
+                        <col className="w-[66px]" />
+                        <col className="w-[calc((100%-66px)/4)]" />
+                        <col className="w-[calc((100%-66px)/4)]" />
+                        <col className="w-[calc((100%-66px)/4)]" />
+                        <col className="w-[calc((100%-66px)/4)]" />
+                      </colgroup>
+                      <thead>
+                        <tr className="border-b-2 border-slate-400 bg-slate-100 dark:bg-slate-900 text-center font-black text-xs uppercase tracking-wider">
+                          <th className="p-1.5 border-r-2 border-slate-400 bg-[#F4A59C] text-slate-950 font-black text-center text-[10.5px]">
+                            HORA
+                          </th>
+                          {mainTeachersList.map((tInfo, tIdx) => (
+                            <th
+                              key={tInfo.name}
+                              className={`p-1.5 border-r-2 border-slate-400 last:border-r-0 text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800/80 font-black text-center ${
+                                tIdx === mainTeachersList.length - 1 ? "border-r-0" : ""
                               }`}
                             >
-                              {lessons.length === 0 ? (
-                                <div
-                                  onClick={() => {
-                                    setNewLessonDay(currentDayName);
-                                    setNewLessonTime(timeSlot);
-                                    setNewLessonTeacher(tName);
-                                    setIsAddLessonOpen(true);
-                                  }}
-                                  className="h-full min-h-[55px] w-full p-2 flex items-center justify-center text-[10px] text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 cursor-pointer transition-colors"
-                                >
-                                  <span className="opacity-0 hover:opacity-100 font-semibold text-primary">+ Añadir</span>
-                                </div>
-                              ) : (
-                                <div className="flex h-full min-h-[55px] divide-x border-slate-300">
-                                  {lessons.map((lesson) => {
-                                    const catStyle = categoryStyles[lesson.category ?? "JUNIOR"]!;
-                                    const studentProfile = adminStudents.find(
-                                      (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
-                                    );
-                                    
-                                    // Detección de Categoría de Edad para Clases Personalizadas
-                                    const studentAgeCat =
-                                      studentProfile?.ageCategory ||
-                                      (lesson.student.toLowerCase().includes("joan paolo")
-                                        ? "ADULTO"
-                                        : lesson.student.toLowerCase().includes("mishel")
-                                        ? "JUVENIL"
-                                        : lesson.student.toLowerCase().includes("mirko")
-                                        ? "JUNIOR"
-                                        : "JUNIOR");
+                              <div className="leading-tight text-[10.5px] truncate">{tInfo.name.toUpperCase()}</div>
+                              <span className="text-[9px] font-bold text-primary block opacity-90 leading-tight">({tInfo.room})</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y-2 divide-slate-300 dark:divide-slate-800">
+                        {currentSlots.map((timeSlot) => {
+                          const [hh, mm] = timeSlot.split(":").map((v) => parseInt(v, 10));
+                          const endMinuteTotal = hh! * 60 + mm! + 45;
+                          const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
+                          const endM = String(endMinuteTotal % 60).padStart(2, "0");
 
-                                    // Colores del puntito indicador según el Excel oficial:
-                                    // 🟢 Juvenil: #4CAF50 | ⚫ Adulto: #757575 | 🟡 Junior: #FBC02D | 🟣 Infantil: #7C4DFF
-                                    const dotColor =
-                                      studentAgeCat === "JUVENIL"
-                                        ? "bg-[#4CAF50]" // Verde Juvenil (13 a 17)
-                                        : studentAgeCat === "ADULTO"
-                                        ? "bg-[#757575]" // Plomo Adulto (18 a +)
-                                        : studentAgeCat === "INFANTIL"
-                                        ? "bg-[#7C4DFF]" // Morado Infantil (5 y 6)
-                                        : "bg-[#FBC02D]"; // Amarillo Junior (7 a 12)
+                          return (
+                            <tr key={timeSlot} className="border-b border-slate-300 dark:border-slate-800 min-h-[48px]">
+                              {/* Columna HORA Salmón Oficial */}
+                              <td className="p-1 border-r-2 border-slate-400 bg-[#FCD7D2] text-center font-mono font-black text-[10.5px] text-slate-950 align-middle">
+                                <div>{timeSlot}</div>
+                                <div className="text-[9px] text-slate-700 font-bold">{endH}:{endM}</div>
+                              </td>
 
-                                    const dotLabel =
-                                      studentAgeCat === "JUVENIL"
-                                        ? "Categoría Juvenil (13 a 17 años)"
-                                        : studentAgeCat === "ADULTO"
-                                        ? "Categoría Adulto (18 a + años)"
-                                        : studentAgeCat === "INFANTIL"
-                                        ? "Categoría Infantil (5 y 6 años)"
-                                        : "Categoría Junior (7 a 12 años)";
+                              {/* 4 Columnas por Profesor y Sala */}
+                              {mainTeachersList.map((tInfo, tIdx) => {
+                                const lessons = dayLessonsForTable.filter(
+                                  (l) =>
+                                    l.time === timeSlot &&
+                                    (l.teacher.toLowerCase().includes(tInfo.name.toLowerCase()) ||
+                                     l.room.toLowerCase().trim() === tInfo.room.toLowerCase().trim())
+                                );
 
-                                    return (
+                                return (
+                                  <td
+                                    key={tInfo.name}
+                                    className={`p-0 border-r-2 border-slate-400 last:border-r-0 align-top ${
+                                      tIdx === mainTeachersList.length - 1 ? "border-r-0" : ""
+                                    }`}
+                                  >
+                                    {lessons.length === 0 ? (
                                       <div
-                                        key={lesson.id}
-                                        onClick={() => openLesson(lesson)}
-                                        className={`flex-1 p-1.5 ${catStyle.bg} border-r last:border-r-0 border-slate-300 cursor-pointer hover:brightness-95 transition-all flex flex-col justify-center text-center relative`}
-                                        title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
+                                        onClick={() => {
+                                          setNewLessonDay(dayName);
+                                          setNewLessonTime(timeSlot);
+                                          setNewLessonTeacher(tInfo.name);
+                                          setNewLessonRoom(tInfo.room);
+                                          setIsAddLessonOpen(true);
+                                        }}
+                                        className="h-full min-h-[48px] w-full p-1 flex items-center justify-center text-[10px] text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 cursor-pointer transition-colors"
                                       >
-                                        <p className={`font-black text-[11px] leading-tight ${catStyle.text} line-clamp-2`}>
-                                          {lesson.student}
-                                        </p>
-                                        <p className={`text-[10px] font-bold ${catStyle.text} opacity-90 truncate mt-0.5`}>
-                                          ({lesson.instrument})
-                                        </p>
-                                        {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
-                                        {lesson.category === "PERSONALIZADA" && (
-                                          <span
-                                            className={`absolute top-1 right-1 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
-                                            title={`Clase Personalizada · ${dotLabel}`}
-                                          />
-                                        )}
+                                        <span className="opacity-0 hover:opacity-100 font-semibold text-primary text-[9.5px]">+ Añadir</span>
                                       </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </td>
+                                    ) : (
+                                      <div className="flex flex-col sm:flex-row h-full min-h-[48px] divide-y sm:divide-y-0 sm:divide-x border-slate-300">
+                                        {lessons.map((lesson) => {
+                                          const catStyle = categoryStyles[lesson.category ?? "JUNIOR"]!;
+                                          const studentProfile = adminStudents.find(
+                                            (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
+                                          );
+
+                                          // Detección de Categoría de Edad para Clases Personalizadas
+                                          const studentAgeCat =
+                                            studentProfile?.ageCategory ||
+                                            (lesson.student.toLowerCase().includes("joan paolo")
+                                              ? "ADULTO"
+                                              : lesson.student.toLowerCase().includes("mishel")
+                                              ? "JUVENIL"
+                                              : lesson.student.toLowerCase().includes("mirko")
+                                              ? "JUNIOR"
+                                              : "JUNIOR");
+
+                                          // Colores del puntito indicador según el Excel oficial:
+                                          // 🟢 Juvenil: #4CAF50 | ⚫ Adulto: #757575 | 🟡 Junior: #FBC02D | 🟣 Infantil: #7C4DFF
+                                          const dotColor =
+                                            studentAgeCat === "JUVENIL"
+                                              ? "bg-[#4CAF50]" // Verde Juvenil (13 a 17)
+                                              : studentAgeCat === "ADULTO"
+                                              ? "bg-[#757575]" // Plomo Adulto (18 a +)
+                                              : studentAgeCat === "INFANTIL"
+                                              ? "bg-[#7C4DFF]" // Morado Infantil (5 y 6)
+                                              : "bg-[#FBC02D]"; // Amarillo Junior (7 a 12)
+
+                                          const dotLabel =
+                                            studentAgeCat === "JUVENIL"
+                                              ? "Categoría Juvenil (13 a 17 años)"
+                                              : studentAgeCat === "ADULTO"
+                                              ? "Categoría Adulto (18 a + años)"
+                                              : studentAgeCat === "INFANTIL"
+                                              ? "Categoría Infantil (5 y 6 años)"
+                                              : "Categoría Junior (7 a 12 años)";
+
+                                          return (
+                                            <div
+                                              key={lesson.id}
+                                              onClick={() => openLesson(lesson)}
+                                              className={`flex-1 p-1 ${catStyle.bg} border-b sm:border-b-0 border-slate-300 cursor-pointer hover:brightness-95 transition-all flex flex-col justify-center text-center relative overflow-hidden`}
+                                              title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${
+                                                lesson.category === "PERSONALIZADA"
+                                                  ? `Clase Personalizada (${dotLabel})`
+                                                  : catStyle.label
+                                              }`}
+                                            >
+                                              <p className={`font-black text-[10px] leading-tight ${catStyle.text} line-clamp-2 break-words`}>
+                                                {lesson.student}
+                                              </p>
+                                              <p className={`text-[9px] font-bold ${catStyle.text} opacity-90 truncate mt-0.5`}>
+                                                ({lesson.instrument})
+                                              </p>
+                                              {/* Chip de Clase de Recuperación */}
+                                              {lesson.isMakeup && (
+                                                <span className="text-[8px] font-black uppercase text-[#B71C1C] bg-[#FFCDD2] px-1 py-0.2 rounded mt-0.5 inline-block">
+                                                  🔄 Recuperación
+                                                </span>
+                                              )}
+                                              {/* Puntito Indicador de Asistencia Marcada */}
+                                              {lesson.attendanceStatus && (
+                                                <span
+                                                  className={`absolute top-0.5 left-0.5 w-2 h-2 rounded-full border border-white shadow-2xs ${
+                                                    lesson.attendanceStatus === "presente"
+                                                      ? "bg-emerald-500 ring-1 ring-emerald-400/50"
+                                                      : lesson.attendanceStatus === "ausente"
+                                                      ? "bg-red-500 ring-1 ring-red-400/50"
+                                                      : lesson.attendanceStatus === "tarde"
+                                                      ? "bg-amber-500 ring-1 ring-amber-400/50"
+                                                      : "bg-blue-500 ring-1 ring-blue-400/50"
+                                                  }`}
+                                                  title={`Asistencia: ${lesson.attendanceStatus.toUpperCase()}`}
+                                                />
+                                              )}
+                                              {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
+                                              {lesson.category === "PERSONALIZADA" && (
+                                                <span
+                                                  className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
+                                                  title={`Clase Personalizada · ${dotLabel}`}
+                                                />
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
                           );
                         })}
-                      </tr>
-                    );
-                  });
-                })()}
-              </tbody>
-            </table>
-          </div>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            };
+
+            const singleDays: Array<{ day: WeekDay; label: string; offset: number; badge: string }> = [
+              { day: "Lun", label: "Lunes", offset: 0, badge: "L-M" },
+              { day: "Mar", label: "Martes", offset: 1, badge: "M-J" },
+              { day: "Mié", label: "Miércoles", offset: 2, badge: "L-M" },
+              { day: "Jue", label: "Jueves", offset: 3, badge: "M-J" },
+              { day: "Vie", label: "Viernes", offset: 4, badge: "Intensivo" },
+              { day: "Sáb", label: "Sábado", offset: 5, badge: "Intensivo" },
+            ];
+
+            return (
+              <div className="space-y-3">
+                {/* Switch de Formato: 2x2 Pareado vs 1x1 Día Individual */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center bg-muted p-1 rounded-xl border border-border text-xs font-bold">
+                      <button
+                        onClick={() => setExcelSubMode("pareado")}
+                        className={`px-3 py-1 rounded-lg transition-all ${
+                          excelSubMode === "pareado"
+                            ? "bg-background text-foreground shadow-2xs font-black"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        👥 Pareado (2x2)
+                      </button>
+                      <button
+                        onClick={() => setExcelSubMode("individual")}
+                        className={`px-3 py-1 rounded-lg transition-all ${
+                          excelSubMode === "individual"
+                            ? "bg-background text-foreground shadow-2xs font-black text-primary"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        🎯 Día a Día (1x1)
+                      </button>
+                    </div>
+
+                    {/* Pestañas según el sub-modo */}
+                    {excelSubMode === "pareado" ? (
+                      <div className="flex flex-wrap items-center gap-1.5 ml-2">
+                        {pairs.map((p, pIdx) => (
+                          <button
+                            key={p.id}
+                            onClick={() => setSelectedPairIndex(pIdx)}
+                            className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 ${
+                              selectedPairIndex === pIdx
+                                ? "bg-primary text-primary-foreground shadow-xs scale-[1.02]"
+                                : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                            }`}
+                          >
+                            <span>{p.title}</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                                selectedPairIndex === pIdx
+                                  ? "bg-primary-foreground/20 text-primary-foreground"
+                                  : "bg-background/80 text-muted-foreground"
+                              }`}
+                            >
+                              {p.badge}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-1.5 ml-2">
+                        {singleDays.map((sd, sdIdx) => (
+                          <button
+                            key={sd.day}
+                            onClick={() => setExcelSingleDayIndex(sdIdx)}
+                            className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 ${
+                              excelSingleDayIndex === sdIdx
+                                ? "bg-primary text-primary-foreground shadow-xs scale-[1.02]"
+                                : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                            }`}
+                          >
+                            <span>{sd.label}</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                                excelSingleDayIndex === sdIdx
+                                  ? "bg-primary-foreground/20 text-primary-foreground"
+                                  : "bg-background/80 text-muted-foreground"
+                              }`}
+                            >
+                              {sd.badge}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-foreground uppercase tracking-wide">
+                      Semana {currentWeekIndex + 1} de 4 · {monthName} {selectedDate.getFullYear()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Renderizado de Tablas según Sub-Modo */}
+                {excelSubMode === "pareado" ? (
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 items-start">
+                    {renderSingleDayTable(activePair.day1, activePair.day1Offset)}
+                    {renderSingleDayTable(activePair.day2, activePair.day2Offset)}
+                  </div>
+                ) : (
+                  <div className="w-full">
+                    {renderSingleDayTable(
+                      singleDays[excelSingleDayIndex].day,
+                      singleDays[excelSingleDayIndex].offset
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1039,23 +1338,31 @@ export function AgendaBoard() {
                   a.localeCompare(b)
                 );
 
-                // Los 3 profesores principales del Excel oficial (o dinámicos según disponibles)
-                const mainTeachers = ["Jeremy", "Fernando", "Nathaly"];
+                // Los 4 profesores y salas principales
+                const mainTeachersList = [
+                  { name: "Jeremy", room: "Sala A" },
+                  { name: "Fernando", room: "Sala B" },
+                  { name: "Nathaly", room: "Sala C" },
+                  { name: "Demo", room: "Sala D" },
+                ];
 
                 return (
                   <div className="rounded-3xl border border-border bg-card shadow-sm overflow-hidden">
                     {/* Encabezado de Columnas por Profesor Estilo Excel Oficial */}
-                    <div className="grid grid-cols-[110px_1fr_1fr_1fr] bg-muted/90 border-b border-border text-center font-black text-xs uppercase tracking-wider sticky top-0 z-10">
+                    <div className="grid grid-cols-[110px_repeat(4,1fr)] bg-muted/90 border-b border-border text-center font-black text-xs uppercase tracking-wider sticky top-0 z-10">
                       <div className="p-3 border-r border-border bg-[#F4A59C] text-slate-950 flex items-center justify-center gap-1 font-black tracking-widest shadow-2xs">
                         <Clock className="h-3.5 w-3.5 text-slate-950" /> HORA
                       </div>
-                      {mainTeachers.map((tName) => (
+                      {mainTeachersList.map((tInfo) => (
                         <div
-                          key={tName}
-                          className="p-3 border-r border-border last:border-r-0 flex items-center justify-center gap-1.5 font-bold text-foreground"
+                          key={tInfo.name}
+                          className="p-3 border-r border-border last:border-r-0 flex flex-col items-center justify-center gap-0.5 font-bold text-foreground"
                         >
-                          <span className="w-2 h-2 rounded-full bg-primary inline-block" />
-                          PROF. {tName.toUpperCase()}
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-primary inline-block" />
+                            <span>PROF. {tInfo.name.toUpperCase()}</span>
+                          </div>
+                          <span className="text-[9.5px] font-bold text-primary opacity-90">({tInfo.room})</span>
                         </div>
                       ))}
                     </div>
@@ -1068,12 +1375,11 @@ export function AgendaBoard() {
                         const endMinuteTotal = hh! * 60 + mm! + 45;
                         const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
                         const endM = String(endMinuteTotal % 60).padStart(2, "0");
-                        const timeRangeLabel = `${timeSlot} - ${endH}:${endM}`;
 
                         return (
                           <div
                             key={timeSlot}
-                            className="grid grid-cols-[110px_1fr_1fr_1fr] min-h-[90px] hover:bg-muted/10 transition-colors"
+                            className="grid grid-cols-[110px_repeat(4,1fr)] min-h-[90px] hover:bg-muted/10 transition-colors"
                           >
                             {/* Columna de Hora con alto contraste: Fondo salmón del Excel + texto oscuro nítido */}
                             <div className="p-2 border-r border-border bg-[#FCD7D2] flex flex-col items-center justify-center text-center font-mono font-black text-xs text-slate-950 shadow-2xs">
@@ -1081,20 +1387,18 @@ export function AgendaBoard() {
                               <span className="text-[10px] font-bold text-slate-700 mt-0.5">{endH}:{endM}</span>
                             </div>
 
-                            {/* 3 Columnas para los 3 Profesores */}
-                            {mainTeachers.map((tName) => {
+                            {/* 4 Columnas para los 4 Profesores y Salas */}
+                            {mainTeachersList.map((tInfo) => {
                               const lessonsForTeacher = dayLessons.filter(
                                 (l) =>
                                   l.time === timeSlot &&
-                                  (l.teacher.toLowerCase().includes(tName.toLowerCase()) ||
-                                   (tName === "Jeremy" && l.teacher.toLowerCase().includes("jeremy")) ||
-                                   (tName === "Fernando" && l.teacher.toLowerCase().includes("fernando")) ||
-                                   (tName === "Nathaly" && l.teacher.toLowerCase().includes("nathaly")))
+                                  (l.teacher.toLowerCase().includes(tInfo.name.toLowerCase()) ||
+                                   l.room.toLowerCase().trim() === tInfo.room.toLowerCase().trim())
                               );
 
                               return (
                                 <div
-                                  key={tName}
+                                  key={tInfo.name}
                                   className="p-1.5 border-r border-border last:border-r-0 flex flex-col gap-1.5 justify-center"
                                 >
                                   {lessonsForTeacher.length === 0 ? (
@@ -1102,7 +1406,8 @@ export function AgendaBoard() {
                                       onClick={() => {
                                         setNewLessonDay(currentDayName);
                                         setNewLessonTime(timeSlot);
-                                        setNewLessonTeacher(tName);
+                                        setNewLessonTeacher(tInfo.name);
+                                        setNewLessonRoom(tInfo.room);
                                         setIsAddLessonOpen(true);
                                       }}
                                       className="h-full min-h-[65px] rounded-xl border border-dashed border-border/60 hover:border-primary/50 hover:bg-primary/5 flex items-center justify-center text-[10px] text-muted-foreground transition-colors cursor-pointer group"
@@ -1116,16 +1421,76 @@ export function AgendaBoard() {
                                     <div className="flex flex-col gap-1.5 h-full">
                                       {lessonsForTeacher.map((lesson) => {
                                         const catStyle = categoryStyles[lesson.category ?? "JUNIOR"]!;
+                                        const studentProfile = adminStudents.find(
+                                          (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
+                                        );
+                                        
+                                        // Detección de Categoría de Edad para Clases Personalizadas
+                                        const studentAgeCat =
+                                          studentProfile?.ageCategory ||
+                                          (lesson.student.toLowerCase().includes("joan paolo")
+                                            ? "ADULTO"
+                                            : lesson.student.toLowerCase().includes("mishel")
+                                            ? "JUVENIL"
+                                            : lesson.student.toLowerCase().includes("mirko")
+                                            ? "JUNIOR"
+                                            : "JUNIOR");
+
+                                        // Colores del puntito indicador según el Excel oficial:
+                                        // 🟢 Juvenil: #4CAF50 | ⚫ Adulto: #757575 | 🟡 Junior: #FBC02D | 🟣 Infantil: #7C4DFF
+                                        const dotColor =
+                                          studentAgeCat === "JUVENIL"
+                                            ? "bg-[#4CAF50]" // Verde Juvenil (13 a 17)
+                                            : studentAgeCat === "ADULTO"
+                                            ? "bg-[#757575]" // Plomo Adulto (18 a +)
+                                            : studentAgeCat === "INFANTIL"
+                                            ? "bg-[#7C4DFF]" // Morado Infantil (5 y 6)
+                                            : "bg-[#FBC02D]"; // Amarillo Junior (7 a 12)
+
+                                        const dotLabel =
+                                          studentAgeCat === "JUVENIL"
+                                            ? "Categoría Juvenil (13 a 17 años)"
+                                            : studentAgeCat === "ADULTO"
+                                            ? "Categoría Adulto (18 a + años)"
+                                            : studentAgeCat === "INFANTIL"
+                                            ? "Categoría Infantil (5 y 6 años)"
+                                            : "Categoría Junior (7 a 12 años)";
+
                                         return (
                                           <div
                                             key={lesson.id}
                                             onClick={() => openLesson(lesson)}
-                                            className={`cursor-pointer rounded-xl border ${catStyle.border} ${catStyle.bg} p-2 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group`}
+                                            className={`cursor-pointer rounded-xl border ${catStyle.border} ${catStyle.bg} p-2 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group relative`}
+                                            title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
                                           >
                                             <div className="flex items-start justify-between gap-1">
-                                              <span className={`text-[9px] px-1.5 py-0.2 rounded font-black uppercase tracking-wider bg-black/15 ${catStyle.text}`}>
-                                                {catStyle.label.split(" ")[0]}
-                                              </span>
+                                              <div className="flex items-center gap-1">
+                                                <p className={`font-black text-[10px] leading-tight ${catStyle.text} line-clamp-2 break-words`}>
+                                                  {lesson.student}
+                                                </p>
+                                                <p className={`text-[9px] font-bold ${catStyle.text} opacity-90 truncate mt-0.5`}>
+                                                  ({lesson.instrument})
+                                                </p>
+                                                {/* Distintivo de Alumno Nuevo en su primera semana */}
+                                                {(studentProfile?.joinedAt?.includes("18/08") ||
+                                                  studentProfile?.teacherNote?.toLowerCase().includes("nueva") ||
+                                                  studentProfile?.teacherNote?.toLowerCase().includes("nuevo") ||
+                                                  studentProfile?.teacherNote?.toLowerCase().includes("prueba")) && (
+                                                  <span
+                                                    className="absolute top-0.5 left-0.5 px-1 py-0.2 rounded bg-amber-400 text-slate-950 font-black text-[7.5px] leading-none shadow-xs border border-amber-500/40"
+                                                    title="Alumno Nuevo / Recién Matriculado"
+                                                  >
+                                                    ✨ Nuevo
+                                                  </span>
+                                                )}
+                                                {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
+                                                {lesson.category === "PERSONALIZADA" && (
+                                                  <span
+                                                    className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
+                                                    title={`Clase Personalizada · ${dotLabel}`}
+                                                  />
+                                                )}
+                                              </div>
                                               <span className="font-mono text-[9px] font-bold bg-background/90 text-foreground px-1.5 rounded border border-border shrink-0">
                                                 {lesson.room}
                                               </span>
@@ -1190,7 +1555,7 @@ export function AgendaBoard() {
                   <Clock className="h-4 w-4" /> Turno Tarde · Lunes a Viernes (16:00 a 19:45)
                 </span>
                 <span className="text-[11px] font-bold text-muted-foreground">
-                  Bloques de 45 minutos · Salas 1 a 5
+                  Bloques de 45 minutos · Salas A a D
                 </span>
               </div>
 
@@ -1235,21 +1600,66 @@ export function AgendaBoard() {
                           >
                             {cell.map((lesson) => {
                               const catStyle = categoryStyles[lesson.category ?? "JUNIOR"] ?? categoryStyles.JUNIOR!;
+                              const studentProfile = adminStudents.find(
+                                (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
+                              );
+                              
+                              // Detección de Categoría de Edad para Clases Personalizadas
+                              const studentAgeCat =
+                                studentProfile?.ageCategory ||
+                                (lesson.student.toLowerCase().includes("joan paolo")
+                                  ? "ADULTO"
+                                  : lesson.student.toLowerCase().includes("mishel")
+                                  ? "JUVENIL"
+                                  : lesson.student.toLowerCase().includes("mirko")
+                                  ? "JUNIOR"
+                                  : "JUNIOR");
+
+                              // Colores del puntito indicador según el Excel oficial:
+                              // 🟢 Juvenil: #4CAF50 | ⚫ Adulto: #757575 | 🟡 Junior: #FBC02D | 🟣 Infantil: #7C4DFF
+                              const dotColor =
+                                studentAgeCat === "JUVENIL"
+                                  ? "bg-[#4CAF50]" // Verde Juvenil (13 a 17)
+                                  : studentAgeCat === "ADULTO"
+                                  ? "bg-[#757575]" // Plomo Adulto (18 a +)
+                                  : studentAgeCat === "INFANTIL"
+                                  ? "bg-[#7C4DFF]" // Morado Infantil (5 y 6)
+                                  : "bg-[#FBC02D]"; // Amarillo Junior (7 a 12)
+
+                              const dotLabel =
+                                studentAgeCat === "JUVENIL"
+                                  ? "Categoría Juvenil (13 a 17 años)"
+                                  : studentAgeCat === "ADULTO"
+                                  ? "Categoría Adulto (18 a + años)"
+                                  : studentAgeCat === "INFANTIL"
+                                  ? "Categoría Infantil (5 y 6 años)"
+                                  : "Categoría Junior (7 a 12 años)";
+
                               return (
                                 <button
                                   key={lesson.id}
                                   onClick={() => openLesson(lesson)}
                                   aria-label={`Clase de ${lesson.student}, ${lesson.instrument}, ${lesson.teacher}, ${lesson.room}`}
-                                  className={`w-full rounded-xl border p-2 text-left transition-all hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary ${
+                                  className={`w-full rounded-xl border p-2 text-left transition-all hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary relative ${
                                     lesson.status === "cancelada"
                                       ? "border-dashed border-border bg-muted text-muted-foreground line-through opacity-50"
                                       : `${catStyle.bg} ${catStyle.border} ${catStyle.text}`
                                   }`}
+                                  title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
                                 >
                                   <div className="flex items-center justify-between gap-1">
-                                    <span className="block truncate font-black text-xs">
-                                      {lesson.student}
-                                    </span>
+                                    <div className="flex items-center gap-1 min-w-0">
+                                      <span className="block truncate font-black text-xs">
+                                        {lesson.student}
+                                      </span>
+                                      {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
+                                      {lesson.category === "PERSONALIZADA" && (
+                                        <span
+                                          className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
+                                          title={`Clase Personalizada · ${dotLabel}`}
+                                        />
+                                      )}
+                                    </div>
                                     <div className="flex items-center gap-1 shrink-0">
                                       {lesson.sessionNumber && (
                                         <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-black/20 text-foreground border border-black/10">
@@ -1287,7 +1697,7 @@ export function AgendaBoard() {
                   <Clock className="h-4 w-4" /> Turno Mañana · Sábados (09:00 a 13:30)
                 </span>
                 <span className="text-[11px] font-bold text-muted-foreground">
-                  Bloques intensivos y regulares · Salas 1 a 5
+                  Bloques intensivos y regulares · Salas A a D
                 </span>
               </div>
 
@@ -1320,22 +1730,76 @@ export function AgendaBoard() {
                         <div className="border-l border-border/60 p-2 min-h-[5rem] flex flex-wrap gap-2 items-center bg-background/50">
                           {cell.map((lesson) => {
                             const catStyle = categoryStyles[lesson.category ?? "JUNIOR"] ?? categoryStyles.JUNIOR!;
+                            const studentProfile = adminStudents.find(
+                              (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
+                            );
+                            
+                            // Detección de Categoría de Edad para Clases Personalizadas
+                            const studentAgeCat =
+                              studentProfile?.ageCategory ||
+                              (lesson.student.toLowerCase().includes("joan paolo")
+                                ? "ADULTO"
+                                : lesson.student.toLowerCase().includes("mishel")
+                                ? "JUVENIL"
+                                : lesson.student.toLowerCase().includes("mirko")
+                                ? "JUNIOR"
+                                : "JUNIOR");
+
+                            // Colores del puntito indicador según el Excel oficial:
+                            // 🟢 Juvenil: #4CAF50 | ⚫ Adulto: #757575 | 🟡 Junior: #FBC02D | 🟣 Infantil: #7C4DFF
+                            const dotColor =
+                              studentAgeCat === "JUVENIL"
+                                ? "bg-[#4CAF50]" // Verde Juvenil (13 a 17)
+                                : studentAgeCat === "ADULTO"
+                                ? "bg-[#757575]" // Plomo Adulto (18 a +)
+                                : studentAgeCat === "INFANTIL"
+                                ? "bg-[#7C4DFF]" // Morado Infantil (5 y 6)
+                                : "bg-[#FBC02D]"; // Amarillo Junior (7 a 12)
+
+                            const dotLabel =
+                              studentAgeCat === "JUVENIL"
+                                ? "Categoría Juvenil (13 a 17 años)"
+                                : studentAgeCat === "ADULTO"
+                                ? "Categoría Adulto (18 a + años)"
+                                : studentAgeCat === "INFANTIL"
+                                ? "Categoría Infantil (5 y 6 años)"
+                                : "Categoría Junior (7 a 12 años)";
+
                             return (
                               <button
                                 key={lesson.id}
                                 onClick={() => openLesson(lesson)}
                                 aria-label={`Clase de ${lesson.student}, ${lesson.instrument}, ${lesson.teacher}, ${lesson.room}`}
-                                className={`flex-1 min-w-[14rem] max-w-[20rem] rounded-xl border p-2 text-left transition-all hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary ${
+                                className={`flex-1 min-w-[14rem] max-w-[20rem] rounded-xl border p-2 text-left transition-all hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary relative ${
                                   lesson.status === "cancelada"
                                     ? "border-dashed border-border bg-muted text-muted-foreground line-through opacity-50"
                                     : `${catStyle.bg} ${catStyle.border} ${catStyle.text}`
                                 }`}
+                                title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
                               >
                                 <div className="flex items-center justify-between gap-1">
-                                  <span className="block truncate font-black text-xs">{lesson.student}</span>
-                                  {conflictIds.has(lesson.id) && lesson.status !== "cancelada" && (
-                                    <AlertTriangle className="h-3 w-3 shrink-0 text-destructive" />
-                                  )}
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    <span className="block truncate font-black text-xs">
+                                      {lesson.student}
+                                    </span>
+                                    {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
+                                    {lesson.category === "PERSONALIZADA" && (
+                                      <span
+                                        className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
+                                        title={`Clase Personalizada · ${dotLabel}`}
+                                      />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {lesson.sessionNumber && (
+                                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-black/20 text-foreground border border-black/10">
+                                        {lesson.sessionNumber === 1 ? "1ra Clase" : "2da Clase"}
+                                      </span>
+                                    )}
+                                    {conflictIds.has(lesson.id) && lesson.status !== "cancelada" && (
+                                      <AlertTriangle className="h-3 w-3 text-destructive" />
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="flex items-center justify-between text-[10px] font-bold opacity-90 mt-0.5">
                                   <span className="truncate">{lesson.instrument}</span>
@@ -1389,6 +1853,97 @@ export function AgendaBoard() {
                       Conflicto de horario
                     </Badge>
                   )}
+                </div>
+
+                {/* PANEL DE ASISTENCIA RÁPIDA (DIRECTO EN GRILLA) */}
+                <div className="space-y-3 rounded-2xl border-2 border-primary/20 p-4 bg-card shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </span>
+                      <p className="text-xs font-black text-foreground uppercase tracking-wide">
+                        Marcar Asistencia Rápida
+                      </p>
+                    </div>
+                    {selected.attendanceStatus && (
+                      <Badge
+                        className={`text-[10px] font-black uppercase ${
+                          selected.attendanceStatus === "presente"
+                            ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                            : selected.attendanceStatus === "ausente"
+                            ? "bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/30"
+                            : selected.attendanceStatus === "tarde"
+                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                            : "bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                        }`}
+                      >
+                        ● {selected.attendanceStatus}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        markLessonAttendance(selected.id, "presente");
+                        toast.success(`Asistencia marcada: ${selected.student} PRESENTE 🟢`);
+                      }}
+                      className={`h-9 font-bold text-xs gap-1.5 transition-all ${
+                        selected.attendanceStatus === "presente"
+                          ? "bg-emerald-600 text-white shadow-xs"
+                          : "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-300 dark:border-emerald-800"
+                      }`}
+                    >
+                      🟢 Presente
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        markLessonAttendance(selected.id, "ausente");
+                        toast.error(`Asistencia marcada: ${selected.student} AUSENTE 🔴`);
+                      }}
+                      className={`h-9 font-bold text-xs gap-1.5 transition-all ${
+                        selected.attendanceStatus === "ausente"
+                          ? "bg-red-600 text-white shadow-xs"
+                          : "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 border border-red-300 dark:border-red-800"
+                      }`}
+                    >
+                      🔴 Ausente
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        markLessonAttendance(selected.id, "tarde");
+                        toast.warning(`Asistencia marcada: ${selected.student} TARDE 🟡`);
+                      }}
+                      className={`h-9 font-bold text-xs gap-1.5 transition-all ${
+                        selected.attendanceStatus === "tarde"
+                          ? "bg-amber-600 text-white shadow-xs"
+                          : "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 border border-amber-300 dark:border-amber-800"
+                      }`}
+                    >
+                      🟡 Tarde
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        markLessonAttendance(selected.id, "justificada");
+                        toast.info(`Asistencia marcada: ${selected.student} JUSTIFICADA 🔵 (+1 Crédito de Recuperación)`);
+                      }}
+                      className={`h-9 font-bold text-xs gap-1.5 transition-all ${
+                        selected.attendanceStatus === "justificada"
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-100 border border-blue-300 dark:border-blue-800"
+                      }`}
+                    >
+                      🔵 Justificada (+1 Créd)
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-4 rounded-xl border border-border p-4 bg-muted/20">
@@ -1832,7 +2387,7 @@ export function AgendaBoard() {
                   Alumno, Dia, Hora, Sala, Profesor, Instrumento, Categoria
                 </code>
                 <br />
-                (Ej: <code className="text-xs">Valentina Ríos, Lun, 16:00, Sala 1, Prof. Jeremy, Batería, JUNIOR</code>)
+                (Ej: <code className="text-xs">Valentina Ríos, Lun, 16:00, Sala A, Prof. Jeremy, Batería, JUNIOR</code>)
               </p>
             </div>
 
@@ -2344,6 +2899,200 @@ export function AgendaBoard() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Dialog: Programar Clase de Recuperación */}
+      <Dialog open={isMakeupModalOpen} onOpenChange={setIsMakeupModalOpen}>
+        <DialogContent className="sm:max-w-lg p-6 rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-red-700 dark:text-red-300">
+              <span className="p-1.5 rounded-lg bg-red-500/10 text-red-600">
+                <RotateCcw className="h-4 w-4" />
+              </span>
+              Programar Clase de Recuperación
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Agenda una sesión de recuperación oficial (categoría RECUPERACIÓN) y descuenta automáticamente 1 crédito del alumno.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!makeupStudent.trim()) {
+                toast.error("Por favor selecciona un alumno.");
+                return;
+              }
+
+              scheduleMakeupLesson({
+                studentName: makeupStudent.trim(),
+                teacher: makeupTeacher || availableTeachers[0] || "Jeremy",
+                instrument: makeupInstrument,
+                day: makeupDay,
+                time: makeupTime,
+                room: makeupRoom,
+                category: makeupCategory,
+                recoveringLessonDate: makeupOriginalDate.trim() || "Clase previa justificada",
+              });
+
+              toast.success(`Recuperación programada para ${makeupStudent}`, {
+                description: `${makeupDay} a las ${makeupTime} en ${makeupRoom} con Prof. ${makeupTeacher || "Jeremy"}. Se descontó 1 crédito.`,
+              });
+
+              setIsMakeupModalOpen(false);
+              setMakeupOriginalDate("");
+            }}
+            className="space-y-4 py-2 text-xs"
+          >
+            <div className="space-y-1.5">
+              <label className="font-bold text-foreground">Alumno que Recupera</label>
+              <Select
+                value={makeupStudent}
+                onValueChange={(val) => {
+                  setMakeupStudent(val);
+                  const st = adminStudents.find((s) => s.name === val);
+                  if (st) {
+                    if (st.teacher) setMakeupTeacher(st.teacher);
+                    if (st.instrument) setMakeupInstrument(st.instrument);
+                    if (st.ageCategory) setMakeupCategory(st.ageCategory);
+                  }
+                }}
+              >
+                <SelectTrigger className="text-xs">
+                  <SelectValue placeholder="Selecciona el alumno..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-56">
+                  {adminStudents.map((st) => (
+                    <SelectItem key={st.id} value={st.name}>
+                      {st.name} {st.makeupCredits > 0 ? `(${st.makeupCredits} crédito${st.makeupCredits > 1 ? "s" : ""} disponible${st.makeupCredits > 1 ? "s" : ""})` : "(0 créditos)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1.5">
+                <label className="font-bold text-foreground">Profesor</label>
+                <Select
+                  value={makeupTeacher || availableTeachers[0] || ""}
+                  onValueChange={setMakeupTeacher}
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Profesor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTeachers.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-foreground">Instrumento</label>
+                <Select value={makeupInstrument} onValueChange={setMakeupInstrument}>
+                  <SelectTrigger className="text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {instruments.map((inst) => (
+                      <SelectItem key={inst} value={inst}>
+                        {inst}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-foreground">Sala</label>
+                <Select value={makeupRoom} onValueChange={setMakeupRoom}>
+                  <SelectTrigger className="text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rooms.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <label className="font-bold text-foreground">Día de Recuperación</label>
+                <Select value={makeupDay} onValueChange={(v) => setMakeupDay(v as WeekDay)}>
+                  <SelectTrigger className="text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {weekDays.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-foreground">Hora de Recuperación</label>
+                <Select value={makeupTime} onValueChange={setMakeupTime}>
+                  <SelectTrigger className="text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(makeupDay === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday).map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="font-bold text-foreground">Motivo / Fecha de la Falta Original</label>
+              <Input
+                type="text"
+                placeholder="Ej: Falta justificada del Viernes 08/08 (Salud / Viaje)"
+                value={makeupOriginalDate}
+                onChange={(e) => setMakeupOriginalDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-[11px] text-red-800 dark:text-red-300">
+              💡 <strong>Regla Vibra Music:</strong> La sesión aparecerá con el color Salmón Oficial de Recuperación y descontará 1 crédito del alumno al guardar.
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMakeupModalOpen(false)}
+                className="text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="text-xs font-bold bg-red-600 hover:bg-red-700 text-white gap-1.5"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Guardar y Descontar Crédito
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -2357,20 +3106,24 @@ function FilterSelect({
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-[11rem]">
+      <SelectTrigger className="w-[11.5rem] h-8 text-xs bg-background">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={ALL}>{placeholder}: todos</SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o} value={o}>
-            {o}
-          </SelectItem>
-        ))}
+        <SelectItem value={ALL}>{placeholder}: Todos</SelectItem>
+        {options.map((opt) => {
+          const optVal = typeof opt === "string" ? opt : opt.value;
+          const optLabel = typeof opt === "string" ? opt : opt.label;
+          return (
+            <SelectItem key={optVal} value={optVal}>
+              {optLabel}
+            </SelectItem>
+          );
+        })}
       </SelectContent>
     </Select>
   );

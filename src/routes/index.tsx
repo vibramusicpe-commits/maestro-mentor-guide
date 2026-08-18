@@ -77,8 +77,12 @@ function AdminLoginPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm text-center">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-            <Music4 className="h-7 w-7 text-primary" />
+          <div className="inline-flex items-center justify-center">
+            <img
+              src="/logo.webp"
+              alt="Vibra Music Logo"
+              className="h-16 w-16 object-contain rounded-full shadow-md ring-2 ring-amber-400/40"
+            />
           </div>
           <h1 className="mt-4 text-xl font-bold text-foreground">
             Hola, {currentUser?.name} 👋
@@ -146,11 +150,13 @@ function AdminLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-sm">
         {/* Header */}
-        <div className="mb-8 flex flex-col items-center gap-2">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md">
-            <Music4 className="h-7 w-7" />
-          </div>
-          <p className="text-sm font-bold tracking-widest text-primary uppercase">VM STAFF</p>
+        <div className="mb-6 flex flex-col items-center gap-2">
+          <img
+            src="/logo.webp"
+            alt="Vibra Music Logo"
+            className="h-16 w-16 object-contain rounded-full shadow-md ring-2 ring-amber-400/40"
+          />
+          <p className="text-sm font-black tracking-widest text-amber-500 uppercase">VM STAFF</p>
           <p className="text-xs text-muted-foreground">Vibra Music — Panel de Gestión</p>
         </div>
 

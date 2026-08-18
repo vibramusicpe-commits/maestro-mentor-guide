@@ -537,25 +537,35 @@ function AdminInvitationsPage() {
                 </div>
               </div>
 
-              {/* Enlace de Acceso */}
+              {/* Enlace de Acceso con Detección Inteligente de IP LAN para otras PCs */}
               <div className="rounded-xl border border-border bg-background p-3 space-y-1 w-full">
-                <p className="text-xs font-semibold text-muted-foreground">Enlace Directo de Acceso:</p>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs text-primary truncate">
-                    {typeof window !== "undefined" ? `${window.location.origin}/invite/${viewModalInvite.token}` : `/invite/${viewModalInvite.token}`}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-xs shrink-0"
-                    onClick={() => {
-                      const url = `${window.location.origin}/invite/${viewModalInvite.token}`;
-                      handleCopyWhatsApp(url, `url-${viewModalInvite.id}`);
-                    }}
-                  >
-                    {copiedId === `url-${viewModalInvite.id}` ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-                  </Button>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-muted-foreground">Enlace Directo de Acceso (Para cualquier PC/Móvil):</p>
+                  <span className="text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded">Red Wi-Fi Sede</span>
                 </div>
+                {(() => {
+                  const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
+                  // Si se abre desde localhost en esta PC, convertirlo a la IP fija de red (192.168.18.51) para que al copiarlo o enviarlo funcione en la PC de Nayeli o profesores
+                  const lanUrl = currentOrigin.includes("localhost") || currentOrigin.includes("127.0.0.1")
+                    ? `http://192.168.18.51:5173/invite/${viewModalInvite.token}`
+                    : `${currentOrigin}/invite/${viewModalInvite.token}`;
+
+                  return (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-primary truncate font-bold select-all">
+                        {lanUrl}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs shrink-0"
+                        onClick={() => handleCopyWhatsApp(lanUrl, `url-${viewModalInvite.id}`)}
+                      >
+                        {copiedId === `url-${viewModalInvite.id}` ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                      </Button>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Acciones */}

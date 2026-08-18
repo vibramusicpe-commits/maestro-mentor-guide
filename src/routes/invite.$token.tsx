@@ -97,12 +97,11 @@ function InvitePage() {
         return;
       }
 
-      // Si la invitación está pendiente o nunca cambió contraseña, ofrecer cambio de contraseña
-      if (invite?.status === "pendiente") {
-        setView("change_password");
-      } else {
-        // Ya aceptada antes — acceso directo al portal
+      // Para el rol de secretaría (Staff), ingresar directamente al panel sin forzar pantalla de cambio de clave
+      if (invite?.target_role === "staff" || invite?.target_role === "super_admin" || invite?.status !== "pendiente") {
         await loginUser();
+      } else {
+        setView("change_password");
       }
     } catch {
       setErrorMsg("Contraseña incorrecta. Verifica y vuelve a intentarlo.");
@@ -192,7 +191,11 @@ function InvitePage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <Music4 className="h-8 w-8 animate-pulse text-primary" />
+          <img
+            src="/logo.webp"
+            alt="Vibra Music Logo"
+            className="h-12 w-12 animate-pulse object-contain rounded-full shadow-sm"
+          />
           <p className="text-sm text-muted-foreground">Verificando tu enlace de acceso…</p>
         </div>
       </div>
@@ -278,11 +281,13 @@ function InvitePage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-sm">
         {/* Header de la academia */}
-        <div className="mb-8 flex flex-col items-center gap-2">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-            <Music4 className="h-7 w-7 text-primary" />
-          </div>
-          <p className="text-sm font-semibold tracking-wide text-primary uppercase">Vibra Music</p>
+        <div className="mb-6 flex flex-col items-center gap-2">
+          <img
+            src="/logo.webp"
+            alt="Vibra Music Logo"
+            className="h-16 w-16 object-contain rounded-full shadow-md ring-2 ring-amber-400/40"
+          />
+          <p className="text-sm font-black tracking-widest text-amber-500 uppercase">Vibra Music</p>
           <p className="text-xs text-muted-foreground">{portalLabel}</p>
         </div>
 

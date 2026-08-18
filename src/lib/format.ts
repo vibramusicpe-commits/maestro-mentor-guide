@@ -1,8 +1,9 @@
 export function money(value: number) {
   return new Intl.NumberFormat("es-PE", {
     style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
+    currency: "PEN",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 

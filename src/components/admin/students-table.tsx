@@ -26,6 +26,7 @@ import {
   KeyRound,
   Lock,
   Calendar,
+  RotateCcw,
 } from "lucide-react";
 import {
   useAppStore,
@@ -165,7 +166,7 @@ export function StudentsTable() {
   const [schInstrument, setSchInstrument] = useState(musicalInstruments[0] || "Piano");
   const [schDay, setSchDay] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">("Lun");
   const [schTime, setSchTime] = useState("16:00");
-  const [schRoom, setSchRoom] = useState("Sala 1");
+  const [schRoom, setSchRoom] = useState("Sala A");
   const [schCategory, setSchCategory] = useState<AgeCategory>("JUNIOR");
 
   // Estado para Crear Alerta / Incidencia de Alumno
@@ -177,8 +178,15 @@ export function StudentsTable() {
 
   // Estado para Solicitud de Eliminación (Exclusivo Secretaría Nayeli -> Dueña)
   const createDeletionRequest = useAppStore((s) => s.createDeletionRequest);
+  const addStudentReentryRecord = useAppStore((s) => s.addStudentReentryRecord);
   const [deleteReqStudent, setDeleteReqStudent] = useState<AdminStudent | null>(null);
   const [deleteReqReason, setDeleteReqReason] = useState("");
+
+  // Estado para Registrar Reingreso de Alumno
+  const [isReentryFormOpen, setIsReentryFormOpen] = useState(false);
+  const [reentryDate, setReentryDate] = useState("2026-08-18");
+  const [reentryReason, setReentryReason] = useState("");
+  const [reentryNotes, setReentryNotes] = useState("");
 
   // Handler de WhatsApp Business con plantillas oficiales
   const handleOpenWhatsApp = (st: AdminStudent, templateType: "bienvenida" | "recordatorio" | "coordinacion" = "coordinacion") => {
@@ -578,11 +586,16 @@ export function StudentsTable() {
 
                         return (
                           <div className="space-y-0.5">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold text-foreground text-sm">{st.name}</span>
                               <span className={`inline-flex items-center px-1.5 py-0.2 rounded-md text-[10px] font-bold border ${cs.bg} ${cs.text} ${cs.border}`}>
                                 ({simpleCat})
                               </span>
+                              {(st.isReentry || (st.reentryHistory && st.reentryHistory.length > 0)) && (
+                                <Badge className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 text-[10px] font-black gap-0.5 px-1.5 py-0.2">
+                                  🔄 Reingreso
+                                </Badge>
+                              )}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {st.family} · {st.level}
@@ -1023,6 +1036,151 @@ export function StudentsTable() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Historial de Reingresos y Seguimiento Especial */}
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                      <RotateCcw className="h-4 w-4 text-amber-600" />
+                      Historial de Reingresos y Seguimiento
+                    </span>
+                    {(selectedStudent.isReentry || (selectedStudent.reentryHistory && selectedStudent.reentryHistory.length > 0)) && (
+                      <Badge className="bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/40 text-[10px] font-black">
+                        Alumno Reingresante
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Listado de Reingresos Previos */}
+                  {selectedStudent.reentryHistory && selectedStudent.reentryHistory.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedStudent.reentryHistory.map((re, idx) => (
+                        <div
+                          key={idx}
+                          className="p-2.5 rounded-lg border border-border bg-background text-xs space-y-1 shadow-2xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-foreground flex items-center gap-1">
+                              📅 {re.date}
+                            </span>
+                            <span className="text-[10px] font-semibold text-muted-foreground">
+                              Reingreso #{selectedStudent.reentryHistory!.length - idx}
+                            </span>
+                          </div>
+                          <p className="text-[11.5px] text-foreground font-medium">
+                            <strong>Motivo:</strong> {re.reason}
+                          </p>
+                          {re.notes && (
+                            <p className="text-[10.5px] text-muted-foreground italic">
+                              <strong>Seguimiento:</strong> {re.notes}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      Este alumno no cuenta con bajas previas registradas.
+                    </p>
+                  )}
+
+                  {/* Botón o Formulario de Registro de Reingreso */}
+                  {!isReentryFormOpen ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setReentryDate(new Date().toISOString().split("T")[0]);
+                        setReentryReason("");
+                        setReentryNotes("");
+                        setIsReentryFormOpen(true);
+                      }}
+                      className="w-full text-xs font-bold border-amber-500/40 text-amber-800 dark:text-amber-300 hover:bg-amber-500/10 gap-1.5"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" /> + Registrar Nuevo Reingreso a Clases
+                    </Button>
+                  ) : (
+                    <div className="p-3 rounded-xl border border-amber-500/30 bg-background space-y-2.5 text-xs animate-in fade-in">
+                      <p className="font-bold text-foreground flex items-center gap-1">
+                        📝 Registrar Retorno de {selectedStudent.name}
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground font-semibold block mb-0.5">
+                            Fecha de Reingreso
+                          </label>
+                          <Input
+                            type="date"
+                            value={reentryDate}
+                            onChange={(e) => setReentryDate(e.target.value)}
+                            className="text-xs h-7 bg-muted/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground font-semibold block mb-0.5">
+                            Motivo de Retorno
+                          </label>
+                          <Input
+                            type="text"
+                            placeholder="Ej: Fin de vacaciones / Reactivación"
+                            value={reentryReason}
+                            onChange={(e) => setReentryReason(e.target.value)}
+                            className="text-xs h-7 bg-muted/40"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-muted-foreground font-semibold block mb-0.5">
+                          Notas de Seguimiento para Secretaría y Profesor
+                        </label>
+                        <textarea
+                          placeholder="Ej: Dar bienvenida especial en recepción, reforzar postura en piano..."
+                          value={reentryNotes}
+                          onChange={(e) => setReentryNotes(e.target.value)}
+                          rows={2}
+                          className="w-full rounded-lg border border-input bg-muted/40 p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsReentryFormOpen(false)}
+                          className="h-7 text-xs"
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            if (!reentryReason.trim()) {
+                              toast.error("Por favor ingresa el motivo del reingreso.");
+                              return;
+                            }
+                            addStudentReentryRecord(selectedStudent.id, {
+                              date: reentryDate,
+                              reason: reentryReason.trim(),
+                              notes: reentryNotes.trim(),
+                            });
+                            setIsReentryFormOpen(false);
+                            toast.success(`🚀 Reingreso registrado para ${selectedStudent.name}`, {
+                              description: "El alumno ha sido reactivado como Activo con seguimiento especial.",
+                            });
+                          }}
+                          className="h-7 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white gap-1"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Confirmar y Activar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Estado y Profesor */}
@@ -2137,12 +2295,12 @@ function ScheduleStudentForm({
   // Sesión 1 (obligatoria para todos los planes)
   const [day1, setDay1] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">("Lun");
   const [time1, setTime1] = useState("16:00");
-  const [room1, setRoom1] = useState("Sala 1");
+  const [room1, setRoom1] = useState("Sala A");
 
   // Sesión 2 (para modalidad Regular: 2 veces por semana)
   const [day2, setDay2] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">("Mié");
   const [time2, setTime2] = useState("16:00");
-  const [room2, setRoom2] = useState("Sala 1");
+  const [room2, setRoom2] = useState("Sala A");
 
   const weekdayTimes = ["16:00", "16:45", "17:30", "18:15", "19:00", "19:45", "20:30", "21:15"];
   const saturdayTimes = [
@@ -2282,6 +2440,32 @@ function ScheduleStudentForm({
         </div>
       </div>
 
+      {/* Selector de Categoría Oficial / Rango de Edad */}
+      <div className="space-y-1.5 p-3 rounded-2xl border border-border bg-muted/30">
+        <div className="flex items-center justify-between">
+          <label className="font-bold text-foreground">Categoría y Rango de Edad Oficial</label>
+          <span className="text-[10px] text-muted-foreground">Edad registrada: <strong>{student.age} años</strong></span>
+        </div>
+        <Select value={category} onValueChange={(v) => setCategory(v as AgeCategory)}>
+          <SelectTrigger className="text-xs bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="JUNIOR">🟡 Junior (7 a 12 años) — #FBC02D</SelectItem>
+            <SelectItem value="JUVENIL">🟢 Juvenil (13 a 17 años) — #4CAF50</SelectItem>
+            <SelectItem value="ADULTO">⚫ Adulto (18 a + años) — #757575</SelectItem>
+            <SelectItem value="INFANTIL">🟣 Infantil (5 y 6 años) — #7C4DFF</SelectItem>
+            <SelectItem value="PERSONALIZADA">🔵 Clase Personalizada (S/ 50)</SelectItem>
+            <SelectItem value="RECUPERACION">🔴 Clase de Recuperación</SelectItem>
+          </SelectContent>
+        </Select>
+        {category === "PERSONALIZADA" && (
+          <p className="text-[10px] text-primary font-semibold mt-1">
+            🩵 Clase Personalizada: Se identificará con el puntito {student.age >= 18 ? "⚫ Plomo (Adulto)" : student.age >= 13 ? "🟢 Verde (Juvenil)" : student.age >= 7 ? "🟡 Amarillo (Junior)" : "🟣 Morado (Infantil)"} en la agenda.
+          </p>
+        )}
+      </div>
+
       {/* Bloque Sesión 1 */}
       <div className="rounded-2xl border border-border p-3.5 space-y-2.5 bg-muted/20">
         <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
@@ -2324,7 +2508,7 @@ function ScheduleStudentForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["Sala 1", "Sala 2", "Sala 3", "Sala 4", "Sala 5"].map((r) => (
+                {["Sala A", "Sala B", "Sala C", "Sala D"].map((r) => (
                   <SelectItem key={r} value={r}>{r}</SelectItem>
                 ))}
               </SelectContent>
@@ -2376,7 +2560,7 @@ function ScheduleStudentForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["Sala 1", "Sala 2", "Sala 3", "Sala 4", "Sala 5"].map((r) => (
+                  {["Sala A", "Sala B", "Sala C", "Sala D"].map((r) => (
                     <SelectItem key={r} value={r}>{r}</SelectItem>
                   ))}
                 </SelectContent>

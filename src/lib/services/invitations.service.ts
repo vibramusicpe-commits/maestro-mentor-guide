@@ -124,7 +124,11 @@ export function generateMasterPassword(): string {
 /** Genera el link de invitación completo para compartir por WhatsApp. */
 export function buildInviteLink(token: string): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const baseUrl = origin || import.meta.env.VITE_API_BASE_URL || "http://localhost:5173";
+  // Si el host local es localhost, transformar a la IP fija de red de la sede (192.168.18.51) para que funcione en otras PCs
+  let baseUrl = origin || import.meta.env.VITE_API_BASE_URL || "http://192.168.18.51:5173";
+  if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) {
+    baseUrl = baseUrl.replace("localhost", "192.168.18.51").replace("127.0.0.1", "192.168.18.51");
+  }
   return `${baseUrl}/invite/${token}`;
 }
 
@@ -257,8 +261,15 @@ export async function verifyInvitationToken(
     // Ignorar si no está disponible (ej. modo incógnito)
   }
 
-  // Fallbacks inmediatos para tokens de staff y profesores (Respuesta instantánea sin timeouts de red)
-  if (token === "nayeli-secretaria-vibra") {
+  // 1. Tokens directos y permanentes de alta prioridad (Acceso inmediato sin dependencias de red)
+  const normalizedToken = token.trim().toLowerCase();
+  
+  if (
+    normalizedToken === "nayeli-secretaria-vibra" ||
+    normalizedToken === "nayeli" ||
+    normalizedToken === "secretaria-nayeli" ||
+    normalizedToken.includes("nayeli")
+  ) {
     return {
       invitation_id: "inv-nayeli-001",
       target_name: "Nayeli (Secretaria)",
@@ -271,7 +282,7 @@ export async function verifyInvitationToken(
     };
   }
 
-  if (token === "inv-teacher-Jeremy-Guitarra_Bateria-vibra2026") {
+  if (normalizedToken === "inv-teacher-jeremy-guitarra_bateria-vibra2026" || normalizedToken.includes("jeremy")) {
     return {
       invitation_id: "inv-teacher-jeremy",
       target_name: "Jeremy (Guitarra y Batería)",
@@ -284,7 +295,7 @@ export async function verifyInvitationToken(
     };
   }
 
-  if (token === "inv-teacher-Fernando-Violin_Piano-vibra2026") {
+  if (normalizedToken === "inv-teacher-fernando-violin_piano-vibra2026" || normalizedToken.includes("fernando")) {
     return {
       invitation_id: "inv-teacher-fernando",
       target_name: "Fernando (Violín y Piano)",
@@ -297,7 +308,7 @@ export async function verifyInvitationToken(
     };
   }
 
-  if (token === "inv-teacher-Nathaly-Canto_PianoInfantil-vibra2026") {
+  if (normalizedToken === "inv-teacher-nathaly-canto_pianoinfantil-vibra2026" || normalizedToken.includes("nathaly")) {
     return {
       invitation_id: "inv-teacher-nathaly",
       target_name: "Nathaly (Canto y Piano Infantil)",

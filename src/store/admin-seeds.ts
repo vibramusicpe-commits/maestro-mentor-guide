@@ -6,11 +6,12 @@ export const weekDays: WeekDay[] = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 export const timeSlotsWeekday = ["16:00", "16:45", "17:30", "18:15", "19:00"];
 export const timeSlotsSaturday = ["09:00", "09:45", "10:30", "11:15", "12:00"];
 export const timeSlots = ["16:00", "16:45", "17:30", "18:15", "19:00"];
-export const rooms = ["Sala 1", "Sala 2", "Sala 3", "Sala 4", "Sala 5"];
+export const rooms = ["Sala A", "Sala B", "Sala C", "Sala D"];
 export const teachers: string[] = [
   "Jeremy",
   "Fernando",
   "Nathaly",
+  "Demo",
 ];
 export const availableTeachers = teachers;
 export const musicalInstruments = [
@@ -77,6 +78,9 @@ export type ScheduledLesson = {
   weekIndex?: number; // 0, 1, 2, 3 (semana específica) o undefined si aplica a todo el mes
   year?: number; // Año de vigencia (ej: 2026)
   month?: number; // Mes de vigencia 0 a 11 (ej: 7 para Agosto)
+  attendanceStatus?: "presente" | "ausente" | "tarde" | "justificada";
+  isMakeup?: boolean;
+  recoveringLessonDate?: string;
 };
 
 export type StudentStatus = "activo" | "pausa" | "baja";
@@ -87,6 +91,14 @@ export type EmergencyContact = {
   name: string;
   phone: string;
   relation: string;
+};
+
+export type AnnualMonthRecord = {
+  month: string;
+  status: "pagado" | "deudor" | "parcial" | "pendiente" | "personalizado" | "vacio";
+  rawText: string;
+  amountExpected: number;
+  amountPaid: number;
 };
 
 export type AdminStudent = {
@@ -106,7 +118,7 @@ export type AdminStudent = {
   joinedAt: string;
   makeupCredits: number;
   balance: number;
-  recentAttendance: ("presente" | "ausente" | "tarde")[];
+  recentAttendance: ("presente" | "ausente" | "tarde" | "justificada")[];
   teacherNote: string;
   email: string;
   phone: string;
@@ -121,10 +133,16 @@ export type AdminStudent = {
   planEndDate?: string; // "2026-08-31" (Día exacto de fin de ciclo)
   planStartMonth?: string; // "2026-08"
   planEndMonth?: string; // "2026-08"
+  // Matriz Anual de Pagos (Reemplazo definitivo de Excel Ene-Dic)
+  annualRecords?: Record<string, AnnualMonthRecord>;
+  rawMontoText?: string;
+  // Historial de Reingreso y Seguimiento
+  isReentry?: boolean;
+  reentryHistory?: Array<{ date: string; reason: string; notes?: string }>;
 };
 
 export type InvoiceStatus = "pagado" | "parcial" | "pendiente" | "vencido";
-export type PaymentMethod = "Yape" | "Efectivo" | "Transferencia";
+export type PaymentMethod = "Yape" | "Plin" | "Transferencia" | "Efectivo";
 
 export type PaymentLog = {
   id: string;
@@ -132,7 +150,9 @@ export type PaymentLog = {
   registeredBy: string; // ej: "Secretaría (Staff)" o "Dueña"
   amount: number;
   method: PaymentMethod;
-  voucherRef?: string; // N° de Operación / Comprobante WhatsApp
+  voucherRef?: string; // N° de Operación / Código Yape
+  voucherImage?: string; // Captura / foto del voucher en DataURL base64
+  paymentTime?: string; // Hora indicada en el comprobante
   note?: string;
 };
 
@@ -161,6 +181,7 @@ export type RecurringConcept = {
 };
 
 import { officialAdminStudents, officialSchedule } from "./official-seeds";
+import { officialControlPagosStudents, officialControlPagosInvoices } from "./official-control-pagos-seeds";
 
 // ===== Datos de Producción Oficiales (Alumnos y Horarios desde CSV con vigencia Agosto 2026) =====
 
@@ -170,17 +191,11 @@ export const initialSchedule: ScheduledLesson[] = officialSchedule.map((l) => ({
   month: 7, // Agosto (0-indexed)
 }));
 
-export const adminStudents: AdminStudent[] = officialAdminStudents.map((st) => ({
-  ...st,
-  planType: "Mensual" as VibraPlanType,
-  planPrice: 329.0,
-  matriculaType: "Promo Demo (S/ 30)" as MatriculaType,
-  packUtilesPaid: true,
-  planStartMonth: "2026-08",
-  planEndMonth: "2026-08",
-}));
+// Lista oficial de 99 alumnos extraída directamente del Control de Pagos de Vibra Music
+export const adminStudents: AdminStudent[] = officialControlPagosStudents;
 
-export const initialInvoices: Invoice[] = [];
+// Lista oficial de 99 facturas y estados de pago reales de Agosto 2026
+export const initialInvoices: Invoice[] = officialControlPagosInvoices;
 
 export const recurringConcepts: RecurringConcept[] = [
   { id: "rc1", label: "Plan Mensual Regular", detail: "8 clases de 45 min (2x semana)", amount: 329, families: 48 },

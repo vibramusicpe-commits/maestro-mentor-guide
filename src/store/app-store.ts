@@ -18,6 +18,7 @@ import {
   initialInvoices,
   initialSchedule,
   type AdminStudent,
+  type AgeCategory,
   type EmergencyContact,
   type Invoice,
   type InvoiceStatus,
@@ -99,9 +100,27 @@ type AppState = {
   updateStudentDetails: (id: string, updates: Partial<AdminStudent>) => void;
   setStudentStatus: (id: string, status: StudentStatus) => void;
   assignTeacher: (id: string, teacher: string) => void;
-  setStudentModality: (id: string, modality: LessonModality) => void;
   addStudentCredit: (id: string) => void;
   consumeStudentCredit: (id: string) => void;
+  markLessonAttendance: (
+    lessonId: string,
+    status: "presente" | "ausente" | "tarde" | "justificada",
+    notes?: string
+  ) => void;
+  scheduleMakeupLesson: (data: {
+    studentName: string;
+    teacher: string;
+    room: string;
+    day: WeekDay;
+    time: string;
+    instrument: string;
+    category?: AgeCategory;
+    recoveringLessonDate?: string;
+  }) => void;
+  addStudentReentryRecord: (
+    studentId: string,
+    record: { date: string; reason: string; notes?: string }
+  ) => void;
   markInvoicePaid: (id: string, method?: PaymentMethod) => void;
   recordPaymentAbono: (
     id: string,
@@ -109,7 +128,32 @@ type AppState = {
     method: PaymentMethod,
     voucherRef?: string,
     note?: string,
+    voucherImage?: string,
+    paymentTime?: string,
   ) => void;
+  recordNewDirectAbono: (data: {
+    familyOrStudent: string;
+    concept: string;
+    amount: number;
+    method: PaymentMethod;
+    voucherRef?: string;
+    note?: string;
+    voucherImage?: string;
+    paymentTime?: string;
+  }) => void;
+  importBatchPayments: (
+    payments: Array<{
+      familyOrStudent: string;
+      amount: number;
+      method: PaymentMethod;
+      voucherRef?: string;
+      concept?: string;
+      note?: string;
+      date?: string;
+    }>,
+  ) => number;
+  remindInvoice: (id: string) => void;
+  generateMonthlyInvoices: () => number;
   // Configuración de Timbre Acústico (school bell.mp3)
   chimeSettings: {
     autoPlayEnabled: boolean;
@@ -412,6 +456,93 @@ export const useAppStore = create<AppState>()(
           ),
           syncQueue: [...s.syncQueue, queueItem("Crédito de recuperación utilizado")],
         })),
+      markLessonAttendance: (lessonId, status, notes = "") =>
+        set((s) => {
+          const lesson = s.schedule.find((l) => l.id === lessonId);
+          const studentName = lesson?.student;
+          const isJustificada = status === "justificada";
+
+          return {
+            schedule: s.schedule.map((l) =>
+              l.id === lessonId ? { ...l, attendanceStatus: status } : l
+            ),
+            adminStudents: s.adminStudents.map((st) => {
+              if (
+                studentName &&
+                (st.name.toLowerCase() === studentName.toLowerCase() ||
+                  st.name.toLowerCase().includes(studentName.toLowerCase()) ||
+                  studentName.toLowerCase().includes(st.name.toLowerCase()))
+              ) {
+                return {
+                  ...st,
+                  recentAttendance: [status, ...(st.recentAttendance || []).slice(0, 4)],
+                  makeupCredits: isJustificada ? st.makeupCredits + 1 : st.makeupCredits,
+                };
+              }
+              return st;
+            }),
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(`Asistencia marcada · ${studentName || "Alumno"} (${status.toUpperCase()})`),
+            ],
+          };
+        }),
+      scheduleMakeupLesson: (data) =>
+        set((s) => {
+          const newLesson: ScheduledLesson = {
+            id: `sch-mk-${Date.now()}`,
+            day: data.day,
+            time: data.time,
+            student: data.studentName,
+            instrument: data.instrument,
+            teacher: data.teacher,
+            room: data.room,
+            category: "RECUPERACION",
+            status: "programada",
+            isMakeup: true,
+            recoveringLessonDate: data.recoveringLessonDate || "Clase previa justificada",
+          };
+
+          return {
+            schedule: [...s.schedule, newLesson],
+            adminStudents: s.adminStudents.map((st) => {
+              if (
+                st.name.toLowerCase() === data.studentName.toLowerCase() ||
+                st.name.toLowerCase().includes(data.studentName.toLowerCase()) ||
+                data.studentName.toLowerCase().includes(st.name.toLowerCase())
+              ) {
+                return {
+                  ...st,
+                  makeupCredits: Math.max(0, st.makeupCredits - 1),
+                };
+              }
+              return st;
+            }),
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(`Clase de Recuperación programada · ${data.studentName} (${data.day} ${data.time})`),
+            ],
+          };
+        }),
+      addStudentReentryRecord: (studentId, record) =>
+        set((s) => ({
+          adminStudents: s.adminStudents.map((st) => {
+            if (st.id === studentId) {
+              const currentHistory = st.reentryHistory || [];
+              return {
+                ...st,
+                status: "activo" as const,
+                isReentry: true,
+                reentryHistory: [{ ...record }, ...currentHistory],
+              };
+            }
+            return st;
+          }),
+          syncQueue: [
+            ...s.syncQueue,
+            queueItem(`Reingreso registrado · Alumno ID ${studentId}`),
+          ],
+        })),
       markInvoicePaid: (id, method = "Yape") =>
         set((s) => ({
           invoices: s.invoices.map((i) =>
@@ -439,7 +570,7 @@ export const useAppStore = create<AppState>()(
           ),
           syncQueue: [...s.syncQueue, queueItem(`Recibo cobrado · ${method}`)],
         })),
-      recordPaymentAbono: (id, amount, method, voucherRef = "", note = "") =>
+      recordPaymentAbono: (id, amount, method, voucherRef = "", note = "", voucherImage = "", paymentTime = "") =>
         set((s) => {
           const inv = s.invoices.find((i) => i.id === id);
           if (!inv) return s;
@@ -449,13 +580,15 @@ export const useAppStore = create<AppState>()(
           const newStatus = newRemaining === 0 ? ("pagado" as const) : ("parcial" as const);
 
           const newLog = {
-            id: `log-${Date.now()}`,
+            id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
             timestamp: new Date().toLocaleString("es-PE"),
-            registeredBy: s.activeRole === "staff" ? "Secretaría (Staff)" : "Dueña",
+            registeredBy: s.activeRole === "staff" ? "Secretaría (Nayeli)" : "Dirección (Dueña)",
             amount,
             method,
-            voucherRef: voucherRef || "WSAP-COMPROBANTE",
-            note: note || "Abono registrado vía WhatsApp",
+            voucherRef: voucherRef || (method === "Yape" ? "YAPE-VOUCHER" : "WSAP-COMPROBANTE"),
+            voucherImage: voucherImage || undefined,
+            paymentTime: paymentTime || new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
+            note: note || "Abono registrado con evidencia",
           };
 
           return {
@@ -473,10 +606,142 @@ export const useAppStore = create<AppState>()(
             ),
             syncQueue: [
               ...s.syncQueue,
-              queueItem(`Abono registrado · S/ ${amount} vía ${method}`),
+              queueItem(`Abono registrado · S/ ${amount} vía ${method} (${inv.family})`),
             ],
           };
         }),
+      recordNewDirectAbono: (data) =>
+        set((s) => {
+          const { familyOrStudent, concept, amount, method, voucherRef, note, voucherImage, paymentTime } = data;
+          const cleanSearch = familyOrStudent.trim().toLowerCase();
+          
+          // Buscar si existe un recibo pendiente o parcial para esta familia
+          const existingInv = s.invoices.find(
+            (i) => i.family.toLowerCase().includes(cleanSearch) || cleanSearch.includes(i.family.toLowerCase())
+          );
+
+          const newLog = {
+            id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            timestamp: new Date().toLocaleString("es-PE"),
+            registeredBy: s.activeRole === "staff" ? "Secretaría (Nayeli)" : "Dirección (Dueña)",
+            amount,
+            method,
+            voucherRef: voucherRef || (method === "Yape" ? "YAPE-VOUCHER" : "PAGO-DIRECTO"),
+            voucherImage: voucherImage || undefined,
+            paymentTime: paymentTime || new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
+            note: note || "Abono directo registrado con evidencia",
+          };
+
+          if (existingInv) {
+            const newPaid = Math.min(existingInv.amount, existingInv.amountPaid + amount);
+            const newRemaining = Math.max(0, existingInv.amount - newPaid);
+            const newStatus = newRemaining === 0 ? ("pagado" as const) : ("parcial" as const);
+
+            return {
+              invoices: s.invoices.map((i) =>
+                i.id === existingInv.id
+                  ? {
+                      ...i,
+                      amountPaid: newPaid,
+                      remainingBalance: newRemaining,
+                      status: newStatus,
+                      paymentMethod: method,
+                      paymentLogs: [...i.paymentLogs, newLog],
+                    }
+                  : i
+              ),
+              syncQueue: [...s.syncQueue, queueItem(`Abono aplicado a ${existingInv.family} · S/ ${amount}`)],
+            };
+          }
+
+          // Si no existe, crear un nuevo recibo ya pagado/abonado
+          const newInvoice: Invoice = {
+            id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            family: familyOrStudent.startsWith("Familia ") ? familyOrStudent : `Familia ${familyOrStudent}`,
+            concept: concept || "Abono de Clases",
+            students: 1,
+            amount: amount,
+            amountPaid: amount,
+            remainingBalance: 0,
+            dueDate: new Date().toISOString().slice(0, 10),
+            daysToDue: 0,
+            status: "pagado",
+            paymentMethod: method,
+            remindedAt: null,
+            paymentLogs: [newLog],
+          };
+
+          return {
+            invoices: [newInvoice, ...s.invoices],
+            syncQueue: [...s.syncQueue, queueItem(`Nuevo abono registrado · S/ ${amount} para ${newInvoice.family}`)],
+          };
+        }),
+      importBatchPayments: (payments) => {
+        let importedCount = 0;
+        set((s) => {
+          let currentInvoices = [...s.invoices];
+          const nowStr = new Date().toLocaleString("es-PE");
+          const regBy = s.activeRole === "staff" ? "Secretaría (Nayeli)" : "Dirección (Dueña)";
+
+          payments.forEach((p, idx) => {
+            if (!p.familyOrStudent || !p.amount || isNaN(p.amount) || p.amount <= 0) return;
+            importedCount++;
+            const cleanSearch = p.familyOrStudent.trim().toLowerCase();
+            const invIndex = currentInvoices.findIndex(
+              (i) => i.family.toLowerCase().includes(cleanSearch) || cleanSearch.includes(i.family.toLowerCase())
+            );
+
+            const newLog = {
+              id: `log-imp-${Date.now()}-${idx}`,
+              timestamp: p.date || nowStr,
+              registeredBy: regBy,
+              amount: p.amount,
+              method: p.method || "Yape",
+              voucherRef: p.voucherRef || "IMPORTADO-EXCEL",
+              note: p.note || "Abono importado por archivo Excel/CSV",
+            };
+
+            if (invIndex >= 0) {
+              const existing = currentInvoices[invIndex]!;
+              const newPaid = Math.min(existing.amount, existing.amountPaid + p.amount);
+              const newRemaining = Math.max(0, existing.amount - newPaid);
+              const newStatus = newRemaining === 0 ? ("pagado" as const) : ("parcial" as const);
+
+              currentInvoices[invIndex] = {
+                ...existing,
+                amountPaid: newPaid,
+                remainingBalance: newRemaining,
+                status: newStatus,
+                paymentMethod: p.method || existing.paymentMethod,
+                paymentLogs: [...existing.paymentLogs, newLog],
+              };
+            } else {
+              const newInv: Invoice = {
+                id: `inv-imp-${Date.now()}-${idx}`,
+                family: p.familyOrStudent.startsWith("Familia ") ? p.familyOrStudent : `Familia ${p.familyOrStudent}`,
+                concept: p.concept || "Mensualidad Regular",
+                students: 1,
+                amount: p.amount,
+                amountPaid: p.amount,
+                remainingBalance: 0,
+                dueDate: "2026-08-20",
+                daysToDue: 0,
+                status: "pagado",
+                paymentMethod: p.method || "Yape",
+                remindedAt: null,
+                paymentLogs: [newLog],
+              };
+              currentInvoices.unshift(newInv);
+            }
+          });
+
+          return {
+            invoices: currentInvoices,
+            syncQueue: [...s.syncQueue, queueItem(`Importación masiva completada: ${importedCount} pagos conciliados`)],
+          };
+        });
+        return importedCount;
+      },
       remindInvoice: (id) =>
         set((s) => ({
           invoices: s.invoices.map((i) =>
@@ -545,8 +810,8 @@ export const useAppStore = create<AppState>()(
         })),
       playOfficialChime: () => {
         try {
-          const audio = new Audio("/school bell.mp3");
-          const vol = get().chimeSettings?.volume ?? 0.8;
+          const audio = new Audio("/school bell.mp3?v=highpitch");
+          const vol = get().chimeSettings?.volume ?? 0.85;
           audio.volume = Math.max(0, Math.min(1, vol));
           audio.play().catch((err) => {
             console.warn("Autoplay bloqueado o archivo no reproducible, usando fallback Web Audio API:", err);
@@ -672,18 +937,39 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v8",
-      version: 8,
+      name: "cadencia-app-v15",
+      version: 15,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState: any, version: number) => {
-        if (version < 8 || !persistedState?.adminStudents?.length || !persistedState?.schedule?.length) {
+        if (version < 15 || !persistedState?.adminStudents?.length || !persistedState?.schedule?.length) {
           return {
             ...persistedState,
             adminStudents: adminStudents,
+            invoices: initialInvoices,
             schedule: initialSchedule,
           };
         }
-        return persistedState;
+
+        // Migración transparente de nombres de sala a la nomenclatura oficial (Sala A, B, C, D)
+        const roomMap: Record<string, string> = {
+          "Sala 1": "Sala A",
+          "Sala 2": "Sala B",
+          "Sala 3": "Sala C",
+          "Sala 4": "Sala D",
+          "Sala 5": "Sala D",
+        };
+
+        const migratedSchedule = Array.isArray(persistedState?.schedule)
+          ? persistedState.schedule.map((lesson: any) => ({
+              ...lesson,
+              room: roomMap[lesson.room] || lesson.room || "Sala A",
+            }))
+          : initialSchedule;
+
+        return {
+          ...persistedState,
+          schedule: migratedSchedule,
+        };
       },
       partialize: (s) =>
         ({

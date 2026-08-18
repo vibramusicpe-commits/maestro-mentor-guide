@@ -23,12 +23,14 @@ export const Route = createFileRoute("/admin/agenda")({
 
 function AdminAgendaPage() {
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">Horario de Clases</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Visualización por día, rejilla semanal o formato Excel, ocupación de salas y explorador de vacantes en tiempo real.
-        </p>
+    <div className="w-full max-w-full space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-black text-foreground tracking-tight">Horario de Clases</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Vista didáctica pareada, ocupación de salas A a D y explorador de vacantes en tiempo real.
+          </p>
+        </div>
       </div>
 
       <AgendaBoard />

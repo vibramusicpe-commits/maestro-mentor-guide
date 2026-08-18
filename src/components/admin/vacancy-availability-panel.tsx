@@ -67,6 +67,7 @@ export function VacancyAvailabilityPanel({
   const [filterTeacher, setFilterTeacher] = useState<string>("all");
   const [filterDay, setFilterDay] = useState<string>("all");
   const [filterInstrument, setFilterInstrument] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterTime, setFilterTime] = useState<string>("all");
   const [onlyAvailable, setOnlyAvailable] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -101,7 +102,15 @@ export function VacancyAvailabilityPanel({
 
           const enrolledCount = matchingLessons.length;
           const availableVacancies = Math.max(0, MAX_CAPACITY - enrolledCount);
-          const roomName = matchingLessons[0]?.room || "Sala 1";
+          const roomName =
+            matchingLessons[0]?.room ||
+            (t.toLowerCase().includes("jeremy")
+              ? "Sala A"
+              : t.toLowerCase().includes("fernando")
+              ? "Sala B"
+              : t.toLowerCase().includes("nathaly")
+              ? "Sala C"
+              : "Sala D");
           const instName = matchingLessons[0]?.instrument || undefined;
           const students = matchingLessons.map((l) => l.student);
 
@@ -138,6 +147,20 @@ export function VacancyAvailabilityPanel({
       if (filterInstrument !== "all" && slot.instrument && !slot.instrument.toLowerCase().includes(filterInstrument.toLowerCase())) {
         return false;
       }
+      if (filterCategory !== "all") {
+        // Verificar si alguna lección del slot coincide con la categoría
+        const matchingLessons = schedule.filter(
+          (l) =>
+            l.day === slot.day &&
+            l.time === slot.time &&
+            l.teacher.toLowerCase().includes(slot.teacher.toLowerCase()) &&
+            l.status !== "cancelada"
+        );
+        if (matchingLessons.length > 0) {
+          const hasCategory = matchingLessons.some((l) => l.category === filterCategory);
+          if (!hasCategory) return false;
+        }
+      }
       if (onlyAvailable && slot.availableVacancies === 0) {
         return false;
       }
@@ -150,7 +173,7 @@ export function VacancyAvailabilityPanel({
       }
       return true;
     });
-  }, [allSlots, filterTeacher, filterDay, filterTime, filterInstrument, onlyAvailable, searchQuery]);
+  }, [allSlots, schedule, filterTeacher, filterDay, filterTime, filterInstrument, filterCategory, onlyAvailable, searchQuery]);
 
   // Métricas rápidas
   const totalSlotsCount = allSlots.length;
@@ -258,6 +281,7 @@ export function VacancyAvailabilityPanel({
                 setFilterDay("all");
                 setFilterTime("all");
                 setFilterInstrument("all");
+                setFilterCategory("all");
                 setSearchQuery("");
                 setOnlyAvailable(true);
               }}
@@ -267,10 +291,10 @@ export function VacancyAvailabilityPanel({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 text-xs">
             {/* Filtro Profesor */}
             <div>
-              <label className="text-[10px] text-muted-foreground font-semibold block mb-1">Profesor</label>
+              <label className="text-[10px] text-muted-foreground font-semibold block mb-1">Profesor / Sala</label>
               <Select value={filterTeacher} onValueChange={setFilterTeacher}>
                 <SelectTrigger className="h-8 text-xs bg-background">
                   <SelectValue placeholder="Todos los profesores" />
@@ -328,6 +352,25 @@ export function VacancyAvailabilityPanel({
                   {musicalInstruments.map((inst) => (
                     <SelectItem key={inst} value={inst}>{inst}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro Categoría de Edad */}
+            <div>
+              <label className="text-[10px] text-muted-foreground font-semibold block mb-1">Categoría / Edad</label>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue placeholder="Todas las categorías" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las categorías</SelectItem>
+                  <SelectItem value="JUNIOR">🟡 Junior (7 a 12)</SelectItem>
+                  <SelectItem value="JUVENIL">🟢 Juvenil (13 a 17)</SelectItem>
+                  <SelectItem value="ADULTO">⚫ Adulto (18 a +)</SelectItem>
+                  <SelectItem value="INFANTIL">🟣 Infantil (5 y 6)</SelectItem>
+                  <SelectItem value="PERSONALIZADA">🔵 Personalizada</SelectItem>
+                  <SelectItem value="RECUPERACION">🔴 Recuperación</SelectItem>
                 </SelectContent>
               </Select>
             </div>
