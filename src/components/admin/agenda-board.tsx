@@ -2096,10 +2096,10 @@ export function AgendaBoard() {
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2 text-destructive">
               <ShieldAlert className="h-5 w-5" />
-              Solicitar Eliminación de Clase a Dirección
+              Eliminar Clase del Horario
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
-              Como personal de Secretaría, la eliminación de una clase del horario requiere la aprobación de la Dueña.
+              Confirma la eliminación de la clase del horario. Esta acción liberará el espacio en la cuadrícula de inmediato.
             </DialogDescription>
           </DialogHeader>
 
@@ -2112,13 +2112,10 @@ export function AgendaBoard() {
                   return;
                 }
 
-                createDeletionRequest({
-                  entityType: "lesson",
-                  entityId: selected.id,
-                  entityName: `Clase de ${selected.student}`,
-                  details: `${selected.instrument} con Prof. ${selected.teacher} (${selected.day} ${selected.time} - ${selected.room})`,
-                  reason: deleteLessonReason.trim(),
-                });
+                deleteLessonFromSchedule(deleteModalLesson.id);
+      toast.success("🗑️ Clase de " + deleteModalLesson.studentName + " eliminada del horario correctamente");
+      setIsDeleteOpen(false);
+      setSelectedLesson(null);
 
                 toast.success(`Solicitud enviada a Dirección`, {
                   description: `La Dueña autorizará la eliminación de la clase de ${selected.student}.`,
@@ -2165,7 +2162,7 @@ export function AgendaBoard() {
                   className="text-xs font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-1.5"
                 >
                   <ShieldAlert className="h-3.5 w-3.5" />
-                  Enviar a Dirección
+                  Confirmar y Eliminar Clase
                 </Button>
               </div>
             </form>
