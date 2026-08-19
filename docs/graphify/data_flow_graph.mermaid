@@ -1,49 +1,38 @@
-# Grafo de Flujo de Datos del Sistema (Graphify - Actualizado al 2026-08-15)
+# Grafo de Flujo de Datos del Sistema (Graphify - Versión v16 / Agosto 2026)
 
 ```mermaid
 graph TD
     %% Entradas y Carga de Archivos
     CSV_Schedule["📄 Excel/CSV Horarios (Nayeli)"] -->|Parser inteligente ; o ,| AgendaBoard["🗓️ AgendaBoard (/admin/agenda)"]
-    CSV_Students["📄 Excel/CSV Alumnos (Nayeli)"] -->|Parser inteligente| StudentsTable["👥 StudentsTable (/admin/alumnos)"]
+    CSV_Students["📄 Excel/CSV 99 Alumnos (Nayeli)"] -->|Parser inteligente| StudentsTable["👥 StudentsTable (/admin/alumnos)"]
     
     %% Almacén Central de Estado
-    AgendaBoard -->|importScheduleFromCSV / clearSchedule| AppStore["🏪 AppStore Zustand (cadencia-app-v8)"]
+    AgendaBoard -->|importScheduleFromCSV / clearSchedule| AppStore["🏪 AppStore Zustand (cadencia-app-v16)"]
     StudentsTable -->|importStudentsFromCSV / clearStudents| AppStore
     
-    %% Las 6 Funciones de Secretaría (Nayeli)
-    StudentsTable -->|Función 1: Marcado Asistencia| AppStore
-    StudentsTable -->|Función 2: Registro Matrículas| AppStore
-    AgendaBoard -->|Función 3: Reprogramaciones| AppStore
-    WhatsAppAPI["📱 WhatsApp Business API (wa.me)"] <--|Función 4: Mensajería & Cobros| StudentsTable
-    WhatsAppAPI <--|Función 4: Cobranza Morosos| RiskFamilies["💸 RiskFamiliesTable"]
-    StudentsTable -->|Función 5: Retiros / Pausas| AppStore
-    Facturacion["💳 Facturación (/admin/facturacion)"] -->|Función 6: Cobranzas & Abonos| AppStore
+    %% Funcionalidades de Agenda & Autonomía Nayeli (ADR 0052 & 0053)
+    AgendaBoard -->|ADR 0053: Combobox Autocomplete| AppStore
+    AgendaBoard -->|ADR 0053: Libreta de Asistencias & Control 8/4 Clases| AppStore
+    AgendaBoard -->|ADR 0052: Eliminación Directa sin Trámites| AppStore
+    AgendaBoard -->|Reprogramación: Solo Semana vs Mes Completo| AppStore
+    
+    %% Operaciones de Alumnos y Cobranzas
+    StudentsTable -->|Marcado Rápido Asistencia| AppStore
+    StudentsTable -->|Reingresos & Historial| AppStore
+    Facturacion["💳 Facturación (/admin/facturacion)"] -->|Registro Abonos Yape/Plin con Vouchers| AppStore
     
     %% Sistema de Seguridad: Solicitudes de Eliminación Protegidas
     StudentsTable -.->|Nayeli solicita eliminar alumno| DeletionReq["🛡️ Solicitud de Eliminación (deletionRequests)"]
-    AgendaBoard -.->|Nayeli solicita eliminar clase| DeletionReq
     DeletionReq --> DeletionPanel["📋 DeletionRequestsPanel (/admin)"]
     DeletionPanel -->|Dueña: Aceptar y Eliminar| AppStore
     DeletionPanel -->|Dueña: Denegar| AppStore
-    DeletionPanel -->|Dueña: Ver Reporte| AuditModal["📄 Ficha de Auditoría con Timestamp"]
     
     %% Timbre Escolar Oficial
     ChimeTimer["⏰ Temporizador Automático en Vivo"] -->|L-V Tarde & Sáb Mañana| AudioPlayer["🔊 Reproductor ('school bell.mp3')"]
-    ChimeSettingsModal["⚙️ Configuración Timbre (Volumen / Auto)"] -->|setChimeSettings| AppStore
     AppStore -->|playOfficialChime| AudioPlayer
     
-    %% Alertas y Dashboard
-    AppStore -->|studentAlerts| AlertsPanel["🚨 AlertsPanel (/admin)"]
-    AlertsPanel -->|resolveStudentAlert / Mantenimientos| AppStore
-    
-    %% Módulos de Visualización
-    AppStore --> ControlHorario["⏱️ Control Horario (/admin/control-horario)"]
-    AppStore --> Facturacion
-    AppStore --> TeacherPortal["🎓 Portal Profesor (/teacher y /teacher/alumnos)"]
-    AppStore --> FamilyPortal["👨‍👩‍👦 Portal Familiar (/family)"]
-    
-    %% Sincronización Backend Insforge PostgreSQL
-    AppStore -->|syncQueue (Optimistic)| InsforgeBackend[("🗄️ PostgreSQL Insforge Backend")]
+    %% Sincronización Backend Insforge PostgreSQL (MCP)
+    AppStore -->|useInsforgeSync / REST API| InsforgeBackend[("🗄️ PostgreSQL Insforge Backend (18 tablas)")]
     InsforgeBackend --> TableLessons["Tabla lessons"]
     InsforgeBackend --> TableStudents["Tabla students"]
     InsforgeBackend --> TableInvoices["Tabla invoices"]
