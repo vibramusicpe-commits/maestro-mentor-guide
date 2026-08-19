@@ -121,24 +121,12 @@ export function TeacherKiosk() {
     }));
   }, [dayLessons]);
 
-  // Clase actual o primera del día para la cabecera
-  const current = dayLessons[0]
-    ? {
-        id: dayLessons[0].id,
-        time: dayLessons[0].time,
-        student: dayLessons[0].student,
-        instrument: dayLessons[0].instrument,
-        room: dayLessons[0].room,
-        status: (dayLessons[0].attendanceStatus || "pendiente") as AttendanceStatus,
-      }
-    : undefined;
-
   const selectedDayFull = DAYS_OF_WEEK.find((d) => d.short === selectedDay)?.full || selectedDay;
 
   return (
     <div className="space-y-5 pb-6">
       {/* 🚀 CABECERA INTEGRADA: FICHAJE DE SEDE + RELOJ DE TURNO */}
-      <IntegratedTeacherKioskHeader currentLesson={current} />
+      <IntegratedTeacherKioskHeader totalDayStudents={dayLessons.length} />
 
       {/* 🗓️ SELECTOR DE DÍAS EN TABS MÓVILES (LUN..SÁB) */}
       <div className="space-y-1.5">
