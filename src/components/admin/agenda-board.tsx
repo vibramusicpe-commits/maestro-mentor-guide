@@ -179,6 +179,7 @@ export function AgendaBoard() {
 
   // Estados de Programar Nueva Clase individual
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
+  const deleteLessonFromSchedule = useAppStore((s) => s.deleteLessonFromSchedule);
   const [isAddLessonOpen, setIsAddLessonOpen] = useState(false);
   const [newLessonStudent, setNewLessonStudent] = useState("");
   const [newLessonTeacher, setNewLessonTeacher] = useState("");
@@ -2112,7 +2113,12 @@ export function AgendaBoard() {
                   return;
                 }
 
-                deleteLessonFromSchedule(deleteModalLesson.id);
+                if (deleteModalLesson) {
+        useAppStore.getState().deleteLessonFromSchedule(deleteModalLesson.id);
+        toast.success("🗑️ Clase de " + deleteModalLesson.studentName + " eliminada correctamente");
+        setIsDeleteOpen(false);
+        setSelectedLesson(null);
+      }
       toast.success("🗑️ Clase de " + deleteModalLesson.studentName + " eliminada del horario correctamente");
       setIsDeleteOpen(false);
       setSelectedLesson(null);
