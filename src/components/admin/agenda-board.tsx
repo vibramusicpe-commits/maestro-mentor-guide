@@ -26,6 +26,10 @@ import {
   PlusCircle,
   RotateCcw,
   BookOpen,
+  Users,
+  UserPlus,
+  Sparkles,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -78,7 +82,7 @@ function playSyntheticChime() {
     console.error("Error en timbre sintético:", err);
   }
 }
-import { useAppStore, type ScheduledLesson, type WeekDay } from "@/store/app-store";
+import { useAppStore, type ScheduledLesson, type WeekDay, type AdminStudent } from "@/store/app-store";
 import { rooms, teachers, musicalInstruments, timeSlots, weekDays, timeSlotsWeekday, timeSlotsSaturday } from "@/store/admin-seeds";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -239,6 +243,24 @@ export function AgendaBoard() {
   const [ownerPassword, setOwnerPassword] = useState("");
   const [confirmPhrase, setConfirmPhrase] = useState("");
   const EXPECTED_PHRASE = "VACIAR HORARIO VIBRA";
+
+  // Estados para Agregar Alumno / Evento en el Horario seleccionado (Zona de confort de Nayeli)
+  const [isAddEventOpen, setIsAddEventOpen] = useState(false);
+  const [addEventType, setAddEventType] = useState<"recuperacion" | "personalizada" | "regular">("recuperacion");
+  const [addEventStudentQuery, setAddEventStudentQuery] = useState("");
+  const [addEventSelectedStudent, setAddEventSelectedStudent] = useState<AdminStudent | null>(null);
+  const [isAddEventDropdownOpen, setIsAddEventDropdownOpen] = useState(false);
+
+  // Filtro reactivo de alumnos para el dropdown del panel lateral
+  const filteredAddEventStudents = useMemo(() => {
+    const trimmed = addEventStudentQuery.trim();
+    if (!trimmed) return [];
+    const cleanQuery = trimmed.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return adminStudents.filter((st) => {
+      const nameNorm = st.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return nameNorm.includes(cleanQuery);
+    }).slice(0, 6);
+  }, [adminStudents, addEventStudentQuery]);
 
   // Estados de Solicitud de Eliminación de Clase para Secretaría Nayeli
   const createDeletionRequest = useAppStore((s) => s.createDeletionRequest);
@@ -1991,6 +2013,355 @@ export function AgendaBoard() {
                     </Button>
                   </div>
                 </div>
+
+                {/* GESTIÓN DE EVENTOS Y VACANTES EN ESTE HORARIO (ZONA DE CONFORT DE NAYELI) */}
+                {(() => {
+                  const slotLessons = schedule.filter(
+                    (l) =>
+                      l.day === selected.day &&
+                      l.time === selected.time &&
+                      l.room === selected.room &&
+                      l.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").trim() ===
+                        selected.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").trim() &&
+                      l.status !== "cancelada"
+                  );
+                  const currentCount = slotLessons.length;
+                  const maxCap = 5;
+                  const freeSpots = Math.max(0, maxCap - currentCount);
+
+                  return (
+                    <div className="space-y-3 rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 shadow-xs">
+                      {/* Encabezado de Cupos y Sala */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Users className="h-4 w-4 text-primary" />
+                          <p className="text-xs font-black text-foreground uppercase tracking-wide">
+                            Alumnos en este Horario
+                          </p>
+                        </div>
+                        <span
+                          className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                            freeSpots > 0
+                              ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                              : "bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/40"
+                          }`}
+                        >
+                          {currentCount} / {maxCap} Cupos · {freeSpots > 0 ? `${freeSpots} libres` : "Lleno"}
+                        </span>
+                      </div>
+
+                      {/* Lista de Alumnos en este mismo Slot */}
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase">
+                          Inscritos con Prof. {selected.teacher} ({selected.day} {selected.time} · {selected.room}):
+                        </p>
+                        <div className="space-y-1">
+                          {slotLessons.map((sl, idx) => {
+                            const isCurrentSelected = sl.id === selected.id;
+                            return (
+                              <div
+                                key={sl.id}
+                                onClick={() => {
+                                  if (!isCurrentSelected) {
+                                    openLesson(sl);
+                                  }
+                                }}
+                                className={`flex items-center justify-between p-2 rounded-xl text-xs transition-all cursor-pointer ${
+                                  isCurrentSelected
+                                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                                    : "bg-card hover:bg-muted/80 border border-border text-foreground font-medium"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] opacity-75 font-mono">#{idx + 1}</span>
+                                  <span>{sl.student}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {sl.isMakeup ? (
+                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                                      isCurrentSelected ? "bg-white/20 text-white" : "bg-red-500/20 text-red-600 border border-red-500/30"
+                                    }`}>
+                                      🔄 Recuperación
+                                    </span>
+                                  ) : sl.category === "PERSONALIZADA" ? (
+                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                                      isCurrentSelected ? "bg-white/20 text-white" : "bg-amber-500/20 text-amber-600 border border-amber-500/30"
+                                    }`}>
+                                      ⭐ Personalizada
+                                    </span>
+                                  ) : (
+                                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                      isCurrentSelected ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                                    }`}>
+                                      🎵 Regular
+                                    </span>
+                                  )}
+                                  {isCurrentSelected && (
+                                    <span className="text-[10px] ml-1">👉</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Botón o Formulario de Agregar Alumno (Recuperación / Personalizada) */}
+                      {freeSpots > 0 ? (
+                        <div className="pt-2 border-t border-primary/20">
+                          {!isAddEventOpen ? (
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                setIsAddEventOpen(true);
+                                setAddEventStudentQuery("");
+                                setAddEventSelectedStudent(null);
+                              }}
+                              className="w-full text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
+                            >
+                              <UserPlus className="h-4 w-4" /> ➕ Agregar Alumno a este Horario ({freeSpots} vacantes)
+                            </Button>
+                          ) : (
+                            <div className="space-y-3 p-3 rounded-xl bg-card border border-primary/30 text-xs animate-in fade-in-50 duration-200">
+                              <div className="flex items-center justify-between">
+                                <span className="font-black text-foreground flex items-center gap-1">
+                                  <Sparkles className="h-3.5 w-3.5 text-primary" /> Inscribir Alumno en este Slot
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsAddEventOpen(false)}
+                                  className="text-[10px] font-bold text-muted-foreground hover:text-foreground"
+                                >
+                                  ✕ Cerrar
+                                </button>
+                              </div>
+
+                              {/* Selector de Tipo de Evento */}
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                  Tipo de Evento
+                                </label>
+                                <div className="grid grid-cols-3 gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddEventType("recuperacion")}
+                                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all border text-center ${
+                                      addEventType === "recuperacion"
+                                        ? "bg-red-500 text-white border-red-600 shadow-xs"
+                                        : "bg-background border-border text-foreground hover:bg-muted"
+                                    }`}
+                                  >
+                                    🔄 Recuperación
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddEventType("personalizada")}
+                                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all border text-center ${
+                                      addEventType === "personalizada"
+                                        ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                                        : "bg-background border-border text-foreground hover:bg-muted"
+                                    }`}
+                                  >
+                                    ⭐ Personalizada
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddEventType("regular")}
+                                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all border text-center ${
+                                      addEventType === "regular"
+                                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                        : "bg-background border-border text-foreground hover:bg-muted"
+                                    }`}
+                                  >
+                                    🎵 Regular
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Buscador Predictivo de Alumnos con Dropdown Flotante */}
+                              <div className="space-y-1 relative">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                  Buscar Alumno (de los 99 oficiales)
+                                </label>
+                                <div className="relative">
+                                  <Input
+                                    type="text"
+                                    value={addEventStudentQuery}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setAddEventStudentQuery(val);
+                                      setAddEventSelectedStudent(null);
+                                      setIsAddEventDropdownOpen(val.trim().length > 0);
+                                    }}
+                                    onFocus={() => {
+                                      if (addEventStudentQuery.trim().length > 0) {
+                                        setIsAddEventDropdownOpen(true);
+                                      }
+                                    }}
+                                    placeholder="Escribe el nombre del alumno..."
+                                    className="text-xs h-8 bg-background font-medium pr-7"
+                                  />
+                                  {addEventStudentQuery && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAddEventStudentQuery("");
+                                        setAddEventSelectedStudent(null);
+                                        setIsAddEventDropdownOpen(false);
+                                      }}
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Dropdown flotante */}
+                                {isAddEventDropdownOpen && filteredAddEventStudents.length > 0 && (
+                                  <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 divide-y divide-border/40">
+                                    {filteredAddEventStudents.map((st) => {
+                                      const isRecup = addEventType === "recuperacion";
+                                      const hasCredits = (st.makeupCredits || 0) > 0;
+                                      return (
+                                        <div
+                                          key={st.id}
+                                          onClick={() => {
+                                            setAddEventSelectedStudent(st);
+                                            setAddEventStudentQuery(st.name);
+                                            setIsAddEventDropdownOpen(false);
+                                          }}
+                                          className="p-2 hover:bg-primary/10 rounded-lg cursor-pointer transition-colors text-xs space-y-0.5"
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-bold text-foreground">{st.name}</span>
+                                            {isRecup && (
+                                              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                                                hasCredits
+                                                  ? "bg-red-500/20 text-red-600 border border-red-500/30"
+                                                  : "bg-muted text-muted-foreground"
+                                              }`}>
+                                                🎟️ {st.makeupCredits || 0} Créditos
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className="text-[10px] text-muted-foreground">
+                                            {st.instrument || "Instrumento"} · Prof. {st.teacher || "Por asignar"} · {st.modality || "Plan Regular"}
+                                          </p>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Resumen del Alumno Seleccionado */}
+                              {addEventSelectedStudent && (
+                                <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-[11px] space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-black text-primary">{addEventSelectedStudent.name}</span>
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-background border">
+                                      {addEventSelectedStudent.instrument}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground flex items-center justify-between">
+                                    <span>Plan: {addEventSelectedStudent.modality || "Regular"}</span>
+                                    <span>Créditos: <strong>{addEventSelectedStudent.makeupCredits || 0} disp.</strong></span>
+                                  </div>
+                                  {addEventType === "recuperacion" && (addEventSelectedStudent.makeupCredits || 0) <= 0 && (
+                                    <p className="text-[10px] text-amber-600 font-semibold pt-0.5">
+                                      ⚠️ Este alumno no tiene créditos acumulados, pero se le permitirá agendar la recuperación según la política flexible.
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Parámetros Fijos del Horario */}
+                              <div className="p-2 rounded-lg bg-muted/40 border border-border/60 text-[10px] space-y-0.5 text-muted-foreground">
+                                <p><strong>Horario Fijo:</strong> {selected.day} {selected.time} · <strong>{selected.room}</strong></p>
+                                <p><strong>Docente:</strong> Prof. {selected.teacher} · <strong>Curso:</strong> {selected.instrument}</p>
+                              </div>
+
+                              {/* Botón de Confirmación */}
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  if (!addEventSelectedStudent && !addEventStudentQuery.trim()) {
+                                    toast.error("Selecciona un alumno para inscribirlo.");
+                                    return;
+                                  }
+                                  const studentName = addEventSelectedStudent?.name || addEventStudentQuery.trim();
+
+                                  // Validar si ya está en el slot
+                                  if (slotLessons.some((l) => l.student.toLowerCase() === studentName.toLowerCase())) {
+                                    toast.warning(`El alumno ${studentName} ya está en este mismo horario.`);
+                                    return;
+                                  }
+
+                                  if (addEventType === "recuperacion") {
+                                    scheduleMakeupLesson({
+                                      studentName,
+                                      day: selected.day,
+                                      time: selected.time,
+                                      room: selected.room,
+                                      teacher: selected.teacher,
+                                      instrument: selected.instrument,
+                                      category: "RECUPERACION",
+                                      recoveringLessonDate: `Recuperación en horario de ${selected.day} ${selected.time} (${selected.room})`,
+                                    });
+                                    toast.success(`🎉 Recuperación inscrita: ${studentName}`, {
+                                      description: `Horario: ${selected.day} ${selected.time} (${selected.room}) con Prof. ${selected.teacher}. Se descontó 1 crédito.`,
+                                    });
+                                  } else if (addEventType === "personalizada") {
+                                    addLessonToSchedule({
+                                      student: studentName,
+                                      day: selected.day,
+                                      time: selected.time,
+                                      room: selected.room,
+                                      teacher: selected.teacher,
+                                      instrument: selected.instrument,
+                                      category: "PERSONALIZADA",
+                                      status: "programada",
+                                    });
+                                    toast.success(`⭐ Clase personalizada inscrita: ${studentName}`, {
+                                      description: `Horario: ${selected.day} ${selected.time} (${selected.room}) con Prof. ${selected.teacher}.`,
+                                    });
+                                  } else {
+                                    addLessonToSchedule({
+                                      student: studentName,
+                                      day: selected.day,
+                                      time: selected.time,
+                                      room: selected.room,
+                                      teacher: selected.teacher,
+                                      instrument: selected.instrument,
+                                      category: addEventSelectedStudent?.ageCategory || "JUNIOR",
+                                      status: "programada",
+                                    });
+                                    toast.success(`🎵 Clase regular inscrita: ${studentName}`, {
+                                      description: `Horario: ${selected.day} ${selected.time} (${selected.room}) con Prof. ${selected.teacher}.`,
+                                    });
+                                  }
+
+                                  // Reset
+                                  setAddEventStudentQuery("");
+                                  setAddEventSelectedStudent(null);
+                                  setIsAddEventDropdownOpen(false);
+                                  setIsAddEventOpen(false);
+                                }}
+                                className="w-full text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs gap-1.5"
+                              >
+                                <CheckCircle2 className="h-4 w-4" /> Confirmar e Inscribir en este Horario
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-center text-xs font-bold text-red-600">
+                          🚫 Capacidad máxima de 5 alumnos alcanzada en este horario con Prof. {selected.teacher}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="space-y-4 rounded-xl border border-border p-4 bg-muted/20">
                   <div className="flex items-center justify-between">
