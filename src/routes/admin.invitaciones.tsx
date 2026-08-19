@@ -181,9 +181,10 @@ function AdminInvitationsPage() {
 
     try {
       await resetUserToMasterPassword(activeRole, currentUser?.email ?? "admin-id", targetUser.id);
-      toast.success("Contraseña restablecida", {
-        description: `Se restauró la Clave Maestra original para ${targetUser.target_name}.`,
+      toast.success("Contraseña restablecida 🔄", {
+        description: `Se restauró la Clave Maestra y el estado de ${targetUser.target_name} volvió a PENDIENTE.`,
       });
+      await fetchInvites();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error al restablecer contraseña";
       toast.error(msg);
@@ -191,20 +192,17 @@ function AdminInvitationsPage() {
   };
 
   const handleRevokeInvite = async (inv: DBInvitation) => {
-    // Jerarquía de seguridad de la Dueña:
-    // Si la invitación ya fue aceptada, solo la Dueña (super_admin) puede eliminarla / dar de baja.
-    // Nayeli (staff) solo puede anular o eliminar invitaciones si aún están en estado "pendiente".
-    if (activeRole === "staff" && inv.status !== "pendiente") {
-      toast.error("Permiso restringido", {
-        description: "Solo la Dueña puede eliminar accesos ya aceptados. Como secretaría puedes anular invitaciones pendientes.",
+    if (inv.target_role === ("super_admin" as unknown as InviteTargetRole) || inv.target_name.toLowerCase().includes("dueña")) {
+      toast.error("Acción denegada", {
+        description: "No se puede eliminar el acceso de la Dirección General.",
       });
       return;
     }
 
     try {
       await revokeInvitation(activeRole, currentUser?.email ?? "admin-id", inv.id);
-      toast.success("Invitación cancelada / eliminada con éxito.");
-      fetchInvites();
+      toast.success("Invitación eliminada con éxito.");
+      await fetchInvites();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error al revocar";
       toast.error(msg);
@@ -480,13 +478,13 @@ function AdminInvitationsPage() {
                     <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset
                   </Button>
 
-                  {/* Eliminación / Anulación: Nayeli solo si es pendiente, Dueña siempre */}
-                  {(inv.status === "pendiente" || activeRole === "super_admin") && (
+                  {/* Eliminación / Revocación para Secretaría (Nayeli) y Dirección */}
+                  {!inv.target_name.toLowerCase().includes("dueña") && inv.target_role !== ("super_admin" as unknown as InviteTargetRole) && (
                     <Button
                       size="sm"
                       variant="ghost"
                       className="text-destructive hover:bg-destructive/10"
-                      title={inv.status === "pendiente" ? "Cancelar invitación pendiente" : "Eliminar acceso (Solo Dueña)"}
+                      title="Eliminar acceso / Revocar invitación"
                       onClick={() => handleRevokeInvite(inv)}
                     >
                       <Ban className="h-3.5 w-3.5" />
