@@ -33,56 +33,26 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-// Función del Timbre Acústico de Fin/Inicio de Clase (nuevo timbre alto pitch)
+import {
+  useAppStore,
+  playSyntheticBellChime,
+  type ScheduledLesson,
+  type WeekDay,
+  type AdminStudent,
+} from "@/store/app-store";
+
+// Función del Timbre Acústico de Fin/Inicio de Clase (Campana Escolar y Armónico Web Audio)
 export function playClassChime() {
   try {
-    const audio = new Audio("/school bell.mp3?v=highpitch");
+    const audio = new Audio("/school-bell.mp3");
     audio.volume = 0.9;
-    audio.play().catch((err) => {
-      console.warn("Reproduciendo con Web Audio API fallback:", err);
-      playSyntheticChime();
+    audio.play().catch(() => {
+      playSyntheticBellChime(0.9);
     });
-  } catch (err) {
-    playSyntheticChime();
+  } catch {
+    playSyntheticBellChime(0.9);
   }
 }
-
-function playSyntheticChime() {
-  try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    
-    // Tono 1 (880 Hz - La5)
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = "sine";
-    osc1.frequency.setValueAtTime(880, ctx.currentTime);
-    gain1.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(ctx.currentTime);
-    osc1.stop(ctx.currentTime + 0.8);
-
-    // Tono 2 (1320 Hz - Mi6 campana armónica)
-    setTimeout(() => {
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(1320, ctx.currentTime);
-      gain2.gain.setValueAtTime(0.4, ctx.currentTime);
-      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start(ctx.currentTime);
-      osc2.stop(ctx.currentTime + 1.2);
-    }, 250);
-  } catch (err) {
-    console.error("Error en timbre sintético:", err);
-  }
-}
-import { useAppStore, type ScheduledLesson, type WeekDay, type AdminStudent } from "@/store/app-store";
 import { rooms, teachers, musicalInstruments, timeSlots, weekDays, timeSlotsWeekday, timeSlotsSaturday } from "@/store/admin-seeds";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -351,6 +321,9 @@ export function AgendaBoard() {
 
           // 2. Filtro de semana específica (si aplica a semana individual o al mes completo)
           if (l.weekIndex !== undefined && l.weekIndex !== currentWeekIndex) {
+            return false;
+          }
+          if (l.excludedWeeks?.includes(currentWeekIndex)) {
             return false;
           }
 
@@ -1152,21 +1125,25 @@ export function AgendaBoard() {
                                                   🔄 Recuperación
                                                 </span>
                                               )}
-                                              {/* Puntito Indicador de Asistencia Marcada */}
-                                              {lesson.attendanceStatus && (
-                                                <span
-                                                  className={`absolute top-0.5 left-0.5 w-2 h-2 rounded-full border border-white shadow-2xs ${
-                                                    lesson.attendanceStatus === "presente"
-                                                      ? "bg-emerald-500 ring-1 ring-emerald-400/50"
-                                                      : lesson.attendanceStatus === "ausente"
-                                                      ? "bg-red-500 ring-1 ring-red-400/50"
-                                                      : lesson.attendanceStatus === "tarde"
-                                                      ? "bg-amber-500 ring-1 ring-amber-400/50"
-                                                      : "bg-blue-500 ring-1 ring-blue-400/50"
-                                                  }`}
-                                                  title={`Asistencia: ${lesson.attendanceStatus.toUpperCase()}`}
-                                                />
-                                              )}
+                                              {/* Puntito Indicador de Asistencia Marcada (Aislado por Semana) */}
+                                              {(() => {
+                                                const cardAtt = lesson.attendanceByWeek?.[currentWeekIndex] ?? (lesson.weekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined);
+                                                if (!cardAtt) return null;
+                                                return (
+                                                  <span
+                                                    className={`absolute top-0.5 left-0.5 w-2 h-2 rounded-full border border-white shadow-2xs ${
+                                                      cardAtt === "presente"
+                                                        ? "bg-emerald-500 ring-1 ring-emerald-400/50"
+                                                        : cardAtt === "ausente"
+                                                        ? "bg-red-500 ring-1 ring-red-400/50"
+                                                        : cardAtt === "tarde"
+                                                        ? "bg-amber-500 ring-1 ring-amber-400/50"
+                                                        : "bg-blue-500 ring-1 ring-blue-400/50"
+                                                    }`}
+                                                    title={`Asistencia Semana ${currentWeekIndex + 1}: ${cardAtt.toUpperCase()}`}
+                                                  />
+                                                );
+                                              })()}
                                               {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
                                               {lesson.category === "PERSONALIZADA" && (
                                                 <span
@@ -1923,96 +1900,116 @@ export function AgendaBoard() {
                   )}
                 </div>
 
-                {/* PANEL DE ASISTENCIA RÁPIDA (DIRECTO EN GRILLA) */}
-                <div className="space-y-3 rounded-2xl border-2 border-primary/20 p-4 bg-card shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                        <CheckCircle2 className="h-4 w-4" />
-                      </span>
-                      <p className="text-xs font-black text-foreground uppercase tracking-wide">
-                        Marcar Asistencia Rápida
-                      </p>
+                {/* PANEL DE ASISTENCIA RÁPIDA (AISLADO POR SEMANA ESPECÍFICA) */}
+                {(() => {
+                  const currentAttendance =
+                    selected.attendanceByWeek?.[currentWeekIndex] ??
+                    (selected.weekIndex === currentWeekIndex ? selected.attendanceStatus : undefined);
+                  return (
+                    <div className="space-y-3 rounded-2xl border-2 border-primary/20 p-4 bg-card shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                            <CheckCircle2 className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <p className="text-xs font-black text-foreground uppercase tracking-wide">
+                              Asistencia · Semana {currentWeekIndex + 1} de 4
+                            </p>
+                            <p className="text-[10px] text-muted-foreground font-semibold">
+                              {selected.day} {selected.time} · {monthsName[selectedMonth]}
+                            </p>
+                          </div>
+                        </div>
+                        {currentAttendance && (
+                          <Badge
+                            className={`text-[10px] font-black uppercase ${
+                              currentAttendance === "presente"
+                                ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                : currentAttendance === "ausente"
+                                ? "bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/30"
+                                : currentAttendance === "tarde"
+                                ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                : "bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                            }`}
+                          >
+                            ● {currentAttendance}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            markLessonAttendance(selected.id, "presente", "", currentWeekIndex);
+                            toast.success(
+                              `Asistencia (Semana ${currentWeekIndex + 1}): ${selected.student} PRESENTE 🟢`,
+                            );
+                          }}
+                          className={`h-9 font-bold text-xs gap-1.5 transition-all ${
+                            currentAttendance === "presente"
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-300 dark:border-emerald-800"
+                          }`}
+                        >
+                          🟢 Presente
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            markLessonAttendance(selected.id, "ausente", "", currentWeekIndex);
+                            toast.error(
+                              `Asistencia (Semana ${currentWeekIndex + 1}): ${selected.student} AUSENTE 🔴`,
+                            );
+                          }}
+                          className={`h-9 font-bold text-xs gap-1.5 transition-all ${
+                            currentAttendance === "ausente"
+                              ? "bg-red-600 text-white shadow-xs"
+                              : "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 border border-red-300 dark:border-red-800"
+                          }`}
+                        >
+                          🔴 Ausente
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            markLessonAttendance(selected.id, "tarde", "", currentWeekIndex);
+                            toast.warning(
+                              `Asistencia (Semana ${currentWeekIndex + 1}): ${selected.student} TARDE 🟡`,
+                            );
+                          }}
+                          className={`h-9 font-bold text-xs gap-1.5 transition-all ${
+                            currentAttendance === "tarde"
+                              ? "bg-amber-600 text-white shadow-xs"
+                              : "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 border border-amber-300 dark:border-amber-800"
+                          }`}
+                        >
+                          🟡 Tarde
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            markLessonAttendance(selected.id, "justificada", "", currentWeekIndex);
+                            toast.info(
+                              `Asistencia (Semana ${currentWeekIndex + 1}): ${selected.student} JUSTIFICADA 🔵 (+1 Crédito)`,
+                            );
+                          }}
+                          className={`h-9 font-bold text-xs gap-1.5 transition-all ${
+                            currentAttendance === "justificada"
+                              ? "bg-blue-600 text-white shadow-xs"
+                              : "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-100 border border-blue-300 dark:border-blue-800"
+                          }`}
+                        >
+                          🔵 Justificada (+1 Créd)
+                        </Button>
+                      </div>
                     </div>
-                    {selected.attendanceStatus && (
-                      <Badge
-                        className={`text-[10px] font-black uppercase ${
-                          selected.attendanceStatus === "presente"
-                            ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                            : selected.attendanceStatus === "ausente"
-                            ? "bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/30"
-                            : selected.attendanceStatus === "tarde"
-                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                            : "bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30"
-                        }`}
-                      >
-                        ● {selected.attendanceStatus}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        markLessonAttendance(selected.id, "presente");
-                        toast.success(`Asistencia marcada: ${selected.student} PRESENTE 🟢`);
-                      }}
-                      className={`h-9 font-bold text-xs gap-1.5 transition-all ${
-                        selected.attendanceStatus === "presente"
-                          ? "bg-emerald-600 text-white shadow-xs"
-                          : "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-300 dark:border-emerald-800"
-                      }`}
-                    >
-                      🟢 Presente
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        markLessonAttendance(selected.id, "ausente");
-                        toast.error(`Asistencia marcada: ${selected.student} AUSENTE 🔴`);
-                      }}
-                      className={`h-9 font-bold text-xs gap-1.5 transition-all ${
-                        selected.attendanceStatus === "ausente"
-                          ? "bg-red-600 text-white shadow-xs"
-                          : "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 border border-red-300 dark:border-red-800"
-                      }`}
-                    >
-                      🔴 Ausente
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        markLessonAttendance(selected.id, "tarde");
-                        toast.warning(`Asistencia marcada: ${selected.student} TARDE 🟡`);
-                      }}
-                      className={`h-9 font-bold text-xs gap-1.5 transition-all ${
-                        selected.attendanceStatus === "tarde"
-                          ? "bg-amber-600 text-white shadow-xs"
-                          : "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 border border-amber-300 dark:border-amber-800"
-                      }`}
-                    >
-                      🟡 Tarde
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        markLessonAttendance(selected.id, "justificada");
-                        toast.info(`Asistencia marcada: ${selected.student} JUSTIFICADA 🔵 (+1 Crédito de Recuperación)`);
-                      }}
-                      className={`h-9 font-bold text-xs gap-1.5 transition-all ${
-                        selected.attendanceStatus === "justificada"
-                          ? "bg-blue-600 text-white shadow-xs"
-                          : "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-100 border border-blue-300 dark:border-blue-800"
-                      }`}
-                    >
-                      🔵 Justificada (+1 Créd)
-                    </Button>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* GESTIÓN DE EVENTOS Y VACANTES EN ESTE HORARIO (ZONA DE CONFORT DE NAYELI) */}
                 {(() => {

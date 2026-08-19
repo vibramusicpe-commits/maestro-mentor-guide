@@ -79,6 +79,8 @@ export type ScheduledLesson = {
   year?: number; // Año de vigencia (ej: 2026)
   month?: number; // Mes de vigencia 0 a 11 (ej: 7 para Agosto)
   attendanceStatus?: "presente" | "ausente" | "tarde" | "justificada";
+  attendanceByWeek?: Record<number, "presente" | "ausente" | "tarde" | "justificada">;
+  excludedWeeks?: number[];
   isMakeup?: boolean;
   recoveringLessonDate?: string;
 };

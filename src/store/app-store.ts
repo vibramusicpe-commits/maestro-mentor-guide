@@ -51,6 +51,47 @@ export type {
 };
 export { VIBRA_PRICING };
 
+// Helper de Timbre Sintético de Doble Armónico con Web Audio API
+export function playSyntheticBellChime(volume: number = 0.85) {
+  try {
+    if (typeof window === "undefined") return;
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === "suspended") {
+      ctx.resume();
+    }
+
+    const playHarmonic = (freq: number, startTime: number, duration: number, gainVal: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(gainVal * volume, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+
+    const now = ctx.currentTime;
+    // Campana de Escuela / Timbre Acústico (Do6 + Mi6 + Sol6 resonancia)
+    playHarmonic(1046.5, now, 0.7, 0.4);
+    playHarmonic(1318.5, now, 0.9, 0.35);
+    playHarmonic(1567.98, now, 1.1, 0.3);
+
+    // Segundo toque armónico a los 220ms
+    playHarmonic(1046.5, now + 0.22, 0.8, 0.45);
+    playHarmonic(1318.5, now + 0.22, 1.0, 0.4);
+    playHarmonic(2093.0, now + 0.22, 1.3, 0.25);
+  } catch (err) {
+    console.warn("Error reproduciendo timbre sintético:", err);
+  }
+}
+
 export type Role = "super_admin" | "staff" | "teacher" | "family" | "admin";
 export type SyncItem = { id: string; label: string };
 
@@ -109,7 +150,8 @@ type AppState = {
   markLessonAttendance: (
     lessonId: string,
     status: "presente" | "ausente" | "tarde" | "justificada",
-    notes?: string
+    notes?: string,
+    targetWeekIndex?: number
   ) => void;
   scheduleMakeupLesson: (data: {
     studentName: string;
@@ -302,36 +344,78 @@ export const useAppStore = create<AppState>()(
       schedule: initialSchedule,
       adminStudents: adminStudents,
       invoices: initialInvoices,
-      rescheduleLesson: (id, day, time, scope = "all", targetWeekIndex) =>
+      rescheduleLesson: (id, day, time, scope = "only-this-week", targetWeekIndex) =>
         set((s) => {
           const targetLesson = s.schedule.find((l) => l.id === id);
           if (!targetLesson) return s;
 
           if (scope === "only-this-week" && targetWeekIndex !== undefined) {
-            const updated = s.schedule.map((l) => {
-              if (l.id === id) {
-                return { ...l, day, time, weekIndex: targetWeekIndex };
-              }
-              return l;
-            });
-            return {
-              schedule: updated,
-              syncQueue: [...s.syncQueue, queueItem(`Clase reprogramada (Solo Semana ${targetWeekIndex + 1}) · ${day} ${time}`)],
-            };
+            // Si es un horario recurrente mensual (sin weekIndex fijado)
+            if (targetLesson.weekIndex === undefined) {
+              const excluded = targetLesson.excludedWeeks || [];
+              const updatedOriginal = {
+                ...targetLesson,
+                excludedWeeks: Array.from(new Set([...excluded, targetWeekIndex])),
+              };
+
+              const newSingleWeekLesson: ScheduledLesson = {
+                ...targetLesson,
+                id: `sch-resched-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                day: day,
+                time: time,
+                weekIndex: targetWeekIndex,
+                excludedWeeks: undefined,
+                attendanceStatus: undefined,
+                attendanceByWeek: undefined,
+              };
+
+              return {
+                schedule: [
+                  ...s.schedule.map((l) => (l.id === id ? updatedOriginal : l)),
+                  newSingleWeekLesson,
+                ],
+                syncQueue: [
+                  ...s.syncQueue,
+                  queueItem(
+                    `Clase reprogramada (Solo Semana ${targetWeekIndex + 1}) · ${day} ${time}`,
+                  ),
+                ],
+              };
+            } else {
+              // Ya era una clase puntual de una semana específica
+              const updated = s.schedule.map((l) => {
+                if (l.id === id) {
+                  return { ...l, day, time, weekIndex: targetWeekIndex };
+                }
+                return l;
+              });
+              return {
+                schedule: updated,
+                syncQueue: [
+                  ...s.syncQueue,
+                  queueItem(
+                    `Clase reprogramada (Solo Semana ${targetWeekIndex + 1}) · ${day} ${time}`,
+                  ),
+                ],
+              };
+            }
           }
 
-          // Por defecto: Aplica a todo el mes (las 4 semanas) omitiendo weekIndex limpiamente
+          // Por defecto: Aplica a todo el mes (las 4 semanas)
           const updatedSchedule = s.schedule.map((l) => {
             if (l.id === id) {
-              const { weekIndex, ...rest } = l;
-              return { ...rest, day, time };
+              const { weekIndex, excludedWeeks, ...rest } = l;
+              return { ...rest, day, time, excludedWeeks: [] };
             }
             return l;
           });
 
           return {
             schedule: updatedSchedule,
-            syncQueue: [...s.syncQueue, queueItem(`Clase reprogramada (Mes completo) · ${day} ${time}`)],
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(`Clase reprogramada (Mes completo) · ${day} ${time}`),
+            ],
           };
         }),
       cancelLesson: (id) =>
@@ -470,16 +554,28 @@ export const useAppStore = create<AppState>()(
           ),
           syncQueue: [...s.syncQueue, queueItem("Crédito de recuperación utilizado")],
         })),
-      markLessonAttendance: (lessonId, status, notes = "") =>
+      markLessonAttendance: (lessonId, status, notes = "", targetWeekIndex?: number) =>
         set((s) => {
           const lesson = s.schedule.find((l) => l.id === lessonId);
           const studentName = lesson?.student;
           const isJustificada = status === "justificada";
+          const weekIdx = targetWeekIndex ?? lesson?.weekIndex ?? 1;
 
           return {
-            schedule: s.schedule.map((l) =>
-              l.id === lessonId ? { ...l, attendanceStatus: status } : l
-            ),
+            schedule: s.schedule.map((l) => {
+              if (l.id === lessonId) {
+                const prevByWeek = l.attendanceByWeek || {};
+                return {
+                  ...l,
+                  attendanceStatus: status,
+                  attendanceByWeek: {
+                    ...prevByWeek,
+                    [weekIdx]: status,
+                  },
+                };
+              }
+              return l;
+            }),
             adminStudents: s.adminStudents.map((st) => {
               if (
                 studentName &&
@@ -497,7 +593,9 @@ export const useAppStore = create<AppState>()(
             }),
             syncQueue: [
               ...s.syncQueue,
-              queueItem(`Asistencia marcada · ${studentName || "Alumno"} (${status.toUpperCase()})`),
+              queueItem(
+                `Asistencia marcada (Semana ${weekIdx + 1}) · ${studentName || "Alumno"} (${status.toUpperCase()})`,
+              ),
             ],
           };
         }),
@@ -823,15 +921,15 @@ export const useAppStore = create<AppState>()(
           chimeSettings: { ...s.chimeSettings, ...settings },
         })),
       playOfficialChime: () => {
+        const vol = get().chimeSettings?.volume ?? 0.85;
         try {
-          const audio = new Audio("/school bell.mp3?v=highpitch");
-          const vol = get().chimeSettings?.volume ?? 0.85;
+          const audio = new Audio("/school-bell.mp3");
           audio.volume = Math.max(0, Math.min(1, vol));
-          audio.play().catch((err) => {
-            console.warn("Autoplay bloqueado o archivo no reproducible, usando fallback Web Audio API:", err);
+          audio.play().catch(() => {
+            playSyntheticBellChime(vol);
           });
-        } catch (e) {
-          console.error("Error reproduciendo timbre oficial:", e);
+        } catch {
+          playSyntheticBellChime(vol);
         }
       },
       // Alertas / Incidencias operativas de Alumnos
