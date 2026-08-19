@@ -28,42 +28,145 @@ export const Route = createFileRoute("/teacher/alumnos")({
   component: TeacherStudents,
 });
 
+function normalize(str: string) {
+  return (str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function TeacherStudents() {
   const adminStudents = useAppStore((s) => s.adminStudents);
   const schedule = useAppStore((s) => s.schedule);
   const currentUser = useAppStore((s) => s.currentUser);
 
   const [query, setQuery] = useState("");
-  const [selectedTeacher, setSelectedTeacher] = useState<string>("todos");
   const [selectedCategory, setSelectedCategory] = useState<string>("todas");
 
-  // Profesores disponibles en el directorio
-  const availableTeachers = useMemo(() => {
-    const fromStudents = adminStudents.map((s) => s.teacher).filter(Boolean);
-    return Array.from(new Set([...teachers, ...fromStudents])).sort();
-  }, [adminStudents]);
+  // Detectar profesor logueado para preselección inteligente
+  const initialTeacher = useMemo(() => {
+    const name = currentUser?.name?.toLowerCase() || "";
+    if (name.includes("jeremy")) return "Jeremy";
+    if (name.includes("fernando")) return "Fernando";
+    if (name.includes("nathaly")) return "Nathaly";
+    return "todos";
+  }, [currentUser]);
 
-  // Filtrado de alumnos por profesor, nombre o instrumento
+  const [selectedTeacher, setSelectedTeacher] = useState<string>(initialTeacher);
+
+  // Lista unificada y enriquecida de alumnos cruzando datos con el horario oficial (schedule)
+  const unifiedStudents = useMemo(() => {
+    const result: Array<any> = [];
+    const seenNames = new Set<string>();
+
+    for (const s of adminStudents) {
+      const normS = normalize(s.name);
+      const words = normS.split(" ").filter((w) => w.length > 2);
+
+      // Buscar si tiene clases en el horario activo (schedule)
+      const matchingLessons = schedule.filter((l) => {
+        const normL = normalize(l.student);
+        const schedWords = normL.split(" ").filter((w) => w.length > 2);
+        const common = words.filter((w) => schedWords.includes(w));
+        return common.length >= 2 || normL.includes(normS) || normS.includes(normL);
+      });
+
+      let resolvedTeacher = s.teacher || "Fernando";
+      let resolvedInstrument = s.instrument || "Piano";
+
+      if (matchingLessons.length > 0) {
+        resolvedTeacher = matchingLessons[0].teacher;
+        resolvedInstrument = matchingLessons[0].instrument;
+      } else {
+        const instLower = (s.instrument || "").toLowerCase();
+        if (
+          instLower.includes("batería") ||
+          instLower.includes("guitarra") ||
+          instLower.includes("bajo") ||
+          instLower.includes("ukelele")
+        ) {
+          resolvedTeacher = "Jeremy";
+        } else if (
+          instLower.includes("canto") ||
+          instLower.includes("infantil") ||
+          instLower.includes("estimulación")
+        ) {
+          resolvedTeacher = "Nathaly";
+        }
+      }
+
+      result.push({
+        ...s,
+        teacher: resolvedTeacher,
+        instrument: resolvedInstrument,
+        matchingLessons,
+      });
+      seenNames.add(normS);
+    }
+
+    // Agregar alumnos adicionales presentes en el horario de clases
+    for (const l of schedule) {
+      const normL = normalize(l.student);
+      const words = normL.split(" ").filter((w) => w.length > 2);
+      let exists = false;
+      for (const seen of seenNames) {
+        const seenWords = seen.split(" ").filter((w) => w.length > 2);
+        const common = words.filter((w) => seenWords.includes(w));
+        if (common.length >= 2 || seen.includes(normL) || normL.includes(seen)) {
+          exists = true;
+          break;
+        }
+      }
+
+      if (!exists) {
+        result.push({
+          id: `sched-st-${l.id}`,
+          name: l.student,
+          family: `Familia ${l.student.split(" ")[0]}`,
+          phone: "984100000",
+          instrument: l.instrument,
+          teacher: l.teacher,
+          ageCategory: "JUNIOR",
+          attendanceRate: 100,
+          modality: "Regular (8 clases / 45 min)",
+          status: "activo",
+          matchingLessons: [l],
+        });
+        seenNames.add(normL);
+      }
+    }
+
+    return result;
+  }, [adminStudents, schedule]);
+
+  // Profesores oficiales
+  const availableTeachers = ["Jeremy", "Fernando", "Nathaly"];
+
+  // Filtrado de alumnos
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return adminStudents.filter((s) => {
+    return unifiedStudents.filter((s) => {
       const matchQuery =
         !q ||
         s.name.toLowerCase().includes(q) ||
-        s.family.toLowerCase().includes(q) ||
-        s.instrument.toLowerCase().includes(q) ||
+        (s.family && s.family.toLowerCase().includes(q)) ||
+        (s.instrument && s.instrument.toLowerCase().includes(q)) ||
         (s.emergencyContact?.name && s.emergencyContact.name.toLowerCase().includes(q));
 
       const matchTeacher =
         selectedTeacher === "todos" ||
-        s.teacher.toLowerCase().includes(selectedTeacher.toLowerCase());
+        s.teacher.toLowerCase().includes(selectedTeacher.toLowerCase()) ||
+        (s.matchingLessons && s.matchingLessons.some((l: any) => l.teacher.toLowerCase().includes(selectedTeacher.toLowerCase())));
 
       const matchCategory =
         selectedCategory === "todas" || s.ageCategory === selectedCategory;
 
       return matchQuery && matchTeacher && matchCategory;
     });
-  }, [adminStudents, query, selectedTeacher, selectedCategory]);
+  }, [unifiedStudents, query, selectedTeacher, selectedCategory]);
 
   return (
     <div className="space-y-6">
@@ -150,9 +253,11 @@ function TeacherStudents() {
           };
 
           // Buscar el horario de la clase del alumno en la agenda
-          const studentLesson = schedule.find(
-            (l) => l.student.toLowerCase() === s.name.toLowerCase() && l.status !== "cancelada",
-          );
+          const studentLesson =
+            s.matchingLessons?.[0] ||
+            schedule.find(
+              (l) => normalize(l.student) === normalize(s.name) && l.status !== "cancelada",
+            );
 
           const isAdult = (s.age ?? 10) >= 18;
 
