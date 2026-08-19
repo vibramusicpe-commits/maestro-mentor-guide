@@ -1,9 +1,11 @@
 # 📋 HANDOFF v16 — Sesión del 19 Agosto 2026 (13:30 -05:00)
 # Documento de continuación para el próximo agente
 
-## 🔴 BUG ACTIVO EN PRODUCCIÓN (PRIORIDAD MÁXIMA)
+## 🟢 BUG EN PRODUCCIÓN RESUELTO (19 Agosto 2026 13:45)
 
-### Error: `_t is not a function` al eliminar clase en agenda
+### Error resuelto: `_t is not a function` al eliminar clase en agenda
+- **Estado:** ✅ CORREGIDO y VERIFICADO con `npm run build`
+- **Solución implementada:** Se implementó `deleteLessonFromSchedule` en `src/store/app-store.ts`, se tipó en `AppState` y se resolvieron todas las incompatibilidades con `exactOptionalPropertyTypes: true`.
 - **URL:** https://musicstaff-vm.pages.dev/admin/agenda
 - **Reproducción:** Clic en clase → Panel lateral → Eliminar Clase del Horario (Sin Crédito) → Confirmar y Eliminar Clase → ERROR
 - **Error en consola:** `Uncaught TypeError: _t is not a function at onSubmit`

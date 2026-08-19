@@ -2108,7 +2108,7 @@ export function AgendaBoard() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                deleteLessonFromSchedule(selectedId);
+                deleteLessonFromSchedule(selected.id);
                 toast.success("🗑️ Clase de " + selected.student + " eliminada del horario correctamente");
                 setIsDeleteReqLessonOpen(false);
                 setSelectedId(null);

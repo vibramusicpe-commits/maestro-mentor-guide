@@ -23,6 +23,7 @@ import {
   type Invoice,
   type InvoiceStatus,
   type LessonModality,
+  type PaymentLog,
   type PaymentMethod,
   type ScheduledLesson,
   type StudentStatus,
@@ -40,6 +41,7 @@ export type {
   Invoice,
   InvoiceStatus,
   LessonModality,
+  PaymentLog,
   PaymentMethod,
   ScheduledLesson,
   StudentStatus,
@@ -48,7 +50,6 @@ export type {
   MatriculaType,
 };
 export { VIBRA_PRICING };
-
 
 export type Role = "super_admin" | "staff" | "teacher" | "family" | "admin";
 export type SyncItem = { id: string; label: string };
@@ -90,15 +91,18 @@ type AppState = {
   rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number) => void;
   cancelLesson: (id: string) => void;
   removeLessonFromSchedule: (id: string) => void;
+  deleteLessonFromSchedule: (id: string) => void;
   addLessonToSchedule: (lesson: Omit<ScheduledLesson, "id">) => void;
   importScheduleFromCSV: (newLessons: ScheduledLesson[]) => void;
   clearSchedule: () => void;
   importStudentsFromCSV: (newStudents: AdminStudent[]) => void;
   clearStudents: () => void;
+  addNewStudent: (newSt: Omit<AdminStudent, "id" | "risk" | "joinedAt" | "attendanceRate" | "makeupCredits" | "balance" | "recentAttendance" | "teacherNote">) => void;
   deleteStudent: (id: string) => void;
   deleteStudents: (ids: string[]) => void;
   updateStudentDetails: (id: string, updates: Partial<AdminStudent>) => void;
   setStudentStatus: (id: string, status: StudentStatus) => void;
+  setStudentModality: (id: string, modality: LessonModality) => void;
   assignTeacher: (id: string, teacher: string) => void;
   addStudentCredit: (id: string) => void;
   consumeStudentCredit: (id: string) => void;
@@ -209,6 +213,7 @@ type AppState = {
   approveDeletionRequest: (requestId: string, notes?: string) => void;
   rejectDeletionRequest: (requestId: string, notes?: string) => void;
 };
+
 // Crea un item de cola optimista que se vacía solo (simula la escritura en backend).
 function queueItem(label: string): SyncItem {
   const id = `q-${Math.random().toString(36).slice(2)}-${Date.now()}`;
@@ -240,10 +245,10 @@ export const useAppStore = create<AppState>()(
               (role === "super_admin"
                 ? "Dirección (Dueña)"
                 : role === "staff"
-                ? "Nayeli"
-                : role === "teacher"
-                ? "Prof. Jeremy"
-                : "Familia García"),
+                  ? "Nayeli"
+                  : role === "teacher"
+                    ? "Prof. Jeremy"
+                    : "Familia García"),
           },
         }),
       logout: () => set({ isAuthenticated: false, currentUser: null }),
@@ -284,10 +289,10 @@ export const useAppStore = create<AppState>()(
           kids: s.kids.map((k) =>
             k.id === kidId
               ? {
-                  ...k,
-                  practicedMinutes: k.practicedMinutes + minutes,
-                  practiceSessions: k.practiceSessions + 1,
-                }
+                ...k,
+                practicedMinutes: k.practicedMinutes + minutes,
+                practiceSessions: k.practiceSessions + 1,
+              }
               : k,
           ),
         })),
@@ -303,9 +308,6 @@ export const useAppStore = create<AppState>()(
           if (!targetLesson) return s;
 
           if (scope === "only-this-week" && targetWeekIndex !== undefined) {
-            // Si es solo para esta semana:
-            // Si la lección no tenía weekIndex (aplicaba a todas las semanas), creamos una copia específica para esta semana
-            // y marcamos las otras semanas conservando el horario previo.
             const updated = s.schedule.map((l) => {
               if (l.id === id) {
                 return { ...l, day, time, weekIndex: targetWeekIndex };
@@ -318,9 +320,17 @@ export const useAppStore = create<AppState>()(
             };
           }
 
-          // Por defecto: Aplica a todo el mes (las 4 semanas)
+          // Por defecto: Aplica a todo el mes (las 4 semanas) omitiendo weekIndex limpiamente
+          const updatedSchedule = s.schedule.map((l) => {
+            if (l.id === id) {
+              const { weekIndex, ...rest } = l;
+              return { ...rest, day, time };
+            }
+            return l;
+          });
+
           return {
-            schedule: s.schedule.map((l) => (l.id === id ? { ...l, day, time, weekIndex: undefined } : l)),
+            schedule: updatedSchedule,
             syncQueue: [...s.syncQueue, queueItem(`Clase reprogramada (Mes completo) · ${day} ${time}`)],
           };
         }),
@@ -345,13 +355,19 @@ export const useAppStore = create<AppState>()(
             adminStudents: isPersonalizada
               ? s.adminStudents
               : s.adminStudents.map((st) =>
-                  st.name === targetLesson?.student
-                    ? { ...st, makeupCredits: st.makeupCredits + 1 }
-                    : st,
-                ),
+                st.name === targetLesson?.student
+                  ? { ...st, makeupCredits: st.makeupCredits + 1 }
+                  : st,
+              ),
           };
         }),
       removeLessonFromSchedule: (id) =>
+        set((s) => ({
+          schedule: s.schedule.filter((l) => l.id !== id),
+          syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
+        })),
+      // Alias directo para evitar "_t is not a function"
+      deleteLessonFromSchedule: (id) =>
         set((s) => ({
           schedule: s.schedule.filter((l) => l.id !== id),
           syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
@@ -400,7 +416,6 @@ export const useAppStore = create<AppState>()(
 
           return {
             adminStudents: s.adminStudents.filter((st) => st.id !== id),
-            // Eliminación en cascada del horario del alumno
             schedule: studentName
               ? s.schedule.filter((l) => l.student.toLowerCase() !== studentName.toLowerCase())
               : s.schedule,
@@ -415,7 +430,6 @@ export const useAppStore = create<AppState>()(
 
           return {
             adminStudents: s.adminStudents.filter((st) => !ids.includes(st.id)),
-            // Eliminación en cascada del horario de todos los alumnos seleccionados
             schedule: s.schedule.filter(
               (l) => !namesToDelete.includes(l.student.toLowerCase()),
             ),
@@ -497,7 +511,7 @@ export const useAppStore = create<AppState>()(
             instrument: data.instrument,
             teacher: data.teacher,
             room: data.room,
-            category: "RECUPERACION",
+            category: data.category || "RECUPERACION",
             status: "programada",
             isMakeup: true,
             recoveringLessonDate: data.recoveringLessonDate || "Clase previa justificada",
@@ -548,24 +562,25 @@ export const useAppStore = create<AppState>()(
           invoices: s.invoices.map((i) =>
             i.id === id
               ? {
-                  ...i,
-                  status: "pagado" as const,
-                  amountPaid: i.amount,
-                  remainingBalance: 0,
-                  paymentMethod: method,
-                  paymentLogs: [
-                    ...i.paymentLogs,
-                    {
-                      id: `log-${Date.now()}`,
-                      timestamp: new Date().toLocaleString("es-PE"),
-                      registeredBy: s.activeRole === "staff" ? "Secretaría (Staff)" : "Dueña",
-                      amount: i.remainingBalance || i.amount,
-                      method,
-                      voucherRef: "PAGO-DIRECTO",
-                      note: "Pago total confirmado",
-                    },
-                  ],
-                }
+                ...i,
+                status: "pagado" as const,
+                amountPaid: i.amount,
+                remainingBalance: 0,
+                paymentMethod: method,
+                paymentLogs: [
+                  ...i.paymentLogs,
+                  {
+                    id: `log-${Date.now()}`,
+                    timestamp: new Date().toLocaleString("es-PE"),
+                    registeredBy: s.activeRole === "staff" ? "Secretaría (Staff)" : "Dueña",
+                    amount: i.remainingBalance || i.amount,
+                    method,
+                    voucherRef: "PAGO-DIRECTO",
+                    paymentTime: new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
+                    note: "Pago total confirmado",
+                  },
+                ],
+              }
               : i,
           ),
           syncQueue: [...s.syncQueue, queueItem(`Recibo cobrado · ${method}`)],
@@ -579,29 +594,29 @@ export const useAppStore = create<AppState>()(
           const newRemaining = Math.max(0, inv.amount - newPaid);
           const newStatus = newRemaining === 0 ? ("pagado" as const) : ("parcial" as const);
 
-          const newLog = {
+          const newLog: PaymentLog = {
             id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
             timestamp: new Date().toLocaleString("es-PE"),
             registeredBy: s.activeRole === "staff" ? "Secretaría (Nayeli)" : "Dirección (Dueña)",
             amount,
             method,
             voucherRef: voucherRef || (method === "Yape" ? "YAPE-VOUCHER" : "WSAP-COMPROBANTE"),
-            voucherImage: voucherImage || undefined,
             paymentTime: paymentTime || new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
             note: note || "Abono registrado con evidencia",
+            ...(voucherImage ? { voucherImage } : {}),
           };
 
           return {
             invoices: s.invoices.map((i) =>
               i.id === id
                 ? {
-                    ...i,
-                    amountPaid: newPaid,
-                    remainingBalance: newRemaining,
-                    status: newStatus,
-                    paymentMethod: method,
-                    paymentLogs: [...i.paymentLogs, newLog],
-                  }
+                  ...i,
+                  amountPaid: newPaid,
+                  remainingBalance: newRemaining,
+                  status: newStatus,
+                  paymentMethod: method,
+                  paymentLogs: [...i.paymentLogs, newLog],
+                }
                 : i,
             ),
             syncQueue: [
@@ -614,22 +629,21 @@ export const useAppStore = create<AppState>()(
         set((s) => {
           const { familyOrStudent, concept, amount, method, voucherRef, note, voucherImage, paymentTime } = data;
           const cleanSearch = familyOrStudent.trim().toLowerCase();
-          
-          // Buscar si existe un recibo pendiente o parcial para esta familia
+
           const existingInv = s.invoices.find(
             (i) => i.family.toLowerCase().includes(cleanSearch) || cleanSearch.includes(i.family.toLowerCase())
           );
 
-          const newLog = {
+          const newLog: PaymentLog = {
             id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
             timestamp: new Date().toLocaleString("es-PE"),
             registeredBy: s.activeRole === "staff" ? "Secretaría (Nayeli)" : "Dirección (Dueña)",
             amount,
             method,
             voucherRef: voucherRef || (method === "Yape" ? "YAPE-VOUCHER" : "PAGO-DIRECTO"),
-            voucherImage: voucherImage || undefined,
             paymentTime: paymentTime || new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
             note: note || "Abono directo registrado con evidencia",
+            ...(voucherImage ? { voucherImage } : {}),
           };
 
           if (existingInv) {
@@ -641,20 +655,19 @@ export const useAppStore = create<AppState>()(
               invoices: s.invoices.map((i) =>
                 i.id === existingInv.id
                   ? {
-                      ...i,
-                      amountPaid: newPaid,
-                      remainingBalance: newRemaining,
-                      status: newStatus,
-                      paymentMethod: method,
-                      paymentLogs: [...i.paymentLogs, newLog],
-                    }
+                    ...i,
+                    amountPaid: newPaid,
+                    remainingBalance: newRemaining,
+                    status: newStatus,
+                    paymentMethod: method,
+                    paymentLogs: [...i.paymentLogs, newLog],
+                  }
                   : i
               ),
               syncQueue: [...s.syncQueue, queueItem(`Abono aplicado a ${existingInv.family} · S/ ${amount}`)],
             };
           }
 
-          // Si no existe, crear un nuevo recibo ya pagado/abonado
           const newInvoice: Invoice = {
             id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
             family: familyOrStudent.startsWith("Familia ") ? familyOrStudent : `Familia ${familyOrStudent}`,
@@ -691,13 +704,14 @@ export const useAppStore = create<AppState>()(
               (i) => i.family.toLowerCase().includes(cleanSearch) || cleanSearch.includes(i.family.toLowerCase())
             );
 
-            const newLog = {
+            const newLog: PaymentLog = {
               id: `log-imp-${Date.now()}-${idx}`,
               timestamp: p.date || nowStr,
               registeredBy: regBy,
               amount: p.amount,
               method: p.method || "Yape",
               voucherRef: p.voucherRef || "IMPORTADO-EXCEL",
+              paymentTime: nowStr,
               note: p.note || "Abono importado por archivo Excel/CSV",
             };
 
@@ -754,7 +768,7 @@ export const useAppStore = create<AppState>()(
         const generatedInvoices: Invoice[] = currentStudents.map((st, idx) => {
           const planAmount = st.planPrice || (st.planType === "Trimestral" ? 289.4 : st.planType === "Anual" ? 263.2 : 329.0);
           const conceptLabel = `Mensualidad ${st.planType || "Mensual"} · ${st.instrument} (${st.teacher})`;
-          
+
           return {
             id: `inv-${Date.now()}-${idx}`,
             family: st.family || `Familia ${st.name.split(" ")[1] || st.name}`,
@@ -870,7 +884,6 @@ export const useAppStore = create<AppState>()(
           const now = new Date();
           const formattedDate = `${now.toLocaleDateString("es-PE")} ${now.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`;
 
-          // 1. Ejecutar la eliminación real según la entidad
           let updatedStudents = s.adminStudents;
           let updatedSchedule = s.schedule;
           let updatedInvoices = s.invoices;
@@ -889,16 +902,15 @@ export const useAppStore = create<AppState>()(
             updatedAlerts = s.studentAlerts.filter((a) => a.id !== req.entityId);
           }
 
-          // 2. Marcar la solicitud como aprobada
           const updatedRequests = s.deletionRequests.map((r) =>
             r.id === requestId
               ? {
-                  ...r,
-                  status: "aprobado" as const,
-                  reviewedBy: "Dueña (Super Admin)",
-                  reviewedAt: formattedDate,
-                  reviewNotes: notes || "Aprobado por Dirección",
-                }
+                ...r,
+                status: "aprobado" as const,
+                reviewedBy: "Dueña (Super Admin)",
+                reviewedAt: formattedDate,
+                reviewNotes: notes || "Aprobado por Dirección",
+              }
               : r,
           );
 
@@ -920,12 +932,12 @@ export const useAppStore = create<AppState>()(
           const updatedRequests = s.deletionRequests.map((r) =>
             r.id === requestId
               ? {
-                  ...r,
-                  status: "rechazado" as const,
-                  reviewedBy: "Dueña (Super Admin)",
-                  reviewedAt: formattedDate,
-                  reviewNotes: notes || "Denegado por Dirección. Se mantiene el registro activo.",
-                }
+                ...r,
+                status: "rechazado" as const,
+                reviewedBy: "Dueña (Super Admin)",
+                reviewedAt: formattedDate,
+                reviewNotes: notes || "Denegado por Dirección. Se mantiene el registro activo.",
+              }
               : r,
           );
 
@@ -950,7 +962,6 @@ export const useAppStore = create<AppState>()(
           };
         }
 
-        // Migración transparente de nombres de sala a la nomenclatura oficial (Sala A, B, C, D)
         const roomMap: Record<string, string> = {
           "Sala 1": "Sala A",
           "Sala 2": "Sala B",
@@ -961,9 +972,9 @@ export const useAppStore = create<AppState>()(
 
         const migratedSchedule = Array.isArray(persistedState?.schedule)
           ? persistedState.schedule.map((lesson: any) => ({
-              ...lesson,
-              room: roomMap[lesson.room] || lesson.room || "Sala A",
-            }))
+            ...lesson,
+            room: roomMap[lesson.room] || lesson.room || "Sala A",
+          }))
           : initialSchedule;
 
         return {
