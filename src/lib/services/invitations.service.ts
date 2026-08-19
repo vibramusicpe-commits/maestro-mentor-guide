@@ -276,7 +276,7 @@ export async function verifyInvitationToken(
       target_role: "staff" as unknown as InviteTargetRole,
       target_email: "nayeli@vibramusic.pe",
       master_password: "NayeliVibra2026*",
-      status: "pendiente",
+      status: "aceptado",
       is_valid: true,
       error_code: null,
     };
@@ -289,7 +289,7 @@ export async function verifyInvitationToken(
       target_role: "teacher",
       target_email: "jeremy@vibramusic.pe",
       master_password: "Vibra-JEREMY-2026",
-      status: "pendiente",
+      status: "aceptado",
       is_valid: true,
       error_code: null,
     };
@@ -302,7 +302,7 @@ export async function verifyInvitationToken(
       target_role: "teacher",
       target_email: "fernando@vibramusic.pe",
       master_password: "Vibra-FERNAN-2026",
-      status: "pendiente",
+      status: "aceptado",
       is_valid: true,
       error_code: null,
     };
@@ -315,7 +315,7 @@ export async function verifyInvitationToken(
       target_role: "teacher",
       target_email: "nathaly@vibramusic.pe",
       master_password: "Vibra-NATHAL-2026",
-      status: "pendiente",
+      status: "aceptado",
       is_valid: true,
       error_code: null,
     };
@@ -672,8 +672,8 @@ export async function getInvitations(
       master_password_hint: "Vib***",
       created_by_user_id: "00000000-0000-0000-0000-000000000001",
       created_by_role: "super_admin",
-      status: "pendiente",
-      accepted_at: null,
+      status: "aceptado",
+      accepted_at: "2026-08-19T20:00:00Z",
       expires_at: "2026-09-12T20:00:00Z",
       created_at: new Date().toISOString(),
     },
@@ -689,8 +689,8 @@ export async function getInvitations(
       master_password_hint: "Vib***",
       created_by_user_id: "00000000-0000-0000-0000-000000000001",
       created_by_role: "super_admin",
-      status: "pendiente",
-      accepted_at: null,
+      status: "aceptado",
+      accepted_at: "2026-08-19T20:00:00Z",
       expires_at: "2026-09-12T20:00:00Z",
       created_at: new Date().toISOString(),
     },
@@ -706,8 +706,8 @@ export async function getInvitations(
       master_password_hint: "Vib***",
       created_by_user_id: "00000000-0000-0000-0000-000000000001",
       created_by_role: "super_admin",
-      status: "pendiente",
-      accepted_at: null,
+      status: "aceptado",
+      accepted_at: "2026-08-19T20:00:00Z",
       expires_at: "2026-09-12T20:00:00Z",
       created_at: new Date().toISOString(),
     },
@@ -722,7 +722,7 @@ export async function getInvitations(
   }
 
   // 2. Leer estado local persistente
-  let localList: (DBInvitation & { master_password?: string })[] = [];
+  let localList: (DBInvitation & { master_password?: string; custom_password?: string })[] = [];
   try {
     const raw = localStorage.getItem("cadencia-invitations");
     if (raw) {
@@ -736,13 +736,31 @@ export async function getInvitations(
   if (localList.length === 0) {
     localList = [...baseSeeds];
   } else {
-    // Asegurar que las baseSeeds existan en localList
+    // Asegurar que las baseSeeds existan en localList y actualizar estado de profesores oficiales
     const existingEmails = new Set(localList.map((i) => i.target_email.toLowerCase()));
     for (const seed of baseSeeds) {
       if (!existingEmails.has(seed.target_email.toLowerCase())) {
         localList.push(seed);
       }
     }
+
+    // Asegurar que las invitaciones de Nayeli, Jeremy, Fernando y Nathaly tengan status aceptado
+    localList = localList.map((item) => {
+      const emailLower = item.target_email.toLowerCase();
+      if (
+        emailLower === "nayeli@vibramusic.pe" ||
+        emailLower === "jeremy@vibramusic.pe" ||
+        emailLower === "fernando@vibramusic.pe" ||
+        emailLower === "nathaly@vibramusic.pe"
+      ) {
+        return {
+          ...item,
+          status: "aceptado" as InviteStatus,
+          accepted_at: item.accepted_at || "2026-08-19T20:00:00Z",
+        };
+      }
+      return item;
+    });
   }
 
   // 3. Fusionar con lo que devuelve PostgreSQL (el estado real en la nube)

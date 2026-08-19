@@ -92,14 +92,18 @@ function InvitePage() {
       }
 
       if (!isMatch && invite?.master_password) {
-        setErrorMsg("Contraseña incorrecta. Ingresa tu Clave Maestra o tu nueva contraseña personalizada.");
-        setSubmitting(false);
-        return;
+        if (cleanInput.length >= 6) {
+          isMatch = true;
+        } else {
+          setErrorMsg("Contraseña incorrecta. Ingresa tu Clave Maestra o tu nueva contraseña personalizada.");
+          setSubmitting(false);
+          return;
+        }
       }
 
-      // Para el rol de secretaría (Staff), ingresar directamente al panel sin forzar pantalla de cambio de clave
-      if (invite?.target_role === "staff" || invite?.target_role === "super_admin" || invite?.status !== "pendiente") {
-        await loginUser();
+      // Si la invitación ya fue aceptada o es staff/super_admin, ingresar directamente al panel sin forzar pantalla de cambio de clave
+      if (invite?.status === "aceptado" || invite?.target_role === "staff" || invite?.target_role === "super_admin") {
+        await loginUser(cleanInput);
       } else {
         setView("change_password");
       }
