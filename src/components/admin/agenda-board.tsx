@@ -200,14 +200,15 @@ export function AgendaBoard() {
   const [ledgerTeacherFilter, setLedgerTeacherFilter] = useState("all");
   const [ledgerPlanFilter, setLedgerPlanFilter] = useState("all");
 
-  // Filtro dinámico de alumnos insensible a tildes y orden
+  // Filtro dinámico de alumnos: solo se activa cuando se escribe en la barra de búsqueda
   const filteredStudentsList = useMemo(() => {
-    if (!studentSearchQuery.trim()) return adminStudents.slice(0, 6);
-    const cleanQuery = studentSearchQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const trimmed = studentSearchQuery.trim();
+    if (!trimmed) return [];
+    const cleanQuery = trimmed.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     return adminStudents.filter((st) => {
       const nameNorm = st.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       return nameNorm.includes(cleanQuery);
-    }).slice(0, 8);
+    }).slice(0, 6);
   }, [adminStudents, studentSearchQuery]);
 
   const handleSelectStudentForNewLesson = (st: AdminStudent) => {
@@ -2780,19 +2781,24 @@ export function AgendaBoard() {
                   placeholder="Escribe para buscar alumno (ej: Mirko, Sanchez, Jose)..."
                   value={studentSearchQuery || newLessonStudent}
                   onChange={(e) => {
-                    setStudentSearchQuery(e.target.value);
-                    setNewLessonStudent(e.target.value);
-                    setIsStudentDropdownOpen(true);
+                    const val = e.target.value;
+                    setStudentSearchQuery(val);
+                    setNewLessonStudent(val);
+                    setIsStudentDropdownOpen(val.trim().length > 0);
                   }}
-                  onFocus={() => setIsStudentDropdownOpen(true)}
+                  onFocus={() => {
+                    if (studentSearchQuery.trim().length > 0) {
+                      setIsStudentDropdownOpen(true);
+                    }
+                  }}
                   className="text-xs pr-8"
                   required
                 />
                 <Search className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
 
-                {/* Menú Desplegable Inteligente con Autocompletado */}
-                {isStudentDropdownOpen && filteredStudentsList.length > 0 && (
-                  <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-2xl shadow-xl max-h-52 overflow-y-auto p-1.5 space-y-1">
+                {/* Menú Desplegable Inteligente: Solo visible cuando el usuario escribe */}
+                {isStudentDropdownOpen && studentSearchQuery.trim().length > 0 && filteredStudentsList.length > 0 && (
+                  <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-2xl shadow-xl max-h-48 overflow-y-auto p-1.5 space-y-1">
                     {filteredStudentsList.map((st) => (
                       <button
                         key={st.id}
