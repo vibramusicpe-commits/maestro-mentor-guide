@@ -2087,6 +2087,134 @@ export function AgendaBoard() {
                   </Button>
                 </div>
 
+                {/* Control y Resumen de Asistencias del Alumno en el Mes (Zona de Confort Nayeli) */}
+                {(() => {
+                  const studentData = adminStudents.find(
+                    (st) =>
+                      st.name.toLowerCase() === selected.student.toLowerCase() ||
+                      st.name.toLowerCase().includes(selected.student.toLowerCase()) ||
+                      selected.student.toLowerCase().includes(st.name.toLowerCase())
+                  );
+
+                  const isIntensivo = studentData?.modality?.includes("Intensivo");
+                  const targetLessons = isIntensivo ? 4 : 8;
+
+                  const studentLessons = schedule.filter(
+                    (l) =>
+                      l.student.toLowerCase() === selected.student.toLowerCase() ||
+                      (studentData && (
+                        l.student.toLowerCase().includes(studentData.name.toLowerCase()) ||
+                        studentData.name.toLowerCase().includes(l.student.toLowerCase())
+                      ))
+                  );
+
+                  const scheduledCount = studentLessons.length;
+                  const presentes = studentLessons.filter((l) => l.attendanceStatus === "presente").length;
+                  const ausentes = studentLessons.filter((l) => l.attendanceStatus === "ausente").length;
+                  const tardes = studentLessons.filter((l) => l.attendanceStatus === "tarde").length;
+                  const justificadas = studentLessons.filter((l) => l.attendanceStatus === "justificada").length;
+                  const isComplete = scheduledCount >= targetLessons;
+                  const pending = Math.max(0, targetLessons - scheduledCount);
+                  const credits = studentData?.makeupCredits ?? 0;
+
+                  return (
+                    <div className="space-y-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <p className="text-xs font-black text-foreground">Control de Asistencias del Alumno</p>
+                        </div>
+                        <span
+                          className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                            isComplete
+                              ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                              : "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40"
+                          }`}
+                        >
+                          {scheduledCount} / {targetLessons} clases ({isIntensivo ? "Intensivo" : "Regular"})
+                        </span>
+                      </div>
+
+                      {/* Barra de progreso de clases en el mes */}
+                      <div className="space-y-1">
+                        <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-full transition-all rounded-full ${
+                              isComplete ? "bg-emerald-500" : "bg-amber-500"
+                            }`}
+                            style={{ width: `${Math.min(100, (scheduledCount / targetLessons) * 100)}%` }}
+                          />
+                        </div>
+                        {pending > 0 && (
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                            ⚠️ Faltan {pending} clase{pending > 1 ? "s" : ""} por agendar para completar su plan de {targetLessons} clases.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Conteo de asistencias marcadas */}
+                      <div className="grid grid-cols-4 gap-1.5 text-center text-[10px] pt-0.5">
+                        <div className="p-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                          <p className="font-black text-emerald-700 dark:text-emerald-300 text-xs">{presentes}</p>
+                          <p className="text-[9px] text-muted-foreground font-semibold">Pres.</p>
+                        </div>
+                        <div className="p-1.5 rounded-xl bg-red-500/10 border border-red-500/20">
+                          <p className="font-black text-red-700 dark:text-red-300 text-xs">{ausentes}</p>
+                          <p className="text-[9px] text-muted-foreground font-semibold">Aus.</p>
+                        </div>
+                        <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                          <p className="font-black text-amber-700 dark:text-amber-300 text-xs">{tardes}</p>
+                          <p className="text-[9px] text-muted-foreground font-semibold">Tar.</p>
+                        </div>
+                        <div className="p-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                          <p className="font-black text-blue-700 dark:text-blue-300 text-xs">{justificadas}</p>
+                          <p className="text-[9px] text-muted-foreground font-semibold">Just.</p>
+                        </div>
+                      </div>
+
+                      {/* Créditos de falta / recuperación */}
+                      <div className="flex items-center justify-between pt-1 border-t border-emerald-500/20 text-[11px]">
+                        <span className="text-muted-foreground font-medium">Bolsa de Recuperaciones:</span>
+                        <span className="font-black px-2 py-0.5 rounded-full bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30">
+                          🎟️ {credits} Crédito{credits !== 1 ? "s" : ""} disponible{credits !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+
+                      {/* Lista rápida de clases del alumno */}
+                      {studentLessons.length > 0 && (
+                        <div className="space-y-1 pt-1 border-t border-emerald-500/20">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            Horarios de {selected.student.split(" ")[0]} este mes:
+                          </p>
+                          <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
+                            {studentLessons.map((l) => (
+                              <div
+                                key={l.id}
+                                className={`flex items-center justify-between p-1.5 rounded-lg text-[10px] border ${
+                                  l.id === selected.id
+                                    ? "bg-primary/15 border-primary/40 font-bold"
+                                    : "bg-background/80 border-border"
+                                }`}
+                              >
+                                <span>
+                                  {l.day} {l.time} ({l.room}) · Prof. {l.teacher}
+                                </span>
+                                <span className="font-bold">
+                                  {l.attendanceStatus === "presente" && "🟢 Presente"}
+                                  {l.attendanceStatus === "ausente" && "🔴 Ausente"}
+                                  {l.attendanceStatus === "tarde" && "🟡 Tarde"}
+                                  {l.attendanceStatus === "justificada" && "🔵 Justificada"}
+                                  {!l.attendanceStatus && (l.status === "cancelada" ? "❌ Cancelada" : "⏳ Programada")}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div className="space-y-2 pt-2 border-t border-border/60">
                   <Button
                     variant="outline"
