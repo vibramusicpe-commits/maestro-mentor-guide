@@ -2080,7 +2080,7 @@ export function AgendaBoard() {
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     {activeRole === "staff"
-                      ? "Solicitar eliminación de clase a Dirección"
+                      ? "🗑️ Eliminar Clase del Horario (Sin Crédito)"
                       : "Eliminar clase definitivamente del horario"}
                   </Button>
                 </div>

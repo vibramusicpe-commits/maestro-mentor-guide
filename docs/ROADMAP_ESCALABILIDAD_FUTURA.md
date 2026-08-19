@@ -84,3 +84,11 @@ Este documento centraliza los 5 proyectos para la fase de crecimiento de la acad
 1. ✅ **Usar siempre el mismo navegador en su PC:** Trabajar en Google Chrome (o el navegador predeterminado) de secretaría.
 2. ⚠️ **No borrar historial/cookies:** No ejecutar "Borrar datos de navegación" ni usar pestañas en modo incógnito durante esos 2 días.
 3. 💾 **Respaldo Automático al Final del Día:** Nayeli o tú pueden hacer clic en **"Descargar Padrón CSV"** al terminar la jornada como copia de seguridad adicional en su disco.
+
+
+## 🔮 Funcionalidad a Futuro: Límite y Sanciones de Recuperaciones por Ciclo
+- **Estado:** En Reserva (Aprobado por Dirección para Fase 2).
+- **Regla Actual (Fase 1):** Sin límite de faltas ni sanciones. Toda falta (ausente o justificada) genera 1 crédito para garantizar el cumplimiento de las 8 clases mensuales (o 4 en intensivo).
+- **Regla Futura (Fase 2 - Cuando la Dueña lo active):**
+  * Máximo 2 recuperaciones automáticas por mes.
+  * Las faltas consecutivas no justificadas con 24h de anticipación requerirán autorización de Dirección.
