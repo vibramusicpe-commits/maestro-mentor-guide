@@ -2108,25 +2108,8 @@ export function AgendaBoard() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!deleteLessonReason.trim()) {
-                  toast.error("Por favor ingresa el motivo.");
-                  return;
-                }
-
-                if (deleteModalLesson) {
-        useAppStore.getState().deleteLessonFromSchedule(deleteModalLesson.id);
-        toast.success("🗑️ Clase de " + deleteModalLesson.studentName + " eliminada correctamente");
-        setIsDeleteOpen(false);
-        setSelectedLesson(null);
-      }
-      toast.success("🗑️ Clase de " + deleteModalLesson.studentName + " eliminada del horario correctamente");
-      setIsDeleteOpen(false);
-      setSelectedLesson(null);
-
-                toast.success(`Solicitud enviada a Dirección`, {
-                  description: `La Dueña autorizará la eliminación de la clase de ${selected.student}.`,
-                });
-
+                deleteLessonFromSchedule(selectedId);
+                toast.success("🗑️ Clase de " + selected.student + " eliminada del horario correctamente");
                 setIsDeleteReqLessonOpen(false);
                 setSelectedId(null);
                 setDeleteLessonReason("");
