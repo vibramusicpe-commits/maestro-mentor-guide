@@ -139,9 +139,14 @@ function InvitePage() {
 
     // 1. Marcar invitación como aceptada en DB y LocalStorage
     try {
-      if (invite.invitation_id) {
-        await acceptInvitation(invite.invitation_id, invite.target_email);
-      }
+      await acceptInvitation(
+        invite.invitation_id || `inv-${token}`,
+        invite.target_email,
+        token,
+        customPasswordToSave,
+        invite.target_name || undefined,
+        invite.target_role,
+      );
     } catch {
       // ignore
     }

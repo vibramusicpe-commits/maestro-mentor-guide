@@ -373,26 +373,118 @@ export async function verifyInvitationToken(
 // ---------------------------------------------------------------
 // EDGE: acceptInvitation
 // El invitado ingresa su contraseña maestra y acepta la invitación.
+// Sincroniza en tiempo real tanto con Insforge PostgreSQL como con localStorage.
 // ---------------------------------------------------------------
 export async function acceptInvitation(
   invitationId: string,
-  userId: string,
+  targetEmail: string,
+  token?: string,
+  customPassword?: string,
+  targetName?: string,
+  targetRole: InviteTargetRole = "teacher",
 ): Promise<void> {
-  // Marcar invitación como aceptada
-  await postgrestPatch<DBInvitation>(
-    "invitations",
-    { id: `eq.${invitationId}` },
-    { status: "aceptado", accepted_at: new Date().toISOString() },
-  );
+  const nowIso = new Date().toISOString();
 
-  // Crear registro de control de contraseña
-  await postgrestInsert<DBUserPassword>("user_passwords", {
-    user_id: userId,
-    invitation_id: invitationId,
-    has_changed_once: false,
-    is_blocked: false,
-    failed_attempts: 0,
-  });
+  // 1. Intentar actualizar / insertar en Insforge PostgreSQL
+  try {
+    let updated = false;
+
+    // A. Intentar buscar por email en PostgreSQL
+    try {
+      const existing = await postgrestSelect<DBInvitation>("invitations", {
+        target_email: `eq.${targetEmail}`,
+      });
+      if (existing && existing.length > 0) {
+        await postgrestPatch<DBInvitation>(
+          "invitations",
+          { id: `eq.${existing[0].id}` },
+          {
+            status: "aceptado",
+            accepted_at: nowIso,
+            ...(customPassword ? { master_password: customPassword } : {}),
+          },
+        );
+        updated = true;
+      }
+    } catch {
+      // ignore
+    }
+
+    // B. Si no se encontró por email, intentar por token
+    if (!updated && token) {
+      try {
+        const existingByToken = await postgrestSelect<DBInvitation>("invitations", {
+          token: `eq.${token}`,
+        });
+        if (existingByToken && existingByToken.length > 0) {
+          await postgrestPatch<DBInvitation>(
+            "invitations",
+            { id: `eq.${existingByToken[0].id}` },
+            {
+              status: "aceptado",
+              accepted_at: nowIso,
+              ...(customPassword ? { master_password: customPassword } : {}),
+            },
+          );
+          updated = true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // C. Si no existía en PostgreSQL, insertar el registro directamente
+    if (!updated) {
+      try {
+        await postgrestInsert<DBInvitation>("invitations", {
+          token: token || `inv-${targetEmail}-${Date.now()}`,
+          target_role: targetRole,
+          target_name: targetName || targetEmail.split("@")[0],
+          target_email: targetEmail,
+          master_password: customPassword || "Vibra-2026",
+          created_by_user_id: "00000000-0000-0000-0000-000000000001",
+          created_by_role: "super_admin",
+          status: "aceptado",
+          accepted_at: nowIso,
+        });
+      } catch {
+        // ignore
+      }
+    }
+  } catch (err) {
+    console.warn("Aviso de sincronización Insforge:", err);
+  }
+
+  // 2. Guardar en almacenamiento local persistente
+  try {
+    const raw = localStorage.getItem("cadencia-invitations");
+    if (raw) {
+      const list = JSON.parse(raw);
+      const updatedList = list.map((inv: any) => {
+        if (
+          inv.id === invitationId ||
+          inv.target_email?.toLowerCase() === targetEmail.toLowerCase() ||
+          (token && inv.token === token)
+        ) {
+          return {
+            ...inv,
+            status: "aceptado",
+            accepted_at: nowIso,
+            ...(customPassword
+              ? {
+                  master_password: customPassword,
+                  custom_password: customPassword,
+                }
+              : {}),
+          };
+        }
+        return inv;
+      });
+      localStorage.setItem("cadencia-invitations", JSON.stringify(updatedList));
+    }
+  } catch {
+    // ignore
+  }
 }
 
 // ---------------------------------------------------------------
@@ -480,7 +572,7 @@ export async function revokeInvitation(
       localStorage.setItem("cadencia-invitations", JSON.stringify(updated));
     }
   } catch {
-    // Ignorar si no está en localStorage
+    // Silencioso
   }
 }
 
@@ -494,26 +586,35 @@ export async function resetUserToMasterPassword(
 ): Promise<void> {
   assertRole(userRole, ["super_admin", "staff"], "restablecer contraseña");
 
-  // Si no es un ID local, intentar PostgREST RPC
-  if (!targetUserId.startsWith("local-inv-")) {
-    try {
-      await postgrestRPC("reset_user_to_master_password", {
-        p_user_id: targetUserId,
-        p_performed_by: performedByUserId,
-      });
-    } catch {
-      // Modo local / Fallback MVP silencioso
+  const freshMaster = generateMasterPassword();
+
+  // Intentar actualizar en Insforge PostgreSQL
+  try {
+    const matched = await postgrestSelect<DBInvitation>("invitations", {
+      target_email: `eq.${targetUserId}`,
+    });
+    if (matched && matched.length > 0) {
+      await postgrestPatch<DBInvitation>(
+        "invitations",
+        { id: `eq.${matched[0].id}` },
+        {
+          master_password: freshMaster,
+          master_password_hint: freshMaster.slice(0, 3) + "***",
+          status: "pendiente",
+        },
+      );
     }
+  } catch {
+    // ignore
   }
 
-  // Actualizar también en el almacenamiento local persistente
+  // Actualizar también en almacenamiento local persistente
   try {
     const raw = localStorage.getItem("cadencia-invitations");
     if (raw) {
       const list: (DBInvitation & { master_password?: string; custom_password?: string })[] = JSON.parse(raw);
       const updated = list.map((inv) => {
         if (inv.id === targetUserId || inv.target_email === targetUserId) {
-          const freshMaster = generateMasterPassword();
           return {
             ...inv,
             master_password: freshMaster,
@@ -527,12 +628,12 @@ export async function resetUserToMasterPassword(
       localStorage.setItem("cadencia-invitations", JSON.stringify(updated));
     }
   } catch {
-    // Ignorar
+    // ignore
   }
 }
 
 // ---------------------------------------------------------------
-// EDGE: getInvitations (Panel Admin — listado de invitaciones)
+// EDGE: getInvitations (Panel Admin — listado de invitaciones en vivo)
 // ---------------------------------------------------------------
 export async function getInvitations(
   userRole: Role,
@@ -541,7 +642,6 @@ export async function getInvitations(
 ): Promise<DBInvitation[]> {
   assertRole(userRole, ["super_admin", "staff"], "ver invitaciones");
 
-  // En modo MVP / Híbrido, leer inmediatamente de localStorage
   const baseSeeds: (DBInvitation & { master_password?: string })[] = [
     {
       id: "decd405b-f0b0-4211-8a72-2d00b42ce65f",
@@ -613,38 +713,82 @@ export async function getInvitations(
     },
   ];
 
+  // 1. Intentar consultar Insforge PostgreSQL en tiempo real
+  let remoteRows: DBInvitation[] = [];
+  try {
+    remoteRows = await postgrestSelect<DBInvitation>("invitations");
+  } catch {
+    // Si falla o no hay conexión, continuar con fallback
+  }
+
+  // 2. Leer estado local persistente
+  let localList: (DBInvitation & { master_password?: string })[] = [];
   try {
     const raw = localStorage.getItem("cadencia-invitations");
     if (raw) {
-      const parsed: (DBInvitation & { master_password?: string })[] = JSON.parse(raw);
-      // Filtrar invitaciones de prueba antiguas (como pepito)
-      const cleaned = parsed.filter(
-        (inv) =>
-          !inv.target_name.toLowerCase().includes("pepito") &&
-          !inv.token.toLowerCase().includes("pepito") &&
-          inv.token !== "profe-jeremy-vibra" &&
-          inv.token !== "profe-fernando-vibra" &&
-          inv.id !== "inv-profe-jeremy" &&
-          inv.id !== "inv-profe-fernando",
-      );
-
-      // Asegurarse de que Jeremy, Fernando y Nathaly estén presentes
-      const existingEmails = new Set(cleaned.map((i) => i.target_email));
-      for (const seed of baseSeeds) {
-        if (!existingEmails.has(seed.target_email)) {
-          cleaned.push(seed);
-        }
-      }
-
-      localStorage.setItem("cadencia-invitations", JSON.stringify(cleaned));
-      return cleaned;
-    } else {
-      localStorage.setItem("cadencia-invitations", JSON.stringify(baseSeeds));
-      return baseSeeds;
+      localList = JSON.parse(raw);
     }
   } catch {
-    return baseSeeds;
+    // ignore
   }
+
+  // Si localList está vacío, inicializar con baseSeeds
+  if (localList.length === 0) {
+    localList = [...baseSeeds];
+  } else {
+    // Asegurar que las baseSeeds existan en localList
+    const existingEmails = new Set(localList.map((i) => i.target_email.toLowerCase()));
+    for (const seed of baseSeeds) {
+      if (!existingEmails.has(seed.target_email.toLowerCase())) {
+        localList.push(seed);
+      }
+    }
+  }
+
+  // 3. Fusionar con lo que devuelve PostgreSQL (el estado real en la nube)
+  if (remoteRows.length > 0) {
+    const remoteByEmail = new Map(remoteRows.map((r) => [r.target_email.toLowerCase(), r]));
+    const remoteByToken = new Map(remoteRows.map((r) => [r.token, r]));
+
+    localList = localList.map((item) => {
+      const remote = remoteByEmail.get(item.target_email.toLowerCase()) || remoteByToken.get(item.token);
+      if (remote) {
+        return {
+          ...item,
+          status: remote.status,
+          accepted_at: remote.accepted_at || item.accepted_at,
+        };
+      }
+      return item;
+    });
+
+    // Agregar invitaciones remotas creadas por otros usuarios que no estén en localList
+    const localEmails = new Set(localList.map((i) => i.target_email.toLowerCase()));
+    for (const remote of remoteRows) {
+      if (!localEmails.has(remote.target_email.toLowerCase())) {
+        localList.unshift(remote);
+      }
+    }
+  }
+
+  // Limpiar lista y persistir
+  const cleaned = localList.filter(
+    (inv) =>
+      !inv.target_name.toLowerCase().includes("pepito") &&
+      !inv.token.toLowerCase().includes("pepito") &&
+      inv.token !== "profe-jeremy-vibra" &&
+      inv.token !== "profe-fernando-vibra" &&
+      inv.id !== "inv-profe-jeremy" &&
+      inv.id !== "inv-profe-fernando",
+  );
+
+  try {
+    localStorage.setItem("cadencia-invitations", JSON.stringify(cleaned));
+  } catch {
+    // ignore
+  }
+
+  return cleaned;
 }
 
 // ---------------------------------------------------------------

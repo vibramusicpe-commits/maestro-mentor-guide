@@ -75,6 +75,16 @@ function AdminInvitationsPage() {
 
   useEffect(() => {
     fetchInvites();
+
+    // Auto-refrescar cuando la ventana recupera el foco (ej. tras probar en otra pestaña/celular)
+    const onFocus = () => fetchInvites();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onFocus);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onFocus);
+    };
   }, [activeRole]);
 
   // Al seleccionar un alumno de la lista, auto-completar según sea menor o adulto
