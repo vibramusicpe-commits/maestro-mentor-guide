@@ -282,40 +282,88 @@ export async function verifyInvitationToken(
     };
   }
 
-  if (normalizedToken === "inv-teacher-jeremy-guitarra_bateria-vibra2026" || normalizedToken.includes("jeremy")) {
-    return {
+  // ---------------------------------------------------------------
+  // Tokens permanentes de profesores: primero intentar recuperar estado real del localStorage
+  // para reflejar si ya aceptaron la invitación y cuál es su contraseña actual (maestra o personalizada)
+  // ---------------------------------------------------------------
+  const TEACHER_SEEDS: Record<string, {
+    invitation_id: string;
+    target_name: string;
+    target_role: InviteTargetRole;
+    target_email: string;
+    master_password: string;
+  }> = {
+    "inv-teacher-jeremy-guitarra_bateria-vibra2026": {
       invitation_id: "inv-teacher-jeremy",
       target_name: "Jeremy (Guitarra y Batería)",
       target_role: "teacher",
       target_email: "jeremy@vibramusic.pe",
-      master_password: "Vibra-JEREMY-2026",
-      status: "pendiente",
-      is_valid: true,
-      error_code: null,
-    };
-  }
-
-  if (normalizedToken === "inv-teacher-fernando-violin_piano-vibra2026" || normalizedToken.includes("fernando")) {
-    return {
+      master_password: "Vibra-ZL3F-EMGN",
+    },
+    "inv-teacher-fernando-violin_piano-vibra2026": {
       invitation_id: "inv-teacher-fernando",
       target_name: "Fernando (Violín y Piano)",
       target_role: "teacher",
       target_email: "fernando@vibramusic.pe",
       master_password: "Vibra-FERNAN-2026",
-      status: "pendiente",
-      is_valid: true,
-      error_code: null,
-    };
-  }
-
-  if (normalizedToken === "inv-teacher-nathaly-canto_pianoinfantil-vibra2026" || normalizedToken.includes("nathaly")) {
-    return {
+    },
+    "inv-teacher-nathaly-canto_pianoinfantil-vibra2026": {
       invitation_id: "inv-teacher-nathaly",
       target_name: "Nathaly (Canto y Piano Infantil)",
       target_role: "teacher",
       target_email: "nathaly@vibramusic.pe",
       master_password: "Vibra-NATHAL-2026",
-      status: "pendiente",
+    },
+  };
+
+  // Buscar seed por token exacto o por substring del nombre del profesor
+  let matchedSeed = TEACHER_SEEDS[normalizedToken];
+  if (!matchedSeed) {
+    for (const [seedToken, seed] of Object.entries(TEACHER_SEEDS)) {
+      const name = seed.target_name.toLowerCase();
+      // Extraer solo el nombre (primera palabra entre paréntesis o antes del espacio)
+      const firstName = name.split("(")[0].trim().split(" ")[0];
+      if (normalizedToken.includes(firstName)) {
+        matchedSeed = seed;
+        break;
+      }
+    }
+  }
+
+  if (matchedSeed) {
+    // Intentar recuperar estado real y contraseña personalizada del localStorage
+    let realStatus: InviteStatus = "pendiente";
+    let resolvedPassword = matchedSeed.master_password;
+    try {
+      const raw = localStorage.getItem("cadencia-invitations");
+      if (raw) {
+        const list: (DBInvitation & { master_password?: string; custom_password?: string })[] = JSON.parse(raw);
+        const found = list.find(
+          (i) =>
+            i.id === matchedSeed.invitation_id ||
+            i.target_email === matchedSeed.target_email,
+        );
+        if (found) {
+          realStatus = found.status || "pendiente";
+          // La contraseña vigente es la personalizada si la tienen; si no, la maestra
+          if (found.custom_password) {
+            resolvedPassword = found.custom_password;
+          } else if (found.master_password) {
+            resolvedPassword = found.master_password;
+          }
+        }
+      }
+    } catch {
+      // ignore — fallback a pendiente y contraseña maestra seed
+    }
+
+    return {
+      invitation_id: matchedSeed.invitation_id,
+      target_name: matchedSeed.target_name,
+      target_role: matchedSeed.target_role,
+      target_email: matchedSeed.target_email,
+      master_password: resolvedPassword,
+      status: realStatus,
       is_valid: true,
       error_code: null,
     };
@@ -668,7 +716,7 @@ export async function getInvitations(
       target_email: "jeremy@vibramusic.pe",
       target_family_id: null,
       target_teacher_id: null,
-      master_password: "Vibra-JEREMY-2026",
+      master_password: "Vibra-ZL3F-EMGN",
       master_password_hint: "Vib***",
       created_by_user_id: "00000000-0000-0000-0000-000000000001",
       created_by_role: "super_admin",

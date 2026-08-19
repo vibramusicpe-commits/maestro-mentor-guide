@@ -50,7 +50,6 @@ function InvitePage() {
     verify();
   }, [token]);
 
-  // ── PASO 1: Verificar contraseña maestra ──
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg("");
@@ -62,53 +61,60 @@ function InvitePage() {
 
     setSubmitting(true);
     try {
-      // Validación de seguridad quirúrgica:
-      // Se permite ingresar tanto con la clave maestra inicial como con la nueva contraseña que el usuario haya establecido
       let isMatch = false;
       const cleanInput = password.trim();
 
-      // 1. Verificar contra el resultado del token
+      // 1. Verificar contra la contraseña retornada por verifyInvitationToken
+      //    (puede ser la maestra o la personalizada si ya la cambió antes)
       if (invite?.master_password && cleanInput === invite.master_password.trim()) {
         isMatch = true;
       }
 
-      // 2. Verificar contra localStorage persistente
-      try {
-        const raw = localStorage.getItem("cadencia-invitations");
-        if (raw) {
-          const list = JSON.parse(raw);
-          const found = list.find((inv: any) => inv.id === invite?.invitation_id || inv.token === token);
-          if (found) {
-            if (found.master_password && cleanInput === found.master_password.trim()) {
-              isMatch = true;
-            }
-            if (found.custom_password && cleanInput === found.custom_password.trim()) {
-              isMatch = true;
+      // 2. Verificar contra localStorage persistente (para otros navegadores/dispositivos)
+      if (!isMatch) {
+        try {
+          const raw = localStorage.getItem("cadencia-invitations");
+          if (raw) {
+            const list = JSON.parse(raw);
+            const found = list.find(
+              (inv: Record<string, unknown>) =>
+                inv["id"] === invite?.invitation_id || inv["token"] === token,
+            );
+            if (found) {
+              if (found["master_password"] && cleanInput === String(found["master_password"]).trim()) {
+                isMatch = true;
+              }
+              if (found["custom_password"] && cleanInput === String(found["custom_password"]).trim()) {
+                isMatch = true;
+              }
             }
           }
-        }
-      } catch {
-        // ignore
-      }
-
-      if (!isMatch && invite?.master_password) {
-        if (cleanInput.length >= 6) {
-          isMatch = true;
-        } else {
-          setErrorMsg("Contraseña incorrecta. Ingresa tu Clave Maestra o tu nueva contraseña personalizada.");
-          setSubmitting(false);
-          return;
+        } catch {
+          // ignore
         }
       }
 
-      // Si la invitación ya fue aceptada o es staff/super_admin, ingresar directamente al panel sin forzar pantalla de cambio de clave
-      if (invite?.status === "aceptado" || invite?.target_role === "staff" || invite?.target_role === "super_admin") {
-        await loginUser(cleanInput);
+      // 3. Acceso denegado: contraseña incorrecta
+      if (!isMatch) {
+        setErrorMsg(
+          "Contraseña incorrecta. Ingresa tu Clave Maestra o tu contraseña personalizada.",
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      // Si la invitación ya fue aceptada o es staff/super_admin, ingresar directamente sin pedir cambio
+      if (
+        invite?.status === "aceptado" ||
+        invite?.target_role === "staff" ||
+        invite?.target_role === ("super_admin" as string)
+      ) {
+        await loginUser(undefined);
       } else {
         setView("change_password");
       }
     } catch {
-      setErrorMsg("Contraseña incorrecta. Verifica y vuelve a intentarlo.");
+      setErrorMsg("Error al verificar. Intenta de nuevo.");
     } finally {
       setSubmitting(false);
     }
