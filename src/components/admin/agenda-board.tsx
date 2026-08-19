@@ -25,6 +25,7 @@ import {
   Sliders,
   PlusCircle,
   RotateCcw,
+  BookOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -188,6 +189,38 @@ export function AgendaBoard() {
   const [newLessonTime, setNewLessonTime] = useState(timeSlotsWeekday[0] || "16:00");
   const [newLessonRoom, setNewLessonRoom] = useState(rooms[0] || "Sala A");
   const [newLessonCategory, setNewLessonCategory] = useState<AgeCategory>("JUNIOR");
+
+  // Estados de Búsqueda y Autocompletado de Alumnos (99 Alumnos)
+  const [studentSearchQuery, setStudentSearchQuery] = useState("");
+  const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
+
+  // Estados de Libreta de Asistencias y Control de Plan (8 o 4 clases)
+  const [isAttendanceLedgerOpen, setIsAttendanceLedgerOpen] = useState(false);
+  const [ledgerSearchQuery, setLedgerSearchQuery] = useState("");
+  const [ledgerTeacherFilter, setLedgerTeacherFilter] = useState("all");
+  const [ledgerPlanFilter, setLedgerPlanFilter] = useState("all");
+
+  // Filtro dinámico de alumnos insensible a tildes y orden
+  const filteredStudentsList = useMemo(() => {
+    if (!studentSearchQuery.trim()) return adminStudents.slice(0, 6);
+    const cleanQuery = studentSearchQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return adminStudents.filter((st) => {
+      const nameNorm = st.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return nameNorm.includes(cleanQuery);
+    }).slice(0, 8);
+  }, [adminStudents, studentSearchQuery]);
+
+  const handleSelectStudentForNewLesson = (st: AdminStudent) => {
+    setNewLessonStudent(st.name);
+    setStudentSearchQuery(st.name);
+    if (st.teacher) setNewLessonTeacher(st.teacher);
+    if (st.instrument) setNewLessonInstrument(st.instrument);
+    if (st.ageCategory) setNewLessonCategory(st.ageCategory);
+    setIsStudentDropdownOpen(false);
+    toast.info(`Alumno: ${st.name}`, {
+      description: `Autocompletado: ${st.instrument} · Prof. ${st.teacher || "Por asignar"} · ${st.ageCategory || "JUNIOR"}`,
+    });
+  };
 
   // Estados de Programar Recuperación de Clase para Alumnos
   const [isMakeupModalOpen, setIsMakeupModalOpen] = useState(false);
@@ -747,6 +780,17 @@ export function AgendaBoard() {
           >
             <RotateCcw className="h-4 w-4 text-red-600" />
             🔄 Programar Recuperación
+          </Button>
+
+          {/* Botón de Libreta de Asistencias y Control de Plan */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsAttendanceLedgerOpen(true)}
+            className="gap-1.5 font-bold border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20"
+          >
+            <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            📖 Libreta de Asistencias y Plan
           </Button>
 
           {/* Botón de Registro Histórico de Alumnos Reingresantes / Bajas */}
@@ -2723,38 +2767,70 @@ export function AgendaBoard() {
             }}
             className="space-y-4 py-2 text-xs"
           >
-            <div className="space-y-1.5">
-              <label className="font-bold text-foreground">Alumno</label>
-              <div className="space-y-1">
+            <div className="space-y-1.5 relative">
+              <div className="flex items-center justify-between">
+                <label className="font-bold text-foreground">Alumno</label>
+                <span className="text-[10px] text-muted-foreground">
+                  {adminStudents.length} alumnos en directorio
+                </span>
+              </div>
+              <div className="relative">
                 <Input
                   type="text"
-                  placeholder="Escribe el nombre del alumno..."
-                  value={newLessonStudent}
-                  onChange={(e) => setNewLessonStudent(e.target.value)}
-                  className="text-xs"
+                  placeholder="Escribe para buscar alumno (ej: Mirko, Sanchez, Jose)..."
+                  value={studentSearchQuery || newLessonStudent}
+                  onChange={(e) => {
+                    setStudentSearchQuery(e.target.value);
+                    setNewLessonStudent(e.target.value);
+                    setIsStudentDropdownOpen(true);
+                  }}
+                  onFocus={() => setIsStudentDropdownOpen(true)}
+                  className="text-xs pr-8"
                   required
                 />
-                {adminStudents.length > 0 && (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    <span className="text-[10px] text-muted-foreground">Sugeridos:</span>
-                    {adminStudents.slice(0, 4).map((st) => (
+                <Search className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+
+                {/* Menú Desplegable Inteligente con Autocompletado */}
+                {isStudentDropdownOpen && filteredStudentsList.length > 0 && (
+                  <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-2xl shadow-xl max-h-52 overflow-y-auto p-1.5 space-y-1">
+                    {filteredStudentsList.map((st) => (
                       <button
                         key={st.id}
                         type="button"
-                        onClick={() => {
-                          setNewLessonStudent(st.name);
-                          if (st.teacher) setNewLessonTeacher(st.teacher);
-                          if (st.instrument) setNewLessonInstrument(st.instrument);
-                          if (st.ageCategory) setNewLessonCategory(st.ageCategory);
-                        }}
-                        className="text-[10px] bg-muted px-2 py-0.5 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
+                        onClick={() => handleSelectStudentForNewLesson(st)}
+                        className="w-full text-left p-2 rounded-xl hover:bg-muted/80 flex items-center justify-between transition-colors text-xs group"
                       >
-                        {st.name}
+                        <div>
+                          <p className="font-bold text-foreground group-hover:text-primary transition-colors">{st.name}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {st.instrument} · Prof. {st.teacher || "Por asignar"} · {st.ageCategory || "JUNIOR"}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                          Elegir ↵
+                        </span>
                       </button>
                     ))}
                   </div>
                 )}
               </div>
+
+              {/* Botones sugeridos rápidos */}
+              {adminStudents.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  <span className="text-[10px] text-muted-foreground">Sugeridos:</span>
+                  {adminStudents.slice(0, 4).map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => handleSelectStudentForNewLesson(st)}
+                      className="text-[10px] bg-muted px-2 py-0.5 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
+                    >
+                      {st.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -3077,6 +3153,204 @@ export function AgendaBoard() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Libreta de Asistencias y Control de Plan Oficial (8 clases / 4 clases) */}
+      <Dialog open={isAttendanceLedgerOpen} onOpenChange={setIsAttendanceLedgerOpen}>
+        <DialogContent className="sm:max-w-4xl max-h-[88vh] flex flex-col p-6 rounded-3xl bg-card border-emerald-500/30">
+          <DialogHeader className="pb-3 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-lg font-black flex items-center gap-2 text-foreground">
+                  <BookOpen className="h-5 w-5 text-emerald-500" />
+                  📖 Libreta de Asistencias y Control de Plan Mensual
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Supervisión del cumplimiento de clases según regla oficial Vibra Music (8 clases Plan Regular / 4 clases Plan Intensivo).
+                </DialogDescription>
+              </div>
+            </div>
+
+            {/* Controles de Búsqueda y Filtros de la Libreta */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-3">
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Buscar alumno en libreta..."
+                  value={ledgerSearchQuery}
+                  onChange={(e) => setLedgerSearchQuery(e.target.value)}
+                  className="h-8 text-xs pl-7 rounded-xl"
+                />
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              </div>
+
+              <Select value={ledgerTeacherFilter} onValueChange={setLedgerTeacherFilter}>
+                <SelectTrigger className="h-8 text-xs rounded-xl">
+                  <SelectValue placeholder="Profesor: Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Profesor: Todos</SelectItem>
+                  {availableTeachers.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      Prof. {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={ledgerPlanFilter} onValueChange={setLedgerPlanFilter}>
+                <SelectTrigger className="h-8 text-xs rounded-xl">
+                  <SelectValue placeholder="Plan: Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Plan: Todos</SelectItem>
+                  <SelectItem value="Regular">Plan Regular (8 clases)</SelectItem>
+                  <SelectItem value="Intensivo">Plan Intensivo (4 clases)</SelectItem>
+                  <SelectItem value="Personalizada">Personalizada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </DialogHeader>
+
+          {/* Lista de Alumnos con Control de Asistencias y Plan */}
+          <div className="flex-1 overflow-y-auto py-3 space-y-2.5 pr-1">
+            {(() => {
+              const cleanSearch = ledgerSearchQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+              const filteredLedgerList = adminStudents.filter((st) => {
+                const nameNorm = st.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const matchesSearch = !cleanSearch || nameNorm.includes(cleanSearch);
+                const matchesTeacher = ledgerTeacherFilter === "all" || st.teacher === ledgerTeacherFilter;
+                const matchesPlan =
+                  ledgerPlanFilter === "all" ||
+                  (ledgerPlanFilter === "Regular" && (!st.planType || st.planType === "Mensual" || st.planType === "Trimestral" || st.planType === "Anual")) ||
+                  (ledgerPlanFilter === "Intensivo" && st.modality?.includes("Intensivo")) ||
+                  (ledgerPlanFilter === "Personalizada" && st.ageCategory === "PERSONALIZADA");
+
+                return matchesSearch && matchesTeacher && matchesPlan;
+              });
+
+              if (filteredLedgerList.length === 0) {
+                return (
+                  <div className="text-center py-10 text-muted-foreground text-xs">
+                    No se encontraron alumnos con los filtros seleccionados.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {filteredLedgerList.map((st) => {
+                    const isIntensivo = st.modality?.includes("Intensivo");
+                    const targetLessons = isIntensivo ? 4 : 8;
+
+                    // Clases en la agenda para este alumno
+                    const studentLessons = schedule.filter(
+                      (l) => l.student.toLowerCase() === st.name.toLowerCase() ||
+                        st.name.toLowerCase().includes(l.student.toLowerCase()) ||
+                        l.student.toLowerCase().includes(st.name.toLowerCase())
+                    );
+                    const scheduledCount = studentLessons.length;
+                    const presentes = studentLessons.filter((l) => l.attendanceStatus === "presente").length;
+                    const ausentes = studentLessons.filter((l) => l.attendanceStatus === "ausente").length;
+                    const tardes = studentLessons.filter((l) => l.attendanceStatus === "tarde").length;
+                    const justificadas = studentLessons.filter((l) => l.attendanceStatus === "justificada").length;
+                    const totalAsistidas = presentes + tardes;
+                    const isComplete = scheduledCount >= targetLessons;
+                    const pendingToSchedule = Math.max(0, targetLessons - scheduledCount);
+
+                    return (
+                      <div
+                        key={st.id}
+                        className="p-3.5 rounded-2xl border border-border bg-card/60 hover:border-emerald-500/40 transition-all space-y-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                              {st.name}
+                              {st.isReentry && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 font-black">
+                                  🔄 Reingreso
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {st.instrument} · Prof. <strong>{st.teacher || "Por asignar"}</strong> · <span className="font-semibold text-emerald-600 dark:text-emerald-400">{isIntensivo ? "Intensivo (4 clases)" : "Regular (8 clases)"}</span>
+                            </p>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span
+                              className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                                isComplete
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                  : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                              }`}
+                            >
+                              {scheduledCount} / {targetLessons} clases
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Barra de progreso de cumplimiento de clases */}
+                        <div className="space-y-1">
+                          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-full transition-all rounded-full ${
+                                isComplete ? "bg-emerald-500" : "bg-amber-500"
+                              }`}
+                              style={{ width: `${Math.min(100, (scheduledCount / targetLessons) * 100)}%` }}
+                            />
+                          </div>
+                          {pendingToSchedule > 0 && (
+                            <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                              ⚠️ Faltan {pendingToSchedule} clase{pendingToSchedule > 1 ? "s" : ""} en agenda para completar el mes.
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Desglose de Asistencias y Créditos de Recuperación */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] pt-1 border-t border-border/50">
+                          <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold">
+                            🟢 {presentes} Pres
+                          </span>
+                          <span className="px-2 py-0.5 rounded-lg bg-red-500/10 text-red-700 dark:text-red-300 font-bold">
+                            🔴 {ausentes} Aus
+                          </span>
+                          <span className="px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold">
+                            🟡 {tardes} Tar
+                          </span>
+                          <span className="px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold">
+                            🔵 {justificadas} Just (+Créd)
+                          </span>
+                          {st.makeupCredits > 0 && (
+                            <span className="ml-auto px-2 py-0.5 rounded-full bg-red-500/20 text-red-700 dark:text-red-300 font-black border border-red-500/30">
+                              🎟️ {st.makeupCredits} Crédito{st.makeupCredits > 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="pt-3 border-t border-border flex justify-between items-center text-xs">
+            <span className="text-muted-foreground text-[11px]">
+              Mostrando {adminStudents.length} alumnos registrados en Vibra Music
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAttendanceLedgerOpen(false)}
+              className="text-xs rounded-xl"
+            >
+              Cerrar Libreta
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
