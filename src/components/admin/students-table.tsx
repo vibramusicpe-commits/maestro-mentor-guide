@@ -27,6 +27,7 @@ import {
   Lock,
   Calendar,
   RotateCcw,
+  Pencil,
 } from "lucide-react";
 import {
   useAppStore,
@@ -187,6 +188,9 @@ export function StudentsTable() {
   const [reentryDate, setReentryDate] = useState("2026-08-18");
   const [reentryReason, setReentryReason] = useState("");
   const [reentryNotes, setReentryNotes] = useState("");
+
+  // Estado para Edición Completa de Datos del Alumno (Solicitado por Secretaría Nayeli)
+  const [editingStudent, setEditingStudent] = useState<AdminStudent | null>(null);
 
   // Handler de WhatsApp Business con plantillas oficiales
   const handleOpenWhatsApp = (st: AdminStudent, templateType: "bienvenida" | "recordatorio" | "coordinacion" = "coordinacion") => {
@@ -674,6 +678,19 @@ export function StudentsTable() {
                         </Button>
                         <Button
                           size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingStudent(st);
+                          }}
+                          className="text-xs font-semibold gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                          title={`Editar todos los datos de matrícula de ${st.name}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Editar
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -710,12 +727,23 @@ export function StudentsTable() {
           {selectedStudent && (
             <>
               <SheetHeader className="border-b pb-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <SheetTitle className="text-xl">{selectedStudent.name}</SheetTitle>
-                  {statusBadge(selectedStudent.status)}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditingStudent(selectedStudent)}
+                      className="h-8 text-xs font-bold gap-1 text-primary border-primary/40 hover:bg-primary/10"
+                      title="Editar todos los campos de este alumno"
+                    >
+                      <Pencil className="h-3.5 w-3.5" /> Editar Ficha
+                    </Button>
+                    {statusBadge(selectedStudent.status)}
+                  </div>
                 </div>
                 <SheetDescription>
-                  {selectedStudent.family} · {selectedStudent.instrument} ({selectedStudent.level})
+                  {selectedStudent.family} · {selectedStudent.instrument} ({selectedStudent.level}) · Prof. {selectedStudent.teacher}
                 </SheetDescription>
               </SheetHeader>
 
@@ -1928,6 +1956,14 @@ export function StudentsTable() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Drawer para Editar Datos de Matrícula del Alumno (Solicitado por Nayeli) */}
+      <EditStudentSheet
+        student={editingStudent}
+        availableTeachers={availableTeachers}
+        open={!!editingStudent}
+        onOpenChange={(o) => !o && setEditingStudent(null)}
+      />
     </div>
   );
 }
@@ -2390,6 +2426,500 @@ function NewStudentDialog() {
 
           <Button type="submit" className="w-full font-bold mt-4">
             Guardar Matrícula
+          </Button>
+        </form>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function EditStudentSheet({
+  student,
+  availableTeachers,
+  open,
+  onOpenChange,
+}: {
+  student: AdminStudent | null;
+  availableTeachers: string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
+
+  if (!student) return null;
+
+  return (
+    <EditStudentSheetInner
+      key={student.id}
+      student={student}
+      availableTeachers={availableTeachers}
+      open={open}
+      onOpenChange={onOpenChange}
+      updateStudentDetails={updateStudentDetails}
+    />
+  );
+}
+
+function EditStudentSheetInner({
+  student,
+  availableTeachers,
+  open,
+  onOpenChange,
+  updateStudentDetails,
+}: {
+  student: AdminStudent;
+  availableTeachers: string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  updateStudentDetails: (id: string, updates: Partial<AdminStudent>) => void;
+}) {
+  const [name, setName] = useState(student.name);
+  const [family, setFamily] = useState(student.family.replace(/^Familia\s+/i, ""));
+  const [isAdult, setIsAdult] = useState(
+    student.ageCategory === "ADULTO" || (student.age || 0) >= 18 || student.family.toLowerCase().includes("titular")
+  );
+  const [instrument, setInstrument] = useState(student.instrument || "Piano");
+  const [level, setLevel] = useState(student.level || "Principiante");
+  const [teacher, setTeacher] = useState(student.teacher || availableTeachers[0] || "Prof. por Asignar");
+  const [modality, setModality] = useState<LessonModality>(student.modality || "Regular (8 clases / 45 min)");
+  const [age, setAge] = useState<number>(student.age || 8);
+  const [selectedCategory, setSelectedCategory] = useState<AgeCategory | "AUTO">(student.ageCategory || "AUTO");
+  const [isPersonalized, setIsPersonalized] = useState(student.ageCategory === "PERSONALIZADA");
+  const [email, setEmail] = useState(student.email || "");
+  const [phone, setPhone] = useState(student.phone || "");
+  const [birthdate, setBirthdate] = useState(student.birthdate || "");
+  const [emergencyName, setEmergencyName] = useState(student.emergencyContact?.name || "");
+  const [emergencyPhone, setEmergencyPhone] = useState(student.emergencyContact?.phone || "");
+  const [emergencyRelation, setEmergencyRelation] = useState(student.emergencyContact?.relation || "Apoderado");
+  const [planType, setPlanType] = useState<"Mensual" | "Trimestral" | "Anual">(student.planType || "Mensual");
+  const [matriculaType, setMatriculaType] = useState<"Promo Demo (S/ 30)" | "Regular (S/ 120)" | "Exonerada">(
+    student.matriculaType || "Promo Demo (S/ 30)"
+  );
+  const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(student.packUtilesPaid ?? true);
+  const [planStartDate, setPlanStartDate] = useState<string>(student.planStartDate || "2026-08-03");
+  const [planEndDate, setPlanEndDate] = useState<string>(student.planEndDate || "2026-08-31");
+
+  // Cálculo de categoría: manual si fue seleccionada, personalizada si está marcada, o automática por edad
+  const effectiveCategory: AgeCategory = isPersonalized
+    ? "PERSONALIZADA"
+    : selectedCategory !== "AUTO"
+    ? selectedCategory
+    : isAdult || age >= 18
+    ? "ADULTO"
+    : age >= 5 && age <= 6
+    ? "INFANTIL"
+    : age >= 7 && age <= 12
+    ? "JUNIOR"
+    : "JUVENIL";
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const isAdultStudent = isAdult || effectiveCategory === "ADULTO" || age >= 18;
+
+    if (!name.trim()) {
+      toast.error("Ingresa el nombre completo del alumno.");
+      return;
+    }
+
+    if (!isAdultStudent && !family.trim()) {
+      toast.error("Ingresa los apellidos de la familia o apoderado.");
+      return;
+    }
+
+    const prices = {
+      Mensual: VIBRA_PRICING.Mensual.priceMonthly,
+      Trimestral: VIBRA_PRICING.Trimestral.priceMonthly,
+      Anual: VIBRA_PRICING.Anual.priceMonthly,
+    };
+
+    const resolvedFamily = family.trim()
+      ? (family.trim().startsWith("Familia ") ? family.trim() : `Familia ${family.trim()}`)
+      : (isAdultStudent ? `Adulto Titular` : `Familia ${name}`);
+
+    updateStudentDetails(student.id, {
+      name: name.trim(),
+      family: resolvedFamily,
+      instrument,
+      level,
+      teacher,
+      modality,
+      ageCategory: effectiveCategory,
+      age: isAdultStudent ? Math.max(18, age) : age,
+      email: email || student.email,
+      phone: phone || student.phone,
+      birthdate,
+      planType,
+      planPrice: prices[planType],
+      matriculaType,
+      packUtilesPaid,
+      planStartDate,
+      planEndDate,
+      emergencyContact: {
+        name: emergencyName || (isAdultStudent ? name : resolvedFamily),
+        phone: emergencyPhone || phone || "987 654 321",
+        relation: emergencyRelation || (isAdultStudent ? "Titular Directo" : "Apoderado"),
+      },
+    });
+
+    toast.success(`Ficha de ${name} actualizada exitosamente`, {
+      description: "Se guardaron todos los cambios y se sincronizó el horario.",
+    });
+    onOpenChange(false);
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-primary" />
+            Editar Datos del Alumno
+          </SheetTitle>
+          <SheetDescription>
+            Corrige o actualiza cualquier información registrada de {student.name}.
+          </SheetDescription>
+        </SheetHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          {/* Switch de Alumno Adulto */}
+          <div className="flex items-center justify-between rounded-xl border border-primary/40 p-3 bg-primary/5">
+            <div className="space-y-0.5">
+              <label htmlFor="edit-is-adult-toggle" className="text-xs font-bold text-foreground cursor-pointer flex items-center gap-1.5">
+                🧑 Alumno Adulto (Mayor de 18 años)
+              </label>
+              <p className="text-[10px] text-muted-foreground">
+                {isAdult
+                  ? "✓ Sin apoderados requeridos. El alumno es titular."
+                  : "Menor de edad: Requiere apoderado."}
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              id="edit-is-adult-toggle"
+              checked={isAdult}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setIsAdult(checked);
+                if (checked) {
+                  if (age < 18) setAge(25);
+                  setSelectedCategory("ADULTO");
+                } else {
+                  if (age >= 18) setAge(8);
+                  setSelectedCategory("AUTO");
+                }
+              }}
+              className="h-4 w-4 rounded border-border text-primary cursor-pointer"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold mb-1">Nombre Completo del Alumno</label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ej. Mateo García"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold mb-1">
+              {isAdult ? "Apellidos / Familia (Opcional para Adultos)" : "Apellidos de la Familia / Apoderado"}
+            </label>
+            <Input
+              value={family}
+              onChange={(e) => setFamily(e.target.value)}
+              placeholder={isAdult ? "Ej. García (Opcional)" : "Ej. García Rivas"}
+              required={!isAdult}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1">Edad del Alumno</label>
+              <Input
+                type="number"
+                min={3}
+                max={99}
+                value={age}
+                onChange={(e) => {
+                  const newAge = parseInt(e.target.value) || 7;
+                  setAge(newAge);
+                  if (newAge >= 18 && !isAdult) {
+                    setIsAdult(true);
+                    setSelectedCategory("ADULTO");
+                  } else if (newAge < 18 && isAdult) {
+                    setIsAdult(false);
+                    setSelectedCategory("AUTO");
+                  }
+                }}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1">Categoría Asignada</label>
+              <select
+                value={selectedCategory === "AUTO" ? effectiveCategory : selectedCategory}
+                onChange={(e) => {
+                  const val = e.target.value as AgeCategory;
+                  setSelectedCategory(val);
+                  if (val === "ADULTO" && !isAdult) {
+                    setIsAdult(true);
+                    if (age < 18) setAge(25);
+                  } else if (val !== "ADULTO" && isAdult) {
+                    setIsAdult(false);
+                    if (age >= 18) setAge(8);
+                  }
+                }}
+                className="w-full h-9 rounded-lg border border-border bg-background px-2 text-xs font-bold"
+              >
+                <option value="INFANTIL">🟣 Infantil (5 y 6)</option>
+                <option value="JUNIOR">🟡 Junior (7 a 12)</option>
+                <option value="JUVENIL">🟢 Juvenil (13 a 17)</option>
+                <option value="ADULTO">⚫ Adulto (18 a +)</option>
+                <option value="PERSONALIZADA">⭐ Personalizada</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Plan de Inversión del Dossier */}
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5" /> Plan Oficial del Dossier
+              </span>
+              <span className="text-[11px] font-bold text-primary">
+                {planType === "Anual"
+                  ? `S/ ${VIBRA_PRICING.Anual.priceMonthly.toFixed(2)}/m`
+                  : planType === "Trimestral"
+                  ? `S/ ${VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)}/m`
+                  : `S/ ${VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)}/m`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Plan Contratado</label>
+                <select
+                  value={planType}
+                  onChange={(e) => {
+                    const newPlan = e.target.value as "Mensual" | "Trimestral" | "Anual";
+                    setPlanType(newPlan);
+                    const durationMonths = newPlan === "Trimestral" ? 3 : newPlan === "Anual" ? 12 : 1;
+                    const [y, m, d] = (planStartDate || "2026-08-03").split("-").map((v) => parseInt(v, 10));
+                    const endD = new Date(y!, (m! - 1) + durationMonths, d!);
+                    endD.setDate(endD.getDate() - 1);
+                    const endY = endD.getFullYear();
+                    const endM = String(endD.getMonth() + 1).padStart(2, "0");
+                    const endDay = String(endD.getDate()).padStart(2, "0");
+                    setPlanEndDate(`${endY}-${endM}-${endDay}`);
+                  }}
+                  className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
+                >
+                  <option value="Mensual">Mensual — S/ {VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)}</option>
+                  <option value="Trimestral">Trimestral — S/ {VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)} (12% Dcto.)</option>
+                  <option value="Anual">Anual — S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)} (20% Dcto.)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Matrícula</label>
+                <select
+                  value={matriculaType}
+                  onChange={(e) => setMatriculaType(e.target.value as any)}
+                  className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
+                >
+                  <option value="Promo Demo (S/ 30)">Promo Demo — S/ 30</option>
+                  <option value="Regular (S/ 120)">Regular — S/ 120</option>
+                  <option value="Exonerada">Exonerada — S/ 0</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div>
+                <label className="block text-[10px] text-primary font-bold mb-1">🗓️ Fecha de Inicio</label>
+                <Input
+                  type="date"
+                  value={planStartDate}
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    setPlanStartDate(newStart);
+                    if (newStart) {
+                      const durationMonths = planType === "Trimestral" ? 3 : planType === "Anual" ? 12 : 1;
+                      const [y, m, d] = newStart.split("-").map((v) => parseInt(v, 10));
+                      const endD = new Date(y!, (m! - 1) + durationMonths, d!);
+                      endD.setDate(endD.getDate() - 1);
+                      const endY = endD.getFullYear();
+                      const endM = String(endD.getMonth() + 1).padStart(2, "0");
+                      const endDay = String(endD.getDate()).padStart(2, "0");
+                      setPlanEndDate(`${endY}-${endM}-${endDay}`);
+                    }
+                  }}
+                  className="h-8 text-xs bg-background"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-primary font-bold mb-1">🏁 Fecha de Fin</label>
+                <Input
+                  type="date"
+                  value={planEndDate}
+                  onChange={(e) => setPlanEndDate(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="pt-1">
+              <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Pack Útiles Anual (S/ 67)</label>
+              <button
+                type="button"
+                onClick={() => setPackUtilesPaid(!packUtilesPaid)}
+                className={`w-full h-8 px-2 rounded-lg border text-xs font-bold flex items-center justify-between ${
+                  packUtilesPaid
+                    ? "bg-success/15 border-success/30 text-success"
+                    : "bg-destructive/10 border-destructive/30 text-destructive"
+                }`}
+              >
+                <span>{packUtilesPaid ? "✓ Entregado (S/ 67)" : "⚠️ Pendiente de entrega"}</span>
+                <span className="text-[10px] underline">Cambiar</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1">Instrumento</label>
+              <Select value={instrument} onValueChange={setInstrument}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Piano">Piano</SelectItem>
+                  <SelectItem value="Guitarra clásica">Guitarra clásica</SelectItem>
+                  <SelectItem value="Guitarra eléctrica">Guitarra eléctrica</SelectItem>
+                  <SelectItem value="Violín">Violín</SelectItem>
+                  <SelectItem value="Batería">Batería</SelectItem>
+                  <SelectItem value="Canto">Canto</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1">Nivel</label>
+              <Select value={level} onValueChange={setLevel}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Principiante">Principiante</SelectItem>
+                  <SelectItem value="Intermedio">Intermedio</SelectItem>
+                  <SelectItem value="Avanzado">Avanzado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1">Profesor Asignado</label>
+              <Select value={teacher} onValueChange={setTeacher}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un profesor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTeachers.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1">Modalidad</label>
+              <Select value={modality} onValueChange={(v) => setModality(v as LessonModality)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Regular (8 clases / 45 min)">
+                    Regular (8 clases)
+                  </SelectItem>
+                  <SelectItem value="Intensivo (4 clases / 90 min)">
+                    Intensivo (4 clases)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1">
+                {isAdult ? "Teléfono / WhatsApp (Alumno)" : "Teléfono Apoderado"}
+              </label>
+              <Input
+                placeholder="987654321"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">Correo Electrónico</label>
+              <Input
+                placeholder="correo@ejemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1">Fecha de Cumpleaños</label>
+              <Input
+                placeholder="DD/MM/AAAA"
+                value={birthdate}
+                onChange={(e) => setBirthdate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">Nombre Contacto Emergencia</label>
+              <Input
+                placeholder="Nombre contacto"
+                value={emergencyName}
+                onChange={(e) => setEmergencyName(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1">Teléfono Emergencia</label>
+              <Input
+                placeholder="987654321"
+                value={emergencyPhone}
+                onChange={(e) => setEmergencyPhone(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">Parentesco</label>
+              <Input
+                placeholder="Ej: Mamá / Papá / Titular"
+                value={emergencyRelation}
+                onChange={(e) => setEmergencyRelation(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full font-bold mt-4">
+            Guardar Cambios del Alumno
           </Button>
         </form>
       </SheetContent>

@@ -527,19 +527,33 @@ export const useAppStore = create<AppState>()(
           const updatedStudents = s.adminStudents.map((st) => (st.id === id ? { ...st, ...updates } : st));
           let updatedSchedule = s.schedule;
 
-          // Si se actualizó la categoría explícita, propagarla a sus clases en el horario
-          if (updates.ageCategory && targetStudent) {
-            const studentName = targetStudent.name.toLowerCase();
-            updatedSchedule = s.schedule.map((l) => {
-              if (
-                l.student.toLowerCase() === studentName ||
-                l.student.toLowerCase().includes(studentName) ||
-                studentName.includes(l.student.toLowerCase())
-              ) {
-                return { ...l, category: updates.ageCategory };
-              }
-              return l;
-            });
+          // Propagar cambios clave al horario (nombre, instrumento, profesor, categoría)
+          if (targetStudent) {
+            const oldName = targetStudent.name.toLowerCase();
+            const hasNameChange = updates.name && updates.name !== targetStudent.name;
+            const hasCatChange = updates.ageCategory && updates.ageCategory !== targetStudent.ageCategory;
+            const hasTeacherChange = updates.teacher && updates.teacher !== targetStudent.teacher;
+            const hasInstrumentChange = updates.instrument && updates.instrument !== targetStudent.instrument;
+
+            if (hasNameChange || hasCatChange || hasTeacherChange || hasInstrumentChange) {
+              updatedSchedule = s.schedule.map((l) => {
+                const isMatch =
+                  l.student.toLowerCase() === oldName ||
+                  l.student.toLowerCase().includes(oldName) ||
+                  oldName.includes(l.student.toLowerCase());
+
+                if (isMatch) {
+                  return {
+                    ...l,
+                    ...(hasNameChange ? { student: updates.name! } : {}),
+                    ...(hasCatChange ? { category: updates.ageCategory! } : {}),
+                    ...(hasTeacherChange && updates.teacher !== "Prof. por Asignar" ? { teacher: updates.teacher! } : {}),
+                    ...(hasInstrumentChange ? { instrument: updates.instrument! } : {}),
+                  };
+                }
+                return l;
+              });
+            }
           }
 
           return {
