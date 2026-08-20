@@ -142,6 +142,7 @@ type AppState = {
   deleteStudent: (id: string) => void;
   deleteStudents: (ids: string[]) => void;
   updateStudentDetails: (id: string, updates: Partial<AdminStudent>) => void;
+  updateLessonCategory: (id: string, category: AgeCategory) => void;
   setStudentStatus: (id: string, status: StudentStatus) => void;
   setStudentModality: (id: string, modality: LessonModality) => void;
   assignTeacher: (id: string, teacher: string) => void;
@@ -521,9 +522,38 @@ export const useAppStore = create<AppState>()(
           };
         }),
       updateStudentDetails: (id, updates) =>
+        set((s) => {
+          const targetStudent = s.adminStudents.find((st) => st.id === id);
+          const updatedStudents = s.adminStudents.map((st) => (st.id === id ? { ...st, ...updates } : st));
+          let updatedSchedule = s.schedule;
+
+          // Si se actualizó la categoría explícita, propagarla a sus clases en el horario
+          if (updates.ageCategory && targetStudent) {
+            const studentName = targetStudent.name.toLowerCase();
+            updatedSchedule = s.schedule.map((l) => {
+              if (
+                l.student.toLowerCase() === studentName ||
+                l.student.toLowerCase().includes(studentName) ||
+                studentName.includes(l.student.toLowerCase())
+              ) {
+                return { ...l, category: updates.ageCategory };
+              }
+              return l;
+            });
+          }
+
+          return {
+            adminStudents: updatedStudents,
+            schedule: updatedSchedule,
+            syncQueue: [...s.syncQueue, queueItem("Ficha de alumno actualizada")],
+          };
+        }),
+      updateLessonCategory: (id, category) =>
         set((s) => ({
-          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, ...updates } : st)),
-          syncQueue: [...s.syncQueue, queueItem("Ficha de alumno actualizada")],
+          schedule: s.schedule.map((l) =>
+            l.id === id ? { ...l, category } : l
+          ),
+          syncQueue: [...s.syncQueue, queueItem(`Categoría de clase actualizada · ${category}`)],
         })),
       setStudentStatus: (id, status) =>
         set((s) => ({

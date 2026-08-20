@@ -107,7 +107,7 @@ export const categoryStyles: Record<string, { bg: string; text: string; border: 
   JUVENIL: { bg: "bg-[#4CAF50]", text: "text-white font-bold", border: "border-[#388E3C]", label: "CATEGORÍA JUVENIL (13 a 17)" },
   ADULTO: { bg: "bg-[#9E9E9E]", text: "text-white font-bold", border: "border-[#757575]", label: "CATEGORÍA ADULTO (18 a +)" },
   INFANTIL: { bg: "bg-[#B388FF]", text: "text-white font-bold", border: "border-[#7C4DFF]", label: "CATEGORÍA INFANTIL (5 y 6)" },
-  RECUPERACION: { bg: "bg-[#FF8A80]", text: "text-[#B71C1C] font-bold", border: "border-[#FF5252]", label: "RECUPERACIÓN DE CLASES" },
+  RECUPERACION: { bg: "bg-[#EF4444]", text: "text-white font-black", border: "border-[#DC2626]", label: "RECUPERACIÓN DE CLASES" },
   PERSONALIZADA: { bg: "bg-[#B2EBF2]", text: "text-[#006064] font-bold", border: "border-[#80DEEA]", label: "CLASES PERSONALIZADAS" },
 };
 
@@ -1072,7 +1072,9 @@ export function AgendaBoard() {
                                     ) : (
                                       <div className="flex flex-col sm:flex-row h-full min-h-[48px] divide-y sm:divide-y-0 sm:divide-x border-slate-300">
                                         {lessons.map((lesson) => {
-                                          const catStyle = categoryStyles[lesson.category ?? "JUNIOR"]!;
+                                          const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
+                                          const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
+                                          const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
                                           const studentProfile = adminStudents.find(
                                             (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
                                           );
@@ -1114,7 +1116,9 @@ export function AgendaBoard() {
                                               onClick={() => openLesson(lesson)}
                                               className={`flex-1 p-1 ${catStyle.bg} border-b sm:border-b-0 border-slate-300 cursor-pointer hover:brightness-95 transition-all flex flex-col justify-center text-center relative overflow-hidden`}
                                               title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${
-                                                lesson.category === "PERSONALIZADA"
+                                                isRecup
+                                                  ? "CLASE DE RECUPERACIÓN (ROJO)"
+                                                  : lesson.category === "PERSONALIZADA"
                                                   ? `Clase Personalizada (${dotLabel})`
                                                   : catStyle.label
                                               }`}
@@ -1126,9 +1130,9 @@ export function AgendaBoard() {
                                                 ({lesson.instrument})
                                               </p>
                                               {/* Chip de Clase de Recuperación */}
-                                              {lesson.isMakeup && (
-                                                <span className="text-[8px] font-black uppercase text-[#B71C1C] bg-[#FFCDD2] px-1 py-0.2 rounded mt-0.5 inline-block">
-                                                  🔄 Recuperación
+                                              {isRecup && (
+                                                <span className="text-[8px] font-black uppercase text-white bg-black/30 px-1 py-0.2 rounded mt-0.5 inline-block shadow-2xs">
+                                                  🔴 Recuperación
                                                 </span>
                                               )}
                                               {/* Puntito Indicador de Asistencia Marcada (Aislado por Semana) */}
@@ -1466,7 +1470,9 @@ export function AgendaBoard() {
                                   ) : (
                                     <div className="flex flex-col gap-1.5 h-full">
                                       {lessonsForTeacher.map((lesson) => {
-                                        const catStyle = categoryStyles[lesson.category ?? "JUNIOR"]!;
+                                        const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
+                                        const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
+                                        const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
                                         const studentProfile = adminStudents.find(
                                           (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
                                         );
@@ -1507,7 +1513,13 @@ export function AgendaBoard() {
                                             key={lesson.id}
                                             onClick={() => openLesson(lesson)}
                                             className={`cursor-pointer rounded-xl border ${catStyle.border} ${catStyle.bg} p-2 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group relative`}
-                                            title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
+                                            title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${
+                                              isRecup
+                                                ? "CLASE DE RECUPERACIÓN (ROJO)"
+                                                : lesson.category === "PERSONALIZADA"
+                                                ? `Clase Personalizada (${dotLabel})`
+                                                : catStyle.label
+                                            }`}
                                           >
                                             <div className="flex items-start justify-between gap-1">
                                               <div className="flex items-center gap-1">
@@ -1517,6 +1529,11 @@ export function AgendaBoard() {
                                                 <p className={`text-[9px] font-bold ${catStyle.text} opacity-90 truncate mt-0.5`}>
                                                   ({lesson.instrument})
                                                 </p>
+                                                {isRecup && (
+                                                  <span className="text-[7.5px] font-black uppercase text-white bg-black/30 px-1 py-0.2 rounded inline-block shadow-2xs ml-1">
+                                                    🔴 Recup
+                                                  </span>
+                                                )}
                                                 {/* Distintivo de Alumno Nuevo en su primera semana */}
                                                 {(studentProfile?.joinedAt?.includes("18/08") ||
                                                   studentProfile?.teacherNote?.toLowerCase().includes("nueva") ||
@@ -1645,7 +1662,9 @@ export function AgendaBoard() {
                             className="border-l border-border/60 p-2 min-h-[5.5rem] flex flex-col gap-1.5 justify-start bg-background/50"
                           >
                             {cell.map((lesson) => {
-                              const catStyle = categoryStyles[lesson.category ?? "JUNIOR"] ?? categoryStyles.JUNIOR!;
+                              const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
+                              const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
+                              const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
                               const studentProfile = adminStudents.find(
                                 (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
                               );
@@ -1775,7 +1794,9 @@ export function AgendaBoard() {
                         </div>
                         <div className="border-l border-border/60 p-2 min-h-[5rem] flex flex-wrap gap-2 items-center bg-background/50">
                           {cell.map((lesson) => {
-                            const catStyle = categoryStyles[lesson.category ?? "JUNIOR"] ?? categoryStyles.JUNIOR!;
+                            const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
+                            const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
+                            const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
                             const studentProfile = adminStudents.find(
                               (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
                             );
@@ -1899,6 +1920,43 @@ export function AgendaBoard() {
                       Conflicto de horario
                     </Badge>
                   )}
+                </div>
+
+                {/* SELECTOR DE CATEGORÍA DE LA CLASE / ALUMNO (SOLICITADO POR NAYELI) */}
+                <div className="flex items-center justify-between p-3 rounded-2xl border border-primary/30 bg-primary/5">
+                  <div className="space-y-0.5">
+                    <label className="text-xs font-black text-foreground block">
+                      🏷️ Categoría de Edad
+                    </label>
+                    <p className="text-[10px] text-muted-foreground">
+                      Puedes cambiar la categoría libremente.
+                    </p>
+                  </div>
+                  <Select
+                    value={selected.category || "JUNIOR"}
+                    onValueChange={(v: any) => {
+                      useAppStore.getState().updateLessonCategory(selected.id, v);
+                      const studentMatch = adminStudents.find(
+                        (st) => st.name.toLowerCase() === selected.student.toLowerCase()
+                      );
+                      if (studentMatch) {
+                        useAppStore.getState().updateStudentDetails(studentMatch.id, { ageCategory: v });
+                      }
+                      toast.success(`Categoría de ${selected.student} cambiada a ${v}`);
+                    }}
+                  >
+                    <SelectTrigger className="w-[160px] h-8 text-xs font-bold bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="INFANTIL">🟣 Infantil (5 y 6)</SelectItem>
+                      <SelectItem value="JUNIOR">🟡 Junior (7 a 12)</SelectItem>
+                      <SelectItem value="JUVENIL">🟢 Juvenil (13 a 17)</SelectItem>
+                      <SelectItem value="ADULTO">⚫ Adulto (18 a +)</SelectItem>
+                      <SelectItem value="RECUPERACION">🔴 Recuperación</SelectItem>
+                      <SelectItem value="PERSONALIZADA">⭐ Personalizada</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* PANEL DE ASISTENCIA RÁPIDA (AISLADO POR SEMANA ESPECÍFICA) */}

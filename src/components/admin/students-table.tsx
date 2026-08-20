@@ -779,6 +779,32 @@ export function StudentsTable() {
 
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-muted-foreground block">
+                        🏷️ Categoría de Edad (Editable)
+                      </label>
+                      <Select
+                        value={selectedStudent.ageCategory || "JUNIOR"}
+                        onValueChange={(v: AgeCategory) => {
+                          updateStudentDetails(selectedStudent.id, { ageCategory: v });
+                          toast.success(`Categoría de ${selectedStudent.name} actualizada a ${v}`, {
+                            description: "Se sincronizaron sus colores y horario en la agenda.",
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="bg-background text-xs font-semibold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="INFANTIL">🟣 Infantil (5 y 6 años)</SelectItem>
+                          <SelectItem value="JUNIOR">🟡 Junior (7 a 12 años)</SelectItem>
+                          <SelectItem value="JUVENIL">🟢 Juvenil (13 a 17 años)</SelectItem>
+                          <SelectItem value="ADULTO">⚫ Adulto (18 a + años)</SelectItem>
+                          <SelectItem value="PERSONALIZADA">⭐ Personalizada</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
                         Frecuencia y Duración
                       </label>
                       <Select
@@ -1962,10 +1988,12 @@ function NewStudentDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [family, setFamily] = useState("");
+  const [isAdult, setIsAdult] = useState(false);
   const [instrument, setInstrument] = useState("Piano");
   const [teacher, setTeacher] = useState(availableTeachers[0] ?? "Prof. por Asignar");
   const [modality, setModality] = useState<LessonModality>("Regular (8 clases / 45 min)");
   const [age, setAge] = useState<number>(8);
+  const [selectedCategory, setSelectedCategory] = useState<AgeCategory | "AUTO">("AUTO");
   const [isPersonalized, setIsPersonalized] = useState(false);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -1986,18 +2014,20 @@ function NewStudentDialog() {
     }
   }, [availableTeachers, teacher]);
 
-  // Cálculo automático de categoría por rango de edad
-  const autoCategory: AgeCategory = isPersonalized
+  // Cálculo de categoría: manual si fue seleccionada, personalizada si está marcada, o automática por edad
+  const effectiveCategory: AgeCategory = isPersonalized
     ? "PERSONALIZADA"
+    : selectedCategory !== "AUTO"
+    ? selectedCategory
+    : isAdult || age >= 18
+    ? "ADULTO"
     : age >= 5 && age <= 6
     ? "INFANTIL"
     : age >= 7 && age <= 12
     ? "JUNIOR"
-    : age >= 13 && age <= 17
-    ? "JUVENIL"
-    : "ADULTO";
+    : "JUVENIL";
 
-  const catStyle = categoryStyles[autoCategory] ?? {
+  const catStyle = categoryStyles[effectiveCategory] ?? {
     bg: "bg-[#FFF2B2]",
     text: "text-[#8A6D00]",
     border: "border-[#FFE57F]",
@@ -2006,8 +2036,15 @@ function NewStudentDialog() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !family.trim()) {
-      toast.error("Ingresa el nombre del alumno y apoderado.");
+    const isAdultStudent = isAdult || effectiveCategory === "ADULTO" || age >= 18;
+
+    if (!name.trim()) {
+      toast.error("Ingresa el nombre completo del alumno.");
+      return;
+    }
+
+    if (!isAdultStudent && !family.trim()) {
+      toast.error("Ingresa los apellidos de la familia o apoderado para alumnos menores de edad.");
       return;
     }
 
@@ -2028,15 +2065,20 @@ function NewStudentDialog() {
       Anual: VIBRA_PRICING.Anual.priceMonthly,
     };
 
+    // Resolver denominación de familia / titular
+    const resolvedFamily = family.trim()
+      ? (family.trim().startsWith("Familia ") ? family.trim() : `Familia ${family.trim()}`)
+      : (isAdultStudent ? `Adulto Titular` : `Familia ${name}`);
+
     addNewStudent({
       name,
-      family: `Familia ${family}`,
+      family: resolvedFamily,
       instrument,
       level: "Principiante",
       teacher,
       modality,
-      ageCategory: autoCategory,
-      age,
+      ageCategory: effectiveCategory,
+      age: isAdultStudent ? Math.max(18, age) : age,
       status: "activo",
       payment: "al-dia",
       email: email || `${name.toLowerCase().replace(/\s+/g, ".")}@gmail.com`,
@@ -2051,18 +2093,22 @@ function NewStudentDialog() {
       planStartMonth: startMonthStr,
       planEndMonth: endMonthStr,
       emergencyContact: {
-        name: emergencyName || family,
+        name: emergencyName || (isAdultStudent ? name : family),
         phone: emergencyPhone || phone || "987 654 321",
-        relation: "Apoderado",
+        relation: isAdultStudent ? "Titular Directo" : "Apoderado",
       },
     });
 
-    toast.success(`Alumno ${name} matriculado en plan ${planType} (${autoCategory}).`, {
-      description: `Período activo: ${planStartDate || "03/08/2026"} al ${calculatedEndDate}.`,
+    toast.success(`Alumno ${name} matriculado en plan ${planType} (${effectiveCategory}).`, {
+      description: isAdultStudent
+        ? `Alumno Adulto registrado sin apoderado requerido. Período: ${planStartDate || "03/08/2026"} al ${calculatedEndDate}.`
+        : `Período activo: ${planStartDate || "03/08/2026"} al ${calculatedEndDate}.`,
     });
     setOpen(false);
     setName("");
     setFamily("");
+    setIsAdult(false);
+    setSelectedCategory("AUTO");
   };
 
   return (
@@ -2074,11 +2120,42 @@ function NewStudentDialog() {
         <SheetHeader>
           <SheetTitle>Matricular Nuevo Alumno</SheetTitle>
           <SheetDescription>
-            Ingresa los datos y selecciona su plan oficial del Dossier para vincularlo a su ficha y horario.
+            Ingresa los datos y selecciona su categoría y plan oficial del Dossier.
           </SheetDescription>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          {/* Opción Rápida: Alumno Adulto (Sin Apoderado) */}
+          <div className="flex items-center justify-between rounded-xl border border-primary/40 p-3 bg-primary/5">
+            <div className="space-y-0.5">
+              <label htmlFor="is-adult-toggle" className="text-xs font-bold text-foreground cursor-pointer flex items-center gap-1.5">
+                🧑 Alumno Adulto (Mayor de 18 años)
+              </label>
+              <p className="text-[10px] text-muted-foreground">
+                {isAdult
+                  ? "✓ Sin apoderados requeridos. El alumno es el titular independiente."
+                  : "Desactivado: Requiere apoderado para menores de edad."}
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              id="is-adult-toggle"
+              checked={isAdult}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setIsAdult(checked);
+                if (checked) {
+                  if (age < 18) setAge(25);
+                  setSelectedCategory("ADULTO");
+                } else {
+                  if (age >= 18) setAge(8);
+                  setSelectedCategory("AUTO");
+                }
+              }}
+              className="h-4 w-4 rounded border-border text-primary cursor-pointer"
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-semibold mb-1">Nombre Completo del Alumno</label>
             <Input
@@ -2090,13 +2167,65 @@ function NewStudentDialog() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold mb-1">Apellidos de la Familia / Apoderado</label>
+            <label className="block text-xs font-semibold mb-1">
+              {isAdult ? "Apellidos / Familia (Opcional para Adultos)" : "Apellidos de la Familia / Apoderado"}
+            </label>
             <Input
-              placeholder="Ej. García Rivas"
+              placeholder={isAdult ? "Ej. García (Opcional)" : "Ej. García Rivas"}
               value={family}
               onChange={(e) => setFamily(e.target.value)}
-              required
+              required={!isAdult}
             />
+          </div>
+
+          {/* Selector Manual de Categorías */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1">Edad del Alumno</label>
+              <Input
+                type="number"
+                min={3}
+                max={99}
+                value={age}
+                onChange={(e) => {
+                  const newAge = parseInt(e.target.value) || 7;
+                  setAge(newAge);
+                  if (newAge >= 18 && !isAdult) {
+                    setIsAdult(true);
+                    setSelectedCategory("ADULTO");
+                  } else if (newAge < 18 && isAdult) {
+                    setIsAdult(false);
+                    setSelectedCategory("AUTO");
+                  }
+                }}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1">Categoría Asignada</label>
+              <select
+                value={selectedCategory === "AUTO" ? effectiveCategory : selectedCategory}
+                onChange={(e) => {
+                  const val = e.target.value as AgeCategory;
+                  setSelectedCategory(val);
+                  if (val === "ADULTO" && !isAdult) {
+                    setIsAdult(true);
+                    if (age < 18) setAge(25);
+                  } else if (val !== "ADULTO" && isAdult) {
+                    setIsAdult(false);
+                    if (age >= 18) setAge(8);
+                  }
+                }}
+                className="w-full h-9 rounded-lg border border-border bg-background px-2 text-xs font-bold"
+              >
+                <option value="INFANTIL">🟣 Infantil (5 y 6)</option>
+                <option value="JUNIOR">🟡 Junior (7 a 12)</option>
+                <option value="JUVENIL">🟢 Juvenil (13 a 17)</option>
+                <option value="ADULTO">⚫ Adulto (18 a +)</option>
+                <option value="PERSONALIZADA">⭐ Personalizada</option>
+              </select>
+            </div>
           </div>
 
           {/* Plan de Inversión del Dossier */}
@@ -2172,27 +2301,6 @@ function NewStudentDialog() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold mb-1">Edad del Alumno</label>
-              <Input
-                type="number"
-                min={3}
-                max={99}
-                value={age}
-                onChange={(e) => setAge(parseInt(e.target.value) || 7)}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold mb-1">Categoría Auto-Asignada</label>
-              <div className={`px-3 py-2 rounded-lg border text-xs text-center ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}>
-                {catStyle.label}
-              </div>
-            </div>
-          </div>
-
           {/* Opción de Clase Personalizada */}
           <div className="flex items-center gap-2 rounded-xl border border-border p-3 bg-muted/30">
             <input
@@ -2261,7 +2369,9 @@ function NewStudentDialog() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold mb-1">Teléfono Apoderado</label>
+              <label className="block text-xs font-semibold mb-1">
+                {isAdult ? "Teléfono / WhatsApp (Alumno)" : "Teléfono Apoderado"}
+              </label>
               <Input
                 placeholder="987654321"
                 value={phone}
