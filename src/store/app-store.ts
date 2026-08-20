@@ -255,6 +255,10 @@ type AppState = {
   }) => void;
   approveDeletionRequest: (requestId: string, notes?: string) => void;
   rejectDeletionRequest: (requestId: string, notes?: string) => void;
+  hydrateFromBackend: (data: {
+    students?: AdminStudent[];
+    invoices?: Invoice[];
+  }) => void;
 };
 
 // Crea un item de cola optimista que se vacía solo (simula la escritura en backend).
@@ -273,6 +277,11 @@ export const useAppStore = create<AppState>()(
       isAuthenticated: false,
       currentUser: null,
       setActiveRole: (role) => set({ activeRole: role }),
+      hydrateFromBackend: (data) =>
+        set((s) => ({
+          adminStudents: data.students && data.students.length > 0 ? data.students : s.adminStudents,
+          invoices: data.invoices && data.invoices.length > 0 ? data.invoices : s.invoices,
+        })),
       updateUserName: (name: string) =>
         set((s) => ({
           currentUser: s.currentUser ? { ...s.currentUser, name } : { email: "usuario@vibramusic.pe", name },

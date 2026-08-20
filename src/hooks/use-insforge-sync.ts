@@ -1,19 +1,13 @@
-/**
- * use-insforge-sync.ts — Hook para conectar Zustand con Insforge PostgREST
- */
-
 import { useEffect } from "react";
 import { useAppStore } from "@/store/app-store";
-import { getStudents } from "@/lib/services/students.service";
-import { getInvoices } from "@/lib/services/invoices.service";
-import { toast } from "sonner";
+import { getStudents, mapDBStudentToAdminStudent } from "@/lib/services/students.service";
+import { getInvoices, mapDBInvoiceToInvoice } from "@/lib/services/invoices.service";
 
 export function useInsforgeSync() {
-  const { activeRole, isAuthenticated } = useAppStore();
+  const activeRole = useAppStore((s) => s.activeRole);
+  const hydrateFromBackend = useAppStore((s) => s.hydrateFromBackend);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-
     let isMounted = true;
 
     async function syncBackendData() {
@@ -23,10 +17,26 @@ export function useInsforgeSync() {
           const dbInvoices = await getInvoices(activeRole);
 
           if (isMounted) {
-            console.log("[Insforge Sync] Datos sincronizados desde backend:", {
-              students: dbStudents.length,
-              invoices: dbInvoices.length,
-            });
+            const mappedStudents =
+              dbStudents && dbStudents.length > 0
+                ? dbStudents.map(mapDBStudentToAdminStudent)
+                : undefined;
+
+            const mappedInvoices =
+              dbInvoices && dbInvoices.length > 0
+                ? dbInvoices.map(mapDBInvoiceToInvoice)
+                : undefined;
+
+            if (mappedStudents || mappedInvoices) {
+              hydrateFromBackend({
+                students: mappedStudents,
+                invoices: mappedInvoices,
+              });
+              console.log("[Insforge Sync] Hidratación exitosa desde backend PostgreSQL:", {
+                students: mappedStudents?.length || 0,
+                invoices: mappedInvoices?.length || 0,
+              });
+            }
           }
         }
       } catch (err: unknown) {
@@ -39,5 +49,5 @@ export function useInsforgeSync() {
     return () => {
       isMounted = false;
     };
-  }, [activeRole, isAuthenticated]);
+  }, [activeRole, hydrateFromBackend]);
 }

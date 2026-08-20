@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, Link, useRouterState, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { useAppStore } from "@/store/app-store";
+import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 
 import {
   BarChart3,
@@ -64,6 +65,7 @@ const nav = [
 ];
 
 function AdminLayout() {
+  useInsforgeSync();
   const [open, setOpen] = useState(false); // Mobile drawer
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");

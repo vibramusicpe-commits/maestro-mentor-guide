@@ -90,6 +90,23 @@ export interface DueSoonInvoice {
   phone: string;
 }
 
+export function mapDBInvoiceToInvoice(db: DBInvoice): import("@/store/app-store").Invoice {
+  return {
+    id: db.id,
+    family: db.families?.family_name || "Familia",
+    student: db.families?.primary_guardian_name || "Alumno",
+    phone: db.families?.primary_guardian_phone || "987654321",
+    concept: db.concept || "Mensualidad Agosto 2026",
+    amount: Number(db.amount) || 297,
+    amountPaid: Number(db.amount_paid) || 0,
+    remainingBalance: Number(db.remaining_balance) || 0,
+    dueDate: db.due_date || "2026-08-31",
+    status: db.status || "pendiente",
+    paymentMethod: db.payment_method ? (db.payment_method as any) : undefined,
+    remindedAt: db.reminded_at || undefined,
+  };
+}
+
 // ---------------------------------------------------------------
 // EDGE: getInvoices
 // Carga recibos con datos de familia. Staff ve todos excepto

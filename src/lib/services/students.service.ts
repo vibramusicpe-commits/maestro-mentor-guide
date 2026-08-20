@@ -63,6 +63,48 @@ export interface BirthdayAlert {
   family_name: string;
 }
 
+export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-store").AdminStudent {
+  const teacherNames: Record<string, string> = {
+    "00000000-0000-0000-0000-000000000003": "Jeremy",
+    "00000000-0000-0000-0000-000000000004": "Fernando",
+    "00000000-0000-0000-0000-000000000005": "Nathaly",
+    "00000000-0000-0000-0000-000000000006": "Demo",
+  };
+
+  return {
+    id: db.id,
+    name: db.full_name,
+    family: db.families?.family_name || `Familia ${db.full_name}`,
+    instrument: db.instrument || "Piano",
+    level: db.level || "Nivel 1",
+    teacher: (db.assigned_teacher_id && teacherNames[db.assigned_teacher_id]) || "Fernando",
+    modality: db.modality || "Regular (8 clases / 45 min)",
+    status: db.status || "activo",
+    attendanceRate: Number(db.attendance_rate) || 100,
+    payment: "al-dia",
+    risk: 20,
+    joinedAt: "Ago 2026",
+    makeupCredits: db.makeup_credits || 0,
+    balance: 0,
+    recentAttendance: ["presente", "presente", "presente"],
+    teacherNote: db.notes || "",
+    email: db.families?.email || `alumno_${db.id.slice(0, 4)}@vibramusic.pe`,
+    phone: db.families?.primary_guardian_phone || db.emergency_contact?.phone || "987654321",
+    emergencyContact: {
+      name: db.emergency_contact?.name || db.families?.primary_guardian_name || `Familia ${db.full_name}`,
+      phone: db.emergency_contact?.phone || db.families?.primary_guardian_phone || "987654321",
+      relation: db.emergency_contact?.relation || "Apoderado",
+    },
+    birthdate: db.birthdate || "15 de Agosto",
+    planType: "Mensual",
+    planPrice: 297,
+    matriculaType: "Promo Demo (S/ 30)",
+    packUtilesPaid: true,
+    planStartDate: "2026-08-01",
+    planEndDate: "2026-08-31",
+  };
+}
+
 // ---------------------------------------------------------------
 // EDGE: getStudents
 // Carga alumnos con datos de familia embebidos.
