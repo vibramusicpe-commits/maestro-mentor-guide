@@ -748,7 +748,194 @@ export function StudentsTable() {
               </SheetHeader>
 
               <div className="space-y-6 pt-5">
-                {/* Plan de Inversión Oficial (Dossier Comunidad Vibra) */}
+                {/* 1. FICHA ACADÉMICA Y DATOS PRINCIPALES (100% EDITABLE) */}
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                      <GraduationCap className="h-4 w-4" />
+                      Datos del Alumno y Asignación Docente (Editable)
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">Guardado automático</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {/* Nombre Completo del Alumno */}
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
+                        Nombre Completo del Alumno
+                      </label>
+                      <Input
+                        value={selectedStudent.name}
+                        onChange={(e) => updateStudentDetails(selectedStudent.id, { name: e.target.value })}
+                        placeholder="Nombre completo del alumno"
+                        className="text-xs h-8 bg-background font-bold"
+                      />
+                    </div>
+
+                    {/* Apellidos / Familia / Titular */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
+                        Apellidos / Familia / Titular
+                      </label>
+                      <Input
+                        value={selectedStudent.family}
+                        onChange={(e) => updateStudentDetails(selectedStudent.id, { family: e.target.value })}
+                        placeholder="Ej: Familia García / Adulto Titular"
+                        className="text-xs h-8 bg-background"
+                      />
+                    </div>
+
+                    {/* Instrumento Musical */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
+                        Instrumento Musical
+                      </label>
+                      <Select
+                        value={selectedStudent.instrument}
+                        onValueChange={(v) => {
+                          updateStudentDetails(selectedStudent.id, { instrument: v });
+                          toast.success(`Instrumento cambiado a ${v}`, {
+                            description: "Sincronizado con su ficha y horario en agenda.",
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="bg-background text-xs font-semibold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Piano">Piano</SelectItem>
+                          <SelectItem value="Guitarra clásica">Guitarra clásica</SelectItem>
+                          <SelectItem value="Guitarra eléctrica">Guitarra eléctrica</SelectItem>
+                          <SelectItem value="Violín">Violín</SelectItem>
+                          <SelectItem value="Batería">Batería</SelectItem>
+                          <SelectItem value="Canto">Canto</SelectItem>
+                          <SelectItem value="Piano Infantil">Piano Infantil</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Nivel Formativo */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
+                        Nivel Formativo
+                      </label>
+                      <Select
+                        value={selectedStudent.level || "Principiante"}
+                        onValueChange={(v) => {
+                          updateStudentDetails(selectedStudent.id, { level: v });
+                          toast.success(`Nivel formativo actualizado a ${v}`);
+                        }}
+                      >
+                        <SelectTrigger className="bg-background text-xs font-semibold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Principiante">Principiante (Nivel 1)</SelectItem>
+                          <SelectItem value="Intermedio">Intermedio (Nivel 2)</SelectItem>
+                          <SelectItem value="Avanzado">Avanzado (Nivel 3)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Profesor Asignado */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
+                        Profesor Asignado
+                      </label>
+                      <Select
+                        value={selectedStudent.teacher || "Prof. por Asignar"}
+                        onValueChange={(v) => {
+                          assignTeacher(selectedStudent.id, v);
+                          updateStudentDetails(selectedStudent.id, { teacher: v });
+                          toast.success(`Profesor asignado: ${v}`, {
+                            description: "Se actualizó la agenda del profesor.",
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="bg-background text-xs font-semibold">
+                          <SelectValue placeholder="Seleccionar profesor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableTeachers.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {t}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Edad del Alumno */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
+                        Edad del Alumno
+                      </label>
+                      <Input
+                        type="number"
+                        min={3}
+                        max={99}
+                        value={selectedStudent.age || 8}
+                        onChange={(e) => {
+                          const newAge = parseInt(e.target.value) || 8;
+                          updateStudentDetails(selectedStudent.id, { age: newAge });
+                        }}
+                        className="text-xs h-8 bg-background font-bold"
+                      />
+                    </div>
+
+                    {/* Categoría de Edad */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
+                        🏷️ Categoría de Edad (Color Agenda)
+                      </label>
+                      <Select
+                        value={selectedStudent.ageCategory || "JUNIOR"}
+                        onValueChange={(v: AgeCategory) => {
+                          updateStudentDetails(selectedStudent.id, { ageCategory: v });
+                          toast.success(`Categoría de ${selectedStudent.name} actualizada a ${v}`, {
+                            description: "Se sincronizaron sus colores y horario en la agenda.",
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="bg-background text-xs font-semibold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="INFANTIL">🟣 Infantil (5 y 6 años)</SelectItem>
+                          <SelectItem value="JUNIOR">🟡 Junior (7 a 12 años)</SelectItem>
+                          <SelectItem value="JUVENIL">🟢 Juvenil (13 a 17 años)</SelectItem>
+                          <SelectItem value="ADULTO">⚫ Adulto (18 a + años)</SelectItem>
+                          <SelectItem value="PERSONALIZADA">⭐ Personalizada</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Estado del Alumno */}
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[11px] font-semibold text-muted-foreground block">
+                        Estado de Matrícula del Alumno
+                      </label>
+                      <Select
+                        value={selectedStudent.status}
+                        onValueChange={(v) => {
+                          setStudentStatus(selectedStudent.id, v as StudentStatus);
+                          toast.success(`Estado del alumno actualizado a ${v}`);
+                        }}
+                      >
+                        <SelectTrigger className="bg-background text-xs font-semibold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="activo">🟢 Activo (Asiste regularmente)</SelectItem>
+                          <SelectItem value="pausa">🟡 En pausa (Temporalmente inactivo)</SelectItem>
+                          <SelectItem value="baja">🔴 Baja (Retirado)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. PLAN DE INVERSIÓN OFICIAL (DOSSIER COMUNIDAD VIBRA) */}
                 <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
@@ -756,7 +943,7 @@ export function StudentsTable() {
                       Plan de Inversión y Tarifas (Dossier Oficial)
                     </span>
                     <Badge variant="outline" className="text-xs font-black bg-primary text-primary-foreground border-0">
-                      {selectedStudent.planType || "Mensual"} · S/ {(selectedStudent.planPrice || VIBRA_PRICING.Mensual.priceMonthly).toFixed(2)} / mes
+                      {selectedStudent.planType || "Mensual"} · S/ {(VIBRA_PRICING[selectedStudent.planType || "Mensual"]?.priceMonthly || VIBRA_PRICING.Mensual.priceMonthly).toFixed(2)} / mes
                     </Badge>
                   </div>
 
@@ -784,7 +971,7 @@ export function StudentsTable() {
                             planEndMonth: endMonths[v],
                           });
                           toast.success(`Plan actualizado a ${v}`, {
-                            description: `Tarifa mensual: S/ ${prices[v].toFixed(2)}`,
+                            description: `Tarifa mensual oficial: S/ ${prices[v].toFixed(2)}`,
                           });
                         }}
                       >
@@ -801,32 +988,6 @@ export function StudentsTable() {
                           <SelectItem value="Anual">
                             Anual — S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)} / mes (20% Dcto.)
                           </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground block">
-                        🏷️ Categoría de Edad (Editable)
-                      </label>
-                      <Select
-                        value={selectedStudent.ageCategory || "JUNIOR"}
-                        onValueChange={(v: AgeCategory) => {
-                          updateStudentDetails(selectedStudent.id, { ageCategory: v });
-                          toast.success(`Categoría de ${selectedStudent.name} actualizada a ${v}`, {
-                            description: "Se sincronizaron sus colores y horario en la agenda.",
-                          });
-                        }}
-                      >
-                        <SelectTrigger className="bg-background text-xs font-semibold">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="INFANTIL">🟣 Infantil (5 y 6 años)</SelectItem>
-                          <SelectItem value="JUNIOR">🟡 Junior (7 a 12 años)</SelectItem>
-                          <SelectItem value="JUVENIL">🟢 Juvenil (13 a 17 años)</SelectItem>
-                          <SelectItem value="ADULTO">⚫ Adulto (18 a + años)</SelectItem>
-                          <SelectItem value="PERSONALIZADA">⭐ Personalizada</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1247,49 +1408,22 @@ export function StudentsTable() {
                   )}
                 </div>
 
-                {/* Estado y Profesor */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground">Estado del alumno</label>
-                    <Select
-                      value={selectedStudent.status}
-                      onValueChange={(v) => {
-                        setStudentStatus(selectedStudent.id, v as StudentStatus);
-                        toast.success(`Estado actualizado a ${v}`);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="activo">Activo</SelectItem>
-                        <SelectItem value="pausa">En pausa</SelectItem>
-                        <SelectItem value="baja">Baja</SelectItem>
-                      </SelectContent>
-                    </Select>
+                {/* Notas Pedagógicas y Observaciones del Docente (Editable) */}
+                <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <p className="font-bold text-xs uppercase tracking-wider text-primary flex items-center gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5" />
+                      Notas Pedagógicas y Observaciones (Editable)
+                    </p>
+                    <span className="text-[10px] text-muted-foreground">Guardado automático</span>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground">Profesor Asignado</label>
-                    <Select
-                      value={selectedStudent.teacher || "Prof. por Asignar"}
-                      onValueChange={(v) => {
-                        assignTeacher(selectedStudent.id, v);
-                        toast.success(`Profesor asignado: ${v}`);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar profesor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTeachers.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <textarea
+                    value={selectedStudent.teacherNote || ""}
+                    onChange={(e) => updateStudentDetails(selectedStudent.id, { teacherNote: e.target.value })}
+                    placeholder="Escribe aquí observaciones pedagógicas, temas trabajados o notas internas del alumno..."
+                    rows={3}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                  />
                 </div>
 
                 {/* 3. BENEFICIOS INCLUIDOS (Dossier Oficial de la Comunidad Vibra) */}
