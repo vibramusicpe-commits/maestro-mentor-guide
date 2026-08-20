@@ -202,6 +202,23 @@ export async function createStudent(
 }
 
 // ---------------------------------------------------------------
+// EDGE: updateStudent (Super Admin y Staff / Secretaría Nayeli)
+// Permite actualizar todos los campos de un estudiante en la BD.
+// ---------------------------------------------------------------
+export async function updateStudent(
+  userRole: Role,
+  studentId: string,
+  payload: Partial<Omit<DBStudent, "id" | "created_at" | "updated_at" | "families">>,
+): Promise<DBStudent> {
+  assertRole(userRole, ["super_admin", "staff"], "editar datos del alumno");
+  return postgrestPatch<DBStudent>(
+    "students",
+    { id: `eq.${studentId}` },
+    { ...payload, updated_at: new Date().toISOString() },
+  );
+}
+
+// ---------------------------------------------------------------
 // EDGE: deleteStudent (Exclusivo Super Admin / Dueña)
 // Regla de Seguridad ADR 005: Nayeli no puede eliminar permanentemente.
 // Solo la Dueña puede ejecutar la eliminación física directa en la BD.
@@ -215,4 +232,5 @@ export async function deleteStudent(
     p_student_id: studentId,
   });
 }
+
 
