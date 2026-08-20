@@ -31,7 +31,13 @@ import {
   type InvoiceStatus,
   type PaymentMethod,
 } from "@/store/app-store";
-import { billingTrend, recurringConcepts, type Invoice, type PaymentLog } from "@/store/admin-seeds";
+import {
+  billingTrend,
+  recurringConcepts,
+  VIBRA_PRICING,
+  type Invoice,
+  type PaymentLog,
+} from "@/store/admin-seeds";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -451,7 +457,7 @@ function AdminFacturacionPage() {
   const downloadPaymentsTemplate = () => {
     const header = "Familia/Alumno,Fecha,Monto,Metodo,NroOperacion,Concepto,Nota\n";
     const samples = [
-      "Familia Chipana,2026-08-17,329,Yape,04829103,Mensualidad Regular,Comprobante WhatsApp",
+      `Familia Chipana,2026-08-17,${VIBRA_PRICING.Mensual.priceMonthly},Yape,04829103,Mensualidad Regular,Comprobante WhatsApp`,
       "Familia Castillo,2026-08-17,150,Plin,PLIN-9821,Abono Parcial,Pago mitad de mes",
       "Familia Balarezo,2026-08-17,30,Yape,04992102,Matrícula Promo,Pago único de bienvenida",
       "Familia Mariño,2026-08-17,50,Efectivo,EFEC-01,Clase Personalizada,Pagado en recepción",
@@ -1327,10 +1333,21 @@ function AdminFacturacionPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Mensualidad Regular">Mensualidad Regular (S/ 329)</SelectItem>
-                  <SelectItem value="Plan Trimestral">Plan Trimestral (S/ 289.40/mes)</SelectItem>
-                  <SelectItem value="Matrícula Promo Demo">Matrícula Promo Demo (S/ 30)</SelectItem>
-                  <SelectItem value="Pack de Útiles Anual">Pack de Útiles Anual (S/ 67)</SelectItem>
+                  <SelectItem value="Mensualidad Regular">
+                    Mensualidad Regular (S/ {VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)})
+                  </SelectItem>
+                  <SelectItem value="Plan Trimestral">
+                    Plan Trimestral (S/ {VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)}/mes)
+                  </SelectItem>
+                  <SelectItem value="Plan Anual">
+                    Plan Anual (S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)}/mes)
+                  </SelectItem>
+                  <SelectItem value="Matrícula Promo Demo">
+                    Matrícula Promo Demo (S/ {VIBRA_PRICING.MatriculaPromoDemo})
+                  </SelectItem>
+                  <SelectItem value="Pack de Útiles Anual">
+                    Pack de Útiles Anual (S/ {VIBRA_PRICING.PackUtilesAnual})
+                  </SelectItem>
                   <SelectItem value="Clase Personalizada">Clase Personalizada (S/ 50)</SelectItem>
                   <SelectItem value="Abono Libre">Abono Libre / Saldo</SelectItem>
                 </SelectContent>

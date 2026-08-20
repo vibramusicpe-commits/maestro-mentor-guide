@@ -53,7 +53,18 @@ export function playClassChime() {
     playSyntheticBellChime(0.9);
   }
 }
-import { rooms, teachers, musicalInstruments, timeSlots, weekDays, timeSlotsWeekday, timeSlotsSaturday } from "@/store/admin-seeds";
+
+import {
+  rooms,
+  teachers,
+  defaultTeacherRooms,
+  musicalInstruments,
+  timeSlots,
+  weekDays,
+  timeSlotsWeekday,
+  timeSlotsSaturday,
+  VIBRA_PRICING,
+} from "@/store/admin-seeds";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -957,12 +968,7 @@ export function AgendaBoard() {
             const renderSingleDayTable = (dayName: WeekDay, dayOffset: number) => {
               const dayLessonsForTable = visible.filter((l) => l.day === dayName && l.status !== "cancelada");
               const currentSlots = dayName === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
-              const mainTeachersList = [
-                { name: "Jeremy", room: "Sala A", instrumentHint: "Guitarra y Batería" },
-                { name: "Fernando", room: "Sala B", instrumentHint: "Violín y Piano" },
-                { name: "Nathaly", room: "Sala C", instrumentHint: "Canto y Piano Infantil" },
-                { name: "Demo", room: "Sala D", instrumentHint: "Demos y Proyección" },
-              ];
+              const mainTeachersList = defaultTeacherRooms;
 
               const actualDateNum = baseDayNum + dayOffset;
 
@@ -1384,12 +1390,7 @@ export function AgendaBoard() {
                 );
 
                 // Los 4 profesores y salas principales
-                const mainTeachersList = [
-                  { name: "Jeremy", room: "Sala A" },
-                  { name: "Fernando", room: "Sala B" },
-                  { name: "Nathaly", room: "Sala C" },
-                  { name: "Demo", room: "Sala D" },
-                ];
+                const mainTeachersList = defaultTeacherRooms;
 
                 return (
                   <div className="rounded-3xl border border-border bg-card shadow-sm overflow-hidden">
@@ -2759,7 +2760,7 @@ export function AgendaBoard() {
                     <div className="pt-2 border-t border-border space-y-2 text-xs">
                       <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
                         <span className="text-muted-foreground">
-                          Plan: <strong className="text-foreground">{st.planType || "Mensual"}</strong> (S/ {st.planPrice || 329}/m)
+                          Plan: <strong className="text-foreground">{st.planType || "Mensual"}</strong> (S/ {(st.planPrice || VIBRA_PRICING.Mensual.priceMonthly).toFixed(2)}/m)
                         </span>
                         <span className="text-muted-foreground">
                           Período: <strong className="text-foreground">{st.planStartDate || "03/08/2026"} al {st.planEndDate || "31/08/2026"}</strong>
@@ -2790,7 +2791,11 @@ export function AgendaBoard() {
                             value={st.planType || "Mensual"}
                             onChange={(e) => {
                               const plan = e.target.value as "Mensual" | "Trimestral" | "Anual";
-                              const prices = { Mensual: 329.0, Trimestral: 289.4, Anual: 263.2 };
+                              const prices = {
+                                Mensual: VIBRA_PRICING.Mensual.priceMonthly,
+                                Trimestral: VIBRA_PRICING.Trimestral.priceMonthly,
+                                Anual: VIBRA_PRICING.Anual.priceMonthly,
+                              };
                               useAppStore.getState().updateStudentDetails(st.id, {
                                 planType: plan,
                                 planPrice: prices[plan],
@@ -2799,9 +2804,9 @@ export function AgendaBoard() {
                             }}
                             className="w-full h-7 rounded-lg border border-border bg-background px-2 text-[11px] font-medium"
                           >
-                            <option value="Mensual">Mensual (S/ 329)</option>
-                            <option value="Trimestral">Trimestral (S/ 289.40)</option>
-                            <option value="Anual">Anual (S/ 263.20)</option>
+                            <option value="Mensual">Mensual (S/ {VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)})</option>
+                            <option value="Trimestral">Trimestral (S/ {VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)})</option>
+                            <option value="Anual">Anual (S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)})</option>
                           </select>
                         </div>
                       </div>

@@ -123,13 +123,11 @@ export function generateMasterPassword(): string {
 
 /** Genera el link de invitación completo para compartir por WhatsApp. */
 export function buildInviteLink(token: string): string {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  // Si el host local es localhost, transformar a la IP fija de red de la sede (192.168.18.51) para que funcione en otras PCs
-  let baseUrl = origin || import.meta.env.VITE_API_BASE_URL || "http://192.168.18.51:5173";
-  if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) {
-    baseUrl = baseUrl.replace("localhost", "192.168.18.51").replace("127.0.0.1", "192.168.18.51");
-  }
-  return `${baseUrl}/invite/${token}`;
+  const origin =
+    typeof window !== "undefined" && window.location.origin
+      ? window.location.origin
+      : import.meta.env.VITE_APP_URL || "https://musicstaff-vm.pages.dev";
+  return `${origin}/invite/${token}`;
 }
 
 /** Construye el mensaje de WhatsApp para la Secretaria/Dueña. */

@@ -35,7 +35,7 @@ import {
   type LessonModality,
   type StudentStatus,
 } from "@/store/app-store";
-import { teachers, musicalInstruments } from "@/store/admin-seeds";
+import { teachers, musicalInstruments, VIBRA_PRICING } from "@/store/admin-seeds";
 import { categoryStyles } from "@/components/admin/agenda-board";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -728,7 +728,7 @@ export function StudentsTable() {
                       Plan de Inversión y Tarifas (Dossier Oficial)
                     </span>
                     <Badge variant="outline" className="text-xs font-black bg-primary text-primary-foreground border-0">
-                      {selectedStudent.planType || "Mensual"} · S/ {selectedStudent.planPrice || 329.0} / mes
+                      {selectedStudent.planType || "Mensual"} · S/ {(selectedStudent.planPrice || VIBRA_PRICING.Mensual.priceMonthly).toFixed(2)} / mes
                     </Badge>
                   </div>
 
@@ -740,7 +740,11 @@ export function StudentsTable() {
                       <Select
                         value={selectedStudent.planType || "Mensual"}
                         onValueChange={(v: "Mensual" | "Trimestral" | "Anual") => {
-                          const prices = { Mensual: 329.0, Trimestral: 289.4, Anual: 263.2 };
+                          const prices = {
+                            Mensual: VIBRA_PRICING.Mensual.priceMonthly,
+                            Trimestral: VIBRA_PRICING.Trimestral.priceMonthly,
+                            Anual: VIBRA_PRICING.Anual.priceMonthly,
+                          };
                           const endMonths = {
                             Mensual: "2026-08",
                             Trimestral: "2026-10",
@@ -760,9 +764,15 @@ export function StudentsTable() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Mensual">Mensual — S/ 329.00 / mes (Tarifa Regular)</SelectItem>
-                          <SelectItem value="Trimestral">Trimestral — S/ 289.40 / mes (12% Dcto.)</SelectItem>
-                          <SelectItem value="Anual">Anual — S/ 263.20 / mes (20% Dcto.)</SelectItem>
+                          <SelectItem value="Mensual">
+                            Mensual — S/ {VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)} / mes (Tarifa Regular)
+                          </SelectItem>
+                          <SelectItem value="Trimestral">
+                            Trimestral — S/ {VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)} / mes (12% Dcto.)
+                          </SelectItem>
+                          <SelectItem value="Anual">
+                            Anual — S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)} / mes (20% Dcto.)
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2012,7 +2022,11 @@ function NewStudentDialog() {
     const calculatedEndDate = `${endY}-${endM}-${endDay}`;
     const startMonthStr = `${y}-${String(m).padStart(2, "0")}`;
     const endMonthStr = `${endY}-${endM}`;
-    const prices = { Mensual: 329.0, Trimestral: 289.4, Anual: 263.2 };
+    const prices = {
+      Mensual: VIBRA_PRICING.Mensual.priceMonthly,
+      Trimestral: VIBRA_PRICING.Trimestral.priceMonthly,
+      Anual: VIBRA_PRICING.Anual.priceMonthly,
+    };
 
     addNewStudent({
       name,
@@ -2092,7 +2106,11 @@ function NewStudentDialog() {
                 <CreditCard className="h-3.5 w-3.5" /> Plan Oficial del Dossier
               </span>
               <span className="text-[11px] font-bold text-primary">
-                {planType === "Anual" ? "S/ 263.20/m" : planType === "Trimestral" ? "S/ 289.40/m" : "S/ 329.00/m"}
+                {planType === "Anual"
+                  ? `S/ ${VIBRA_PRICING.Anual.priceMonthly.toFixed(2)}/m`
+                  : planType === "Trimestral"
+                  ? `S/ ${VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)}/m`
+                  : `S/ ${VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)}/m`}
               </span>
             </div>
 
@@ -2104,9 +2122,9 @@ function NewStudentDialog() {
                   onChange={(e) => setPlanType(e.target.value as any)}
                   className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
                 >
-                  <option value="Mensual">Mensual — S/ 329</option>
-                  <option value="Trimestral">Trimestral — S/ 289.40 (12% Dcto.)</option>
-                  <option value="Anual">Anual — S/ 263.20 (20% Dcto.)</option>
+                  <option value="Mensual">Mensual — S/ {VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)}</option>
+                  <option value="Trimestral">Trimestral — S/ {VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)} (12% Dcto.)</option>
+                  <option value="Anual">Anual — S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)} (20% Dcto.)</option>
                 </select>
               </div>
 

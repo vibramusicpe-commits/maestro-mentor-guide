@@ -14,6 +14,13 @@ export const teachers: string[] = [
   "Demo",
 ];
 export const availableTeachers = teachers;
+export const defaultTeacherRooms: Array<{ name: string; room: string; instrumentHint: string }> = [
+  { name: "Jeremy", room: "Sala A", instrumentHint: "Guitarra y Batería" },
+  { name: "Fernando", room: "Sala B", instrumentHint: "Violín y Piano" },
+  { name: "Nathaly", room: "Sala C", instrumentHint: "Canto y Piano Infantil" },
+  { name: "Demo", room: "Sala D", instrumentHint: "Demos y Proyección" },
+];
+
 export const musicalInstruments = [
   "Batería",
   "Canto",
@@ -40,24 +47,27 @@ export type MatriculaType = "Regular (S/ 120)" | "Promo Demo (S/ 30)" | "Exonera
 export const VIBRA_PRICING = {
   Mensual: {
     name: "Mensual (Regular)",
-    priceMonthly: 329.0,
+    priceMonthly: 297.0,
     discountPct: 0,
     totalMonths: 1,
-    description: "Tarifa Regular · 8 clases / mes (2x semana)",
+    totalPlan: 297.0,
+    description: "S/ 297.00 / mes (Tarifa Regular · 8 clases / mes)",
   },
   Trimestral: {
     name: "Trimestral (12% Dcto.)",
-    priceMonthly: 289.4,
+    priceMonthly: 261.4,
     discountPct: 12,
     totalMonths: 3,
-    description: "S/ 289.40 / mes (Total S/ 868.20 por 3 meses)",
+    totalPlan: 784.2,
+    description: "S/ 261.40 / mes (Total S/ 784.20 por 3 meses)",
   },
   Anual: {
     name: "Anual (20% Dcto.)",
-    priceMonthly: 263.2,
+    priceMonthly: 237.6,
     discountPct: 20,
     totalMonths: 12,
-    description: "S/ 263.20 / mes (Total S/ 3,158.40 por 12 meses)",
+    totalPlan: 2851.2,
+    description: "S/ 237.60 / mes (Total S/ 2,851.20 por 12 meses)",
   },
   MatriculaRegular: 120.0,
   MatriculaPromoDemo: 30.0, // 75% descuento
@@ -200,9 +210,9 @@ export const adminStudents: AdminStudent[] = officialControlPagosStudents;
 export const initialInvoices: Invoice[] = officialControlPagosInvoices;
 
 export const recurringConcepts: RecurringConcept[] = [
-  { id: "rc1", label: "Plan Mensual Regular", detail: "8 clases de 45 min (2x semana)", amount: 329, families: 48 },
-  { id: "rc2", label: "Plan Trimestral (12% Dcto.)", detail: "S/ 289.40/mes (3 meses)", amount: 289.4, families: 22 },
-  { id: "rc3", label: "Plan Anual (20% Dcto.)", detail: "S/ 263.20/mes (12 meses)", amount: 263.2, families: 10 },
+  { id: "rc1", label: "Plan Mensual Regular", detail: "8 clases de 45 min (2x semana)", amount: 297.0, families: 48 },
+  { id: "rc2", label: "Plan Trimestral (12% Dcto.)", detail: "S/ 261.40/mes (3 meses)", amount: 261.4, families: 22 },
+  { id: "rc3", label: "Plan Anual (20% Dcto.)", detail: "S/ 237.60/mes (12 meses)", amount: 237.6, families: 10 },
   { id: "rc4", label: "Matrícula Promo Demostrativa", detail: "75% Descuento pago único", amount: 30, families: 80 },
   { id: "rc5", label: "Pack de Útiles Anual", detail: "Método Vibra, Practikid y Partituras", amount: 67, families: 80 },
 ];

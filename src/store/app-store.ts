@@ -828,6 +828,8 @@ export const useAppStore = create<AppState>()(
                 paymentLogs: [...existing.paymentLogs, newLog],
               };
             } else {
+              const now = new Date();
+              const dynDueDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-20`;
               const newInv: Invoice = {
                 id: `inv-imp-${Date.now()}-${idx}`,
                 family: p.familyOrStudent.startsWith("Familia ") ? p.familyOrStudent : `Familia ${p.familyOrStudent}`,
@@ -836,7 +838,7 @@ export const useAppStore = create<AppState>()(
                 amount: p.amount,
                 amountPaid: p.amount,
                 remainingBalance: 0,
-                dueDate: "2026-08-20",
+                dueDate: dynDueDate,
                 daysToDue: 0,
                 status: "pagado",
                 paymentMethod: p.method || "Yape",
@@ -863,8 +865,16 @@ export const useAppStore = create<AppState>()(
         })),
       generateMonthlyInvoices: (): number => {
         const currentStudents = get().adminStudents;
+        const now = new Date();
+        const dynDueDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-20`;
         const generatedInvoices: Invoice[] = currentStudents.map((st, idx) => {
-          const planAmount = st.planPrice || (st.planType === "Trimestral" ? 289.4 : st.planType === "Anual" ? 263.2 : 329.0);
+          const planAmount =
+            st.planPrice ||
+            (st.planType === "Trimestral"
+              ? VIBRA_PRICING.Trimestral.priceMonthly
+              : st.planType === "Anual"
+              ? VIBRA_PRICING.Anual.priceMonthly
+              : VIBRA_PRICING.Mensual.priceMonthly);
           const conceptLabel = `Mensualidad ${st.planType || "Mensual"} · ${st.instrument} (${st.teacher})`;
 
           return {
@@ -875,7 +885,7 @@ export const useAppStore = create<AppState>()(
             amount: planAmount,
             amountPaid: 0,
             remainingBalance: planAmount,
-            dueDate: "2026-08-20",
+            dueDate: dynDueDate,
             daysToDue: 6,
             status: "pendiente" as const,
             paymentMethod: null,
