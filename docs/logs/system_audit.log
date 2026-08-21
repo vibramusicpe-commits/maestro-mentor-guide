@@ -627,3 +627,9 @@ Directorio de Logs: docs/logs/system_audit.log
    - Generado ADR 0063: '0063-global-chime-realtime-backend-sync-and-state-protection.md'.
 - Estado: COMPILACIÓN EXITOSA (Código 0) Y AUDITADO EN PRODUCCIÓN.
 
+[2026-08-21 18:00:00 -05:00] [RESOLVED_ERROR] [ADMIN_FACTURACION PAYMENT_LOGS NULL SAFETY]
+1. Causa: 'TypeError: Cannot read properties of undefined (reading ''forEach'')' en 'src/routes/admin.facturacion.tsx:239' al acceder a 'inv.paymentLogs' sin inicialización por defecto en los recibos mapeados de base de datos.
+2. Solución:
+   - 'src/routes/admin.facturacion.tsx': Protegido con fallback '(inv.paymentLogs || [])' en el cálculo de 'allVoucherLogs', contador de bitácora y modal de auditoría.
+   - 'src/lib/services/invoices.service.ts': Garantizado 'paymentLogs: []', 'items: []' y 'daysToDue: 10' en 'mapDBInvoiceToInvoice'.
+- Estado: RESUELTO (Compilación 100% exitosa y módulo de Cobros y Abonos verificado).
