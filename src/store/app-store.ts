@@ -1126,62 +1126,39 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v20",
-      version: 20,
+      name: "cadencia-app-v21",
+      version: 21,
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
+        // v21: SIEMPRE forzar datos frescos del código al rehidratar.
+        // Los datos de alumnos/invoices deben venir del seed oficial o del backend (Insforge),
+        // NUNCA de localStorage persistido que puede tener datos combinados/agrupados legacy.
         if (state) {
-          const hasLegacyGrouped = state.adminStudents?.some(
-            (s) =>
-              s.name?.includes(" y Boris") ||
-              s.name?.includes("Gabriel y Eitan") ||
-              s.name?.includes("Bruno Marcelo Juan de Dios y") ||
-              s.family?.includes("Bruno Marcelo Juan de Dios y")
-          );
-          if (hasLegacyGrouped) {
-            state.adminStudents = adminStudents;
-            state.invoices = initialInvoices;
-            state.schedule = initialSchedule;
-          }
+          state.adminStudents = adminStudents;
+          state.invoices = initialInvoices;
+          state.schedule = initialSchedule;
         }
       },
       migrate: (persistedState: any, version: number) => {
-        const hasLegacyGrouped = Array.isArray(persistedState?.adminStudents) &&
-          persistedState.adminStudents.some(
-            (s: any) =>
-              s.name?.includes(" y Boris") ||
-              s.name?.includes("Gabriel y Eitan") ||
-              s.name?.includes("Bruno Marcelo Juan de Dios y") ||
-              s.family?.includes("Bruno Marcelo Juan de Dios y")
-          );
+        // v21: Cualquier versión anterior → forzar seed oficial limpio.
+        // Esto elimina de raíz TODOS los nombres combinados legacy
+        // ("y Boris", "Ivanna + Luis", "Uriel, Gabriel y Eitan", etc.)
+        // sin necesidad de detectar patrones uno por uno.
 
-        if (version < 20 || hasLegacyGrouped || !persistedState?.adminStudents?.length || !persistedState?.schedule?.length) {
-          return {
-            ...persistedState,
-            adminStudents: adminStudents,
-            invoices: initialInvoices,
-            schedule: initialSchedule,
-          };
-        }
-
-        const roomMap: Record<string, string> = {
-          "Sala 1": "Sala A",
-          "Sala 2": "Sala B",
-          "Sala 3": "Sala C",
-          "Sala 4": "Sala D",
-          "Sala 5": "Sala D",
-        };
-
-        const migratedSchedule = Array.isArray(persistedState?.schedule)
-          ? persistedState.schedule.map((lesson: any) => ({
-            ...lesson,
-            room: roomMap[lesson.room] || lesson.room || "Sala A",
-          }))
-          : initialSchedule;
+        // Limpiar claves de versiones anteriores de localStorage
+        try {
+          if (typeof window !== "undefined" && window.localStorage) {
+            for (let i = 1; i <= 20; i++) {
+              window.localStorage.removeItem(`cadencia-app-v${i}`);
+            }
+          }
+        } catch {}
 
         return {
           ...persistedState,
-          schedule: migratedSchedule,
+          adminStudents: adminStudents,
+          invoices: initialInvoices,
+          schedule: initialSchedule,
         };
       },
       partialize: (s) =>
@@ -1189,12 +1166,12 @@ export const useAppStore = create<AppState>()(
           activeRole: s.activeRole,
           isAuthenticated: s.isAuthenticated,
           currentUser: s.currentUser,
-          adminStudents: s.adminStudents,
           schedule: s.schedule,
-          invoices: s.invoices,
           lessons: s.lessons,
           chimeSettings: s.chimeSettings,
           studentAlerts: s.studentAlerts,
+          // NOTA: adminStudents e invoices NO se persisten en localStorage.
+          // Siempre se cargan frescos desde el código seed + backend Insforge.
         }) as unknown as AppState,
     },
   ),

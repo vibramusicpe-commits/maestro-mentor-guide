@@ -193,19 +193,6 @@ export function StudentsTable() {
   // Estado para Edición Completa de Datos del Alumno (Solicitado por Secretaría Nayeli)
   const [editingStudent, setEditingStudent] = useState<AdminStudent | null>(null);
 
-  // Auto-sanitización reactiva: si hay registros agrupados heredados del cache antiguo, purgar de inmediato
-  useEffect(() => {
-    const hasLegacyGrouped = students.some(
-      (s) =>
-        s.name.includes(" y Boris") ||
-        s.name.includes("Gabriel y Eitan") ||
-        s.name.includes("Bruno Marcelo Juan de Dios y") ||
-        s.family.includes("Bruno Marcelo Juan de Dios y")
-    );
-    if (hasLegacyGrouped) {
-      resetToOfficialStudents();
-    }
-  }, [students, resetToOfficialStudents]);
 
   // Handler de WhatsApp Business con plantillas oficiales
   const handleOpenWhatsApp = (st: AdminStudent, templateType: "bienvenida" | "recordatorio" | "coordinacion" = "coordinacion") => {
