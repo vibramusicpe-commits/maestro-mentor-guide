@@ -236,7 +236,8 @@ function AdminFacturacionPage() {
     }> = [];
 
     invoices.forEach((inv) => {
-      inv.paymentLogs.forEach((l) => {
+      const pLogs = inv.paymentLogs || [];
+      pLogs.forEach((l) => {
         logs.push({
           log: l,
           invoiceId: inv.id,
@@ -246,7 +247,7 @@ function AdminFacturacionPage() {
       });
     });
 
-    return logs.sort((a, b) => b.log.timestamp.localeCompare(a.log.timestamp));
+    return logs.sort((a, b) => (b.log?.timestamp || "").localeCompare(a.log?.timestamp || ""));
   }, [invoices]);
 
   const filteredInvoices = useMemo(() => {
@@ -815,7 +816,7 @@ function AdminFacturacionPage() {
                               title="Ver bitácora y vouchers"
                             >
                               <History className="h-3 w-3" />
-                              Bitácora ({inv.paymentLogs.length})
+                              Bitácora ({(inv.paymentLogs || []).length})
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -1636,12 +1637,12 @@ function AdminFacturacionPage() {
           </DialogHeader>
 
           <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
-            {viewLogsInv?.paymentLogs.length === 0 ? (
+            {(!viewLogsInv?.paymentLogs || viewLogsInv.paymentLogs.length === 0) ? (
               <p className="text-center py-6 text-xs text-muted-foreground">
                 No hay movimientos registrados para este recibo.
               </p>
             ) : (
-              viewLogsInv?.paymentLogs.map((log) => (
+              (viewLogsInv.paymentLogs || []).map((log) => (
                 <div key={log.id} className="rounded-xl border border-border p-3 space-y-2 bg-muted/20 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-black text-emerald-600 text-sm">{money(log.amount)}</span>

@@ -102,8 +102,11 @@ export function mapDBInvoiceToInvoice(db: DBInvoice): import("@/store/app-store"
     remainingBalance: Number(db.remaining_balance) || 0,
     dueDate: db.due_date || "2026-08-31",
     status: db.status || "pendiente",
+    daysToDue: 10,
     paymentMethod: db.payment_method ? (db.payment_method as any) : undefined,
     remindedAt: db.reminded_at || undefined,
+    paymentLogs: [],
+    items: [],
   };
 }
 
