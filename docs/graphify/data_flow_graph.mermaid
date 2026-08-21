@@ -1,22 +1,25 @@
-# Grafo de Flujo de Datos del Sistema (Graphify - Versión v16 / Agosto 2026)
+# Grafo de Flujo de Datos del Sistema (Graphify - Versión v18 / Agosto 2026)
 
 ```mermaid
 graph TD
     %% Entradas y Carga de Archivos
-    CSV_Schedule["📄 Excel/CSV Horarios (Nayeli)"] -->|Parser inteligente ; o ,| AgendaBoard["🗓️ AgendaBoard (/admin/agenda)"]
-    CSV_Students["📄 Excel/CSV 99 Alumnos (Nayeli)"] -->|Parser inteligente| StudentsTable["👥 StudentsTable (/admin/alumnos)"]
+    CSV_Schedule["📄 Excel/CSV Horarios Oficiales (Nayeli)"] -->|Parser inteligente ; o ,| AgendaBoard["🗓️ AgendaBoard (/admin/agenda)"]
+    Excel_Students["📄 ESTUDIANTES VIBRA MUSIC .xlsx"] -->|Parser Individualizador ADR 0061| StudentsTable["👥 StudentsTable (/admin/alumnos)"]
     
     %% Almacén Central de Estado
     AgendaBoard -->|importScheduleFromCSV / clearSchedule| AppStore["🏪 AppStore Zustand (cadencia-app-v16)"]
     StudentsTable -->|importStudentsFromCSV / clearStudents| AppStore
     
-    %% Funcionalidades de Agenda & Autonomía Nayeli (ADR 0052 & 0053)
+    %% Funcionalidades de Agenda & Autonomía Nayeli (ADR 0052 & 0053 & 0057)
     AgendaBoard -->|ADR 0053: Combobox Autocomplete| AppStore
     AgendaBoard -->|ADR 0053: Libreta de Asistencias & Control 8/4 Clases| AppStore
     AgendaBoard -->|ADR 0052: Eliminación Directa sin Trámites| AppStore
+    AgendaBoard -->|ADR 0057: Recuperaciones en Rojo Vivo| AppStore
     AgendaBoard -->|Reprogramación: Solo Semana vs Mes Completo| AppStore
     
     %% Operaciones de Alumnos y Cobranzas
+    StudentsTable -->|ADR 0059: Edición In-Place de Ficha| AppStore
+    StudentsTable -->|ADR 0057: Categorías & Alumnos Adultos| AppStore
     StudentsTable -->|Marcado Rápido Asistencia| AppStore
     StudentsTable -->|Reingresos & Historial| AppStore
     Facturacion["💳 Facturación (/admin/facturacion)"] -->|Registro Abonos Yape/Plin con Vouchers| AppStore
@@ -31,11 +34,11 @@ graph TD
     ChimeTimer["⏰ Temporizador Automático en Vivo"] -->|L-V Tarde & Sáb Mañana| AudioPlayer["🔊 Reproductor ('school bell.mp3')"]
     AppStore -->|playOfficialChime| AudioPlayer
     
-    %% Sincronización Backend Insforge PostgreSQL (MCP)
+    %% Sincronización Backend Insforge PostgreSQL (MCP & PostgREST ADR 0060)
     AppStore -->|useInsforgeSync / REST API| InsforgeBackend[("🗄️ PostgreSQL Insforge Backend (18 tablas)")]
     InsforgeBackend --> TableLessons["Tabla lessons"]
-    InsforgeBackend --> TableStudents["Tabla students"]
-    InsforgeBackend --> TableInvoices["Tabla invoices"]
+    InsforgeBackend --> TableStudents["Tabla students (83 Alumnos)"]
+    InsforgeBackend --> TableInvoices["Tabla invoices (83 Recibos)"]
     InsforgeBackend --> TableAttendanceLogs["Tabla attendance_logs"]
     InsforgeBackend --> TablePaymentAuditLogs["Tabla payment_audit_logs"]
     InsforgeBackend --> TableInvitations["Tabla invitations & user_passwords"]

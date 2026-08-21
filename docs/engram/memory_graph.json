@@ -1,11 +1,14 @@
 {
   "system": "Cadencia - Vibra Music Management Platform",
-  "version": "2.1.0-prod",
-  "last_updated": "2026-08-15T10:31:00-05:00",
+  "version": "2.3.0-prod",
+  "last_updated": "2026-08-20T19:12:00-05:00",
   "database": {
     "provider": "Insforge PostgreSQL (MCP)",
     "schema": "public",
     "total_tables": 18,
+    "total_students": 83,
+    "active_students": 68,
+    "inactive_students": 15,
     "core_tables": [
       "students",
       "lessons",
@@ -25,7 +28,9 @@
       "f3_reprogramaciones": "Scope: Solo esta semana vs Todo el mes",
       "f4_whatsapp": "Integración directa con wa.me para bienvenida, cobro y recibos",
       "f5_retiros": "Pausas y Bajas con historial de reingresantes",
-      "f6_cobranzas": "Abonos parciales/totales con N° operación y bitácora auditada"
+      "f6_cobranzas": "Abonos parciales/totales con N° operación y bitácora auditada",
+      "f7_in_place_edit": "ADR 0059: Edición integral de todos los campos de alumnos directamente en panel",
+      "f8_individual_students": "ADR 0061: Separación de 83 alumnos independientes (sin agrupaciones familiares)"
     },
     "deletion_security": {
       "staff_restriction": "No puede eliminar permanentemente. Genera DeletionRequest.",
@@ -34,11 +39,23 @@
     "schedule": {
       "path": "src/components/admin/agenda-board.tsx",
       "status": "clean_production",
-      "features": ["Matriz 3 Columnas Docente", "Personalizadas Celeste con Puntitos de Edad", "No Recuperación en Personalizadas", "Automated School Bell"]
+      "features": [
+        "Matriz 3 Columnas Docente",
+        "Personalizadas Celeste con Puntitos de Edad",
+        "No Recuperación en Personalizadas",
+        "Clases de Recuperación en Rojo Vivo",
+        "Automated School Bell"
+      ]
     },
     "students": {
       "path": "src/components/admin/students-table.tsx",
-      "status": "clean_production"
+      "status": "clean_production",
+      "features": [
+        "83 Alumnos Separados",
+        "Edición In-Place Directa en Ficha",
+        "Categorías Infantil/Junior/Juvenil/Adulto",
+        "Adultos sin Apoderado Obligatorio"
+      ]
     }
   },
   "graphify_graphs": [
