@@ -1110,11 +1110,11 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v16",
-      version: 16,
+      name: "cadencia-app-v19",
+      version: 19,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState: any, version: number) => {
-        if (version < 15 || !persistedState?.adminStudents?.length || !persistedState?.schedule?.length) {
+        if (version < 19 || !persistedState?.adminStudents?.length || !persistedState?.schedule?.length) {
           return {
             ...persistedState,
             adminStudents: adminStudents,
