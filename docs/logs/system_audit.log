@@ -613,3 +613,17 @@ Directorio de Logs: docs/logs/system_audit.log
 3. Documentación:
    - Generado ADR 0062: '0062-v21-unconditional-fresh-state-and-zero-localstorage-pollution.md'.
 - Estado: 100% AUDITADO Y SINCRONIZADO EN NUBE.
+
+[2026-08-21 17:40:00 -05:00] [PERSISTENCE & SYNC ENGINE] [STORE V21 PROTECTED RESTORE & GLOBAL CHIME]
+1. Diagnóstico de persistencia de Secretaría (Nayeli):
+   - Al rehidratar el store se sobreescribían los cambios locales de la sesión si 'onRehydrateStorage' restablecía los datos.
+   - El timbre automático de clases solo existía en 'agenda-board.tsx', omitiendo alertas sonoras cuando Nayeli navegaba a '/admin/alumnos' o '/admin/facturacion'.
+2. Soluciones aplicadas:
+   - 'src/store/app-store.ts': Persistencia total protegida sin reinicios forzados en 'onRehydrateStorage'.
+   - 'src/routes/admin.tsx': Montado monitor global 24/7 de timbre escolar con desbloqueo de Web Audio API y candado de minuto antirrepetición.
+   - 'src/lib/insforge.ts': Activada configuración de producción 'isConfigured: true' con endpoint oficial.
+   - 'backgroundSyncStudentToDB' & 'backgroundSyncPaymentToDB': Mutaciones de alumnos (datos, estado, modalidad) y abonos con voucher se envían asíncronamente a PostgreSQL en Insforge.
+3. Documentación:
+   - Generado ADR 0063: '0063-global-chime-realtime-backend-sync-and-state-protection.md'.
+- Estado: COMPILACIÓN EXITOSA (Código 0) Y AUDITADO EN PRODUCCIÓN.
+

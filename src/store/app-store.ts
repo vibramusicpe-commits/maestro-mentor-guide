@@ -271,7 +271,7 @@ function queueItem(label: string): SyncItem {
   return { id, label };
 }
 
-// Sincronizador en segundo plano con Insforge PostgreSQL
+// Sincronizador en segundo plano de alumnos con Insforge PostgreSQL
 function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Partial<AdminStudent>) {
   try {
     if (typeof window === "undefined") return;
@@ -292,6 +292,39 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       updateStudent(role, studentId, payload)
         .then(() => console.log(`[Insforge Sync] Alumno ${studentId} sincronizado en PostgreSQL`))
         .catch((err) => console.warn(`[Insforge Sync] Error sincronizando alumno ${studentId}:`, err));
+    }).catch(() => {});
+  } catch {}
+}
+
+// Sincronizador en segundo plano de pagos con Insforge PostgreSQL
+function backgroundSyncPaymentToDB(
+  role: Role,
+  invoiceId: string,
+  amount: number,
+  method: PaymentMethod,
+  voucherRef?: string,
+  note?: string,
+) {
+  try {
+    if (typeof window === "undefined") return;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invoiceId);
+    if (!isUUID) return;
+
+    import("@/lib/services/invoices.service").then(({ registerPayment }) => {
+      registerPayment(
+        role,
+        role === "staff" ? "00000000-0000-0000-0000-000000000002" : "00000000-0000-0000-0000-000000000001",
+        invoiceId,
+        {
+          amount,
+          method: method as any,
+          voucherRef: voucherRef || undefined,
+          note: note || undefined,
+        },
+        { amount: 297, amount_paid: 0, remaining_balance: 297 },
+      )
+        .then(() => console.log(`[Insforge Sync] Abono en recibo ${invoiceId} sincronizado en PostgreSQL`))
+        .catch((err) => console.warn(`[Insforge Sync] Error sincronizando abono ${invoiceId}:`, err));
     }).catch(() => {});
   } catch {}
 }
@@ -786,6 +819,7 @@ export const useAppStore = create<AppState>()(
         })),
       recordPaymentAbono: (id, amount, method, voucherRef = "", note = "", voucherImage = "", paymentTime = "") =>
         set((s) => {
+          backgroundSyncPaymentToDB(s.activeRole, id, amount, method, voucherRef, note);
           const inv = s.invoices.find((i) => i.id === id);
           if (!inv) return s;
 
