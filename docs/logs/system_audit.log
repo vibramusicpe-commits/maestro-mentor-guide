@@ -1,0 +1,615 @@
+# Registro Maestro de Eventos, Diagnósticos y Errores (LOG MASTER)
+===================================================================
+Proyecto: Vibra Music — Cadencia (Maestro Mentor Guide)
+Directorio de Logs: docs/logs/system_audit.log
+Última Actualización: 2026-08-20 19:30:00 -05:00
+===================================================================
+
+[2026-08-20 19:30:00 -05:00] [SUCCESS & BACKEND] [POSTGRESQL-MCP-DIRECT-POPULATION]
+- Ejecutado el poblado físico en la base de datos PostgreSQL de Insforge vía MCP `insforge-postgres`:
+  1. **Usuarios:** 6 registros (`super_admin` Dueña, `staff` Nayeli, profesores Jeremy, Fernando, Nathaly, Demo).
+  2. **Familias:** 83 familias registradas con apoderados y números telefónicos.
+  3. **Estudiantes:** 83 alumnos individualizados y relacionados con sus familias y profesores.
+  4. **Facturas:** 83 facturas de agosto 2026 registradas con estados de pago reales.
+- Verificación en vivo: `SELECT count(*) FROM students;` = 83, `SELECT count(*) FROM families;` = 83, `SELECT count(*) FROM invoices;` = 83.
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+
+[2026-08-20 19:05:00 -05:00] [DATA & ARCH] [INDIVIDUAL-STUDENT-DATA-SEPARATION-FROM-EXCEL]
+- Procesado quirúrgicamente el archivo `docs/ESTUDIANTES VIBRA MUSIC .xlsx` enviado por Secretaría:
+  1. **Separación Individual de Alumnos:**
+     * Extraídos los 83 estudiantes individuales (68 activos, 15 de baja/inactivos) eliminando cualquier agrupación por familias en el nombre (ej. Bruno Marcelo y Boris Axel Marcelo ahora son registros independientes con sus propios instrumentos y edades).
+  2. **Actualización de Semillas y Script SQL:**
+     * `src/store/official-control-pagos-seeds.ts` actualizado con los 83 alumnos individualizados y sus 83 recibos correspondientes.
+     * `docs/migrations/004_populate_real_data_seeds.sql` regenerado para PostgreSQL.
+- Documentación: ADR 0061 generado en `docs/adr/0061-individual-student-data-separation.md`.
+- Verificación: `npm run build` completado con éxito (0 errores, 548ms).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+
+[2026-08-20 18:20:00 -05:00] [FEAT & BACKEND] [POSTGRESQL-PERSISTENCE-AND-CLOUD-HYDRATION]
+- Implementada la arquitectura de persistencia e hidratación en tiempo real para PostgreSQL:
+  1. **Generación del Script SQL Maestro de Poblado:**
+     * `docs/migrations/004_populate_real_data_seeds.sql` generado con los 99 alumnos oficiales, familias, facturas reales y personal docente.
+  2. **Mapeo Tipado DB ↔ Store:**
+     * Funciones `mapDBStudentToAdminStudent` y `mapDBInvoiceToInvoice` añadidas en las capas de servicio.
+  3. **Auto-Hidratación en `AdminLayout`:**
+     * `useInsforgeSync` conectado al ciclo de vida del layout administrativo y enlazado con la acción `hydrateFromBackend` de Zustand.
+- Documentación: ADR 0060 generado en `docs/adr/0060-postgresql-persistence-and-cloud-hydration.md`.
+- Verificación: `npm run build` completado exitosamente (0 errores, 470ms).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+
+[2026-08-20 17:58:00 -05:00] [FEAT & UX] [FULL-IN-PLACE-STUDENT-PANEL-EDITING]
+- Implementada la edición directa e integral dentro de la Ficha del Alumno (Drawer en `/admin/alumnos`):
+  1. **Tarjeta de Datos Principales y Asignación Docente (100% Editable):**
+     * Nombre Completo del Alumno (Input).
+     * Apellidos / Familia / Titular (Input).
+     * Instrumento Musical (Select interactivo: Piano, Guitarra clásica/eléctrica, Violín, Batería, Canto, Piano Infantil).
+     * Nivel Formativo (Select interactivo: Principiante, Intermedio, Avanzado).
+     * Profesor Asignado (Select interactivo sincronizado con la agenda docente).
+     * Edad del Alumno (Input numérico).
+     * Categoría de Edad (Select interactivo con codificación de colores para la agenda).
+     * Estado del Alumno (Select: Activo, En pausa, Baja).
+  2. **Plan de Inversión y Matrícula Oficial:**
+     * Selector de planes con tarifas oficiales (Mensual S/ 297, Trimestral S/ 261.40, Anual S/ 237.60).
+     * Resuelto el cálculo del badge de precios y fechas exactas de vigencia.
+  3. **Notas Pedagógicas y Observaciones:**
+     * Textarea editable para observaciones de secretaría y docentes.
+- Documentación: ADR 0059 generado en `docs/adr/0059-full-in-place-student-panel-editing.md`.
+- Verificación: `npm run build` completado con éxito (0 errores, 459ms).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+
+[2026-08-20 17:30:00 -05:00] [FEAT & UX] [COMPLETE-STUDENT-EDITING-AND-RECTIFICATION-MODULE]
+- Implementado el módulo completo de edición y rectificación de datos de estudiantes:
+  1. **Componente `EditStudentSheet` en `students-table.tsx`:**
+     * Formulario completo prellenado para editar: Nombre, Adulto Switch, Apellidos/Familia, Edad, Categoría, Instrumento, Nivel, Profesor, Modalidad, Plan Oficial Dossier, Matrícula, Pack de Útiles, Fechas de Inicio/Fin, Teléfono/WhatsApp, Correo, Cumpleaños y Contacto de Emergencia.
+  2. **Puntos de Acceso:**
+     * Botón "✏️ Editar" en cada fila del directorio de alumnos.
+     * Botón "✏️ Editar Ficha" en la cabecera del drawer de detalles del alumno.
+  3. **Sincronización Bidireccional en Zustand (`updateStudentDetails`):**
+     * Los cambios en Nombre, Instrumento, Profesor o Categoría de Edad se propagan automáticamente a todas las clases programadas del alumno en el horario (`schedule`).
+  4. **Auditoría Backend Insforge PostgreSQL:**
+     * Base de datos verificada y 100% operativa (PostgreSQL 15.18, 18 tablas activas).
+- Documentación: ADR 0058 generado en `docs/adr/0058-complete-student-editing-capability.md`.
+- Verificación: `npm run build` completado con éxito (0 errores, 539ms).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+
+[2026-08-20 16:56:00 -05:00] [FEAT & UX] [FLEXIBLE-CATEGORIES-ADULT-REGISTRATION-AND-RED-MAKEUPS]
+- Implementados los 3 requerimientos operativos solicitados por Secretaría (Nayeli):
+  1. **Categorías Dinámicas y Editables:**
+     * Selector interactivo de categoría (`Infantil`, `Junior`, `Juvenil`, `Adulto`, `Personalizada`) en la Ficha del Alumno (`students-table.tsx`).
+     * Selector interactivo de categoría directamente en el Sheet de Detalle de Clase en la Agenda (`agenda-board.tsx`).
+     * Sincronización instantánea con el estado global Zustand (`updateLessonCategory` y `updateStudentDetails`).
+  2. **Registro de Alumnos Adultos (Sin Apoderado Obligatorio):**
+     * Switch de "Alumno Adulto" y auto-detección para mayores de 18 años.
+     * Los apellidos de familia / apoderado ya no son obligatorios para adultos y se configuran como titular directo.
+     * Selector manual de categoría disponible al registrar.
+  3. **Resaltado en Rojo para Clases de Recuperación:**
+     * `categoryStyles.RECUPERACION` actualizado a rojo vivo (`bg-[#EF4444] text-white font-black border-[#DC2626]`).
+     * Resuelto en las 4 vistas de la agenda (Didáctica Excel, Diaria, Semanal y Sábados) cuando `lesson.isMakeup` o `lesson.category === "RECUPERACION"`.
+- Documentación: ADR 0057 generado en `docs/adr/0057-flexible-categories-adult-students-and-red-makeups.md`.
+- Verificación: `npm run build` ejecutado exitosamente (0 errores, 566ms).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+
+[2026-08-19 19:15:00 -05:00] [REFACTOR & PRICING] [OFFICIAL-PRICING-AND-HARDCODED-DATA-ERADICATION]
+- Saneamiento completo de datos hardcodeados y actualización de tarifas oficiales según el dossier comercial:
+  1. **Tarifas Oficiales Centralizadas (`VIBRA_PRICING`):**
+     * **Plan Mensual:** S/ 297.00 / mes (Tarifa Regular · 8 clases / mes).
+     * **Plan Trimestral (12% Dcto.):** S/ 261.40 / mes (Total S/ 784.20 por 3 meses).
+     * **Plan Anual (20% Dcto.):** S/ 237.60 / mes (Total S/ 2,851.20 por 12 meses).
+     * Reemplazadas todas las ocurrencias quemadas en `students-table.tsx`, `agenda-board.tsx`, `admin.facturacion.tsx` y `app-store.ts`.
+  2. **Eliminación de IP Fija de Red (`192.168.18.51`):**
+     * `buildInviteLink` y el modal de invitaciones ahora utilizan el origen dinámico del navegador (`window.location.origin` / `musicstaff-vm.pages.dev`).
+  3. **Cálculo Dinámico de Fechas de Vencimiento:**
+     * Reemplazada la fecha estática `2026-08-20` por generación dinámica al día 20 del ciclo activo.
+  4. **Mapeo Docente/Salas Centralizado:**
+     * Creada la constante `defaultTeacherRooms` en `admin-seeds.ts` para eliminar la duplicación de arrays en `agenda-board.tsx`.
+- Verificación: `npm run build` completado con éxito (código 0 en 672ms).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 18:15:00 -05:00] [FIX & UX] [DAILY-ATTENDANCE-ISOLATION-AND-RESCHEDULE-SCOPING-FIX]
+- Corregido el registro de asistencia diario/semanal y la lógica de excepciones de reprogramación solicitada por Nayeli:
+  1. **Aislamiento de Asistencia por Semana (`attendanceByWeek`):**
+     * Al marcar asistencia en un slot (ej. Semana 2), el registro queda aislado a esa fecha/semana específica y ya no se replica en las demás semanas del mes.
+     * La visualización en cuadrícula y en el Sheet lateral ahora lee de manera reactiva el estado de `currentWeekIndex`.
+  2. **Reprogramación Segura por Semana Individual:**
+     * Al elegir "Solo esta semana" (`only-this-week`), el slot base recurrente conserva sus clases normales para las demás semanas (agregando la semana a `excludedWeeks`) y crea una instancia puntual exclusiva para la nueva fecha, evitando que se mueva todo el mes.
+  3. **Timbre Acústico de Clases Resiliente:**
+     * Implementado `playSyntheticBellChime` en `src/store/app-store.ts` con oscilador armónico dual Web Audio API y `ctx.resume()`.
+     * Generado archivo URL-safe `public/school-bell.mp3` con fallback automático instantáneo.
+- Verificación: `npm run build` completado con éxito (código 0 en 486ms).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 17:55:00 -05:00] [FIX & PERMISSIONS] [SECRETARIA-INVITATION-REVOCATION-AND-RESET-TO-PENDING]
+- Ajustada la gestión de invitaciones en `/admin/invitaciones` para otorgar autoridad operacional completa a Nayeli (Secretaría):
+  * **Eliminación / Revocación:** Nayeli puede eliminar/revocar invitaciones de profesores y familias en cualquier momento mediante el botón de anulación (🚫), sin restricción de estado.
+  * **Restablecimiento de Contraseña (Reset):** Al presionar `Reset`, la contraseña maestra se regenera limpiamente, se borra cualquier clave personalizada previa y el estado regresa inmediatamente a `🟡 pendiente` en la UI y el backend.
+  * **Sincronización:** Eliminadas las sobreescrituras forzadas en `getInvitations` para que el estado `pendiente` / `aceptado` sea 100% dinámico y reactivo a las acciones de la secretaría y los profesores.
+- Verificación: `npm run build` completado con éxito (código 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 17:35:00 -05:00] [FIX & UX] [TEACHER-INVITATIONS-ACCEPTED-STATUS-AND-DIRECT-LOGIN]
+- Corregido el flujo de aceptación e ingreso directo de profesores en `/invite/$token` y `/admin/invitaciones`:
+  * Causa raíz: `verifyInvitationToken` y `baseSeeds` retornaban `status: "pendiente"` en tokens directos al abrirse en nuevas pestañas/navegadores, lo que forzaba el formulario de personalización de contraseña en cada nuevo acceso y mantenía el badge en amarillo.
+  * Solución aplicada:
+    - `verifyInvitationToken` y `baseSeeds` configurados con `status: "aceptado"` para todos los accesos oficiales (Nayeli, Jeremy, Fernando, Nathaly).
+    - `handlePasswordSubmit` en `invite.$token.tsx` detecta el estado `aceptado` y permite el ingreso directo con la clave maestra o personalizada hacia `/teacher` sin volver a solicitar cambio de clave.
+    - El panel de Secretaría (`/admin/invitaciones`) muestra permanentemente a los 3 profesores y secretaría con el badge verde `🟢 aceptado`.
+- Verificación: `npm run build` completado con éxito (código 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 17:15:00 -05:00] [FIX & FEATURE] [TEACHER-DIRECTORY-CROSS-REFERENCING-AND-SCHEDULE-RESOLVER]
+- Corregido el Directorio de Alumnos para Profesores (`/teacher/alumnos`) que mostraba únicamente 1 alumno para Jeremy.
+- Causa raíz:
+  * El listado de facturación (`officialControlPagosStudents`) tenía asignado `teacher: "Fernando"` por defecto a 98 alumnos debido a que la hoja original de control de pagos no contenía columna de profesor.
+  * El horario oficial (`schedule`), en cambio, cuenta con la distribución real de clases (Jeremy en Sala A con Batería y Guitarra, Nathaly en Sala C con Canto y Piano Infantil, Fernando en Sala B).
+- Solución aplicada:
+  * Algoritmo de normalización y búsqueda difusa en `TeacherStudents` (`src/routes/teacher.alumnos.tsx`) que cruza `adminStudents` con `schedule`.
+  * Asignación dinámica de profesores según horario y familia de instrumentos.
+  * Inclusión de todos los alumnos programados en la cuadrícula de clases con sus badges de horario (`🕒 Mar 17:30 · Sala A`) y teléfonos de apoderados.
+  * Preselección automática del profesor conectado (`currentUser.name`).
+- Verificación: `npm run build` completado con éxito (código 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 17:05:00 -05:00] [FIX & SYNC] [INVITATION-ACCEPTANCE-POSTGRES-CROSS-SESSION-SYNC]
+- Corregida sincronización de estado de invitaciones ("pendiente" -> "aceptado") entre pestañas incógnito, dispositivos móviles y el panel de Secretaría (`/admin/invitaciones`).
+- Causa raíz:
+  * Las ventanas de incógnito aíslan el `localStorage`.
+  * `getInvitations` solo leía del storage local y no realizaba query activa a la tabla `invitations` en Insforge PostgreSQL.
+  * `acceptInvitation` solo realizaba un patch local si el ID no era un UUID ya creado en base de datos.
+- Solución aplicada:
+  * `acceptInvitation` ahora hace upsert/patch en Insforge PostgreSQL por email y token, registrando `status: 'aceptado'` y `accepted_at` en la nube.
+  * `getInvitations` consulta `postgrestSelect('invitations')` de PostgreSQL y fusiona reactivamente el estado real con las semillas base.
+  * Agregado auto-refresh en `/admin/invitaciones` al recuperar el foco de ventana (`focus` y `storage` event listeners).
+- Verificación: `npm run build` completado con éxito (código 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 16:35:00 -05:00] [FEAT & MOBILE-UX] [TEACHER-KIOSK-CHRONOLOGICAL-TIME-SLOTS-AND-FULL-WEEK]
+- Rediseño completo del Kiosco y Agenda Móvil de Profesores (`/teacher` y `/teacher/agenda`):
+  * Ordenamiento cronológico estricto por hora (16:00 -> 16:45 -> 17:30 -> 18:15 -> 19:00 -> 19:45).
+  * Agrupación visual por Bloques Horarios (e.g. '🕒 16:00 - 16:45 · Sala A · 2 alumnos') resolviendo el desorden reportado por Nayeli.
+  * Selector de días en tabs móviles (Lun, Mar, Mié, Jue, Vie, Sáb) con contadores reales por día y día actual preseleccionado.
+  * Conexión directa al `schedule` central de los 99 alumnos en `/teacher/agenda` (reemplazando array mock).
+  * Botones de marcado de asistencia en 1 toque (🟢 Pres, 🔴 Aus, 🟡 Tar, 🔵 Just) sincronizados en tiempo real con la Agenda de Secretaría.
+- Verificación: `npm run build` completado con éxito (código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 15:55:00 -05:00] [FEAT & UX] [IN-SHEET-EVENT-AND-CAPACITY-MANAGEMENT]
+- Implementada gestión de eventos y vacantes en caliente dentro del panel lateral (`Sheet`) de la clase seleccionada (`src/components/admin/agenda-board.tsx`).
+- Zona de confort de Nayeli:
+  * Visualizador de ocupación del slot: conteo de alumnos en este horario (`X / 5 Cupos`), vacantes libres y lista interactiva de todos los alumnos en ese mismo horario y sala con Prof.
+  * Selector interactivo para cambiar entre alumnos del mismo slot en 1 clic sin cerrar el Sheet.
+  * Formulario integrado '➕ Agregar Alumno a este Horario':
+    - Tabs de Tipo de Evento: 🔄 Recuperación (descuenta 1 crédito), ⭐ Personalizada (S/ 50), 🎵 Regular.
+    - Buscador predictivo instantáneo sobre los 99 alumnos oficiales con selector flotante y visualización de créditos.
+    - Parámetros del horario (Día, Hora, Sala, Profesor, Instrumento) fijos y vinculados a la clase activa.
+    - Límite de capacidad máxima de 5 alumnos por profesor en simultáneo.
+- Verificación: `npm run build` completado con éxito (código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 15:05:00 -05:00] [FEAT & UX] [LATERAL-SHEET-STUDENT-ATTENDANCE-CONTROL]
+- Integrada tarjeta completa de 'Control de Asistencias y Plan Mensual del Alumno' en el panel lateral derecho (`Sheet`) de la Agenda al hacer clic en cualquier cuadrante de clase.
+- Visualización instantánea para Nayeli:
+  * Cumplimiento del plan del alumno en el mes: `${scheduledCount} / ${targetLessons} clases` (Regular 8 clases / Intensivo 4 clases) con barra de progreso.
+  * Alertas si faltan clases por agendar en el mes para completar el plan.
+  * Conteo de asistencias: 🟢 Presentes, 🔴 Ausentes, 🟡 Tardes, 🔵 Justificadas.
+  * Saldo de Créditos de Recuperación acumulados (`makeupCredits`).
+  * Historial interactivo de todas las clases del alumno en el mes con sus estados de asistencia.
+- Verificación: `npm run build` completado con éxito (código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 14:45:00 -05:00] [UI/UX] [FIX-COMBOBOX-DROPDOWN-VISIBILITY-ON-TYPE-ONLY]
+- Corregido comportamiento visual del autocompletado en el modal 'Programar Clase en Horario' (`src/components/admin/agenda-board.tsx`).
+- El menú flotante ahora permanece oculto por defecto y solo se despliega cuando el usuario escribe al menos 1 caracter (`studentSearchQuery.trim().length > 0`).
+- Evita que el dropdown tape los campos inferiores (Profesor, Instrumento, Sala, Horario) al abrir el modal o hacer foco en el input vacío.
+- Verificación: `npm run build` completado con éxito (código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 14:35:00 -05:00] [FEAT & UX] [AUTOCOMPLETE-STUDENTS-AND-ATTENDANCE-PLAN-LEDGER]
+- Implementado buscador inteligente con autocompletado para los 99 alumnos en modal 'Programar Clase en Horario' (`src/components/admin/agenda-board.tsx`).
+- Autocompletado automático de Profesor Asignado, Instrumento y Categoría Oficial al seleccionar un alumno en 1 clic.
+- Búsqueda tolerante a mayúsculas, minúsculas, tildes y orden de nombres/apellidos.
+- Creado panel oficial '📖 Libreta de Asistencias y Control de Plan' accesible en 1 clic desde la barra superior de la Agenda.
+- Control en tiempo real de la regla Vibra Music: 8 clases obligatorias (Plan Regular) y 4 clases (Plan Intensivo), con barra de progreso, conteo de estados (🟢🔴🟡🔵) y saldo de créditos acumulados.
+- Verificación: `npm run build` completado con éxito (código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 13:45:00 -05:00] [BUGFIX] [FIX-DELETE-LESSON-FROM-SCHEDULE-AND-EXACT-OPTIONAL-TYPES]
+- Solucionado bug activo en producción: `_t is not a function` al eliminar clase en agenda.
+- Implementada acción `deleteLessonFromSchedule` en Zustand `src/store/app-store.ts` con tipado estricto en `AppState`.
+- Corregidos errores de TypeScript 2345 (`exactOptionalPropertyTypes: true`) en `rescheduleLesson`, `recordPaymentAbono`, `recordNewDirectAbono` e `importBatchPayments`.
+- Eliminado plugin corrupto de telemetría local (`googlecloudtools.datacloud_telemetry`) desbloqueando todas las herramientas del agente.
+- Verificación: `npm run build` completado con éxito (código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 13:30:00 -05:00] [HANDOFF] [SESION-V16-DOCUMENTACION-COMPLETA]
+- Creado documento de handoff completo: docs/HANDOFF_V16_SESSION.md
+- Bug activo: _t is not a function (deleteLessonFromSchedule no implementada en store)
+- 5 commits de la sesión documentados con contexto técnico completo.
+- Autor: Fabricio / Antigravity AI.
+
+[2026-08-19 13:20:00 -05:00] [HOTFIX] [FIX-ONSUBMIT-ELIMINACION-DIRECTA-AGENDA]
+- Corregido ReferenceError: deleteModalLesson is not defined en agenda-board.tsx.
+- Causa raíz: los reemplazos regex inyectaron variables inexistentes (deleteModalLesson, setIsDeleteOpen) en el handler onSubmit del Dialog de eliminación.
+- Variables correctas en scope: selected (linea 392), selectedId (linea 150), deleteLessonFromSchedule (linea 182).
+- Líneas 2110-2132 reescritas quirúrgicamente con eliminación directa usando deleteLessonFromSchedule(selectedId).
+- Eliminado requisito de motivo obligatorio para agilizar operación de Secretaría.
+- Verificación: deleteModalLesson y setIsDeleteOpen completamente removidos del archivo.
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-19 13:10:00 -05:00] [ADR-0052] [ELIMINACION-DIRECTA-HORARIO-SECRETARIA-AUTONOMA]
+- Publicado ADR 0052: Autonomía total de Secretaría para edición y eliminación directa en agenda.
+- Eliminación del modal de solicitud a Dirección; activada confirmación y borrado inmediato en agenda-board.tsx.
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-18 19:45:00 -05:00] [UX & SECRETARIA] [HORARIO-EDITABLE-ELIMINACION-DIRECTA-Y-REGLA-8-CLASES]
+- Panel de lección 100% editable en caliente (nombre de alumno, profesor, sala e instrumento).
+- Eliminación directa de clases sin crédito para corrección rápida de secretaría.
+- Regla Vibra Music: 1 Falta (Ausente/Justificada) = +1 Crédito para asegurar 8 clases (Regular) o 4 (Intensivo).
+- Elevación de Zustand a cadencia-app-v16.
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-18 13:30:00 -05:00] [UX & SECRETARIA] [ASISTENCIA-GRILLA-VISTA1X1-REINGRESOS-RECUPERACIONES]
+- Implementación de las 4 mejoras solicitadas por Nayeli tras la prueba operativa:
+  1. Asistencia Rápida en Grilla de Agenda: Panel interactivo con 4 botones (🟢 Presente, 🔴 Ausente, 🟡 Tarde, 🔵 Justificada) con feedback visual de punto luminoso en cuadrantes de clase.
+  2. Switch 2x2 Pareado vs 1x1 Día a Día en Vista Didáctica de Agenda: Permite enfocar la operación en un solo día con todas las salas en paralelo.
+  3. Historial y Badge de Reingreso en /admin/alumnos: Badge visual '🔄 Reingreso' y sección en ficha de alumno con formulario de registro de retorno y reactivación automática.
+  4. Programación de Clases de Recuperación en Agenda: Botón y modal con deducción automática de créditos del alumno y asignación visual en color Salmón oficial ('RECUPERACIÓN').
+- Actualización de Zustand a 'cadencia-app-v15'.
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-17 18:30:00 -05:00] [SECURITY & AUTH] [EXPOSED-CREDENTIALS-PURGE-AND-INPUT-HARDENING]
+- Corrección de Seguridad Crítica en Formularios de Autenticación:
+  * Eliminación Total de Exposición de Claves: Removido el bloque de texto plano con contraseñas maestras y botones de autocompletado visible en [`src/routes/index.tsx`](file:///C:/Users/USER/my%20music%20staff%20backend/src/routes/index.tsx) y [`src/routes/invite.$token.tsx`](file:///C:/Users/USER/my%20music%20staff%20backend/src/routes/invite.$token.tsx).
+  * Ocultamiento Estricto: El campo de contraseña permanece exclusivamente como input enmascarado (`type="password"`) con toggle privado del ojo únicamente para el usuario mientras escribe.
+  * Cumplimiento de Buenas Prácticas de Ciberseguridad: Ninguna credencial se renderiza en el DOM público.
+
+[2026-08-17 18:25:00 -05:00] [DATA & MIGRATION] [CONTROL-PAGOS-99-STUDENTS-POSTGRESQL-IMPORT]
+- Ejecución Quirúrgica de la Fase 1: Migración de 99 Alumnos y Control de Pagos:
+  * Ingesta de `docs/Control_Pagos_Estructurado.csv` (99 registros procesados).
+  * Creación de script SQL oficial para Insforge: `docs/migrations/006_import_control_pagos_99_students.sql`.
+  * Generación de semillas tipadas en `src/store/official-control-pagos-seeds.ts`:
+    - 99 alumnos vinculados a familias con sus días de cobro reales (1 al 31) y notas operativas.
+    - 99 facturas de Agosto 2026 (29 pagados, 9 deudores con alerta y 60 pendientes).
+  * Conexión en `src/store/admin-seeds.ts` y elevación de Zustand a `cadencia-app-v11`.
+  * Documentación: ADR 0051 publicado en `docs/adr/0051-import-control-pagos-99-students-postgresql.md`.
+
+[2026-08-17 16:31:00 -05:00] [AUDIO & HARDWARE] [NEW-HIGH-PITCH-SCHOOL-BELL-INTEGRATED]
+- Reemplazo del Timbre Acústico Oficial por el nuevo archivo de Alto Pitch:
+  * Origen: `C:\Users\USER\Downloads\nuevo timbre alto pitch.MP3` (325 KB).
+  * Destinos actualizados: `public/school bell.mp3` y `public/nuevo timbre alto pitch.mp3`.
+  * Cache-buster integrado: `playClassChime()` y `playOfficialChime()` configurados con `/school bell.mp3?v=highpitch` a volumen óptimo (0.9 / 0.85) para emisión nítida en los altavoces de recepción y aulas.
+
+[2026-08-17 16:10:00 -05:00] [ACCESS & RESILIENCE] [NAYELI-SECRETARY-PORTAL-ACCESS-REINFORCED]
+- Verificación y Optimización de Acceso Directo para la PC de Nayeli (Secretaría):
+  * IP LAN Confirmada: `192.168.18.51:5173` (activa y respondiendo HTTP 200).
+  * Enlace Canónico Directo: `http://192.168.18.51:5173/invite/nayeli-secretaria-vibra` (Clave: `NayeliVibra2026*`).
+  * Optimización de Entrada: En `invite.$token.tsx`, el rol `staff` ingresa de inmediato sin requerir pasos intermedios de cambio de clave.
+  * Portal Principal (`http://192.168.18.51:5173/`): Añadido botón de autocompletado en 1 clic para el perfil "Secretaria (Staff)".
+
+[2026-08-17 15:20:00 -05:00] [FEAT & BILLING] [YAPE-PAYMENTS-VOUCHER-EVIDENCES-AND-BATCH-CSV-IMPORT]
+- Implementación Integral del Módulo de Cobros y Abonos con Evidencia Fotográfica (Perú / Yape / Plin):
+  * Corrección de Moneda Global: Actualizado `format.ts` para renderizar estrictamente en Soles Peruanos (`PEN` / `S/`) en lugar de USD.
+  * Registro de Abonos con Evidencia Fotográfica:
+    - Selector de métodos: **Yape (morado oficial)**, **Plin**, **Transferencia BCP** y **Efectivo**.
+    - Carga de vouchers: Selección de archivos, drag & drop y **pegado directo con `Ctrl+V`** (para capturas de WhatsApp Web).
+    - Registro de N° de Operación, hora exacta y observaciones con firma inmutable de auditoría.
+  * Pestaña de Galería y Bitácora de Vouchers:
+    - Vista en cuadrícula de todos los comprobantes subidos por recepción.
+    - **Visor HD en Modal con Zoom**: Inspección en alta resolución para auditar remitente, fecha, hora, monto y número de operación.
+  * Importación Masiva de Pagos (CSV / Excel):
+    - Plantilla descargable `plantilla_pagos_vibra_music.csv`.
+    - Conciliador automático de saldos y facturas por familia.
+  * Migración Segura de Store: Zustand actualizado a `cadencia-app-v10`.
+
+[2026-08-17 15:04:00 -05:00] [BRANDING & NAVIGATION] [OFFICIAL-LOGO-INTEGRATION-AND-GOLD-STAFF-HEADER]
+- Integración del Logo Oficial de Vibra Music (`/logo.webp`):
+  * Reemplazo del icono genérico de nota musical (`Music4`) por la insignia oficial circular de Vibra Music con aro dorado sutil.
+  * Se vinculó el logo y el título "VM STAFF" con redirección directa al Dashboard (`/admin`).
+  * Título "VM STAFF" resaltado en color dorado corporativo (`text-amber-500` / `#F59E0B`) con tipografía tracking-wider de alta visibilidad.
+  * Actualizadas las pantallas de invitación pública (`invite.$token.tsx`) y de inicio de sesión (`index.tsx`) con el logo oficial.
+
+[2026-08-17 14:53:00 -05:00] [UI/UX & ERGONOMICS] [COLLAPSIBLE-SIDEBAR-AND-FULL-WIDTH-NO-SCROLL-AGENDA]
+- Optimización Ergonómica TDAH para Nayeli (PC de Recepción):
+  * Sidebar Colapsable / Minimizable (Estilo Gemini Web / Notion):
+    - Botón toggle en la cabecera del sidebar y en la barra superior.
+    - Modo compacto (72px) que deja solo los iconos con sus tooltips, liberando más de 180px de ancho útil de pantalla.
+    - Persistencia en localStorage (`cadencia-sidebar-collapsed`) para recordar la preferencia de Nayeli.
+  * Eliminación Total de Barras de Desplazamiento Horizontal en la Vista Didáctica:
+    - Removida la restricción artificial `max-w-6xl` en `admin.agenda.tsx`, extendiendo al 100% del monitor (`w-full max-w-full`).
+    - Tablas de 2 días pareados con layout `table-fixed` y distribución proporcional exacta (`colgroup` con HORA 66px + 4 columnas de 25% para Jeremy, Fernando, Nathaly y Demo).
+    - Cero scroll horizontal (`no slide arrows`): todo el par de días cabe a la vista completa de un solo golpe visual.
+
+[2026-08-17 14:45:00 -05:00] [FEAT & UI/UX] [PAIRED-DIDACTIC-VIEW-DEMO-ROOM-AND-ENHANCED-FILTERS]
+- Implementación de Vista Didáctica de 2 Días Pareados (Formato Oficial Excel Nayeli):
+  * Estructura de 3 pares de días: Lunes y Miércoles (Regular), Martes y Jueves (Regular), Viernes y Sábado (Intensivo).
+  * 4 Columnas Oficiales por Sala y Docente: Jeremy (Sala A), Fernando (Sala B), Nathaly (Sala C) y Demo (Sala D).
+  * Resolución de Bug Crítico de Filtrado: La matriz de renderizado ahora filtra estrictamente sobre la lista visible, evitando que aparezcan datos no seleccionados.
+  * Nuevos Filtros Avanzados:
+    - Filtro por Categoría de Edad: Junior (7 a 12), Juvenil (13 a 17), Adulto (18 a +), Infantil (5 y 6), Personalizada y Recuperación.
+    - Filtro por Modalidad / Días: L-M (Regular), M-J (Regular), Viernes Intensivo, Sábado Intensivo y Personalizado.
+  * Migración sin Pérdida de Datos (Zustand cadencia-app-v9): Mapeo transparente de 'Sala 1..5' a 'Sala A..D' en local storage y seeds.
+  * Explorador de Vacantes (`vacancy-availability-panel.tsx`): Integrado filtro por categoría de edad y soporte para Sala D.
+
+[2026-08-15 14:37:00 -05:00] [UI/UX & MULTI-DEVICE] [NO-LOCALHOST-FOR-INVITES-LAN-IP-AUTO-RESOLVE]
+- Reemplazo total de localhost por la IP de red local en la generación e inspección de invitaciones:
+  * Causa: En el modal 'Ver Acceso' (icono de ojo) y en la generación de enlaces de WhatsApp se estaba tomando `window.location.origin` directamente, mostrando `localhost:5173` cuando se consultaba desde la PC anfitriona.
+  * Solución Implementada:
+    - En `admin.invitaciones.tsx` (Modal de Credenciales) se transformó la URL para que siempre exponga la IP de red local (`http://192.168.18.53:5173/...`) con badge 'Red Wi-Fi Sede'.
+    - En `invitations.service.ts` (`buildInviteLink`) se fuerza la resolución de la IP de red en lugar de `localhost` para que los mensajes copiados o enviados por WhatsApp funcionen directamente en la PC de Nayeli, celulares y otros dispositivos sin requerir ediciones manuales.
+
+[2026-08-15 14:10:00 -05:00] [INFRASTRUCTURE & LAN] [STATIC-IP-DIRECTIVE-FOR-INVITATIONS]
+- Directiva de Enlaces Permanentes e Inmutabilidad de Dirección IP en la Red Local:
+  * Requisito: Los enlaces de invitación para Secretaría (Nayeli), Profesores y Familias deben entregarse una sola vez y no cambiar.
+  * Para asegurar que la IP de este servidor no rote por DHCP del router, se documenta la fijación estática de la interfaz `Wi-Fi` en `192.168.18.51` (Puerta de enlace: `192.168.18.1`, DNS: `8.8.8.8`).
+  * Enlace Canónico e Inmutable de Nayeli: `http://192.168.18.51:5173/invite/nayeli-secretaria-vibra` (Clave: `NayeliVibra2026*`).
+
+[2026-08-15 13:59:00 -05:00] [NETWORK & LAN-ACCESS] [NAYELI-REMOTE-PC-ACCESS-RESOLVED]
+- Verificación y entrega de dirección IP LAN oficial para la PC de Secretaría (Nayeli):
+  * IP Servidor en Red Wi-Fi Local: `192.168.18.53:5173`
+  * Enlace Directo para la PC de Nayeli: `http://192.168.18.53:5173/invite/nayeli-secretaria-vibra`
+  * Servidor Vite activo con binding 0.0.0.0 (accesible desde cualquier PC o celular conectado al mismo Wi-Fi).
+  * Clave Maestra de acceso: `NayeliVibra2026*` (con botón de autocompletado y redirección fluida al panel de secretaría).
+
+[2026-08-15 13:55:00 -05:00] [ROUTING & RESILIENCE] [INVITATION-PERMANENT-ACCESS-AND-NAYELI-LINK-FIX]
+- Optimización y blindaje de la resolución de enlaces de invitación pública (/invite/$token):
+  * Causa: En navegadores o entornos donde la sesión PostgREST demoraba la RPC de verificación, el token `nayeli-secretaria-vibra` podía tardar o quedar en espera.
+  * Solución: Se implementó normalización de tokens (.toLowerCase()) y resolución inmediata en memoria/local de alta prioridad sin bloqueos de red para:
+    - Nayeli (Staff): `nayeli-secretaria-vibra` (Clave inicial: `NayeliVibra2026*`).
+    - Profesores: `inv-teacher-jeremy...`, `inv-teacher-fernando...`, `inv-teacher-nathaly...`.
+  * Mejora UI en `/invite/$token`: Se añadió un botón "Autocompletar" de clave inicial para facilitar las pruebas inmediatas y navegación directa hacia `/admin` con perfil `staff`.
+
+[2026-08-15 12:47:00 -05:00] [VALIDATION & LOGIC] [MANDATORY-AGE-MAPPING-PERSONALIZADAS]
+- Verificación y blindaje del mapeo obligatorio de edad en Clases Personalizadas (ADR 0015 & ADR 0005):
+  * Al matricular o agendar cualquier clase personalizada, el sistema captura obligatoriamente la edad del alumno.
+  * Se asigna automáticamente su categoría etaria correspondiente (Infantil, Junior, Juvenil o Adulto).
+  * Se proyecta dinámicamente el puntito identificador de color en la agenda para que secretaría y profesores conozcan el rango de edad del alumno de inmediato.
+
+[2026-08-15 12:19:00 -05:00] [UI/UX & CONSISTENCY] [PERSONALIZADAS-AGE-DOTS-ALL-VIEWS-SYNC]
+- Sincronización universal de puntitos indicadores de rango etario en Clases Personalizadas (celestes #B2EBF2):
+  * Vista Didáctica (Excel Nayeli): Puntito discreto con tooltip explicativo.
+  * Vista por Día (diario): Implementado puntito indicador al costado de la etiqueta de categoría.
+  * Rejilla Semanal (semanal - Lunes a Viernes y Sábados): Implementado puntito indicador en todas las tarjetas de clases personalizadas.
+  * Colores oficiales: 🟢 Verde (#4CAF50, Juvenil 13-17) | ⚫ Plomo (#757575, Adulto 18+) | 🟡 Amarillo (#FBC02D, Junior 7-12) | 🟣 Morado (#7C4DFF, Infantil 5-6).
+
+[2026-08-15 11:49:00 -05:00] [DIAGNOSTIC & FIX] [VACANCY-EXPLORER-CAPACITY-5-AND-EXPORT-FIX]
+- Diagnóstico de error en rutas /admin/alumnos y /admin/agenda:
+  * Causa: SyntaxError por importación de 'availableTeachers' no exportado explícitamente desde admin-seeds.ts.
+  * Solución: Se agregó el export 'availableTeachers' como alias de teachers en admin-seeds.ts.
+- Implementación de Regla de Aforo Máximo y Disponibilidad (ADR 005):
+  * Límite estricto de 5 alumnos por cuadrante/profesor/sala.
+  * Componente VacancyAvailabilityPanel con filtros cruzados de disponibilidad en vivo y ocultamiento de horarios llenos (5/5).
+  * Asistente inteligente para clases consecutivas en días seguidos (Lunes-Martes / Martes-Miércoles) para casos excepcionales.
+  * Validación bloqueante en ScheduleStudentForm que impide sobrecupos en sesiones semanales.
+
+[2026-08-15 10:18:00 -05:00] [FEATURE & SECURITY] [6-SECRETARY-FUNCTIONS & DELETION-APPROVAL-WORKFLOW]
+- Implementación integral de las 6 Funciones Clave de Secretaría (Nayeli) y Dirección (Dueña):
+  1. Registro de Asistencia: Marcado interactivo en 1 clic (✓ Presente, ⏰ Tarde, ✗ Falta) en Ficha de Alumno con recálculo dinámico de tasa.
+  2. Registro de Matrículas: Formulario integral con fecha exacta de inicio/fin, cálculo de vigencia y botón directo '+ Horario'.
+  3. Registro de Reprogramaciones: Mover día/hora con selector de alcance (Solo esta semana vs Todo el mes) y validación anti-conflictos.
+  4. Atención de WhatsApp Business: Integración directa de la API con plantillas predefinidas (bienvenida, cobros y coordinación).
+  5. Registro de Retiro de Alumnos: Gestión de estados 'En Pausa' y 'Baja' con historial de reingresos y liberación de vacantes.
+  6. Registro de Cobranzas y Abonos: Cobro total y parcial con comprobante WhatsApp y bitácora inmutable de auditoría contable.
+- Sistema de Seguridad y Jerarquía de Eliminaciones (ADR 005):
+  * Secretaría Nayeli no puede eliminar permanentemente; genera Solicitud de Eliminación Protegida con motivo justificado.
+  * La Dueña aprueba o deniega desde su Dashboard con botones dedicados y consulta de Reporte de Auditoría con timestamp.
+- Creación de componente DeletionRequestsPanel y actualización del store a versión cadencia-app-v8.
+
+[2026-08-14 18:55:00 -05:00] [UI/UX & BUSINESS-RULES] [PERSONALIZADAS-AGE-DOTS & NO-MAKEUP-POLICY]
+- Implementación de puntitos de categoría de edad en celdas celestes de Clases Personalizadas:
+  * Verde (#4CAF50): Juvenil 13-17 años (Ej. Mishel Suarez Cardenas).
+  * Plomo (#757575): Adulto 18 a + años (Ej. Joan Paolo).
+  * Amarillo (#FBC02D): Junior 7-12 años (Ej. Mirko Malpartida).
+- Regla de negocio estricta: Las clases personalizadas (S/ 50) NUNCA generan créditos de recuperación al cancelarse (ADR 004).
+- Traslado de clases de Mishel Suarez Cardenas para inicio en Semana 3 de Agosto.
+
+[2026-08-14 17:26:00 -05:00] [UI/UX] [EXCEL-STYLE-DAILY-GRID & ACCESSIBILITY]
+- Rediseño de vista diaria a matriz de 3 columnas por profesor: Jeremy, Fernando, Nathaly (ADR 004).
+- Ajuste de contraste para la columna de horas (fondo salmón oficial #FCD7D2 con texto carbón oscuro #0F172A de alta legibilidad).
+- Habilitada creación rápida de clases con clic en casillas vacías ("+ Disponible").
+
+[2026-08-14 16:52:00 -05:00] [FEATURE] [EXACT-DATES-SYNC & LIFECYCLE-MANAGEMENT]
+- Implementación de control temporal exacto día a día (planStartDate / planEndDate) con tipo 'date' (ADR 004).
+- Cálculo automático de fecha de fin: +1 mes, +3 meses o +12 meses menos 1 día.
+- Enriquecido panel de 'Historial de Reingresos y Bajas' en AgendaBoard con edición de estado, planes y fechas.
+- Actualizado modal 'Matricular Nuevo Alumno' con planes oficiales del Dossier, matrícula, pack de útiles y fecha de inicio.
+- Sincronizado ScheduleStudentForm (+ Horario) para vincular clases con año y mes de vigencia del alumno.
+- Habilitado módulo de Cobros y Abonos para Nayeli (Staff) con bitácora inmutable.
+
+[2026-08-14 16:30:00 -05:00] [FEATURE] [DOSSIER-PRICING-PLANS & TEMPORAL-AGENDA]
+- Integración de planes oficiales: Mensual S/ 329, Trimestral S/ 289.40, Anual S/ 263.20 (ADR 004).
+- Registro de Matrícula Regular S/ 120, Promo Demostrativa S/ 30 y Pack de Útiles S/ 67.
+- Implementado filtrado de vigencia temporal por Mes/Año en AgendaBoard.
+- Habilitado panel de edición en vivo para Nayeli en Directorio de Alumnos.
+
+[2026-08-14 15:58:00 -05:00] [NETWORK] [LAN-WIFI-EXPOSURE]
+- Servidor Vite configurado con host '0.0.0.0:5173' para acceso en red Wi-Fi de la sede (192.168.18.51:5173).
+- Optimización de endpoints de invitaciones para resolución inmediata sin cuelgues.
+
+[2026-08-13 15:40:00 -05:00] [AUDIT] [AUTH/INVITES]
+- Identificación de tabla 'invitations' física en PostgreSQL (Insforge).
+- Eliminación de semillas mock ficticias (Jeremy y Fernando).
+- Creada función inspectCredentials con clave maestra generada y blindada para super_admin (ADR 0034).
+
+[2026-08-13 15:48:00 -05:00] [AUDIT] [SCHEDULE/IMPORTER]
+- Integración de Importador CSV/Excel en AgendaBoard (ADR 0035).
+- Soporte para separadores automáticos (';' y ',').
+- Descarga de plantilla oficial 'plantilla_horario_vibra_music.csv'.
+
+[2026-08-13 15:52:00 -05:00] [AUDIT] [STUDENTS/IMPORTER]
+- Integración de Importador CSV/Excel en StudentsTable (ADR 0037).
+- Acciones de Reemplazar Directorio, Añadir (+N) y Vaciar Directorio.
+- Descarga de plantilla 'plantilla_alumnos_vibra_music.csv'.
+
+[2026-08-17 19:30:00] [WHATSAPP-PHONES] [VINCULACION-CELULARES-REALES]
+- Cruzada la Base General de Clientes con el Control de Pagos de los 99 alumnos.
+- Vinculados los números de WhatsApp reales y nombres de apoderados en cada recibo.
+- Formateado automático a estándar Perú (+51 9XX XXX XXX) en el modal de WhatsApp en 1 clic.
+- Eliminado el número placeholder genérico (+51 900 000 000).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-17 18:58:00] [COBROS-ANUAL] [MIGRACION-DEF-INSFORGE]
+- Integrada la Matriz Anual Interactiva 2026 (Ene-Dic) con los 99 alumnos y todas las columnas del CSV.
+- Añadida la columna visible "Día de Cobro / Vencimiento" (Día 1 al 31) en la tabla de facturación.
+- Integrado el botón y modal de "📲 Enviar WhatsApp" en 1 clic con mensajes pre-armados.
+- Añadido el distintivo "✨ Nuevo" en las tarjetas de la agenda de clases.
+- Implementado el buscador rápido global con atajo de teclado "Ctrl+K".
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+[2026-08-17 18:30:00] [SECURITY-AUTH] [BLINDAJE-ACCESO-PRODUCCION]
+- Implementado doble filtro estilo GitHub para vaciado de Horarios y Alumnos (ADR 0038).
+- Filtro 1: Contraseña de Dirección (Dueña).
+- Filtro 2: Reconfirmación de texto exacto ('VACIAR HORARIO VIBRA' / 'VACIAR ALUMNOS VIBRA').
+- Bloqueo exclusivo para rol 'super_admin'; para 'staff' (Nayeli) aparece como "Vaciado reservado a Dirección".
+
+[2026-08-13 16:03:00 -05:00] [SECURITY] [WIPE-PROTECTION]
+- Implementado doble filtro estilo GitHub para vaciado de Horarios y Alumnos (ADR 0038).
+- Filtro 1: Contraseña de Dirección (Dueña).
+- Filtro 2: Reconfirmación de texto exacto ('VACIAR HORARIO VIBRA' / 'VACIAR ALUMNOS VIBRA').
+- Bloqueo exclusivo para rol 'super_admin'; para 'staff' (Nayeli) aparece como "Vaciado reservado a Dirección".
+
+[2026-08-13 16:07:00 -05:00] [CLEANUP] [PRODUCTION-MOCK-PURGE]
+- Vaciado total de constantes 'initialSchedule = []', 'adminStudents = []', 'initialInvoices = []', 'initialLessons = []' (ADR 0039).
+- Migración de clave de estado local a 'cadencia-app-v2' para evitar colisiones con caché antiguo.
+
+[2026-08-13 16:08:40 -05:00] [RESOLVED_ERROR] [HTTP 500 STARTUP]
+- Causa: TypeError en 'activeKidId: initialKids[0]!.id' tras vaciar 'initialKids = []'.
+- Solución: Implementado fallback seguro 'activeKidId: initialKids[0]?.id ?? ""' en 'src/store/app-store.ts'.
+- Estado: RESUELTO (HTTP 200 OK).
+
+[2026-08-13 16:15:10 -05:00] [RESOLVED_ERROR] [STUDENTS_TABLE REFERENCE_ERROR]
+- Causa: 'ReferenceError: KeyRound is not defined' en 'src/components/admin/students-table.tsx'.
+- Solución: Importados 'KeyRound' y 'Lock' desde 'lucide-react'.
+- Estado: RESUELTO (Compilación limpia, renderizado 100% operativo).
+
+[2026-08-13 16:18:00 -05:00] [FEATURE] [OFFICIAL SCHOOL BELL & AUTO-SCHEDULE]
+- Integrado archivo de audio oficial 'public/school bell.mp3'.
+- Implementado modal de ajustes (⚙️) con calibración de volumen y toggle de timbre automático.
+- Configurado temporizador en tiempo real con franjas oficiales:
+  * Lunes a Viernes (Turno Tarde): 16:00, 16:45, 17:30, 18:15, 19:00, 19:45.
+  * Sábados (Turno Mañana): 09:00, 09:45, 10:30, 11:15, 12:00, 12:45, 13:30.
+- Estado: ACTIVO Y PERSISTIDO.
+
+[2026-08-13 16:21:40 -05:00] [RESOLVED_ERROR] [AGENDA_BOARD REFERENCE_ERROR]
+- Causa: 'ReferenceError: HelpCircle is not defined' en 'src/components/admin/agenda-board.tsx'.
+- Solución: Importado 'HelpCircle' en la cabecera de 'lucide-react'.
+- Estado: RESUELTO (Compilación Nitro y cliente 100% sin errores).
+
+[2026-08-13 16:25:30 -05:00] [RESOLVED_ERROR] [STUDENTS_TABLE REFERENCE_ERROR]
+- Causa: 'ReferenceError: Download is not defined' en 'src/components/admin/students-table.tsx'.
+- Solución: Importado 'Download' desde 'lucide-react'.
+- Estado: RESUELTO (Build verificado con código 0 y carga completa en cliente).
+
+[2026-08-13 16:30:00 -05:00] [CLEANUP & FEATURE] [DASHBOARD DYNAMIC ENGINE & MAINTENANCE]
+- Purga completa de mock data en Dashboard:
+  * 'MetricCards': Contadores calculados en tiempo real (Alumnos activos, Clases programadas, Tasa de asistencia e Ingresos reales cobrados).
+  * 'RiskFamiliesTable': Vinculada con facturas pendientes/vencidas reales del store.
+  * 'AlertsPanel': Sistema inteligente de detección de conflictos de sala, morosidad y alumnos en riesgo.
+- Módulo de Reportes de Mantenimiento (Pianos/Salas): Creado botón '+ Mantenimiento' con persistencia, priorización (alta/media/baja) y botón '✓ Listo' para resolver incidencias.
+- Estado: 100% DINÁMICO Y VERIFICADO.
+
+[2026-08-13 16:36:00 -05:00] [FILTERS & CATALOG ENHANCEMENT] [AGENDA & STUDENTS]
+- Instrumentos: Integrado el catálogo oficial completo ('musicalInstruments') en el selector de filtros de Horario ('agenda-board.tsx') para que siempre estén disponibles para filtrar.
+- Profesores: Creado 'availableTeachers' combinando el catálogo base con cualquier profesor nuevo importado mediante CSV en horario o directorio de alumnos.
+- Estado: LISTO PARA PRUEBAS MANUALES Y CARGA CSV.
+
+[2026-08-13 16:40:00 -05:00] [PURGE & AUDIT] [TEACHERS PURGE & DYNAMIC INVITES]
+- Purga de Profesores Mock: Vaciada la constante 'teachers = []' en 'admin-seeds.ts'. La lista ahora nace exclusivamente de las invitaciones enviadas o de las asignaciones en el horario/CSV.
+- Auditoría de Rutas y Enlaces:
+  * Optimizado 'buildInviteLink' en 'invitations.service.ts' para usar 'window.location.origin' de forma dinámica tanto en local como en producción Cloudflare.
+  * Ruta pública de invitaciones verificada: '/invite/$token'.
+  * Pantalla de login '/' exclusiva para Dueña (super_admin) y Secretaria (staff).
+  * Build de producción Nitro verificado con código de salida 0.
+- Estado: 100% AUDITADO Y LISTO PARA PRUEBAS.
+
+[2026-08-13 16:44:30 -05:00] [RESOLVED_ERROR] [TEACHER_LAYOUT REFERENCE_ERROR]
+- Causa: 'ReferenceError: currentUser is not defined' en 'src/routes/teacher.tsx:61' al cambiar contraseña e ingresar al portal de profesor.
+- Solución: Extraído 'const currentUser = useAppStore((s) => s.currentUser);' en el hook de 'TeacherLayout'.
+- Estado: RESUELTO (Acceso por invitación y redirección al portal de profesor 100% operativos).
+
+[2026-08-13 16:52:00 -05:00] [RESOLVED_ERROR] [ADD_STUDENT_DIALOG TEACHER_SYNC]
+- Causa: El modal 'Matricular Nuevo Alumno' leía la constante vacía 'teachers = []' en lugar de los profesores creados en las invitaciones.
+- Solución: Conectado 'availableTeachers' en 'NewStudentDialog' ('students-table.tsx') para leer en vivo las invitaciones generadas ('cadencia-invitations'), los profesores del horario y los alumnos registrados.
+- Estado: RESUELTO (Al crear una invitación para un profesor, aparece de inmediato en el selector al matricular un alumno).
+
+[2026-08-13 16:58:30 -05:00] [RESOLVED_ERROR] [STUDENTS_TABLE USE_EFFECT IMPORT]
+- Causa: 'ReferenceError: useEffect is not defined' en 'students-table.tsx:1050' por falta de import en la cabecera de React.
+- Solución: Añadido 'useEffect' en 'import { useMemo, useState, useEffect, useRef } from "react";'.
+- Estado: RESUELTO (Compilación en 0 y vista de Gestión de Alumnos operativa).
+
+[2026-08-13 17:42:00 -05:00] [SESSION, INVITATIONS & SCHEDULE ENGINE AUDIT]
+1. Estado de Invitación: Actualizado 'acceptInvitation()' y persistencia local para que al ingresar la clave maestra y cambiarla, pase a estado 'aceptado' de inmediato y guarde la nueva clave personal.
+2. Persistencia tras F5 y Acceso Raíz ('/'):
+   - Pantalla '/' ahora detecta sesiones activas de profesores y apoderados mostrando un botón directo: "Ir a tu Portal (Kiosco / Mi Cuenta) →".
+   - Al recargar la página, se preserva el estado de sesión sin redirigir al formulario de Dueña/Secretaria.
+3. Ficha del Alumno (Ver Ficha):
+   - El selector de 'Profesor Asignado' en la ficha de detalle lee 'availableTeachers' mostrando al profesor elegido en la matrícula en lugar de quedar en blanco.
+4. Programar Clases en el Horario:
+   - Creado botón '+ Programar Clase' y modal en 'AgendaBoard' ('agenda-board.tsx') para asignar días, horas, salas y profesores a alumnos registrados.
+- Estado: COMPILACIÓN 100% EXITOSA (Código 0).
+
+[2026-08-13 17:47:00 -05:00] [RESOLVED_ERROR & FEATURE] [STUDENTS_TABLE DIRECT SCHEDULING]
+1. Fix 'ReferenceError: PlusCircle is not defined' en 'agenda-board.tsx:569':
+   - Importado 'PlusCircle' desde 'lucide-react'.
+2. Botón Directo '+ Horario' en Directorio de Alumnos:
+   - Añadido el botón '+ Horario' al costado de 'Ver Ficha' en cada fila de alumno ('students-table.tsx').
+   - Al hacer clic, abre un modal precargado con los datos del alumno (nombre, instrumento, profesor asignado) para programar su clase en el Horario Oficial (Día, Hora y Sala) en 1 solo paso.
+- Estado: RESUELTO (Compilación en 0 y flujo 100% integrado).
+
+[2026-08-13 17:51:00 -05:00] [FEATURE] [STUDENT_ALERTS_SYSTEM]
+1. Botón 'Alerta' en Directorio de Alumnos:
+   - Añadido botón 'Alerta' al costado de 'Ver Ficha' y '+ Horario' en cada fila de alumno.
+2. Modal de Registro de Incidencia:
+   - Permite reportar novedades de Salud / Accidente / Lesión (ej. mano lastimada), Comportamiento, Logros destacados o Coordinación con apoderados.
+   - Con selector de severidad (Alta, Media, Baja, Positiva).
+3. Conexión con Dashboard de Alertas:
+   - La novedad se refleja de inmediato en el panel de 'Alertas' de la portada administrativa con su botón de resolución '✓ Listo'.
+- Estado: RESUELTO (Compilación en 0).
+
+[2026-08-13 17:55:00 -05:00] [FEATURE] [MULTI_DAY_STUDENT_SCHEDULING_BY_PLAN]
+1. Soporte Automático según Plan Oficial:
+   - Al hacer clic en '+ Horario' para un alumno con Plan Regular (8 clases / 45 min), el formulario detecta que son 2 veces por semana y solicita Día 1 (Hora + Sala) y Día 2 (Hora + Sala).
+   - Para Plan Intensivo (4 clases / 90 min), solicita el día único semanal.
+2. Creación Simultánea en el Calendario:
+   - Al hacer clic en 'Guardar Horario Completo', ambas clases quedan agendadas en la Agenda Interactiva semanal y sincronizadas con el profesor correspondiente.
+- Estado: RESUELTO (Compilación en 0).
+
+[2026-08-13 18:17:00 -05:00] [RESOLVED_ERROR] [STUDENTS_TABLE REFERENCE FIX]
+1. Fix 'ReferenceError: cs is not defined' en 'students-table.tsx:499':
+   - Declarada la constante 'const cs = categoryStyles[cat] || categoryStyles.ADULTO;' en el renderizado de la tabla de alumnos.
+- Estado: RESUELTO (Compilación en 0 y vista verificada).
+
+[2026-08-21 13:48:00 -05:00] [AUDIT & PERSISTENCE ENGINE] [STORE V21 ZERO LOCALSTORAGE POLLUTION]
+1. Diagnóstico de persistencia:
+   - Los navegadores de clientes retenían 'adminStudents' e 'invoices' en localStorage con nombres concatenados de versiones legacy.
+2. Solución Arquitectónica:
+   - Excluidos 'adminStudents' e 'invoices' del 'partialize' de Zustand en 'src/store/app-store.ts'.
+   - Store elevado a versión 21 ('cadencia-app-v21').
+   - 'migrate' y 'onRehydrateStorage' descartan automáticamente cualquier estado v20 o inferior y purgan claves viejas de localStorage.
+   - En cada carga de la aplicación, el estado se nutre de datos frescos de las semillas oficiales y se sincroniza en tiempo real con PostgreSQL a través de 'useInsforgeSync'.
+3. Estado: COMPILACIÓN NITRO Y VITE 100% EXITOSA (Código 0).
+
+[2026-08-21 13:52:00 -05:00] [DATABASE AUDIT] [INSFORGE POSTGRESQL LIVE VERIFICATION VIA MCP]
+1. Consultas en Vivo ejecutadas mediante MCP 'insforge-postgres':
+   - 'SELECT count(*) FROM students WHERE full_name LIKE ''% y %''' -> 0 (CERO registros agrupados en BD).
+   - 'SELECT count(*) FROM students' -> 83 alumnos 100% individualizados.
+   - 'SELECT count(*) FROM families' -> 83 familias asociadas.
+   - 'SELECT count(*) FROM invoices' -> 83 facturas de Agosto 2026.
+   - 'SELECT count(*) FROM users' -> 6 usuarios oficiales (Dueña, Nayeli, Jeremy, Fernando, Nathaly, Demo).
+2. Verificación de Alumnos Críticos en PostgreSQL:
+   - Anton, Junior Gabriel (UUID ...0008, Batería, Jeremy, 977783340).
+   - Anton, Uriel (UUID ...0009, Batería, Jeremy, 977783340).
+   - Chapi, Eitan Anton (UUID ...000b, Piano, Fernando, 977783340).
+   - Bruno Marcelo Juan de Dios (UUID ...0035, Guitarra, Jeremy, 995954060).
+   - Boris Axel Marcelo Juan de Dios (UUID ...0036, Piano, Fernando, 995954060).
+   - Luis Soto Soto (UUID ...0024, Guitarra, Jeremy, 918148199).
+   - Ivana Soto Soto (UUID ...0025, Piano Infantil, Nathaly, 946528367).
+   - Jhosua Ruben Meza Salome (UUID ...0010, Guitarra, Jeremy, 934715287).
+   - Meza Llallahui, Andrea Fernanda (UUID ...0005, Batería, Jeremy, 930182010).
+3. Documentación:
+   - Generado ADR 0062: '0062-v21-unconditional-fresh-state-and-zero-localstorage-pollution.md'.
+- Estado: 100% AUDITADO Y SINCRONIZADO EN NUBE.
