@@ -1,7 +1,8 @@
 import { createFileRoute, Outlet, Link, useRouterState, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useAppStore } from "@/store/app-store";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
+import { toast } from "sonner";
 
 import {
   BarChart3,
@@ -83,6 +84,65 @@ function AdminLayout() {
   const activeRole = useAppStore((s) => s.activeRole);
   const adminStudents = useAppStore((s) => s.adminStudents);
   const invoices = useAppStore((s) => s.invoices);
+  const chimeSettings = useAppStore((s) => s.chimeSettings);
+  const playOfficialChime = useAppStore((s) => s.playOfficialChime);
+  const lastChimedMinuteRef = useRef<string>("");
+
+  // Desbloquear AudioContext en la primera interacción del usuario (Click/Tecla)
+  useEffect(() => {
+    const unlockAudio = () => {
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          if (ctx.state === "suspended") {
+            ctx.resume();
+          }
+        }
+      } catch {}
+    };
+    window.addEventListener("click", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    };
+  }, []);
+
+  // Monitoreo Global en Segundo Plano del Timbre Automático por Horarios de Vibra Music
+  useEffect(() => {
+    if (!chimeSettings?.autoPlayEnabled) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const currentHours = String(now.getHours()).padStart(2, "0");
+      const currentMinutes = String(now.getMinutes()).padStart(2, "0");
+      const currentTimeStr = `${currentHours}:${currentMinutes}`;
+      const dayOfWeek = now.getDay(); // 0: Dom, 1: Lun, ..., 6: Sáb
+
+      // Lunes a Viernes: 16:00, 16:45, 17:30, 18:15, 19:00, 19:45
+      const weekdayTimes = ["16:00", "16:45", "17:30", "18:15", "19:00", "19:45"];
+
+      // Sábados: 09:00, 09:45, 10:30, 11:15, 12:00, 12:45, 13:30
+      const saturdayTimes = ["09:00", "09:45", "10:30", "11:15", "12:00", "12:45", "13:30"];
+
+      const targetTimes = dayOfWeek === 6 ? saturdayTimes : (dayOfWeek >= 1 && dayOfWeek <= 5 ? weekdayTimes : []);
+
+      const currentMinuteKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()} ${currentTimeStr}`;
+
+      if (targetTimes.includes(currentTimeStr) && lastChimedMinuteRef.current !== currentMinuteKey) {
+        lastChimedMinuteRef.current = currentMinuteKey;
+        playOfficialChime();
+        toast.info("🔔 Timbre Automático de Escuela", {
+          description: `Cambio de bloque horario emitido (${currentTimeStr}).`,
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [chimeSettings, playOfficialChime]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

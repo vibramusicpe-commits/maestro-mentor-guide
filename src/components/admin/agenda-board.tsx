@@ -248,37 +248,6 @@ export function AgendaBoard() {
   const [isDeleteReqLessonOpen, setIsDeleteReqLessonOpen] = useState(false);
   const [deleteLessonReason, setDeleteLessonReason] = useState("");
 
-  // Monitoreo en segundo plano del Timbre Automático por Horarios de Vibra Music
-  useEffect(() => {
-    if (!chimeSettings?.autoPlayEnabled) return;
-
-    const interval = setInterval(() => {
-      const now = new Date();
-      const currentHours = String(now.getHours()).padStart(2, "0");
-      const currentMinutes = String(now.getMinutes()).padStart(2, "0");
-      const currentTimeStr = `${currentHours}:${currentMinutes}`;
-      const dayOfWeek = now.getDay(); // 0: Dom, 1: Lun, ..., 6: Sáb
-
-      // De Lunes a Viernes: Turno Tarde
-      // Horarios inicio/fin: 16:00, 16:45, 17:30, 18:15, 19:00, 19:45
-      const weekdayTimes = ["16:00", "16:45", "17:30", "18:15", "19:00", "19:45"];
-
-      // Sábados: Turno Mañana
-      // Horarios inicio/fin: 09:00, 09:45, 10:30, 11:15, 12:00, 12:45, 13:30
-      const saturdayTimes = ["09:00", "09:45", "10:30", "11:15", "12:00", "12:45", "13:30"];
-
-      const targetTimes = dayOfWeek === 6 ? saturdayTimes : (dayOfWeek >= 1 && dayOfWeek <= 5 ? weekdayTimes : []);
-
-      if (targetTimes.includes(currentTimeStr) && now.getSeconds() === 0) {
-        playOfficialChime();
-        toast.info("🔔 Timbre Automático", {
-          description: `Cambio de bloque horario (${currentTimeStr}) emitido.`,
-        });
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [chimeSettings, playOfficialChime]);
 
   const monthsName = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",

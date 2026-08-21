@@ -1130,22 +1130,22 @@ export const useAppStore = create<AppState>()(
       version: 21,
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
-        // v21: SIEMPRE forzar datos frescos del código al rehidratar.
-        // Los datos de alumnos/invoices deben venir del seed oficial o del backend (Insforge),
-        // NUNCA de localStorage persistido que puede tener datos combinados/agrupados legacy.
+        // Al rehidratar desde localStorage, NUNCA sobreescribir los cambios locales
+        // si el usuario ya tiene datos persistidos en su navegador.
         if (state) {
-          state.adminStudents = adminStudents;
-          state.invoices = initialInvoices;
-          state.schedule = initialSchedule;
+          if (!state.adminStudents || state.adminStudents.length === 0) {
+            state.adminStudents = adminStudents;
+          }
+          if (!state.invoices || state.invoices.length === 0) {
+            state.invoices = initialInvoices;
+          }
+          if (!state.schedule || state.schedule.length === 0) {
+            state.schedule = initialSchedule;
+          }
         }
       },
       migrate: (persistedState: any, version: number) => {
-        // v21: Cualquier versión anterior → forzar seed oficial limpio.
-        // Esto elimina de raíz TODOS los nombres combinados legacy
-        // ("y Boris", "Ivanna + Luis", "Uriel, Gabriel y Eitan", etc.)
-        // sin necesidad de detectar patrones uno por uno.
-
-        // Limpiar claves de versiones anteriores de localStorage
+        // Limpiar claves antiguas de versiones anteriores (v1 a v20)
         try {
           if (typeof window !== "undefined" && window.localStorage) {
             for (let i = 1; i <= 20; i++) {
@@ -1154,24 +1154,29 @@ export const useAppStore = create<AppState>()(
           }
         } catch {}
 
-        return {
-          ...persistedState,
-          adminStudents: adminStudents,
-          invoices: initialInvoices,
-          schedule: initialSchedule,
-        };
+        if (version < 21 || !persistedState?.adminStudents?.length) {
+          return {
+            ...persistedState,
+            adminStudents: adminStudents,
+            invoices: initialInvoices,
+            schedule: initialSchedule,
+          };
+        }
+
+        return persistedState;
       },
       partialize: (s) =>
         ({
           activeRole: s.activeRole,
           isAuthenticated: s.isAuthenticated,
           currentUser: s.currentUser,
+          adminStudents: s.adminStudents,
+          invoices: s.invoices,
           schedule: s.schedule,
           lessons: s.lessons,
           chimeSettings: s.chimeSettings,
           studentAlerts: s.studentAlerts,
-          // NOTA: adminStudents e invoices NO se persisten en localStorage.
-          // Siempre se cargan frescos desde el código seed + backend Insforge.
+          deletionRequests: s.deletionRequests,
         }) as unknown as AppState,
     },
   ),
