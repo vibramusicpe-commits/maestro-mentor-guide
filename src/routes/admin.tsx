@@ -83,6 +83,20 @@ function AdminLayout() {
   const activeRole = useAppStore((s) => s.activeRole);
   const adminStudents = useAppStore((s) => s.adminStudents);
   const invoices = useAppStore((s) => s.invoices);
+  const resetToOfficialStudents = useAppStore((s) => s.resetToOfficialStudents);
+
+  useEffect(() => {
+    const hasLegacyGrouped = adminStudents.some(
+      (s) =>
+        s.name.includes(" y Boris") ||
+        s.name.includes("Gabriel y Eitan") ||
+        s.name.includes("Bruno Marcelo Juan de Dios y") ||
+        s.family.includes("Bruno Marcelo Juan de Dios y")
+    );
+    if (hasLegacyGrouped) {
+      resetToOfficialStudents();
+    }
+  }, [adminStudents, resetToOfficialStudents]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

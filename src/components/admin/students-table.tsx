@@ -136,6 +136,7 @@ export function StudentsTable() {
   const consumeStudentCredit = useAppStore((s) => s.consumeStudentCredit);
   const importStudentsFromCSV = useAppStore((s) => s.importStudentsFromCSV);
   const clearStudents = useAppStore((s) => s.clearStudents);
+  const resetToOfficialStudents = useAppStore((s) => s.resetToOfficialStudents);
   const deleteStudent = useAppStore((s) => s.deleteStudent);
   const deleteStudents = useAppStore((s) => s.deleteStudents);
   const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
@@ -191,6 +192,20 @@ export function StudentsTable() {
 
   // Estado para Edición Completa de Datos del Alumno (Solicitado por Secretaría Nayeli)
   const [editingStudent, setEditingStudent] = useState<AdminStudent | null>(null);
+
+  // Auto-sanitización reactiva: si hay registros agrupados heredados del cache antiguo, purgar de inmediato
+  useEffect(() => {
+    const hasLegacyGrouped = students.some(
+      (s) =>
+        s.name.includes(" y Boris") ||
+        s.name.includes("Gabriel y Eitan") ||
+        s.name.includes("Bruno Marcelo Juan de Dios y") ||
+        s.family.includes("Bruno Marcelo Juan de Dios y")
+    );
+    if (hasLegacyGrouped) {
+      resetToOfficialStudents();
+    }
+  }, [students, resetToOfficialStudents]);
 
   // Handler de WhatsApp Business con plantillas oficiales
   const handleOpenWhatsApp = (st: AdminStudent, templateType: "bienvenida" | "recordatorio" | "coordinacion" = "coordinacion") => {
@@ -493,6 +508,19 @@ export function StudentsTable() {
             Eliminar Seleccionados ({selectedStudentIds.length})
           </Button>
         )}
+
+        <Button
+          variant="outline"
+          onClick={() => {
+            resetToOfficialStudents();
+            toast.success("¡Base oficial de 83 alumnos individualizados restaurada con éxito!");
+          }}
+          className="gap-1.5 font-bold border-blue-500/40 text-blue-600 bg-blue-500/10 hover:bg-blue-500/20"
+          title="Recargar los 83 alumnos separados directamente desde el archivo oficial"
+        >
+          <RotateCcw className="h-4 w-4 text-blue-600" />
+          🔄 Recargar Base Oficial (83 Separados)
+        </Button>
 
         <Button
           variant="outline"

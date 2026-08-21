@@ -138,6 +138,7 @@ type AppState = {
   clearSchedule: () => void;
   importStudentsFromCSV: (newStudents: AdminStudent[]) => void;
   clearStudents: () => void;
+  resetToOfficialStudents: () => void;
   addNewStudent: (newSt: Omit<AdminStudent, "id" | "risk" | "joinedAt" | "attendanceRate" | "makeupCredits" | "balance" | "recentAttendance" | "teacherNote">) => void;
   deleteStudent: (id: string) => void;
   deleteStudents: (ids: string[]) => void;
@@ -503,6 +504,21 @@ export const useAppStore = create<AppState>()(
           adminStudents: [],
           syncQueue: [...s.syncQueue, queueItem("Directorio de alumnos limpiado por completo")],
         })),
+      resetToOfficialStudents: () => {
+        try {
+          if (typeof window !== "undefined" && window.localStorage) {
+            for (let i = 1; i <= 30; i++) {
+              window.localStorage.removeItem(`cadencia-app-v${i}`);
+            }
+          }
+        } catch {}
+        set((s) => ({
+          adminStudents: adminStudents,
+          invoices: initialInvoices,
+          schedule: initialSchedule,
+          syncQueue: [...s.syncQueue, queueItem("Base oficial de 83 alumnos individualizados restaurada con éxito")],
+        }));
+      },
       deleteStudent: (id) =>
         set((s) => {
           const studentToDelete = s.adminStudents.find((st) => st.id === id);
@@ -1110,11 +1126,36 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v19",
-      version: 19,
+      name: "cadencia-app-v20",
+      version: 20,
       storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const hasLegacyGrouped = state.adminStudents?.some(
+            (s) =>
+              s.name?.includes(" y Boris") ||
+              s.name?.includes("Gabriel y Eitan") ||
+              s.name?.includes("Bruno Marcelo Juan de Dios y") ||
+              s.family?.includes("Bruno Marcelo Juan de Dios y")
+          );
+          if (hasLegacyGrouped) {
+            state.adminStudents = adminStudents;
+            state.invoices = initialInvoices;
+            state.schedule = initialSchedule;
+          }
+        }
+      },
       migrate: (persistedState: any, version: number) => {
-        if (version < 19 || !persistedState?.adminStudents?.length || !persistedState?.schedule?.length) {
+        const hasLegacyGrouped = Array.isArray(persistedState?.adminStudents) &&
+          persistedState.adminStudents.some(
+            (s: any) =>
+              s.name?.includes(" y Boris") ||
+              s.name?.includes("Gabriel y Eitan") ||
+              s.name?.includes("Bruno Marcelo Juan de Dios y") ||
+              s.family?.includes("Bruno Marcelo Juan de Dios y")
+          );
+
+        if (version < 20 || hasLegacyGrouped || !persistedState?.adminStudents?.length || !persistedState?.schedule?.length) {
           return {
             ...persistedState,
             adminStudents: adminStudents,
