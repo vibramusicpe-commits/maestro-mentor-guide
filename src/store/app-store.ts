@@ -271,6 +271,31 @@ function queueItem(label: string): SyncItem {
   return { id, label };
 }
 
+// Sincronizador en segundo plano con Insforge PostgreSQL
+function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Partial<AdminStudent>) {
+  try {
+    if (typeof window === "undefined") return;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId);
+    if (!isUUID) return;
+
+    import("@/lib/services/students.service").then(({ updateStudent }) => {
+      const payload: Record<string, unknown> = {};
+      if (updates.name) payload.full_name = updates.name;
+      if (updates.instrument) payload.instrument = updates.instrument;
+      if (updates.level) payload.level = updates.level;
+      if (updates.status) payload.status = updates.status;
+      if (updates.modality) payload.modality = updates.modality;
+      if (updates.teacherNote !== undefined) payload.notes = updates.teacherNote;
+      if (updates.birthdate) payload.birthdate = updates.birthdate;
+      if (updates.attendanceRate !== undefined) payload.attendance_rate = updates.attendanceRate;
+
+      updateStudent(role, studentId, payload)
+        .then(() => console.log(`[Insforge Sync] Alumno ${studentId} sincronizado en PostgreSQL`))
+        .catch((err) => console.warn(`[Insforge Sync] Error sincronizando alumno ${studentId}:`, err));
+    }).catch(() => {});
+  } catch {}
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -548,6 +573,7 @@ export const useAppStore = create<AppState>()(
         }),
       updateStudentDetails: (id, updates) =>
         set((s) => {
+          backgroundSyncStudentToDB(s.activeRole, id, updates);
           const targetStudent = s.adminStudents.find((st) => st.id === id);
           const updatedStudents = s.adminStudents.map((st) => (st.id === id ? { ...st, ...updates } : st));
           let updatedSchedule = s.schedule;
@@ -595,20 +621,26 @@ export const useAppStore = create<AppState>()(
           syncQueue: [...s.syncQueue, queueItem(`Categoría de clase actualizada · ${category}`)],
         })),
       setStudentStatus: (id, status) =>
-        set((s) => ({
-          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, status } : st)),
-          syncQueue: [...s.syncQueue, queueItem(`Estado actualizado · ${status}`)],
-        })),
+        set((s) => {
+          backgroundSyncStudentToDB(s.activeRole, id, { status });
+          return {
+            adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, status } : st)),
+            syncQueue: [...s.syncQueue, queueItem(`Estado actualizado · ${status}`)],
+          };
+        }),
       assignTeacher: (id, teacher) =>
         set((s) => ({
           adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, teacher } : st)),
           syncQueue: [...s.syncQueue, queueItem(`Profesor asignado · ${teacher}`)],
         })),
       setStudentModality: (id, modality) =>
-        set((s) => ({
-          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, modality } : st)),
-          syncQueue: [...s.syncQueue, queueItem(`Modalidad actualizada · ${modality}`)],
-        })),
+        set((s) => {
+          backgroundSyncStudentToDB(s.activeRole, id, { modality });
+          return {
+            adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, modality } : st)),
+            syncQueue: [...s.syncQueue, queueItem(`Modalidad actualizada · ${modality}`)],
+          };
+        }),
       addStudentCredit: (id) =>
         set((s) => ({
           adminStudents: s.adminStudents.map((st) =>

@@ -43,7 +43,7 @@ export const INSFORGE_CONFIG = {
   anonKey:
     import.meta.env.VITE_INSFORGE_ANON_KEY ||
     "anon_897abc3685c27a2e113b8022caaf12a8dc8233b25aa9ce5397c83ffa88362804",
-  isConfigured: Boolean(import.meta.env.VITE_INSFORGE_URL),
+  isConfigured: true,
 };
 
 // ---------------------------------------------------------------
