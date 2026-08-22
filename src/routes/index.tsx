@@ -24,28 +24,51 @@ export const Route = createFileRoute("/")({
 // Profesores y Familias acceden por su link de invitación.
 // ────────────────────────────────────────────────────────────
 
-type AdminRole = "super_admin" | "staff";
+type AdminProfileKey = "duena" | "sergio" | "staff";
 
-const adminRoles: {
-  role: AdminRole;
+const adminProfiles: {
+  key: AdminProfileKey;
+  role: Role;
   icon: typeof ShieldCheck;
   label: string;
   tag: string;
   accent: string;
+  email: string;
+  name: string;
+  passwords: string[];
 }[] = [
   {
+    key: "duena",
     role: "super_admin",
     icon: ShieldCheck,
     label: "Dueña (Super Admin)",
     tag: "Acceso Total",
     accent: "text-info",
+    email: "direccion@vibramusic.pe",
+    name: "Rocío (Dueña)",
+    passwords: ["VibraDuena2026!", "Duena2026!"],
   },
   {
+    key: "sergio",
+    role: "super_admin",
+    icon: ShieldCheck,
+    label: "Sergio (Super Admin)",
+    tag: "Dirección Ejecutiva",
+    accent: "text-amber-500",
+    email: "sergio@vibramusic.pe",
+    name: "Sergio (Dirección)",
+    passwords: ["VibraSergio2026!", "SergioVibra2026!", "VibraDuena2026!"],
+  },
+  {
+    key: "staff",
     role: "staff",
     icon: UserCheck,
     label: "Secretaria (Staff)",
     tag: "Gestión Operativa",
     accent: "text-primary",
+    email: "nayeli@vibramusic.pe",
+    name: "Nayeli (Secretaria)",
+    passwords: ["NayeliVibra2026*"],
   },
 ];
 
@@ -53,7 +76,7 @@ function AdminLoginPage() {
   const navigate = useNavigate();
   const { login, isAuthenticated, activeRole, logout, currentUser } = useAppStore();
 
-  const [selectedRole, setSelectedRole] = useState<AdminRole | null>(null);
+  const [selectedKey, setSelectedKey] = useState<AdminProfileKey | null>(null);
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -70,6 +93,8 @@ function AdminLoginPage() {
       ? "Profesor/a"
       : isFamily
       ? "Familia / Alumno"
+      : currentUser.email?.includes("sergio")
+      ? "Sergio (Dirección)"
       : activeRole === "super_admin"
       ? "Dueña (Dirección)"
       : "Secretaria (Staff)";
@@ -112,32 +137,20 @@ function AdminLoginPage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedRole) return;
+    if (!selectedKey) return;
     setErrorMsg("");
     setSubmitting(true);
 
     try {
-      // Credenciales oficiales de seguridad para acceso de dirección
-      const validCredentials: Record<AdminRole, { pw: string; email: string; name: string }> = {
-        super_admin: {
-          pw: "VibraDuena2026!",
-          email: "direccion@vibramusic.pe",
-          name: "Dirección (Dueña)",
-        },
-        staff: {
-          pw: "NayeliVibra2026*",
-          email: "nayeli@vibramusic.pe",
-          name: "Nayeli (Secretaria)",
-        },
-      };
+      const profile = adminProfiles.find((p) => p.key === selectedKey);
+      if (!profile) return;
 
-      const expected = validCredentials[selectedRole];
-      if (password !== expected.pw) {
+      if (!profile.passwords.includes(password.trim())) {
         setErrorMsg("Contraseña incorrecta para este perfil. Verifica tus credenciales.");
         return;
       }
 
-      login(expected.email, selectedRole);
+      login(profile.email, profile.role, profile.name);
       navigate({ to: "/admin" });
     } catch {
       setErrorMsg("Error al iniciar sesión. Intenta nuevamente.");
@@ -148,7 +161,7 @@ function AdminLoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-md">
         {/* Header */}
         <div className="mb-6 flex flex-col items-center gap-2">
           <img
@@ -166,21 +179,21 @@ function AdminLoginPage() {
             Selecciona tu perfil e ingresa tu contraseña.
           </p>
 
-          {/* Selector de rol */}
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {adminRoles.map((r) => (
+          {/* Selector de perfil */}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {adminProfiles.map((r) => (
               <button
-                key={r.role}
+                key={r.key}
                 type="button"
-                onClick={() => { setSelectedRole(r.role); setErrorMsg(""); }}
-                className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all ${
-                  selectedRole === r.role
+                onClick={() => { setSelectedKey(r.key); setErrorMsg(""); }}
+                className={`flex flex-col items-start gap-1 rounded-xl border p-2.5 text-left transition-all ${
+                  selectedKey === r.key
                     ? "border-primary bg-primary/5 ring-2 ring-primary/30"
                     : "border-border bg-background hover:border-primary/40"
                 }`}
               >
-                <r.icon className={`h-5 w-5 ${r.accent}`} />
-                <span className="text-[11px] font-semibold leading-tight text-foreground">
+                <r.icon className={`h-4 w-4 ${r.accent}`} />
+                <span className="text-[11px] font-bold leading-tight text-foreground">
                   {r.label}
                 </span>
                 <span className="text-[10px] text-muted-foreground">{r.tag}</span>
@@ -189,7 +202,7 @@ function AdminLoginPage() {
           </div>
 
           {/* Campo de contraseña */}
-          {selectedRole && (
+          {selectedKey && (
             <form onSubmit={handleLogin} className="mt-4 space-y-3">
               <div>
                 <label htmlFor="admin-password" className="block text-xs font-semibold text-foreground mb-1.5">
