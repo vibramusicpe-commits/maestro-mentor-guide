@@ -649,4 +649,12 @@ Directorio de Logs: docs/logs/system_audit.log
 2. Corrección: En 'agenda-board.tsx', se acotó estrictamente la vigencia entre 'startMonth' (2026-08 o fecha de inicio) y 'endMonth' (duración del plan o fin del Ciclo Lectivo 2026). Al navegar al año 2030 o períodos no contratados, la agenda se muestra completamente limpia y sin clases obsoletas.
 - Estado: RESUELTO Y AUDITADO EN PRODUCCIÓN (Commit 189e99d).
 
+[2026-08-22 13:42:00 -05:00] [USER_ACCOUNTS] [SERGIO SUPER_ADMIN ACCOUNT ACTIVATION]
+1. Alta de perfil administrativo: Se habilitó la cuenta y perfil de 'Sergio (Dirección)' con rol 'super_admin' (mismo nivel de permisos que Rocío / Dueña).
+2. Email oficial: 'sergio@vibramusic.pe'.
+3. Permisos otorgados: Acceso total al panel de control, aprobación y rechazo de solicitudes de eliminación, gestión de profesores, control financiero y auditoría general.
+4. 'role-switcher.tsx', 'app-store.ts' y 'auth.service.ts' actualizados para soporte de sesión individual.
+- Estado: ACTIVADO Y DESPLEGADO EN PRODUCCIÓN (Commit 5a6a88b).
+
+
 
