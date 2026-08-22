@@ -2187,6 +2187,7 @@ function NewStudentDialog() {
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [planType, setPlanType] = useState<"Mensual" | "Trimestral" | "Anual">("Mensual");
   const [matriculaType, setMatriculaType] = useState<"Promo Demo (S/ 30)" | "Regular (S/ 120)" | "Exonerada">("Promo Demo (S/ 30)");
+  const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(true);
   // Fecha actual formateada YYYY-MM-DD
   const todayStr = useMemo(() => {
     const d = new Date();
