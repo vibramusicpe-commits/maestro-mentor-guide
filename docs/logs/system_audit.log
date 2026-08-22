@@ -653,8 +653,10 @@ Directorio de Logs: docs/logs/system_audit.log
 1. Alta de perfil administrativo: Se habilitó la cuenta y perfil de 'Sergio (Dirección)' con rol 'super_admin' (mismo nivel de permisos que Rocío / Dueña).
 2. Email oficial: 'sergio@vibramusic.pe'.
 3. Permisos otorgados: Acceso total al panel de control, aprobación y rechazo de solicitudes de eliminación, gestión de profesores, control financiero y auditoría general.
-4. 'role-switcher.tsx', 'app-store.ts' y 'auth.service.ts' actualizados para soporte de sesión individual.
-- Estado: ACTIVADO Y DESPLEGADO EN PRODUCCIÓN (Commit 5a6a88b).
+4. 'role-switcher.tsx', 'app-store.ts' y 'auth.service.ts' actualizados para soporte de sesión individual con UUID '00000000-0000-0000-0000-000000000007'.
+5. Panel de Inicio / Login ('src/routes/index.tsx'): Se integró la tarjeta de acceso directo para 'Sergio (Super Admin)' junto a 'Dueña' y 'Secretaria' con soporte multiclave ('VibraSergio2026!').
+- Estado: ACTIVADO Y DESPLEGADO EN PRODUCCIÓN (Commit 2074d36).
+
 
 
 
