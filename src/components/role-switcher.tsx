@@ -2,16 +2,17 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Building2, Guitar, ShieldCheck, UserCheck, Users } from "lucide-react";
 import { useAppStore, type Role } from "@/store/app-store";
 
-const roles: { to: "/admin" | "/teacher" | "/family"; label: string; role: Role; icon: typeof Building2 }[] = [
-  { to: "/admin", label: "Super Admin (Dueña)", role: "super_admin", icon: ShieldCheck },
-  { to: "/admin", label: "Staff (Secretaria)", role: "staff", icon: UserCheck },
-  { to: "/teacher", label: "Profesor", role: "teacher", icon: Guitar },
-  { to: "/family", label: "Familia", role: "family", icon: Users },
+const roles: { to: "/admin" | "/teacher" | "/family"; label: string; role: Role; email: string; name: string; icon: typeof Building2 }[] = [
+  { to: "/admin", label: "Dueña (Super Admin)", role: "super_admin", email: "duena@vibramusic.pe", name: "Rocío (Dueña)", icon: ShieldCheck },
+  { to: "/admin", label: "Sergio (Super Admin)", role: "super_admin", email: "sergio@vibramusic.pe", name: "Sergio (Dirección)", icon: ShieldCheck },
+  { to: "/admin", label: "Nayeli (Secretaría)", role: "staff", email: "nayeli@vibramusic.pe", name: "Nayeli (Secretaría)", icon: UserCheck },
+  { to: "/teacher", label: "Profesor", role: "teacher", email: "jeremy@vibramusic.pe", name: "Prof. Jeremy", icon: Guitar },
+  { to: "/family", label: "Familia", role: "family", email: "familia@vibramusic.pe", name: "Familia García", icon: Users },
 ];
 
 export function RoleSwitcher({ className = "" }: { className?: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { activeRole, login, logout } = useAppStore();
+  const { activeRole, currentUser, login, logout } = useAppStore();
 
   return (
     <div
@@ -19,16 +20,17 @@ export function RoleSwitcher({ className = "" }: { className?: string }) {
     >
       {roles.map((r) => {
         const isCurrentPath = pathname.startsWith(r.to);
+        const isSuperAdmin = r.role === "super_admin" && (activeRole === "super_admin" || (activeRole as any) === "admin");
         const active =
           r.to === "/admin"
-            ? isCurrentPath && (activeRole === r.role || (r.role === "super_admin" && activeRole === "admin"))
+            ? isCurrentPath && (currentUser?.email ? currentUser.email === r.email : isSuperAdmin)
             : isCurrentPath && activeRole === r.role;
 
         return (
           <Link
-            key={r.role}
+            key={r.email}
             to={r.to}
-            onClick={() => login(`${r.role}@vibramusic.pe`, r.role)}
+            onClick={() => login(r.email, r.role, r.name)}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
               active
                 ? "bg-primary text-primary-foreground"

@@ -101,7 +101,9 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     matriculaType: "Promo Demo (S/ 30)",
     packUtilesPaid: true,
     planStartDate: "2026-08-01",
-    planEndDate: "2026-08-31",
+    planEndDate: "2026-12-31",
+    planStartMonth: "2026-08",
+    planEndMonth: "2026-12",
   };
 }
 

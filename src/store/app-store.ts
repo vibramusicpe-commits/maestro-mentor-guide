@@ -353,13 +353,15 @@ export const useAppStore = create<AppState>()(
             email,
             name:
               customName ||
-              (role === "super_admin"
-                ? "Dirección (Dueña)"
+              (email.toLowerCase().includes("sergio")
+                ? "Sergio (Dirección)"
+                : role === "super_admin"
+                ? "Rocío (Dueña)"
                 : role === "staff"
-                  ? "Nayeli"
-                  : role === "teacher"
-                    ? "Prof. Jeremy"
-                    : "Familia García"),
+                ? "Nayeli (Secretaría)"
+                : role === "teacher"
+                ? "Prof. Jeremy"
+                : "Familia García"),
           },
         }),
       logout: () => set({ isAuthenticated: false, currentUser: null }),

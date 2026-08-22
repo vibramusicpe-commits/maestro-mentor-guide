@@ -52,8 +52,10 @@ export async function loginWithCredentials(
     id: `usr-${Math.random().toString(36).slice(2, 9)}`,
     email,
     full_name:
-      role === "super_admin"
-        ? "Dirección General (Dueña)"
+      email.toLowerCase().includes("sergio")
+        ? "Sergio (Dirección)"
+        : role === "super_admin"
+        ? "Rocío (Dueña)"
         : role === "staff"
         ? "Nayeli (Secretaría)"
         : role === "teacher"
