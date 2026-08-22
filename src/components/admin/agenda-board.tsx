@@ -280,25 +280,36 @@ export function AgendaBoard() {
     () =>
       schedule.filter(
         (l) => {
-          // 1. Buscar si el alumno tiene un rango de vigencia específico en su ficha
+          // 1. Filtrado por período de vigencia de contrato / ciclo lectivo
           const studentProfile = adminStudents.find(
             (st) => st.name.toLowerCase() === l.student.toLowerCase(),
           );
 
-          if (studentProfile?.planStartMonth && studentProfile?.planEndMonth) {
-            const isWithinPlan =
-              selectedYearMonthStr >= studentProfile.planStartMonth &&
-              selectedYearMonthStr <= studentProfile.planEndMonth;
-
-            if (!isWithinPlan) return false;
-          } else if (l.isMakeup) {
+          if (l.isMakeup) {
             // Clases de recuperación son puntuales para su mes/año específico
             const lYear = l.year ?? 2026;
             const lMonth = l.month ?? selectedMonth;
             if (lYear !== selectedYear || lMonth !== selectedMonth) return false;
           } else {
-            // Clases regulares de alumnos activos: se muestran continuamente en todos los meses activos
+            // Si el alumno está dado de baja, no mostrar
             if (studentProfile && studentProfile.status === "baja") return false;
+
+            const startMonth =
+              studentProfile?.planStartMonth ||
+              (studentProfile?.planStartDate ? studentProfile.planStartDate.slice(0, 7) : "2026-08");
+
+            const endMonth =
+              studentProfile?.planEndMonth ||
+              (studentProfile?.planEndDate
+                ? studentProfile.planEndDate.slice(0, 7)
+                : studentProfile?.planType === "Anual"
+                ? "2027-07"
+                : studentProfile?.planType === "Trimestral"
+                ? "2026-10"
+                : "2026-12");
+
+            const isWithinPlan = selectedYearMonthStr >= startMonth && selectedYearMonthStr <= endMonth;
+            if (!isWithinPlan) return false;
           }
 
           // 2. Filtro de semana específica (si aplica a semana individual o al mes completo)
