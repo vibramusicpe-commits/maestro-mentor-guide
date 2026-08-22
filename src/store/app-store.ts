@@ -310,10 +310,18 @@ function backgroundSyncPaymentToDB(
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invoiceId);
     if (!isUUID) return;
 
+    const email = useAppStore.getState().currentUser?.email?.toLowerCase() || "";
+    let userId = "00000000-0000-0000-0000-000000000001";
+    if (email.includes("sergio")) {
+      userId = "00000000-0000-0000-0000-000000000007";
+    } else if (role === "staff" || email.includes("nayeli")) {
+      userId = "00000000-0000-0000-0000-000000000002";
+    }
+
     import("@/lib/services/invoices.service").then(({ registerPayment }) => {
       registerPayment(
         role,
-        role === "staff" ? "00000000-0000-0000-0000-000000000002" : "00000000-0000-0000-0000-000000000001",
+        userId,
         invoiceId,
         {
           amount,
@@ -323,7 +331,7 @@ function backgroundSyncPaymentToDB(
         },
         { amount: 297, amount_paid: 0, remaining_balance: 297 },
       )
-        .then(() => console.log(`[Insforge Sync] Abono en recibo ${invoiceId} sincronizado en PostgreSQL`))
+        .then(() => console.log(`[Insforge Sync] Abono en recibo ${invoiceId} sincronizado en PostgreSQL (Usuario: ${userId})`))
         .catch((err) => console.warn(`[Insforge Sync] Error sincronizando abono ${invoiceId}:`, err));
     }).catch(() => {});
   } catch {}

@@ -48,8 +48,21 @@ export async function loginWithCredentials(
   // Cuando la API Auth de Insforge esté completamente vinculada
   // se llamará a INSFORGE_CONFIG.baseUrl + "/auth/login"
   
+  const knownIds: Record<string, string> = {
+    "duena@vibramusic.pe": "00000000-0000-0000-0000-000000000001",
+    "dueña@vibramusic.pe": "00000000-0000-0000-0000-000000000001",
+    "sergio@vibramusic.pe": "00000000-0000-0000-0000-000000000007",
+    "nayeli@vibramusic.pe": "00000000-0000-0000-0000-000000000002",
+    "jeremy@vibramusic.pe": "00000000-0000-0000-0000-000000000003",
+    "fernando@vibramusic.pe": "00000000-0000-0000-0000-000000000004",
+    "nathaly@vibramusic.pe": "00000000-0000-0000-0000-000000000005",
+    "demo@vibramusic.pe": "00000000-0000-0000-0000-000000000006",
+  };
+
+  const userId = knownIds[email.toLowerCase()] || `usr-${Math.random().toString(36).slice(2, 9)}`;
+
   const mockUser: UserSession = {
-    id: `usr-${Math.random().toString(36).slice(2, 9)}`,
+    id: userId,
     email,
     full_name:
       email.toLowerCase().includes("sergio")
