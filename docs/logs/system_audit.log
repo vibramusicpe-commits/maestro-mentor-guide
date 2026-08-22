@@ -633,3 +633,14 @@ Directorio de Logs: docs/logs/system_audit.log
    - 'src/routes/admin.facturacion.tsx': Protegido con fallback '(inv.paymentLogs || [])' en el cálculo de 'allVoucherLogs', contador de bitácora y modal de auditoría.
    - 'src/lib/services/invoices.service.ts': Garantizado 'paymentLogs: []', 'items: []' y 'daysToDue: 10' en 'mapDBInvoiceToInvoice'.
 - Estado: RESUELTO (Compilación 100% exitosa y módulo de Cobros y Abonos verificado).
+
+[2026-08-22 13:18:00 -05:00] [FEATURE_RELEASE] [MULTI-MONTH SCHEDULE, RISK FAMILIES EDITING, BIRTHDAYS, SATURDAY 12:45]
+1. Horarios Multi-Mes: En 'agenda-board.tsx', clases de alumnos activos y con plan se renderizan de forma recurrente y continua en Septiembre y meses siguientes.
+2. Familias en Riesgo: 'risk-families-table.tsx' ahora es 100% editable para Nayeli, con ajuste de deudas, días en mora, estados y registro inmediato de abonos (Yape/Efectivo/Transferencia).
+3. Cumpleaños: 'birthday-widget.tsx' dinámico para los 12 meses del año con edición de datos y felicitaciones por WhatsApp.
+4. Bloque Sábado: Agregado slot '12:45' (12:45 a 1:30 pm) a 'timeSlotsSaturday' en 'admin-seeds.ts'.
+5. Matrícula Septiembre: 'NewStudentDialog' en 'students-table.tsx' inicializa fechas con la fecha actual/mes seleccionado y autocalcula vigencia de plan.
+6. Documentación:
+   - Generado ADR 0064: '0064-multi-month-schedule-risk-families-birthdays-and-saturday-slot.md'.
+- Estado: COMPILACIÓN NITRO Y VITE 100% EXITOSA (Código 0).
+

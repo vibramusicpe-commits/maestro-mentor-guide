@@ -2187,8 +2187,16 @@ function NewStudentDialog() {
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [planType, setPlanType] = useState<"Mensual" | "Trimestral" | "Anual">("Mensual");
   const [matriculaType, setMatriculaType] = useState<"Promo Demo (S/ 30)" | "Regular (S/ 120)" | "Exonerada">("Promo Demo (S/ 30)");
-  const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(true);
-  const [planStartDate, setPlanStartDate] = useState<string>("2026-08-03");
+  // Fecha actual formateada YYYY-MM-DD
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }, []);
+
+  const [planStartDate, setPlanStartDate] = useState<string>(todayStr);
 
   // Mantener profesor seleccionado sincronizado si cambia la lista
   useEffect(() => {
@@ -2294,6 +2302,8 @@ function NewStudentDialog() {
     setFamily("");
     setIsAdult(false);
     setSelectedCategory("AUTO");
+    setPlanStartDate(todayStr);
+    setPackUtilesPaid(true);
   };
 
   return (

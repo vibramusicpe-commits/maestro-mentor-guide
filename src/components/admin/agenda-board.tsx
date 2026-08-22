@@ -291,12 +291,14 @@ export function AgendaBoard() {
               selectedYearMonthStr <= studentProfile.planEndMonth;
 
             if (!isWithinPlan) return false;
-          } else {
-            // Por defecto si no tiene rango configurado: solo ciclo activo de Agosto 2026
+          } else if (l.isMakeup) {
+            // Clases de recuperación son puntuales para su mes/año específico
             const lYear = l.year ?? 2026;
-            const lMonth = l.month ?? 7;
-            const matchesDate = lYear === selectedYear && lMonth === selectedMonth;
-            if (!matchesDate) return false;
+            const lMonth = l.month ?? selectedMonth;
+            if (lYear !== selectedYear || lMonth !== selectedMonth) return false;
+          } else {
+            // Clases regulares de alumnos activos: se muestran continuamente en todos los meses activos
+            if (studentProfile && studentProfile.status === "baja") return false;
           }
 
           // 2. Filtro de semana específica (si aplica a semana individual o al mes completo)

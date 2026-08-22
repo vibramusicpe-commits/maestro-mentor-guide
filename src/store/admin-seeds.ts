@@ -4,7 +4,7 @@ export type WeekDay = "Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb";
 
 export const weekDays: WeekDay[] = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 export const timeSlotsWeekday = ["16:00", "16:45", "17:30", "18:15", "19:00"];
-export const timeSlotsSaturday = ["09:00", "09:45", "10:30", "11:15", "12:00"];
+export const timeSlotsSaturday = ["09:00", "09:45", "10:30", "11:15", "12:00", "12:45"];
 export const timeSlots = ["16:00", "16:45", "17:30", "18:15", "19:00"];
 export const rooms = ["Sala A", "Sala B", "Sala C", "Sala D"];
 export const teachers: string[] = [
