@@ -644,3 +644,9 @@ Directorio de Logs: docs/logs/system_audit.log
    - Generado ADR 0064: '0064-multi-month-schedule-risk-families-birthdays-and-saturday-slot.md'.
 - Estado: COMPILACIÓN NITRO Y VITE 100% EXITOSA (Código 0).
 
+[2026-08-22 13:29:00 -05:00] [BUGFIX_SCHEDULE_BOUNDING] [VIGENCIA ACCOTADA AL CICLO LECTIVO Y PLAN]
+1. Diagnóstico: Al no tener fecha de fin explícita en alumnos estándar, la recurrencia se extendía a años futuros arbitrarios como Septiembre 2030.
+2. Corrección: En 'agenda-board.tsx', se acotó estrictamente la vigencia entre 'startMonth' (2026-08 o fecha de inicio) y 'endMonth' (duración del plan o fin del Ciclo Lectivo 2026). Al navegar al año 2030 o períodos no contratados, la agenda se muestra completamente limpia y sin clases obsoletas.
+- Estado: RESUELTO Y AUDITADO EN PRODUCCIÓN (Commit 189e99d).
+
+
