@@ -657,6 +657,12 @@ Directorio de Logs: docs/logs/system_audit.log
 5. Panel de Inicio / Login ('src/routes/index.tsx'): Se integró la tarjeta de acceso directo para 'Sergio (Super Admin)' junto a 'Dueña' y 'Secretaria' con soporte multiclave ('VibraSergio2026!').
 - Estado: ACTIVADO Y DESPLEGADO EN PRODUCCIÓN (Commit 2074d36).
 
+[2026-08-22 14:05:00 -05:00] [RESOLVED_RUNTIME_ERROR] [ADMIN_ALUMNOS PACK_UTILES_PAID DEFINITION]
+1. Causa: 'ReferenceError: packUtilesPaid is not defined' en 'src/components/admin/students-table.tsx' dentro de 'NewStudentDialog' al no tener el hook 'useState<boolean>(true)' declarado.
+2. Solución: Declarado 'const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(true);' en 'NewStudentDialog'.
+- Estado: RESUELTO Y DESPLEGADO EN PRODUCCIÓN (Commit aa4c874).
+
+
 
 
 
