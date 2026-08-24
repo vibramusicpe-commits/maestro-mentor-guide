@@ -1379,22 +1379,20 @@ export function AgendaBoard() {
                 const mainTeachersList = defaultTeacherRooms;
 
                 return (
-                  <div className="rounded-3xl border border-border bg-card shadow-sm overflow-hidden">
+                  <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
                     {/* Encabezado de Columnas por Profesor Estilo Excel Oficial */}
-                    <div className="grid grid-cols-[110px_repeat(4,1fr)] bg-muted/90 border-b border-border text-center font-black text-xs uppercase tracking-wider sticky top-0 z-10">
-                      <div className="p-3 border-r border-border bg-[#F4A59C] text-slate-950 flex items-center justify-center gap-1 font-black tracking-widest shadow-2xs">
-                        <Clock className="h-3.5 w-3.5 text-slate-950" /> HORA
+                    <div className="grid grid-cols-[85px_repeat(4,1fr)] bg-muted/90 border-b border-border text-center font-black text-xs uppercase tracking-wider sticky top-0 z-10">
+                      <div className="py-2 px-1.5 border-r border-border bg-[#F4A59C] text-slate-950 flex items-center justify-center gap-1 font-black tracking-wider shadow-2xs text-[11px]">
+                        <Clock className="h-3 w-3 text-slate-950" /> HORA
                       </div>
                       {mainTeachersList.map((tInfo) => (
                         <div
                           key={tInfo.name}
-                          className="p-3 border-r border-border last:border-r-0 flex flex-col items-center justify-center gap-0.5 font-bold text-foreground"
+                          className="py-1.5 px-2 border-r border-border last:border-r-0 flex items-center justify-center gap-1.5 font-bold text-foreground text-xs"
                         >
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-primary inline-block" />
-                            <span>PROF. {tInfo.name.toUpperCase()}</span>
-                          </div>
-                          <span className="text-[9.5px] font-bold text-primary opacity-90">({tInfo.room})</span>
+                          <span className="w-2 h-2 rounded-full bg-primary inline-block shrink-0" />
+                          <span>PROF. {tInfo.name.toUpperCase()}</span>
+                          <span className="text-[10px] font-bold text-primary opacity-90">({tInfo.room})</span>
                         </div>
                       ))}
                     </div>
@@ -1411,12 +1409,12 @@ export function AgendaBoard() {
                         return (
                           <div
                             key={timeSlot}
-                            className="grid grid-cols-[110px_repeat(4,1fr)] min-h-[90px] hover:bg-muted/10 transition-colors"
+                            className="grid grid-cols-[85px_repeat(4,1fr)] min-h-[48px] hover:bg-muted/10 transition-colors items-stretch"
                           >
                             {/* Columna de Hora con alto contraste: Fondo salmón del Excel + texto oscuro nítido */}
-                            <div className="p-2 border-r border-border bg-[#FCD7D2] flex flex-col items-center justify-center text-center font-mono font-black text-xs text-slate-950 shadow-2xs">
-                              <span className="text-sm font-black text-slate-950 tracking-tight">{timeSlot}</span>
-                              <span className="text-[10px] font-bold text-slate-700 mt-0.5">{endH}:{endM}</span>
+                            <div className="p-1 border-r border-border bg-[#FCD7D2] flex flex-col items-center justify-center text-center font-mono text-slate-950 shadow-2xs select-none">
+                              <span className="text-xs font-black text-slate-950 tracking-tight leading-tight">{timeSlot}</span>
+                              <span className="text-[9px] font-bold text-slate-700 leading-tight">{endH}:{endM}</span>
                             </div>
 
                             {/* 4 Columnas para los 4 Profesores y Salas */}
@@ -1431,7 +1429,7 @@ export function AgendaBoard() {
                               return (
                                 <div
                                   key={tInfo.name}
-                                  className="p-1.5 border-r border-border last:border-r-0 flex flex-col gap-1.5 justify-center"
+                                  className="p-1 border-r border-border last:border-r-0 flex flex-col gap-1 justify-center"
                                 >
                                   {lessonsForTeacher.length === 0 ? (
                                     <div
@@ -1442,7 +1440,7 @@ export function AgendaBoard() {
                                         setNewLessonRoom(tInfo.room);
                                         setIsAddLessonOpen(true);
                                       }}
-                                      className="h-full min-h-[65px] rounded-xl border border-dashed border-border/60 hover:border-primary/50 hover:bg-primary/5 flex items-center justify-center text-[10px] text-muted-foreground transition-colors cursor-pointer group"
+                                      className="h-full min-h-[40px] rounded-lg border border-dashed border-border/60 hover:border-primary/50 hover:bg-primary/5 flex items-center justify-center text-[10px] text-muted-foreground/80 transition-colors cursor-pointer group py-1"
                                     >
                                       <span className="group-hover:text-primary font-medium flex items-center gap-1">
                                         <PlusCircle className="h-3 w-3 opacity-0 group-hover:opacity-100" />
@@ -1450,7 +1448,7 @@ export function AgendaBoard() {
                                       </span>
                                     </div>
                                   ) : (
-                                    <div className="flex flex-col gap-1.5 h-full">
+                                    <div className="flex flex-col gap-1 h-full justify-center">
                                       {lessonsForTeacher.map((lesson) => {
                                         const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
                                         const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
@@ -1494,7 +1492,7 @@ export function AgendaBoard() {
                                           <div
                                             key={lesson.id}
                                             onClick={() => openLesson(lesson)}
-                                            className={`cursor-pointer rounded-xl border ${catStyle.border} ${catStyle.bg} p-2 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group relative`}
+                                            className={`cursor-pointer rounded-lg border ${catStyle.border} ${catStyle.bg} px-2 py-1 shadow-2xs hover:shadow-md transition-all flex flex-col justify-center group relative`}
                                             title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${
                                               isRecup
                                                 ? "CLASE DE RECUPERACIÓN (ROJO)"
@@ -1503,16 +1501,14 @@ export function AgendaBoard() {
                                                 : catStyle.label
                                             }`}
                                           >
-                                            <div className="flex items-start justify-between gap-1">
-                                              <div className="flex items-center gap-1">
-                                                <p className={`font-black text-[10px] leading-tight ${catStyle.text} line-clamp-2 break-words`}>
+                                            {/* Línea 1: Nombre + Badges */}
+                                            <div className="flex items-center justify-between gap-1">
+                                              <div className="flex items-center gap-1 min-w-0">
+                                                <h4 className={`font-black text-[11px] leading-tight ${catStyle.text} truncate group-hover:underline`}>
                                                   {lesson.student}
-                                                </p>
-                                                <p className={`text-[9px] font-bold ${catStyle.text} opacity-90 truncate mt-0.5`}>
-                                                  ({lesson.instrument})
-                                                </p>
+                                                </h4>
                                                 {isRecup && (
-                                                  <span className="text-[7.5px] font-black uppercase text-white bg-black/30 px-1 py-0.2 rounded inline-block shadow-2xs ml-1">
+                                                  <span className="text-[7.5px] font-black uppercase text-white bg-black/40 px-1 py-0.2 rounded shrink-0">
                                                     🔴 Recup
                                                   </span>
                                                 )}
@@ -1522,34 +1518,31 @@ export function AgendaBoard() {
                                                   studentProfile?.teacherNote?.toLowerCase().includes("nuevo") ||
                                                   studentProfile?.teacherNote?.toLowerCase().includes("prueba")) && (
                                                   <span
-                                                    className="absolute top-0.5 left-0.5 px-1 py-0.2 rounded bg-amber-400 text-slate-950 font-black text-[7.5px] leading-none shadow-xs border border-amber-500/40"
+                                                    className="px-1 py-0.2 rounded bg-amber-400 text-slate-950 font-black text-[7.5px] leading-none shrink-0"
                                                     title="Alumno Nuevo / Recién Matriculado"
                                                   >
-                                                    ✨ Nuevo
+                                                    ✨
                                                   </span>
                                                 )}
                                                 {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
                                                 {lesson.category === "PERSONALIZADA" && (
                                                   <span
-                                                    className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
+                                                    className={`w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
                                                     title={`Clase Personalizada · ${dotLabel}`}
                                                   />
                                                 )}
                                               </div>
-                                              <span className="font-mono text-[9px] font-bold bg-background/90 text-foreground px-1.5 rounded border border-border shrink-0">
+                                              <span className="font-mono text-[8.5px] font-bold bg-background/90 text-foreground px-1 py-0.2 rounded border border-border/80 shrink-0">
                                                 {lesson.room}
                                               </span>
                                             </div>
 
-                                            <h4 className={`text-xs font-black ${catStyle.text} leading-tight group-hover:underline mt-1`}>
-                                              {lesson.student}
-                                            </h4>
-
-                                            <div className="flex items-center justify-between text-[10px] pt-1 mt-1 border-t border-black/10">
-                                              <span className={`font-bold ${catStyle.text} truncate`}>
+                                            {/* Línea 2: Instrumento + Botón de Editar */}
+                                            <div className="flex items-center justify-between text-[9.5px] pt-0.5 mt-0.5 border-t border-black/10">
+                                              <span className={`font-semibold ${catStyle.text} opacity-90 truncate`}>
                                                 🎵 {lesson.instrument}
                                               </span>
-                                              <span className={`font-black underline ${catStyle.text} text-[9px]`}>
+                                              <span className={`font-bold ${catStyle.text} opacity-80 text-[8.5px] group-hover:opacity-100 group-hover:underline`}>
                                                 Editar →
                                               </span>
                                             </div>
@@ -1591,15 +1584,15 @@ export function AgendaBoard() {
             </div>
           </div>
 
-          {/* Rejilla Semanal Separada y Perfectamente Alineada */}
-          <div className="space-y-6">
+          {/* Rejilla Semanal Separada y Perfectamente Alineada (Modo Compacto de Alta Densidad) */}
+          <div className="space-y-4">
             {/* Bloque 1: Lunes a Viernes (Horario de Tarde: 16:00 - 19:45) */}
             <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
-              <div className="bg-primary/5 px-4 py-3 border-b border-border flex items-center justify-between">
-                <span className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-2">
-                  <Clock className="h-4 w-4" /> Turno Tarde · Lunes a Viernes (16:00 a 19:45)
+              <div className="bg-primary/5 px-3.5 py-2 border-b border-border flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" /> Turno Tarde · Lunes a Viernes (16:00 a 19:45)
                 </span>
-                <span className="text-[11px] font-bold text-muted-foreground">
+                <span className="text-[10px] font-bold text-muted-foreground">
                   Bloques de 45 minutos · Salas A a D
                 </span>
               </div>
@@ -1607,19 +1600,18 @@ export function AgendaBoard() {
               <div className="overflow-x-auto">
                 <div className="min-w-[48rem]">
                   {/* Cabecera de Días L-V con Fechas */}
-                  <div className="grid grid-cols-[6rem_repeat(5,1fr)] border-b border-border bg-muted/40 text-center">
-                    <div className="p-2.5 text-xs font-black text-muted-foreground uppercase flex items-center justify-center">
+                  <div className="grid grid-cols-[5.5rem_repeat(5,1fr)] border-b border-border bg-muted/40 text-center">
+                    <div className="py-1.5 px-2 text-[11px] font-black text-muted-foreground uppercase flex items-center justify-center">
                       Horario
                     </div>
                     {(["Lun", "Mar", "Mié", "Jue", "Vie"] as WeekDay[]).map((d, dIdx) => {
                       const dayNames = { Lun: "Lunes", Mar: "Martes", Mié: "Miércoles", Jue: "Jueves", Vie: "Viernes" };
-                      // Fechas referenciales de Agosto 2026: Semana 1 (3 al 7), Semana 2 (10 al 14), Semana 3 (17 al 21), Semana 4 (24 al 28)
                       const dayNum = 3 + (currentWeekIndex * 7) + dIdx;
 
                       return (
-                        <div key={d} className="p-2 text-xs font-black text-foreground border-l border-border/60">
+                        <div key={d} className="py-1.5 px-2 text-xs font-black text-foreground border-l border-border/60">
                           <div>{dayNames[d]}</div>
-                          <span className="text-[10px] font-semibold text-muted-foreground">
+                          <span className="text-[9.5px] font-semibold text-muted-foreground">
                             {dayNum} {monthsName[selectedDate.getMonth()].slice(0, 3)}
                           </span>
                         </div>
@@ -1631,9 +1623,9 @@ export function AgendaBoard() {
                   {timeSlotsWeekday.map((slot) => (
                     <div
                       key={`weekday-${slot}`}
-                      className="grid grid-cols-[6rem_repeat(5,1fr)] border-b border-border last:border-b-0"
+                      className="grid grid-cols-[5.5rem_repeat(5,1fr)] border-b border-border last:border-b-0 items-stretch"
                     >
-                      <div className="p-3 font-mono text-xs font-black text-foreground flex items-center justify-center bg-muted/20">
+                      <div className="p-1.5 font-mono text-[11px] font-black text-foreground flex items-center justify-center bg-muted/20 select-none">
                         {slot}
                       </div>
                       {(["Lun", "Mar", "Mié", "Jue", "Vie"] as WeekDay[]).map((day) => {
@@ -1641,7 +1633,7 @@ export function AgendaBoard() {
                         return (
                           <div
                             key={`cell-${day}-${slot}`}
-                            className="border-l border-border/60 p-2 min-h-[5.5rem] flex flex-col gap-1.5 justify-start bg-background/50"
+                            className="border-l border-border/60 p-1 min-h-[3.2rem] flex flex-col gap-1 justify-start bg-background/50"
                           >
                             {cell.map((lesson) => {
                               const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
@@ -1651,7 +1643,6 @@ export function AgendaBoard() {
                                 (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
                               );
                               
-                              // Detección de Categoría de Edad para Clases Personalizadas
                               const studentAgeCat =
                                 studentProfile?.ageCategory ||
                                 (lesson.student.toLowerCase().includes("joan paolo")
@@ -1662,16 +1653,14 @@ export function AgendaBoard() {
                                   ? "JUNIOR"
                                   : "JUNIOR");
 
-                              // Colores del puntito indicador según el Excel oficial:
-                              // 🟢 Juvenil: #4CAF50 | ⚫ Adulto: #757575 | 🟡 Junior: #FBC02D | 🟣 Infantil: #7C4DFF
                               const dotColor =
                                 studentAgeCat === "JUVENIL"
-                                  ? "bg-[#4CAF50]" // Verde Juvenil (13 a 17)
+                                  ? "bg-[#4CAF50]"
                                   : studentAgeCat === "ADULTO"
-                                  ? "bg-[#757575]" // Plomo Adulto (18 a +)
+                                  ? "bg-[#757575]"
                                   : studentAgeCat === "INFANTIL"
-                                  ? "bg-[#7C4DFF]" // Morado Infantil (5 y 6)
-                                  : "bg-[#FBC02D]"; // Amarillo Junior (7 a 12)
+                                  ? "bg-[#7C4DFF]"
+                                  : "bg-[#FBC02D]";
 
                               const dotLabel =
                                 studentAgeCat === "JUVENIL"
@@ -1687,43 +1676,42 @@ export function AgendaBoard() {
                                   key={lesson.id}
                                   onClick={() => openLesson(lesson)}
                                   aria-label={`Clase de ${lesson.student}, ${lesson.instrument}, ${lesson.teacher}, ${lesson.room}`}
-                                  className={`w-full rounded-xl border p-2 text-left transition-all hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary relative ${
+                                  className={`w-full rounded-lg border px-1.5 py-0.5 text-left transition-all hover:scale-[1.01] hover:shadow-xs focus:outline-none focus:ring-1 focus:ring-primary relative ${
                                     lesson.status === "cancelada"
                                       ? "border-dashed border-border bg-muted text-muted-foreground line-through opacity-50"
                                       : `${catStyle.bg} ${catStyle.border} ${catStyle.text}`
                                   }`}
                                   title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
                                 >
-                                  <div className="flex items-center justify-between gap-1">
+                                  <div className="flex items-center justify-between gap-1 leading-tight">
                                     <div className="flex items-center gap-1 min-w-0">
-                                      <span className="block truncate font-black text-xs">
+                                      <span className="block truncate font-black text-[10.5px] leading-tight">
                                         {lesson.student}
                                       </span>
-                                      {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
                                       {lesson.category === "PERSONALIZADA" && (
                                         <span
-                                          className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
+                                          className={`inline-block w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
                                           title={`Clase Personalizada · ${dotLabel}`}
                                         />
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-1 shrink-0">
+                                    <div className="flex items-center gap-0.5 shrink-0">
                                       {lesson.sessionNumber && (
-                                        <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-black/20 text-foreground border border-black/10">
-                                          {lesson.sessionNumber === 1 ? "1ra Clase" : "2da Clase"}
+                                        <span className="text-[7.5px] font-black px-1 py-0.2 rounded bg-black/20 text-foreground border border-black/10">
+                                          {lesson.sessionNumber === 1 ? "1ra" : "2da"}
                                         </span>
                                       )}
                                       {conflictIds.has(lesson.id) && lesson.status !== "cancelada" && (
-                                        <AlertTriangle className="h-3 w-3 text-destructive" />
+                                        <AlertTriangle className="h-2.5 w-2.5 text-destructive" />
                                       )}
+                                      <span className="font-mono text-[7.5px] font-bold bg-background/50 px-1 py-0.2 rounded shrink-0">
+                                        {lesson.room}
+                                      </span>
                                     </div>
                                   </div>
-                                  <div className="flex items-center justify-between text-[10px] font-bold opacity-90 mt-0.5">
+                                  <div className="flex items-center justify-between text-[8.5px] font-semibold opacity-90 mt-0.5 leading-none">
                                     <span className="truncate">{lesson.instrument}</span>
-                                    <span className="shrink-0 bg-background/40 px-1 rounded">{lesson.room}</span>
-                                  </div>
-                                  <div className="text-[9px] font-semibold text-muted-foreground/90 truncate mt-0.5">
-                                    Prof. {lesson.teacher}
+                                    <span className="truncate text-muted-foreground/90 ml-1">Prof. {lesson.teacher}</span>
                                   </div>
                                 </button>
                               );
@@ -1739,11 +1727,11 @@ export function AgendaBoard() {
 
             {/* Bloque 2: Sábados (Horario de Mañana: 09:00 - 13:30) */}
             <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
-              <div className="bg-primary/5 px-4 py-3 border-b border-border flex items-center justify-between">
-                <span className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-2">
-                  <Clock className="h-4 w-4" /> Turno Mañana · Sábados (09:00 a 13:30)
+              <div className="bg-primary/5 px-3.5 py-2 border-b border-border flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" /> Turno Mañana · Sábados (09:00 a 13:30)
                 </span>
-                <span className="text-[11px] font-bold text-muted-foreground">
+                <span className="text-[10px] font-bold text-muted-foreground">
                   Bloques intensivos y regulares · Salas A a D
                 </span>
               </div>
@@ -1751,13 +1739,13 @@ export function AgendaBoard() {
               <div className="overflow-x-auto">
                 <div className="min-w-[32rem]">
                   {/* Cabecera Sábados con Fecha */}
-                  <div className="grid grid-cols-[6rem_1fr] border-b border-border bg-muted/40 text-center">
-                    <div className="p-2.5 text-xs font-black text-muted-foreground uppercase flex items-center justify-center">
+                  <div className="grid grid-cols-[5.5rem_1fr] border-b border-border bg-muted/40 text-center">
+                    <div className="py-1.5 px-2 text-[11px] font-black text-muted-foreground uppercase flex items-center justify-center">
                       Horario
                     </div>
-                    <div className="p-2 text-xs font-black text-foreground border-l border-border/60">
+                    <div className="py-1.5 px-2 text-xs font-black text-foreground border-l border-border/60">
                       <div>Sábado</div>
-                      <span className="text-[10px] font-semibold text-muted-foreground">
+                      <span className="text-[9.5px] font-semibold text-muted-foreground">
                         {8 + (currentWeekIndex * 7)} {monthsName[selectedDate.getMonth()].slice(0, 3)}
                       </span>
                     </div>
@@ -1769,12 +1757,12 @@ export function AgendaBoard() {
                     return (
                       <div
                         key={`saturday-${slot}`}
-                        className="grid grid-cols-[6rem_1fr] border-b border-border last:border-b-0"
+                        className="grid grid-cols-[5.5rem_1fr] border-b border-border last:border-b-0 items-stretch"
                       >
-                        <div className="p-3 font-mono text-xs font-black text-foreground flex items-center justify-center bg-muted/20">
+                        <div className="p-1.5 font-mono text-[11px] font-black text-foreground flex items-center justify-center bg-muted/20 select-none">
                           {slot}
                         </div>
-                        <div className="border-l border-border/60 p-2 min-h-[5rem] flex flex-wrap gap-2 items-center bg-background/50">
+                        <div className="border-l border-border/60 p-1 min-h-[3rem] flex flex-wrap gap-1 items-center bg-background/50">
                           {cell.map((lesson) => {
                             const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
                             const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
@@ -1783,7 +1771,6 @@ export function AgendaBoard() {
                               (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
                             );
                             
-                            // Detección de Categoría de Edad para Clases Personalizadas
                             const studentAgeCat =
                               studentProfile?.ageCategory ||
                               (lesson.student.toLowerCase().includes("joan paolo")
@@ -1794,16 +1781,14 @@ export function AgendaBoard() {
                                 ? "JUNIOR"
                                 : "JUNIOR");
 
-                            // Colores del puntito indicador según el Excel oficial:
-                            // 🟢 Juvenil: #4CAF50 | ⚫ Adulto: #757575 | 🟡 Junior: #FBC02D | 🟣 Infantil: #7C4DFF
                             const dotColor =
                               studentAgeCat === "JUVENIL"
-                                ? "bg-[#4CAF50]" // Verde Juvenil (13 a 17)
+                                ? "bg-[#4CAF50]"
                                 : studentAgeCat === "ADULTO"
-                                ? "bg-[#757575]" // Plomo Adulto (18 a +)
+                                ? "bg-[#757575]"
                                 : studentAgeCat === "INFANTIL"
-                                ? "bg-[#7C4DFF]" // Morado Infantil (5 y 6)
-                                : "bg-[#FBC02D]"; // Amarillo Junior (7 a 12)
+                                ? "bg-[#7C4DFF]"
+                                : "bg-[#FBC02D]";
 
                             const dotLabel =
                               studentAgeCat === "JUVENIL"
@@ -1819,50 +1804,49 @@ export function AgendaBoard() {
                                 key={lesson.id}
                                 onClick={() => openLesson(lesson)}
                                 aria-label={`Clase de ${lesson.student}, ${lesson.instrument}, ${lesson.teacher}, ${lesson.room}`}
-                                className={`flex-1 min-w-[14rem] max-w-[20rem] rounded-xl border p-2 text-left transition-all hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary relative ${
+                                className={`flex-1 min-w-[11rem] max-w-[16rem] rounded-lg border px-1.5 py-0.5 text-left transition-all hover:scale-[1.01] hover:shadow-xs focus:outline-none focus:ring-1 focus:ring-primary relative ${
                                   lesson.status === "cancelada"
                                     ? "border-dashed border-border bg-muted text-muted-foreground line-through opacity-50"
                                     : `${catStyle.bg} ${catStyle.border} ${catStyle.text}`
                                 }`}
                                 title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
                               >
-                                <div className="flex items-center justify-between gap-1">
+                                <div className="flex items-center justify-between gap-1 leading-tight">
                                   <div className="flex items-center gap-1 min-w-0">
-                                    <span className="block truncate font-black text-xs">
+                                    <span className="block truncate font-black text-[10.5px] leading-tight">
                                       {lesson.student}
                                     </span>
-                                    {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
                                     {lesson.category === "PERSONALIZADA" && (
                                       <span
-                                        className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
+                                        className={`inline-block w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
                                         title={`Clase Personalizada · ${dotLabel}`}
                                       />
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-1 shrink-0">
+                                  <div className="flex items-center gap-0.5 shrink-0">
                                     {lesson.sessionNumber && (
-                                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-black/20 text-foreground border border-black/10">
-                                        {lesson.sessionNumber === 1 ? "1ra Clase" : "2da Clase"}
+                                      <span className="text-[7.5px] font-black px-1 py-0.2 rounded bg-black/20 text-foreground border border-black/10">
+                                        {lesson.sessionNumber === 1 ? "1ra" : "2da"}
                                       </span>
                                     )}
                                     {conflictIds.has(lesson.id) && lesson.status !== "cancelada" && (
-                                      <AlertTriangle className="h-3 w-3 text-destructive" />
+                                      <AlertTriangle className="h-2.5 w-2.5 text-destructive" />
                                     )}
+                                    <span className="font-mono text-[7.5px] font-bold bg-background/50 px-1 py-0.2 rounded shrink-0">
+                                      {lesson.room}
+                                    </span>
                                   </div>
                                 </div>
-                                <div className="flex items-center justify-between text-[10px] font-bold opacity-90 mt-0.5">
+                                <div className="flex items-center justify-between text-[8.5px] font-semibold opacity-90 mt-0.5 leading-none">
                                   <span className="truncate">{lesson.instrument}</span>
-                                  <span className="shrink-0 bg-background/40 px-1 rounded">{lesson.room}</span>
-                                </div>
-                                <div className="text-[9px] font-semibold text-muted-foreground/90 truncate mt-0.5">
-                                  Prof. {lesson.teacher}
+                                  <span className="truncate text-muted-foreground/90 ml-1">Prof. {lesson.teacher}</span>
                                 </div>
                               </button>
                             );
                           })}
                           {cell.length === 0 && (
-                            <span className="text-[11px] text-muted-foreground/60 italic pl-2">
-                              Sin clases programadas en este horario
+                            <span className="text-[10px] text-muted-foreground/60 italic pl-1">
+                              Sin clases programadas
                             </span>
                           )}
                         </div>
