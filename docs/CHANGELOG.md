@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.6.2] - 2026-08-31
+
+### Añadido & Corregido
+- **Sincronización Real del Calendario Dinámico y Soporte de Semanas Completas (ADR 0067)**:
+  - Implementación del módulo central de cálculo de calendario formativo ([`src/lib/calendar-utils.ts`](file:///c:/Users/USER/my%20music%20staff%20backend/src/lib/calendar-utils.ts)) con función `getMonthWeeks(year, monthIndex)`.
+  - Soporte completo para la **Semana 5 de Agosto (Lunes 31 de Agosto)** y meses de 5 semanas, eliminando el límite fijo y estático de 4 semanas.
+  - Corrección de fechas estáticas en todos los meses del año (como Setiembre, Octubre, etc.), garantizando que los días coincidan 100% con la realidad física del calendario (ej. resolviendo el error donde Setiembre mostraba *"Lunes 3 de Setiembre"*).
+  - Sincronización en las 3 vistas de la Agenda ([`agenda-board.tsx`](file:///c:/Users/USER/my%20music%20staff%20backend/src/components/admin/agenda-board.tsx)), Libreta de Asistencia, Modal de Reprogramación y [`minimal-agenda-calendar.tsx`](file:///c:/Users/USER/my%20music%20staff%20backend/src/components/agenda/minimal-agenda-calendar.tsx).
+- **Optimización y Compactación de Alta Densidad en Vista por Día y Rejilla Semanal (ADR 0066)**:
+  - Reducción del tamaño vertical en más del 50%, suprimiendo textos e instrumentos duplicados en la Vista por Día y ajustando la altura mínima por franja horaria a 48px.
+  - Formato micro-card en la Rejilla Semanal para visualización panorámica sin necesidad de scroll vertical prolongado.
+  - Preservación 100% inalterada de la **Vista Didáctica Oficial de Nayeli (1x1 y 2x2)**.
+- **Normalización de Endpoint de Registros en Insforge Database API (ADR 0065)**:
+  - Normalización de `INSFORGE_CONFIG.baseUrl` a `/api/database/records` en [`src/lib/insforge.ts`](file:///c:/Users/USER/my%20music%20staff%20backend/src/lib/insforge.ts), eliminando errores 404 en la consola del navegador.
+
 ## [Unreleased] - 2026-08-15
 
 ### Añadido
