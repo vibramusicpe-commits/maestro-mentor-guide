@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Calendar as CalendarIcon, Clock, MapPin, User, MessageCircle, CheckCircle2, XCircle, AlertCircle, Sparkles } from "lucide-react";
 import type { Lesson, ScheduledLesson, AttendanceStatus, WeekDay } from "@/store/app-store";
 import { useAppStore } from "@/store/app-store";
+import { getMonthWeeks } from "@/lib/calendar-utils";
 import { toast } from "sonner";
 
 type CalendarLessonItem = (Lesson | ScheduledLesson) & {
@@ -55,6 +56,10 @@ export function MinimalAgendaCalendar({
   const markLessonAttendance = useAppStore((s) => s.markLessonAttendance);
   const setAttendance = useAppStore((s) => s.setAttendance);
 
+  const monthWeeks = useMemo(() => getMonthWeeks(2026, 7), []);
+  const safeWeekIndex = Math.min(Math.max(0, selectedWeek - 1), monthWeeks.length - 1);
+  const currentWeekObj = monthWeeks[safeWeekIndex] || monthWeeks[0]!;
+
   const selectedDayObj = DAYS_OF_WEEK[selectedDayIndex] || DAYS_OF_WEEK[0];
   const selectedDayShort = selectedDayObj.short;
   const selectedDayName = selectedDayObj.full;
@@ -93,29 +98,30 @@ export function MinimalAgendaCalendar({
           <p className="text-xs font-medium text-muted-foreground">{subtitle}</p>
         </div>
 
-        {/* Selector de Semanas del Mes */}
+        {/* Selector de Semanas del Mes Dinámico */}
         <div className="flex items-center gap-1 bg-muted p-1 rounded-xl border border-border text-xs">
-          {[1, 2, 3, 4].map((w) => (
+          {monthWeeks.map((w) => (
             <button
-              key={w}
-              onClick={() => setSelectedWeek(w)}
+              key={w.weekIndex}
+              onClick={() => setSelectedWeek(w.weekIndex + 1)}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                selectedWeek === w
+                selectedWeek === w.weekIndex + 1
                   ? "bg-primary text-primary-foreground shadow-xs"
                   : "text-foreground/80 hover:text-foreground hover:bg-background"
               }`}
             >
-              Sem {w}
+              Sem {w.weekIndex + 1}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Tira interactiva de días de la semana con contadores reales */}
+      {/* Tira interactiva de días de la semana con contadores y fechas reales */}
       <div className="grid grid-cols-6 gap-1 rounded-2xl border border-border bg-card p-1.5 shadow-sm">
         {DAYS_OF_WEEK.map((day, idx) => {
           const isSelected = selectedDayIndex === idx;
           const count = (lessonsByDay.get(day.short) || []).length;
+          const dayInfo = currentWeekObj.days[idx] || currentWeekObj.days[0]!;
 
           return (
             <button
@@ -128,9 +134,10 @@ export function MinimalAgendaCalendar({
               }`}
             >
               <span className="text-[11px] font-bold">{day.short}</span>
+              <span className="text-[9px] opacity-75 font-semibold">{dayInfo.dayNum}</span>
               {count > 0 ? (
                 <span
-                  className={`mt-1 text-[9px] px-1.5 py-0.2 rounded-full font-black ${
+                  className={`mt-0.5 text-[8.5px] px-1.5 py-0.2 rounded-full font-black ${
                     isSelected
                       ? "bg-primary-foreground/25 text-primary-foreground"
                       : "bg-primary/15 text-primary"
@@ -139,7 +146,7 @@ export function MinimalAgendaCalendar({
                   {count}
                 </span>
               ) : (
-                <span className="mt-1 text-[9px] opacity-40">-</span>
+                <span className="mt-0.5 text-[8.5px] opacity-40">-</span>
               )}
             </button>
           );

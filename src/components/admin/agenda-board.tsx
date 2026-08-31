@@ -65,6 +65,12 @@ import {
   timeSlotsSaturday,
   VIBRA_PRICING,
 } from "@/store/admin-seeds";
+import {
+  getMonthWeeks,
+  MONTHS_NAME,
+  WEEKDAY_FULL_NAMES,
+  type CalendarWeekInfo,
+} from "@/lib/calendar-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -249,10 +255,7 @@ export function AgendaBoard() {
   const [deleteLessonReason, setDeleteLessonReason] = useState("");
 
 
-  const monthsName = [
-    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-  ];
+  const monthsName = MONTHS_NAME;
 
   const currentDayName = weekDays[selectedDayIndex] ?? "Lun";
 
@@ -274,6 +277,14 @@ export function AgendaBoard() {
   const selectedYear = selectedDate.getFullYear();
   const selectedMonth = selectedDate.getMonth(); // 0 = Enero, 7 = Agosto
   const selectedYearMonthStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
+
+  // Semanas reales calculadas dinámicamente para el mes y año seleccionado (Soporte Semana 5 y fechas exactas)
+  const monthWeeks = useMemo(() => {
+    return getMonthWeeks(selectedYear, selectedMonth);
+  }, [selectedYear, selectedMonth]);
+
+  const safeWeekIndex = Math.min(currentWeekIndex, Math.max(0, monthWeeks.length - 1));
+  const currentWeekObj = monthWeeks[safeWeekIndex] || monthWeeks[0]!;
 
   // Filtrado reactivo estricto para eliminar cruces o datos no solicitados (Bugfix Crítico)
   const visible = useMemo(
@@ -313,10 +324,10 @@ export function AgendaBoard() {
           }
 
           // 2. Filtro de semana específica (si aplica a semana individual o al mes completo)
-          if (l.weekIndex !== undefined && l.weekIndex !== currentWeekIndex) {
+          if (l.weekIndex !== undefined && l.weekIndex !== safeWeekIndex) {
             return false;
           }
-          if (l.excludedWeeks?.includes(currentWeekIndex)) {
+          if (l.excludedWeeks?.includes(safeWeekIndex)) {
             return false;
           }
 
@@ -355,7 +366,7 @@ export function AgendaBoard() {
           return true;
         },
       ),
-    [schedule, adminStudents, teacher, room, instrument, category, dayGroup, currentWeekIndex, selectedYear, selectedMonth, selectedYearMonthStr],
+    [schedule, adminStudents, teacher, room, instrument, category, dayGroup, safeWeekIndex, selectedYear, selectedMonth, selectedYearMonthStr],
   );
 
   // Clases del día seleccionado para la vista diaria (swipe)
@@ -718,20 +729,20 @@ export function AgendaBoard() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setCurrentWeekIndex((w) => Math.max(0, w - 1))}
-                disabled={currentWeekIndex === 0}
+                disabled={safeWeekIndex === 0}
                 className="h-7 w-7 rounded-md"
                 title="Semana anterior"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
               <span className="font-bold text-[11px] px-1.5 py-0.5 rounded bg-background text-foreground shadow-2xs whitespace-nowrap">
-                Semana {currentWeekIndex + 1} de 4
+                Semana {safeWeekIndex + 1} de {monthWeeks.length}
               </span>
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setCurrentWeekIndex((w) => Math.min(3, w + 1))}
-                disabled={currentWeekIndex === 3}
+                onClick={() => setCurrentWeekIndex((w) => Math.min(monthWeeks.length - 1, w + 1))}
+                disabled={safeWeekIndex >= monthWeeks.length - 1}
                 className="h-7 w-7 rounded-md"
                 title="Semana siguiente"
               >
@@ -945,14 +956,12 @@ export function AgendaBoard() {
 
             const activePair = pairs[selectedPairIndex] || pairs[0]!;
             const monthName = monthsName[selectedDate.getMonth()];
-            const baseDayNum = 3 + currentWeekIndex * 7; // Agosto 2026
 
-            const renderSingleDayTable = (dayName: WeekDay, dayOffset: number) => {
+            const renderSingleDayTable = (dayName: WeekDay, _dayOffset?: number) => {
               const dayLessonsForTable = visible.filter((l) => l.day === dayName && l.status !== "cancelada");
               const currentSlots = dayName === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
               const mainTeachersList = defaultTeacherRooms;
-
-              const actualDateNum = baseDayNum + dayOffset;
+              const dayInfo = currentWeekObj.days.find((d) => d.dayKey === dayName) || currentWeekObj.days[0]!;
 
               return (
                 <div className="flex-1 rounded-2xl border-2 border-slate-400 bg-white dark:bg-slate-950 shadow-md overflow-hidden flex flex-col w-full">
@@ -960,18 +969,7 @@ export function AgendaBoard() {
                   <div className="bg-[#FCD7D2] px-3 py-1.5 border-b-2 border-slate-400 flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <span className="font-black text-xs sm:text-sm text-slate-950 uppercase tracking-wide">
-                        {dayName === "Lun"
-                          ? "LUNES"
-                          : dayName === "Mar"
-                          ? "MARTES"
-                          : dayName === "Mié"
-                          ? "MIÉRCOLES"
-                          : dayName === "Jue"
-                          ? "JUEVES"
-                          : dayName === "Vie"
-                          ? "VIERNES"
-                          : "SÁBADO"}{" "}
-                        {actualDateNum} {monthName?.slice(0, 3)}
+                        {WEEKDAY_FULL_NAMES[dayName]?.toUpperCase()} {dayInfo.dayNum} {dayInfo.monthName.slice(0, 3)}
                       </span>
                     </div>
                     <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-slate-950/10 text-slate-950 shrink-0">
@@ -1254,7 +1252,7 @@ export function AgendaBoard() {
 
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-black text-foreground uppercase tracking-wide">
-                      Semana {currentWeekIndex + 1} de 4 · {monthName} {selectedDate.getFullYear()}
+                      {currentWeekObj.fullLabel}
                     </span>
                   </div>
                 </div>
@@ -1304,24 +1302,14 @@ export function AgendaBoard() {
 
             <div className="text-center">
               {(() => {
-                const dayNames: Record<WeekDay, string> = {
-                  Lun: "Lunes",
-                  Mar: "Martes",
-                  Mié: "Miércoles",
-                  Jue: "Jueves",
-                  Vie: "Viernes",
-                  Sáb: "Sábado",
-                };
-                // Días de Agosto 2026: Semana 1 (3-8), Semana 2 (10-15), Semana 3 (17-22), Semana 4 (24-29)
-                const dayNum = 3 + (currentWeekIndex * 7) + selectedDayIndex;
-                const monthName = monthsName[selectedDate.getMonth()];
+                const dayInfo = currentWeekObj.days[selectedDayIndex] || currentWeekObj.days[0]!;
                 return (
                   <>
                     <span className="text-xs font-bold text-primary uppercase tracking-wider block">
-                      Semana {currentWeekIndex + 1} de 4 · {monthName} {selectedDate.getFullYear()}
+                      {currentWeekObj.fullLabel}
                     </span>
                     <h3 className="text-xl font-black text-foreground">
-                      {dayNames[currentDayName]} {dayNum} de {monthName}
+                      {WEEKDAY_FULL_NAMES[currentDayName]} {dayInfo.dayNum} de {dayInfo.monthName}
                     </h3>
                   </>
                 );
@@ -1336,7 +1324,7 @@ export function AgendaBoard() {
           {/* Selector de días por Pestañas con Fechas Dinámicas de la Semana */}
           <div className="grid grid-cols-6 gap-1.5 rounded-xl border border-border bg-muted p-1.5">
             {weekDays.map((d, idx) => {
-              const dayNum = 3 + (currentWeekIndex * 7) + idx;
+              const dayInfo = currentWeekObj.days[idx] || currentWeekObj.days[0]!;
               return (
                 <button
                   key={d}
@@ -1349,7 +1337,7 @@ export function AgendaBoard() {
                 >
                   <span className="uppercase text-[11px]">{d}</span>
                   <span className={`text-[10px] ${selectedDayIndex === idx ? "text-primary-foreground/90 font-black" : "text-muted-foreground/80 font-medium"}`}>
-                    {dayNum} {monthsName[selectedDate.getMonth()].slice(0, 3)}
+                    {dayInfo.dayNum} {dayInfo.monthName.slice(0, 3)}
                   </span>
                 </button>
               );
@@ -1605,14 +1593,12 @@ export function AgendaBoard() {
                       Horario
                     </div>
                     {(["Lun", "Mar", "Mié", "Jue", "Vie"] as WeekDay[]).map((d, dIdx) => {
-                      const dayNames = { Lun: "Lunes", Mar: "Martes", Mié: "Miércoles", Jue: "Jueves", Vie: "Viernes" };
-                      const dayNum = 3 + (currentWeekIndex * 7) + dIdx;
-
+                      const dayInfo = currentWeekObj.days[dIdx] || currentWeekObj.days[0]!;
                       return (
                         <div key={d} className="py-1.5 px-2 text-xs font-black text-foreground border-l border-border/60">
-                          <div>{dayNames[d]}</div>
+                          <div>{WEEKDAY_FULL_NAMES[d]}</div>
                           <span className="text-[9.5px] font-semibold text-muted-foreground">
-                            {dayNum} {monthsName[selectedDate.getMonth()].slice(0, 3)}
+                            {dayInfo.dayNum} {dayInfo.monthName.slice(0, 3)}
                           </span>
                         </div>
                       );
@@ -1743,12 +1729,17 @@ export function AgendaBoard() {
                     <div className="py-1.5 px-2 text-[11px] font-black text-muted-foreground uppercase flex items-center justify-center">
                       Horario
                     </div>
-                    <div className="py-1.5 px-2 text-xs font-black text-foreground border-l border-border/60">
-                      <div>Sábado</div>
-                      <span className="text-[9.5px] font-semibold text-muted-foreground">
-                        {8 + (currentWeekIndex * 7)} {monthsName[selectedDate.getMonth()].slice(0, 3)}
-                      </span>
-                    </div>
+                    {(() => {
+                      const satInfo = currentWeekObj.days[5] || currentWeekObj.days[0]!;
+                      return (
+                        <div className="py-1.5 px-2 text-xs font-black text-foreground border-l border-border/60">
+                          <div>Sábado</div>
+                          <span className="text-[9.5px] font-semibold text-muted-foreground">
+                            {satInfo.dayNum} {satInfo.monthName.slice(0, 3)}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Filas Sábados */}
@@ -1928,8 +1919,8 @@ export function AgendaBoard() {
                 {/* PANEL DE ASISTENCIA RÁPIDA (AISLADO POR SEMANA ESPECÍFICA) */}
                 {(() => {
                   const currentAttendance =
-                    selected.attendanceByWeek?.[currentWeekIndex] ??
-                    (selected.weekIndex === currentWeekIndex ? selected.attendanceStatus : undefined);
+                    selected.attendanceByWeek?.[safeWeekIndex] ??
+                    (selected.weekIndex === safeWeekIndex ? selected.attendanceStatus : undefined);
                   return (
                     <div className="space-y-3 rounded-2xl border-2 border-primary/20 p-4 bg-card shadow-xs">
                       <div className="flex items-center justify-between">
@@ -1939,7 +1930,7 @@ export function AgendaBoard() {
                           </span>
                           <div>
                             <p className="text-xs font-black text-foreground uppercase tracking-wide">
-                              Asistencia · Semana {currentWeekIndex + 1} de 4
+                              Asistencia · Semana {safeWeekIndex + 1} de {monthWeeks.length}
                             </p>
                             <p className="text-[10px] text-muted-foreground font-semibold">
                               {selected.day} {selected.time} · {monthsName[selectedMonth]}
@@ -1967,9 +1958,9 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "presente", "", currentWeekIndex);
+                            markLessonAttendance(selected.id, "presente", "", safeWeekIndex);
                             toast.success(
-                              `Asistencia (Semana ${currentWeekIndex + 1}): ${selected.student} PRESENTE 🟢`,
+                              `Asistencia (Semana ${safeWeekIndex + 1}): ${selected.student} PRESENTE 🟢`,
                             );
                           }}
                           className={`h-9 font-bold text-xs gap-1.5 transition-all ${
@@ -1984,9 +1975,9 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "ausente", "", currentWeekIndex);
+                            markLessonAttendance(selected.id, "ausente", "", safeWeekIndex);
                             toast.error(
-                              `Asistencia (Semana ${currentWeekIndex + 1}): ${selected.student} AUSENTE 🔴`,
+                              `Asistencia (Semana ${safeWeekIndex + 1}): ${selected.student} AUSENTE 🔴`,
                             );
                           }}
                           className={`h-9 font-bold text-xs gap-1.5 transition-all ${
@@ -2001,9 +1992,9 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "tarde", "", currentWeekIndex);
+                            markLessonAttendance(selected.id, "tarde", "", safeWeekIndex);
                             toast.warning(
-                              `Asistencia (Semana ${currentWeekIndex + 1}): ${selected.student} TARDE 🟡`,
+                              `Asistencia (Semana ${safeWeekIndex + 1}): ${selected.student} TARDE 🟡`,
                             );
                           }}
                           className={`h-9 font-bold text-xs gap-1.5 transition-all ${
@@ -2018,9 +2009,9 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "justificada", "", currentWeekIndex);
+                            markLessonAttendance(selected.id, "justificada", "", safeWeekIndex);
                             toast.info(
-                              `Asistencia (Semana ${currentWeekIndex + 1}): ${selected.student} JUSTIFICADA 🔵 (+1 Crédito)`,
+                              `Asistencia (Semana ${safeWeekIndex + 1}): ${selected.student} JUSTIFICADA 🔵 (+1 Crédito)`,
                             );
                           }}
                           className={`h-9 font-bold text-xs gap-1.5 transition-all ${
@@ -2445,7 +2436,7 @@ export function AgendaBoard() {
                         }`}
                       >
                         <div className="font-bold">⚡ Solo esta semana</div>
-                        <div className="text-[10px] opacity-80">Semana {currentWeekIndex + 1} de 4</div>
+                        <div className="text-[10px] opacity-80">Semana {safeWeekIndex + 1} de {monthWeeks.length}</div>
                       </button>
 
                       <button
@@ -2458,7 +2449,7 @@ export function AgendaBoard() {
                         }`}
                       >
                         <div className="font-bold">🗓️ Todo el mes</div>
-                        <div className="text-[10px] opacity-80">Las 4 semanas de Agosto</div>
+                        <div className="text-[10px] opacity-80">Las {monthWeeks.length} semanas de {monthsName[selectedMonth]}</div>
                       </button>
                     </div>
                   </div>
@@ -2467,16 +2458,16 @@ export function AgendaBoard() {
                     className="w-full font-bold text-xs"
                     disabled={selected.status === "cancelada"}
                     onClick={() => {
-                      rescheduleLesson(selected.id, moveDay, moveTime, moveScope, currentWeekIndex);
+                      rescheduleLesson(selected.id, moveDay, moveTime, moveScope, safeWeekIndex);
                       toast.success(`Clase reprogramada a ${moveDay} ${moveTime}`, {
                         description: moveScope === "only-this-week"
-                          ? `Aplicado únicamente para la Semana ${currentWeekIndex + 1} de 4.`
-                          : "Aplicado para todas las 4 semanas del mes.",
+                          ? `Aplicado únicamente para la Semana ${safeWeekIndex + 1} de ${monthWeeks.length}.`
+                          : `Aplicado para todas las ${monthWeeks.length} semanas del mes.`,
                       });
                       setSelectedId(null);
                     }}
                   >
-                    Guardar nuevo horario ({moveScope === "only-this-week" ? `Semana ${currentWeekIndex + 1}` : "Mes Completo"})
+                    Guardar nuevo horario ({moveScope === "only-this-week" ? `Semana ${safeWeekIndex + 1}` : "Mes Completo"})
                   </Button>
                 </div>
 
