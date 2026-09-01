@@ -263,15 +263,13 @@ export async function updateStudent(
 }
 
 // ---------------------------------------------------------------
-// EDGE: deleteStudent (Exclusivo Super Admin / Dueña)
-// Regla de Seguridad ADR 005: Nayeli no puede eliminar permanentemente.
-// Solo la Dueña puede ejecutar la eliminación física directa en la BD.
+// EDGE: deleteStudent (Super Admin y Staff / Secretaría Nayeli)
 // ---------------------------------------------------------------
 export async function deleteStudent(
   userRole: Role,
   studentId: string,
 ): Promise<void> {
-  assertRole(userRole, ["super_admin"], "eliminar permanentemente a un alumno");
+  assertRole(userRole, ["super_admin", "staff"], "eliminar permanentemente a un alumno");
   await postgrestRPC("delete_student_cascade", {
     p_student_id: studentId,
   });

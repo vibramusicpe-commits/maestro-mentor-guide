@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.6.4] - 2026-09-01
+
+### Añadido & Corregido
+- **Habilitación de Eliminación Directa de Alumnos para Secretaría (Nayeli) (ADR 0069)**:
+  - Eliminación directa con confirmación en la tabla de alumnos y en la ficha lateral (`Sheet`) sin necesidad de solicitudes de aprobación bloqueantes.
+  - Autorización de rol `staff` en [`src/lib/services/students.service.ts`](file:///c:/Users/USER/my%20music%20staff%20backend/src/lib/services/students.service.ts).
+- **Visibilidad Continua y Registro en Casillas de Agenda (ADR 0069)**:
+  - Remoción de la restricción de meses rígida que ocultaba clases recurrentes en meses posteriores a Agosto. Las clases semanales se mantienen visibles mientras el alumno esté activo.
+  - Corrección de `handleSelectStudentForNewLesson` en [`src/components/admin/agenda-board.tsx`](file:///c:/Users/USER/my%20music%20staff%20backend/src/components/admin/agenda-board.tsx) para preservar el docente y sala seleccionados al hacer clic en "+ Añadir".
+  - Optimización del mapeo de columnas en la matriz diaria por profesor.
+
 ## [1.6.3] - 2026-09-01
 
 ### Corregido & Mejorado

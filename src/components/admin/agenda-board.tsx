@@ -205,12 +205,12 @@ export function AgendaBoard() {
   const handleSelectStudentForNewLesson = (st: AdminStudent) => {
     setNewLessonStudent(st.name);
     setStudentSearchQuery(st.name);
-    if (st.teacher) setNewLessonTeacher(st.teacher);
+    if (!newLessonTeacher && st.teacher) setNewLessonTeacher(st.teacher);
     if (st.instrument) setNewLessonInstrument(st.instrument);
     if (st.ageCategory) setNewLessonCategory(st.ageCategory);
     setIsStudentDropdownOpen(false);
     toast.info(`Alumno: ${st.name}`, {
-      description: `Autocompletado: ${st.instrument} · Prof. ${st.teacher || "Por asignar"} · ${st.ageCategory || "JUNIOR"}`,
+      description: `Seleccionado: ${st.instrument} · Prof. ${newLessonTeacher || st.teacher || "Por asignar"} · ${st.ageCategory || "JUNIOR"}`,
     });
   };
 
@@ -291,7 +291,7 @@ export function AgendaBoard() {
     () =>
       schedule.filter(
         (l) => {
-          // 1. Filtrado por período de vigencia de contrato / ciclo lectivo
+          // 1. Filtrado por estado de alumno (si el alumno está dado de baja, no mostrar en agenda)
           const studentProfile = adminStudents.find(
             (st) => st.name.toLowerCase() === l.student.toLowerCase(),
           );
@@ -302,25 +302,8 @@ export function AgendaBoard() {
             const lMonth = l.month ?? selectedMonth;
             if (lYear !== selectedYear || lMonth !== selectedMonth) return false;
           } else {
-            // Si el alumno está dado de baja, no mostrar
+            // Si el alumno está dado de baja, no mostrar en la agenda activa
             if (studentProfile && studentProfile.status === "baja") return false;
-
-            const startMonth =
-              studentProfile?.planStartMonth ||
-              (studentProfile?.planStartDate ? studentProfile.planStartDate.slice(0, 7) : "2026-08");
-
-            const endMonth =
-              studentProfile?.planEndMonth ||
-              (studentProfile?.planEndDate
-                ? studentProfile.planEndDate.slice(0, 7)
-                : studentProfile?.planType === "Anual"
-                ? "2027-07"
-                : studentProfile?.planType === "Trimestral"
-                ? "2026-10"
-                : "2026-12");
-
-            const isWithinPlan = selectedYearMonthStr >= startMonth && selectedYearMonthStr <= endMonth;
-            if (!isWithinPlan) return false;
           }
 
           // 2. Filtro de semana específica (si aplica a semana individual o al mes completo)
@@ -1022,12 +1005,16 @@ export function AgendaBoard() {
 
                               {/* 4 Columnas por Profesor y Sala */}
                               {mainTeachersList.map((tInfo, tIdx) => {
-                                const lessons = dayLessonsForTable.filter(
-                                  (l) =>
-                                    l.time === timeSlot &&
-                                    (l.teacher.toLowerCase().includes(tInfo.name.toLowerCase()) ||
-                                     l.room.toLowerCase().trim() === tInfo.room.toLowerCase().trim())
-                                );
+                                const lessons = dayLessonsForTable.filter((l) => {
+                                  if (l.time !== timeSlot) return false;
+                                  const teacherMatches = l.teacher.toLowerCase().includes(tInfo.name.toLowerCase());
+                                  if (teacherMatches) return true;
+                                  const matchesOtherTeacher = mainTeachersList.some((m) => l.teacher.toLowerCase().includes(m.name.toLowerCase()));
+                                  if (!matchesOtherTeacher && l.room.toLowerCase().trim() === tInfo.room.toLowerCase().trim()) {
+                                    return true;
+                                  }
+                                  return false;
+                                });
 
                                 return (
                                   <td

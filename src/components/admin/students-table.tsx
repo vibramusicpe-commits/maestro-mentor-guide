@@ -709,20 +709,13 @@ export function StudentsTable() {
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (activeRole === "staff") {
-                              // Secretaría: Crea Solicitud de Eliminación para la Dueña
-                              setDeleteReqStudent(st);
-                              setDeleteReqReason("");
-                            } else {
-                              // Dueña: Eliminación directa con confirmación
-                              if (confirm(`¿Estás seguro de eliminar a ${st.name} y liberar todos sus horarios asignados?`)) {
-                                deleteStudent(st.id);
-                                toast.success(`Alumno ${st.name} y sus horarios eliminados`);
-                              }
+                            if (confirm(`¿Estás seguro de eliminar a ${st.name} y liberar todos sus horarios asignados de la escuela?`)) {
+                              deleteStudent(st.id);
+                              toast.success(`Alumno ${st.name} y sus horarios fueron eliminados correctamente`);
                             }
                           }}
                           className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
-                          title={activeRole === "staff" ? `Solicitar baja/eliminación de ${st.name} a Dirección` : `Eliminar ${st.name} y sus horarios`}
+                          title={`Eliminar ${st.name} y liberar sus horarios`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1609,6 +1602,51 @@ export function StudentsTable() {
                   </p>
                   <div className="rounded-lg bg-muted/40 p-3 text-xs italic text-foreground">
                     "{selectedStudent.teacherNote}"
+                  </div>
+                </div>
+
+                {/* Zona de Retiro / Eliminación de Alumno */}
+                <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                      <Trash2 className="h-4 w-4" />
+                      Retiro Definitivo / Eliminación de Alumno
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Si el alumno ya no continuará en la escuela, puedes darlo de baja (conserva historial) o eliminar su registro por completo liberando sus horarios en la agenda.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setStudentStatus(selectedStudent.id, "baja");
+                        setSelectedStudentId(null);
+                        toast.success(`Alumno ${selectedStudent.name} marcado como BAJA`, {
+                          description: "Se retiró de la agenda activa y se detuvo la facturación.",
+                        });
+                      }}
+                      className="text-xs font-bold border-destructive/40 text-destructive hover:bg-destructive/10"
+                    >
+                      🔴 Dar de Baja (Mantener Historial)
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        if (confirm(`¿Estás seguro de eliminar a ${selectedStudent.name} y liberar todos sus horarios de la escuela?`)) {
+                          deleteStudent(selectedStudent.id);
+                          setSelectedStudentId(null);
+                          toast.success(`Alumno ${selectedStudent.name} y sus horarios fueron eliminados correctamente`);
+                        }
+                      }}
+                      className="text-xs font-bold"
+                    >
+                      🗑️ Eliminar Definitivamente
+                    </Button>
                   </div>
                 </div>
               </div>
