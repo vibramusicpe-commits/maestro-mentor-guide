@@ -4,6 +4,14 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.6.3] - 2026-09-01
+
+### Corregido & Mejorado
+- **Corrección de ReferenceError en Copia de Invitaciones (ADR 0068)**:
+  - Importación explícita de `CheckCircle2` en [`src/routes/admin.invitaciones.tsx`](file:///c:/Users/USER/my%20music%20staff%20backend/src/routes/admin.invitaciones.tsx), eliminando la excepción `ReferenceError: CheckCircle2 is not defined` al copiar enlaces de acceso o credenciales en el modal de visualización.
+- **Diferenciación Visual de Iconos de Navegación (ADR 0068)**:
+  - Asignación de iconos únicos en la barra lateral en [`src/routes/admin.tsx`](file:///c:/Users/USER/my%20music%20staff%20backend/src/routes/admin.tsx): **`GraduationCap`** para *Alumnos* y **`UserPlus`** para *Invitaciones*, evitando confusiones visuales.
+
 ## [1.6.2] - 2026-08-31
 
 ### Añadido & Corregido

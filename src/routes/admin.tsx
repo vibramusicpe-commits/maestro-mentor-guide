@@ -20,6 +20,8 @@ import {
   Search,
   CheckCircle2,
   AlertTriangle,
+  GraduationCap,
+  UserPlus,
 } from "lucide-react";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTitle as DialogTitleComponent,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
@@ -59,9 +62,9 @@ export const Route = createFileRoute("/admin")({
 const nav = [
   { label: "Dashboard", to: "/admin" as const, icon: BarChart3, exact: true },
   { label: "Horario de Clases", to: "/admin/agenda" as const, icon: CalendarDays },
-  { label: "Alumnos", to: "/admin/alumnos" as const, icon: Users2 },
+  { label: "Alumnos", to: "/admin/alumnos" as const, icon: GraduationCap },
   { label: "Cobros y Abonos", to: "/admin/facturacion" as const, icon: CreditCard },
-  { label: "Invitaciones", to: "/admin/invitaciones" as const, icon: Users2 },
+  { label: "Invitaciones", to: "/admin/invitaciones" as const, icon: UserPlus },
   { label: "Control Horario", to: "/admin/control-horario" as const, icon: Clock },
 ];
 

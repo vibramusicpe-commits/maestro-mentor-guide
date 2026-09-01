@@ -24,6 +24,7 @@ import {
   Eye,
   Lock,
   ExternalLink,
+  CheckCircle2,
 } from "lucide-react";
 import { musicalInstruments } from "@/store/admin-seeds";
 import {
