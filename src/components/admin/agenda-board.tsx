@@ -180,6 +180,8 @@ export function AgendaBoard() {
   const [newLessonTime, setNewLessonTime] = useState(timeSlotsWeekday[0] || "16:00");
   const [newLessonRoom, setNewLessonRoom] = useState(rooms[0] || "Sala A");
   const [newLessonCategory, setNewLessonCategory] = useState<AgeCategory>("JUNIOR");
+  const [newLessonScope, setNewLessonScope] = useState<"only-this-week" | "all">("only-this-week");
+  const [targetExistingLessonId, setTargetExistingLessonId] = useState<string | "new">("new");
 
   // Estados de Búsqueda y Autocompletado de Alumnos (99 Alumnos)
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
@@ -202,15 +204,49 @@ export function AgendaBoard() {
     }).slice(0, 6);
   }, [adminStudents, studentSearchQuery]);
 
+  // Detección de clases existentes del alumno para el modal de programación
+  const currentStudentLessons = useMemo(() => {
+    const q = (newLessonStudent || studentSearchQuery).trim().toLowerCase();
+    if (!q) return [];
+    return schedule.filter(
+      (l) =>
+        (l.student.toLowerCase() === q ||
+          l.student.toLowerCase().includes(q) ||
+          q.includes(l.student.toLowerCase())) &&
+        l.status !== "cancelada",
+    );
+  }, [schedule, newLessonStudent, studentSearchQuery]);
+
   const handleSelectStudentForNewLesson = (st: AdminStudent) => {
     setNewLessonStudent(st.name);
     setStudentSearchQuery(st.name);
     if (!newLessonTeacher && st.teacher) setNewLessonTeacher(st.teacher);
     if (st.instrument) setNewLessonInstrument(st.instrument);
     if (st.ageCategory) setNewLessonCategory(st.ageCategory);
+
+    // Detección automática de clases existentes para permitir mover o agregar sesión
+    const existing = schedule.filter(
+      (l) =>
+        (l.student.toLowerCase() === st.name.toLowerCase() ||
+          l.student.toLowerCase().includes(st.name.toLowerCase()) ||
+          st.name.toLowerCase().includes(l.student.toLowerCase())) &&
+        l.status !== "cancelada",
+    );
+
+    if (existing.length > 0) {
+      const first = existing[0]!;
+      setTargetExistingLessonId(first.id);
+      if (!newLessonTeacher) setNewLessonTeacher(first.teacher);
+      if (!newLessonRoom) setNewLessonRoom(first.room);
+    } else {
+      setTargetExistingLessonId("new");
+    }
+
     setIsStudentDropdownOpen(false);
     toast.info(`Alumno: ${st.name}`, {
-      description: `Seleccionado: ${st.instrument} · Prof. ${newLessonTeacher || st.teacher || "Por asignar"} · ${st.ageCategory || "JUNIOR"}`,
+      description: existing.length > 0
+        ? `Tiene ${existing.length} clase(s) agendada(s). Puedes mover su horario o agregar una nueva sesión.`
+        : `Seleccionado: ${st.instrument} · Prof. ${newLessonTeacher || st.teacher || "Por asignar"} · ${st.ageCategory || "JUNIOR"}`,
     });
   };
 
@@ -237,6 +273,7 @@ export function AgendaBoard() {
   const [addEventStudentQuery, setAddEventStudentQuery] = useState("");
   const [addEventSelectedStudent, setAddEventSelectedStudent] = useState<AdminStudent | null>(null);
   const [isAddEventDropdownOpen, setIsAddEventDropdownOpen] = useState(false);
+  const [addEventScope, setAddEventScope] = useState<"only-this-week" | "all">("only-this-week");
 
   // Filtro reactivo de alumnos para el dropdown del panel lateral
   const filteredAddEventStudents = useMemo(() => {
@@ -2281,6 +2318,37 @@ export function AgendaBoard() {
                                 <p><strong>Docente:</strong> Prof. {selected.teacher} · <strong>Curso:</strong> {selected.instrument}</p>
                               </div>
 
+                              {/* Selector de Alcance en Inscribir en Horario */}
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                  Alcance del Horario
+                                </label>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddEventScope("only-this-week")}
+                                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all border text-center ${
+                                      addEventScope === "only-this-week"
+                                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                        : "bg-background border-border text-foreground hover:bg-muted"
+                                    }`}
+                                  >
+                                    ⚡ Solo esta semana ({safeWeekIndex + 1})
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddEventScope("all")}
+                                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all border text-center ${
+                                      addEventScope === "all"
+                                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                        : "bg-background border-border text-foreground hover:bg-muted"
+                                    }`}
+                                  >
+                                    🗓️ Todo el mes ({monthWeeks.length} sem.)
+                                  </button>
+                                </div>
+                              </div>
+
                               {/* Botón de Confirmación */}
                               <Button
                                 type="button"
@@ -2321,9 +2389,10 @@ export function AgendaBoard() {
                                       instrument: selected.instrument,
                                       category: "PERSONALIZADA",
                                       status: "programada",
+                                      weekIndex: addEventScope === "only-this-week" ? safeWeekIndex : undefined,
                                     });
                                     toast.success(`⭐ Clase personalizada inscrita: ${studentName}`, {
-                                      description: `Horario: ${selected.day} ${selected.time} (${selected.room}) con Prof. ${selected.teacher}.`,
+                                      description: `Horario: ${selected.day} ${selected.time} (${selected.room}) con Prof. ${selected.teacher} (${addEventScope === "only-this-week" ? `Solo Semana ${safeWeekIndex + 1}` : "Todo el mes"}).`,
                                     });
                                   } else {
                                     addLessonToSchedule({
@@ -2335,9 +2404,10 @@ export function AgendaBoard() {
                                       instrument: selected.instrument,
                                       category: addEventSelectedStudent?.ageCategory || "JUNIOR",
                                       status: "programada",
+                                      weekIndex: addEventScope === "only-this-week" ? safeWeekIndex : undefined,
                                     });
                                     toast.success(`🎵 Clase regular inscrita: ${studentName}`, {
-                                      description: `Horario: ${selected.day} ${selected.time} (${selected.room}) con Prof. ${selected.teacher}.`,
+                                      description: `Horario: ${selected.day} ${selected.time} (${selected.room}) con Prof. ${selected.teacher} (${addEventScope === "only-this-week" ? `Solo Semana ${safeWeekIndex + 1}` : "Todo el mes"}).`,
                                     });
                                   }
 
@@ -3246,28 +3316,61 @@ export function AgendaBoard() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!newLessonStudent.trim()) {
-                toast.error("Ingresa el nombre del alumno");
+                toast.error("Ingresa o selecciona el nombre del alumno");
                 return;
               }
               const finalTeacher = newLessonTeacher || availableTeachers[0] || "Prof. por Asignar";
 
-              addLessonToSchedule({
-                student: newLessonStudent.trim(),
-                teacher: finalTeacher,
-                instrument: newLessonInstrument,
-                day: newLessonDay,
-                time: newLessonTime,
-                room: newLessonRoom,
-                category: newLessonCategory,
-                status: "programada",
-              });
+              if (targetExistingLessonId && targetExistingLessonId !== "new") {
+                // Reprogramar horario existente (Mover al niño de día / hora)
+                rescheduleLesson(
+                  targetExistingLessonId,
+                  newLessonDay,
+                  newLessonTime,
+                  newLessonScope,
+                  safeWeekIndex,
+                  finalTeacher,
+                  newLessonRoom,
+                );
+                toast.success(`Horario de ${newLessonStudent} reprogramado a ${newLessonDay} ${newLessonTime}`, {
+                  description: newLessonScope === "only-this-week"
+                    ? `Se cambió únicamente para la Semana ${safeWeekIndex + 1} (${monthsName[selectedMonth]}). Las demás semanas no se modificaron.`
+                    : `Se actualizó para todas las semanas del mes con Prof. ${finalTeacher} (${newLessonRoom}).`,
+                });
+              } else {
+                // Programar nueva clase / sesión adicional
+                addLessonToSchedule({
+                  student: newLessonStudent.trim(),
+                  teacher: finalTeacher,
+                  instrument: newLessonInstrument,
+                  day: newLessonDay,
+                  time: newLessonTime,
+                  room: newLessonRoom,
+                  category: newLessonCategory,
+                  status: "programada",
+                  weekIndex: newLessonScope === "only-this-week" ? safeWeekIndex : undefined,
+                });
 
-              toast.success(`Clase de ${newLessonStudent} programada`, {
-                description: `${newLessonDay} a las ${newLessonTime} en ${newLessonRoom} con Prof. ${finalTeacher}.`,
-              });
+                toast.success(`Clase de ${newLessonStudent} programada para ${newLessonDay} ${newLessonTime}`, {
+                  description: newLessonScope === "only-this-week"
+                    ? `Agendado únicamente en la Semana ${safeWeekIndex + 1} (${monthsName[selectedMonth]}).`
+                    : `Agendado para todas las semanas del mes con Prof. ${finalTeacher} (${newLessonRoom}).`,
+                });
+              }
+
+              // Auto-sincronizar la pestaña visible al par de días correspondiente para que Nayeli lo vea de inmediato en pantalla
+              if (newLessonDay === "Lun" || newLessonDay === "Mié") {
+                setActivePair(0);
+              } else if (newLessonDay === "Mar" || newLessonDay === "Jue") {
+                setActivePair(1);
+              } else if (newLessonDay === "Vie" || newLessonDay === "Sáb") {
+                setActivePair(2);
+              }
 
               setIsAddLessonOpen(false);
               setNewLessonStudent("");
+              setStudentSearchQuery("");
+              setTargetExistingLessonId("new");
             }}
             className="space-y-4 py-2 text-xs"
           >
@@ -3340,6 +3443,125 @@ export function AgendaBoard() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Panel Inteligente de Horarios Actuales del Alumno (Permite Mover de Día) */}
+            {currentStudentLessons.length > 0 && (
+              <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-primary flex items-center gap-1.5 text-xs">
+                    <Calendar className="h-4 w-4" /> Horario(s) actual(es) del alumno:
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-semibold">
+                    {currentStudentLessons.length} {currentStudentLessons.length === 1 ? "clase asignada" : "clases asignadas"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Elige si deseas mover/cambiar una de sus clases actuales a otro día/hora o agregar una sesión adicional:
+                </p>
+                <div className="space-y-1.5">
+                  {currentStudentLessons.map((ex) => {
+                    const isSelected = targetExistingLessonId === ex.id;
+                    return (
+                      <button
+                        key={ex.id}
+                        type="button"
+                        onClick={() => {
+                          setTargetExistingLessonId(ex.id);
+                          setNewLessonDay(ex.day);
+                          setNewLessonTime(ex.time);
+                          setNewLessonTeacher(ex.teacher);
+                          setNewLessonRoom(ex.room);
+                          setNewLessonInstrument(ex.instrument);
+                          if (ex.category) setNewLessonCategory(ex.category);
+                        }}
+                        className={`w-full p-2 rounded-xl border text-xs text-left transition-all flex items-center justify-between ${
+                          isSelected
+                            ? "border-primary bg-primary/15 text-primary font-bold shadow-xs ring-1 ring-primary"
+                            : "border-border bg-background text-foreground hover:bg-muted/70"
+                        }`}
+                      >
+                        <div>
+                          <span className="font-bold">{ex.day} a las {ex.time}</span> · {ex.room} · Prof. {ex.teacher} ({ex.instrument})
+                          {ex.weekIndex !== undefined && (
+                            <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
+                              Semana {ex.weekIndex + 1}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary/10 text-primary">
+                          {isSelected ? "✓ Seleccionado para cambiar de día" : "Mover este día ↵"}
+                        </span>
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => setTargetExistingLessonId("new")}
+                    className={`w-full p-2 rounded-xl border text-xs text-left transition-all flex items-center justify-between ${
+                      targetExistingLessonId === "new"
+                        ? "border-emerald-500 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-bold shadow-xs ring-1 ring-emerald-500"
+                        : "border-dashed border-border bg-background text-muted-foreground hover:bg-muted/70"
+                    }`}
+                  >
+                    <span>➕ Inscribir como nueva sesión adicional (sin mover los anteriores)</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-600">
+                      {targetExistingLessonId === "new" ? "✓ Nueva sesión" : "Elegir"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Selector de Alcance de la Programación: Solo esta semana vs Todo el mes */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="font-bold text-foreground">Alcance del Horario</label>
+                <span className="text-[10px] font-semibold text-primary">
+                  {newLessonScope === "only-this-week" ? `⚡ Semana ${safeWeekIndex + 1}` : "🗓️ Mes Completo"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewLessonScope("only-this-week")}
+                  className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
+                    newLessonScope === "only-this-week"
+                      ? "border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center gap-1">
+                    ⚡ Solo esta semana
+                  </div>
+                  <div className="text-[10px] opacity-80 mt-0.5">
+                    Semana {safeWeekIndex + 1} de {monthWeeks.length} ({monthsName[selectedMonth]})
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNewLessonScope("all")}
+                  className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
+                    newLessonScope === "all"
+                      ? "border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center gap-1">
+                    🗓️ Todo el mes
+                  </div>
+                  <div className="text-[10px] opacity-80 mt-0.5">
+                    Las {monthWeeks.length} semanas de {monthsName[selectedMonth]}
+                  </div>
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground italic">
+                {newLessonScope === "only-this-week"
+                  ? `Aplica únicamente para la Semana ${safeWeekIndex + 1}. Las demás semanas conservarán su horario habitual.`
+                  : `Aplica de forma recurrente para todas las semanas del mes de ${monthsName[selectedMonth]}.`}
+              </p>
             </div>
 
             <div className="grid grid-cols-3 gap-2">

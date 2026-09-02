@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.6.5] - 2026-09-02
+
+### Añadido & Corregido
+- **Selector de Alcance de Horario por Semana ("Solo esta semana" vs "Todo el mes") (ADR 0070)**:
+  - Integración del selector de alcance tanto en el modal de **`+ Programar Clase`** como en el panel lateral de **`➕ Agregar Alumno a este Horario`**, permitiendo que Nayeli cambie a un alumno de día únicamente para la semana activa o para todo el mes.
+- **Detección Inteligente de Horarios Existentes y Reprogramación Rápida (ADR 0070)**:
+  - Al seleccionar a un alumno que ya tiene clases asignadas, el modal despliega sus horarios vigentes con opción de mover la clase existente o agendar una sesión adicional.
+  - Soporte de actualización de docente y sala en `rescheduleLesson` en [`src/store/app-store.ts`](file:///c:/Users/USER/my%20music%20staff%20backend/src/store/app-store.ts).
+- **Auto-Navegación Visual de Pestañas al Guardar (ADR 0070)**:
+  - Al guardar o mover una clase a un día diferente (ej. de Lunes a Martes), la vista cambia automáticamente a la pestaña correspondiente (`Mar-Jue`), garantizando visibilidad inmediata de la clase agendada.
+
 ## [1.6.4] - 2026-09-01
 
 ### Añadido & Corregido

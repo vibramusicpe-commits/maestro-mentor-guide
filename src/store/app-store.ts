@@ -128,9 +128,7 @@ type AppState = {
   // Dirección (admin)
   schedule: ScheduledLesson[];
   adminStudents: AdminStudent[];
-  invoices: Invoice[];
-  rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number) => void;
-  cancelLesson: (id: string) => void;
+  rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number, teacher?: string, room?: string) => void;
   removeLessonFromSchedule: (id: string) => void;
   deleteLessonFromSchedule: (id: string) => void;
   addLessonToSchedule: (lesson: Omit<ScheduledLesson, "id">) => void;
@@ -423,10 +421,13 @@ export const useAppStore = create<AppState>()(
       schedule: initialSchedule,
       adminStudents: adminStudents,
       invoices: initialInvoices,
-      rescheduleLesson: (id, day, time, scope = "only-this-week", targetWeekIndex) =>
+      rescheduleLesson: (id, day, time, scope = "only-this-week", targetWeekIndex, teacher, room) =>
         set((s) => {
           const targetLesson = s.schedule.find((l) => l.id === id);
           if (!targetLesson) return s;
+
+          const newTeacher = teacher || targetLesson.teacher;
+          const newRoom = room || targetLesson.room;
 
           if (scope === "only-this-week" && targetWeekIndex !== undefined) {
             // Si es un horario recurrente mensual (sin weekIndex fijado)
@@ -442,6 +443,8 @@ export const useAppStore = create<AppState>()(
                 id: `sch-resched-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                 day: day,
                 time: time,
+                teacher: newTeacher,
+                room: newRoom,
                 weekIndex: targetWeekIndex,
                 excludedWeeks: undefined,
                 attendanceStatus: undefined,
@@ -464,7 +467,7 @@ export const useAppStore = create<AppState>()(
               // Ya era una clase puntual de una semana específica
               const updated = s.schedule.map((l) => {
                 if (l.id === id) {
-                  return { ...l, day, time, weekIndex: targetWeekIndex };
+                  return { ...l, day, time, teacher: newTeacher, room: newRoom, weekIndex: targetWeekIndex };
                 }
                 return l;
               });
@@ -480,11 +483,11 @@ export const useAppStore = create<AppState>()(
             }
           }
 
-          // Por defecto: Aplica a todo el mes (las 4 semanas)
+          // Por defecto: Aplica a todo el mes (las 4 o 5 semanas)
           const updatedSchedule = s.schedule.map((l) => {
             if (l.id === id) {
               const { weekIndex, excludedWeeks, ...rest } = l;
-              return { ...rest, day, time, excludedWeeks: [] };
+              return { ...rest, day, time, teacher: newTeacher, room: newRoom, excludedWeeks: [] };
             }
             return l;
           });
