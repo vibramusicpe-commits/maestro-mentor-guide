@@ -260,6 +260,7 @@ export function AgendaBoard() {
   const [makeupRoom, setMakeupRoom] = useState("Sala A");
   const [makeupCategory, setMakeupCategory] = useState<AgeCategory>("JUNIOR");
   const [makeupOriginalDate, setMakeupOriginalDate] = useState("");
+  const [makeupWeekIndex, setMakeupWeekIndex] = useState<number>(0);
 
   // Estados de Vaciar Horario Seguro (Exclusivo Dueña con 2 filtros: Contraseña + Reconfirmación GitHub Style)
   const [isClearSecureOpen, setIsClearSecureOpen] = useState(false);
@@ -334,13 +335,37 @@ export function AgendaBoard() {
           );
 
           if (l.isMakeup) {
-            // Clases de recuperación son puntuales para su mes/año específico
+            // Clases de recuperación son puntuales para su semana, mes y año específico
             const lYear = l.year ?? 2026;
-            const lMonth = l.month ?? selectedMonth;
-            if (lYear !== selectedYear || lMonth !== selectedMonth) return false;
+            if (lYear !== selectedYear) return false;
+            if (l.month !== undefined && l.month !== selectedMonth) return false;
+            if (l.weekIndex !== undefined && l.weekIndex !== safeWeekIndex) return false;
           } else {
-            // Si el alumno está dado de baja, no mostrar en la agenda activa
+            // 1. Alumnos dados de baja nunca se muestran en la agenda
             if (studentProfile && studentProfile.status === "baja") return false;
+
+            // 2. Control del Ciclo Escolar y Vigencia de Planes:
+            // - En 2028 o posterior: No existen alumnos matriculados en este ciclo
+            if (selectedYear >= 2028) return false;
+
+            // - En 2027: Solo los alumnos con Plan Anual tienen vigencia (iniciados en Ago 2026, vigentes hasta Jul 2027).
+            //   A mediados de 2027 (Agosto 2027 en adelante, mes index >= 7), vencen los contratos anuales.
+            if (selectedYear === 2027) {
+              const isAnnual = studentProfile?.planType === "Anual";
+              if (!isAnnual) return false;
+              if (selectedMonth >= 7) return false; // A mediados de 2027 ya no hay clases
+            }
+
+            // - En 2026: El ciclo lectivo oficial comenzó en Agosto 2026 (mes index 7).
+            if (selectedYear === 2026 && selectedMonth < 7) {
+              return false;
+            }
+
+            // - Si el alumno tiene fecha/mes de inicio posterior al mes visualizado, no mostrar antes
+            const startMonth =
+              studentProfile?.planStartMonth ||
+              (studentProfile?.planStartDate ? studentProfile.planStartDate.slice(0, 7) : "2026-08");
+            if (selectedYearMonthStr < startMonth) return false;
           }
 
           // 2. Filtro de semana específica (si aplica a semana individual o al mes completo)
@@ -794,6 +819,7 @@ export function AgendaBoard() {
                 setMakeupInstrument(studentWithCredit.instrument || "Piano");
                 setMakeupCategory(studentWithCredit.ageCategory || "JUNIOR");
               }
+              setMakeupWeekIndex(safeWeekIndex);
               setIsMakeupModalOpen(true);
             }}
             className="gap-1.5 font-bold border-red-500/40 text-red-700 dark:text-red-300 bg-red-500/10 hover:bg-red-500/20"
@@ -2375,9 +2401,12 @@ export function AgendaBoard() {
                                       instrument: selected.instrument,
                                       category: "RECUPERACION",
                                       recoveringLessonDate: `Recuperación en horario de ${selected.day} ${selected.time} (${selected.room})`,
+                                      weekIndex: safeWeekIndex,
+                                      year: selectedYear,
+                                      month: selectedMonth,
                                     });
                                     toast.success(`🎉 Recuperación inscrita: ${studentName}`, {
-                                      description: `Horario: ${selected.day} ${selected.time} (${selected.room}) con Prof. ${selected.teacher}. Se descontó 1 crédito.`,
+                                      description: `Horario: ${selected.day} ${selected.time} (${selected.room}) con Prof. ${selected.teacher} (Solo Semana ${safeWeekIndex + 1} de ${monthsName[selectedMonth]}). Se descontó 1 crédito.`,
                                     });
                                   } else if (addEventType === "personalizada") {
                                     addLessonToSchedule({
@@ -3725,11 +3754,19 @@ export function AgendaBoard() {
                 room: makeupRoom,
                 category: makeupCategory,
                 recoveringLessonDate: makeupOriginalDate.trim() || "Clase previa justificada",
+                weekIndex: makeupWeekIndex,
+                year: selectedYear,
+                month: selectedMonth,
               });
 
               toast.success(`Recuperación programada para ${makeupStudent}`, {
-                description: `${makeupDay} a las ${makeupTime} en ${makeupRoom} con Prof. ${makeupTeacher || "Jeremy"}. Se descontó 1 crédito.`,
+                description: `${makeupDay} a las ${makeupTime} en ${makeupRoom} con Prof. ${makeupTeacher || "Jeremy"} (Solo Semana ${makeupWeekIndex + 1} de ${monthsName[selectedMonth]}). Se descontó 1 crédito.`,
               });
+
+              setCurrentWeekIndex(makeupWeekIndex);
+              if (makeupDay === "Lun" || makeupDay === "Mié") setActivePair(0);
+              else if (makeupDay === "Mar" || makeupDay === "Jue") setActivePair(1);
+              else if (makeupDay === "Vie" || makeupDay === "Sáb") setActivePair(2);
 
               setIsMakeupModalOpen(false);
               setMakeupOriginalDate("");
@@ -3761,6 +3798,38 @@ export function AgendaBoard() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Selector de Semana Específica para la Recuperación */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="font-bold text-foreground">
+                  Semana de Recuperación ({monthsName[selectedMonth]} {selectedYear})
+                </label>
+                <span className="text-[10px] text-red-600 font-bold bg-red-500/10 px-2 py-0.5 rounded-full">
+                  ⚡ Solo Semana {makeupWeekIndex + 1}
+                </span>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {monthWeeks.map((w, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setMakeupWeekIndex(idx)}
+                    className={`p-2 rounded-xl border text-xs font-bold transition-all text-center ${
+                      makeupWeekIndex === idx
+                        ? "bg-red-600 text-white border-red-700 shadow-xs ring-1 ring-red-600"
+                        : "bg-background border-border text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <div>Semana {idx + 1}</div>
+                    <div className="text-[9.5px] opacity-80 mt-0.5">{w.label.split(" ")[0]}</div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground italic">
+                La recuperación se agendará únicamente para la Semana {makeupWeekIndex + 1} de {monthsName[selectedMonth]}. En las demás semanas continuará su horario normal sin modificaciones.
+              </p>
             </div>
 
             <div className="grid grid-cols-3 gap-2">

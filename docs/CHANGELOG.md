@@ -4,6 +4,18 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.6.6] - 2026-09-02
+
+### Añadido & Corregido
+- **Aislamiento Estricto de Clases de Recuperación a 1 Sola Semana (ADR 0071)**:
+  - Las clases de recuperación ahora persisten y filtran estrictamente por `weekIndex`, `month` y `year`. Se muestran únicamente en la semana y mes elegidos, permitiendo que el alumno continúe con su horario habitual en las demás semanas sin alterar su plan.
+  - Incorporación de selector de semana (Semanas 1 a 5) en el modal de **Programar Recuperación** con navegación automática al día y semana agendada.
+- **Delimitación Oficial del Ciclo Escolar 2026-2027 (ADR 0071)**:
+  - En **2028 en adelante**: Agenda 100% limpia sin alumnos matriculados (0 alumnos).
+  - En **mediados de 2027 (Agosto 2027 en adelante)**: Contratos anuales concluidos, no se muestran clases fantasma (0 alumnos).
+  - En **primer semestre 2027 (Enero a Julio 2027)**: Únicamente se muestran los estudiantes con Plan Anual.
+  - En **2026 (Agosto a Diciembre)**: Horarios completos y vigentes para todos los alumnos activos.
+
 ## [1.6.5] - 2026-09-02
 
 ### Añadido & Corregido

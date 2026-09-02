@@ -162,6 +162,9 @@ type AppState = {
     instrument: string;
     category?: AgeCategory;
     recoveringLessonDate?: string;
+    weekIndex?: number;
+    year?: number;
+    month?: number;
   }) => void;
   addStudentReentryRecord: (
     studentId: string,
@@ -749,7 +752,7 @@ export const useAppStore = create<AppState>()(
       scheduleMakeupLesson: (data) =>
         set((s) => {
           const newLesson: ScheduledLesson = {
-            id: `sch-mk-${Date.now()}`,
+            id: `sch-mk-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
             day: data.day,
             time: data.time,
             student: data.studentName,
@@ -759,6 +762,9 @@ export const useAppStore = create<AppState>()(
             category: data.category || "RECUPERACION",
             status: "programada",
             isMakeup: true,
+            weekIndex: data.weekIndex,
+            year: data.year,
+            month: data.month,
             recoveringLessonDate: data.recoveringLessonDate || "Clase previa justificada",
           };
 
