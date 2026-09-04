@@ -4,6 +4,13 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.6.7] - 2026-09-04
+
+### Añadido & Corregido
+- **Capa de Datos para Leads y Solicitudes Demo en Insforge (`leads.service.ts`) (ADR 0072)**:
+  - Creación del servicio oficial para interactuar con la tabla `demo_requests` de PostgreSQL en Insforge (`getLeadsFromDB`, `createLeadInDB`, `updateLeadStatusInDB`).
+  - Habilitación de la infraestructura base para que un bot de WhatsApp (Evolution API, Meta Cloud API) o landing page en WordPress pueda registrar prospectos directamente en la base de datos de la escuela sin requerir un CRM de pago externo.
+
 ## [1.6.6] - 2026-09-02
 
 ### Añadido & Corregido
