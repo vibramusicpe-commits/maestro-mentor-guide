@@ -23,6 +23,9 @@ import {
   GraduationCap,
   UserPlus,
   Bot,
+  Megaphone,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { Button } from "@/components/ui/button";
@@ -62,10 +65,11 @@ export const Route = createFileRoute("/admin")({
 
 const nav = [
   { label: "Dashboard", to: "/admin" as const, icon: BarChart3, exact: true },
+  { label: "Campañas", to: "/admin/campanas" as const, icon: Megaphone },
+  { label: "WhatsApp Bot", to: "/admin/whatsapp" as const, icon: Bot },
   { label: "Horario de Clases", to: "/admin/agenda" as const, icon: CalendarDays },
   { label: "Alumnos", to: "/admin/alumnos" as const, icon: GraduationCap },
   { label: "Cobros y Abonos", to: "/admin/facturacion" as const, icon: CreditCard },
-  { label: "WhatsApp Bot", to: "/admin/whatsapp" as const, icon: Bot },
   { label: "Invitaciones", to: "/admin/invitaciones" as const, icon: UserPlus },
   { label: "Control Horario", to: "/admin/control-horario" as const, icon: Clock },
 ];
@@ -92,6 +96,34 @@ function AdminLayout() {
   const chimeSettings = useAppStore((s) => s.chimeSettings);
   const playOfficialChime = useAppStore((s) => s.playOfficialChime);
   const lastChimedMinuteRef = useRef<string>("");
+
+  // Estado y Toggle Global de Modo Noche / Modo Día
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("vibra-theme");
+      if (saved) return saved === "dark";
+      return typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (isDarkMode) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("vibra-theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("vibra-theme", "light");
+      }
+    } catch {}
+  }, [isDarkMode]);
+
+  const toggleTheme = () => {
+    setIsDarkMode((prev) => !prev);
+    toast.info(!isDarkMode ? "Modo Noche activado 🌙" : "Modo Día activado ☀️");
+  };
 
   // Desbloquear AudioContext en la primera interacción del usuario (Click/Tecla)
   useEffect(() => {
@@ -251,8 +283,8 @@ function AdminLayout() {
               isCollapsed ? "justify-center px-2" : "gap-3 px-3.5"
             } py-2.5 rounded-xl text-left text-xs font-bold transition-all ${
               active
-                ? "bg-primary text-primary-foreground shadow-xs scale-[1.02]"
-                : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                ? "bg-gradient-to-r from-[#F47B20] to-[#FF9E3D] text-[#0D0B0A] font-extrabold shadow-md shadow-orange-500/25 scale-[1.02]"
+                : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-[#FFB52E]"
             }`;
             return (
               <Link
@@ -328,6 +360,25 @@ function AdminLayout() {
               Torre de control {activeRole === "staff" && <span className="font-normal text-muted-foreground">(Secretaría Nayeli)</span>}
             </p>
           </div>
+
+          {/* Toggle Modo Noche / Modo Día */}
+          <button
+            onClick={toggleTheme}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground hover:bg-muted transition-all cursor-pointer shadow-2xs"
+            title={isDarkMode ? "Cambiar a Modo Día ☀️" : "Cambiar a Modo Noche 🌙"}
+          >
+            {isDarkMode ? (
+              <>
+                <Sun className="h-3.5 w-3.5 text-[#FFB52E]" />
+                <span className="text-[11px] font-medium hidden sm:inline">Modo Día</span>
+              </>
+            ) : (
+              <>
+                <Moon className="h-3.5 w-3.5 text-[#F47B20]" />
+                <span className="text-[11px] font-medium hidden sm:inline">Modo Noche</span>
+              </>
+            )}
+          </button>
 
           <button
             onClick={() => useAppStore.getState().logout()}

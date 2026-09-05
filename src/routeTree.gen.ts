@@ -17,6 +17,7 @@ import { Route as TeacherRouteImport } from './routes/teacher'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAgendaRouteImport } from './routes/admin.agenda'
 import { Route as AdminAlumnosRouteImport } from './routes/admin.alumnos'
+import { Route as AdminCampanasRouteImport } from './routes/admin.campanas'
 import { Route as AdminControlHorarioRouteImport } from './routes/admin.control-horario'
 import { Route as AdminFacturacionRouteImport } from './routes/admin.facturacion'
 import { Route as AdminInvitacionesRouteImport } from './routes/admin.invitaciones'
@@ -67,6 +68,11 @@ const AdminAgendaRoute = AdminAgendaRouteImport.update({
 const AdminAlumnosRoute = AdminAlumnosRouteImport.update({
   id: '/alumnos',
   path: '/alumnos',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminCampanasRoute = AdminCampanasRouteImport.update({
+  id: '/campanas',
+  path: '/campanas',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminControlHorarioRoute = AdminControlHorarioRouteImport.update({
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/teacher': typeof TeacherRouteWithChildren
   '/admin/agenda': typeof AdminAgendaRoute
   '/admin/alumnos': typeof AdminAlumnosRoute
+  '/admin/campanas': typeof AdminCampanasRoute
   '/admin/control-horario': typeof AdminControlHorarioRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
   '/admin/invitaciones': typeof AdminInvitacionesRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/checkout': typeof CheckoutRoute
   '/admin/agenda': typeof AdminAgendaRoute
   '/admin/alumnos': typeof AdminAlumnosRoute
+  '/admin/campanas': typeof AdminCampanasRoute
   '/admin/control-horario': typeof AdminControlHorarioRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
   '/admin/invitaciones': typeof AdminInvitacionesRoute
@@ -173,6 +181,7 @@ export interface FileRoutesById {
   '/teacher': typeof TeacherRouteWithChildren
   '/admin/agenda': typeof AdminAgendaRoute
   '/admin/alumnos': typeof AdminAlumnosRoute
+  '/admin/campanas': typeof AdminCampanasRoute
   '/admin/control-horario': typeof AdminControlHorarioRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
   '/admin/invitaciones': typeof AdminInvitacionesRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/teacher'
     | '/admin/agenda'
     | '/admin/alumnos'
+    | '/admin/campanas'
     | '/admin/control-horario'
     | '/admin/facturacion'
     | '/admin/invitaciones'
@@ -214,6 +224,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/admin/agenda'
     | '/admin/alumnos'
+    | '/admin/campanas'
     | '/admin/control-horario'
     | '/admin/facturacion'
     | '/admin/invitaciones'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
     | '/teacher'
     | '/admin/agenda'
     | '/admin/alumnos'
+    | '/admin/campanas'
     | '/admin/control-horario'
     | '/admin/facturacion'
     | '/admin/invitaciones'
@@ -314,6 +326,13 @@ declare module '@tanstack/react-router' {
       path: '/alumnos'
       fullPath: '/admin/alumnos'
       preLoaderRoute: typeof AdminAlumnosRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/campanas': {
+      id: '/admin/campanas'
+      path: '/campanas'
+      fullPath: '/admin/campanas'
+      preLoaderRoute: typeof AdminCampanasRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/control-horario': {
@@ -399,6 +418,7 @@ declare module '@tanstack/react-router' {
 interface AdminRouteChildren {
   AdminAgendaRoute: typeof AdminAgendaRoute
   AdminAlumnosRoute: typeof AdminAlumnosRoute
+  AdminCampanasRoute: typeof AdminCampanasRoute
   AdminControlHorarioRoute: typeof AdminControlHorarioRoute
   AdminFacturacionRoute: typeof AdminFacturacionRoute
   AdminInvitacionesRoute: typeof AdminInvitacionesRoute
@@ -409,6 +429,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAgendaRoute: AdminAgendaRoute,
   AdminAlumnosRoute: AdminAlumnosRoute,
+  AdminCampanasRoute: AdminCampanasRoute,
   AdminControlHorarioRoute: AdminControlHorarioRoute,
   AdminFacturacionRoute: AdminFacturacionRoute,
   AdminInvitacionesRoute: AdminInvitacionesRoute,

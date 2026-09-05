@@ -4,6 +4,31 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.6.9] - 2026-09-05
+
+### Añadido & Actualizado
+- **Módulo de Campañas Masivas de WhatsApp Meta Cloud API (`/admin/campanas`)**:
+  - Implementación completa del panel de campañas masivas basado en especificaciones operativas:
+    - Métricas clave: Campañas activas, mensajes enviados este mes, costo acumulado estimado en Soles (S/ 0.08 por conversación de marketing + IGV) y conteo de plantillas aprobadas por Meta.
+    - Asistente de 4 pasos para programar campañas: selección de plantilla aprobada con variables dinámicas, segmentación por checkboxes (Todos los contactos, Prospectos demo_requests, Matriculados activos, Inactivos), proyección de costos antes del envío y opción de envío inmediato o programado con fecha/hora.
+    - Historial de campañas enviadas y auditadas con tasas de entrega, lectura y coste real.
+  - Acceso directo añadido en el menú de navegación lateral de `/admin`.
+- **Sistema Global de Modo Noche / Modo Día con Paleta Oficial Vibra Music**:
+  - Botón de alternancia de tema persistente en `localStorage` (`☀️ Modo Día` / `🌙 Modo Noche`) en la barra superior.
+  - Aplicación de la paleta de identidad visual de Vibra Music:
+    - Fondo principal: `#0D0B0A` (Negro profundo)
+    - Fondo secundario / tarjetas: `#1A1410` (Negro cálido)
+    - Naranja de transición / marca: `#F47B20`
+    - Amarillo / dorado luminoso: `#FFB52E`
+    - Naranja claro acento: `#FF9E3D`
+    - Texto claro: `#FFF8EC`
+    - Texto oscuro: `#15120F`
+    - Tipografía titular: `Bebas Neue` con tracking optimizado.
+  - **Blindaje Estricto del Horario de Clases**: Las celdas, categorías por edades (Junior `#FFF2B2`, Juvenil `#4CAF50`, Adulto `#9E9E9E`, Infantil `#B388FF`, Recuperación `#EF4444`, Personalizada `#B2EBF2`), horas salmón (`#FCD7D2`) y estados de asistencia se mantienen con sus códigos de colores exactos del Excel físico de Nayeli, completamente inmunes al cambio de tema del sistema.
+- **Desacoplamiento y Limpieza Total de Lovable**:
+  - Eliminación completa de tags, comentarios y referencias a Lovable en `AGENTS.md`, `README.md`, `docs/DEPLOYMENT.md`, `vite.config.ts` y `src/routes/__root.tsx`.
+  - Supresión del archivo obsoleto `src/lib/lovable-error-reporting.ts`.
+
 ## [1.6.8] - 2026-09-05
 
 ### Añadido & Implementado

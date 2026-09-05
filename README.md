@@ -1,12 +1,6 @@
-# Remix of Music Academy Hub
+# Vibra Music Staff — Sistema Integral de Gestión Académica y Pagos
 
-¡Entendido al 100%! Si quieres que Lovable te construya el frontend completo de la aplicación (Full Frontend App) y no solo una pantalla suelta, tenemos que subir el nivel arquitectónico del prompt. Lovable necesita saber cómo enrutar las páginas, cómo manejar el estado global entre los 3 roles, y cómo estructurar el Layout de cada uno.
-
-Para hacer un "Full Frontend", le exigiremos a Lovable que configure un sistema de rutas (Router), un manejador de estado global (Zustand o Context) y las 3 vistas principales (Admin, Teacher, Family) en una sola generación.
-
-Copia este Megaprompt de Arquitectura Frontend Completa y pégalo en Lovable. Es extenso, técnico y le dará todo el contexto del ecosistema.
-
-📋 MEGA-PROMPT FULL FRONTEND PARA LOVABLE:
+Sistema integral para academias de música (Vibra Music Perú) que centraliza la administración académica, agenda semanal, kiosco de asistencia para profesores, portal para familias, agente inteligente de WhatsApp (Meta Cloud API) y pasarela de cobros en línea (Culqi).
 
 ROLE & MISSION Actúa como un Principal Frontend Architect. Tu misión es generar el andamiaje completo (Full Frontend App) para un SaaS de gestión de academias de música de grado empresarial. Stack Estricto: React, Vite, Tailwind CSS, Shadcn UI, Framer Motion, Lucide React, y React Router (o sistema de navegación simulado si es un solo canvas). Usa Zustand (o React Context) para simular el estado global.
 
@@ -74,15 +68,11 @@ Haz que los botones tengan interactividad básica (ej. presionar "Presente" en e
 
 El código debe ser modular, dividir en componentes lógicos, y entregar un prototipo navegable completo. ¡Sorpréndeme con la calidad visual!
 
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/e61e2fd9-79e8-4165-a93f-4a9b532ac020).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+## Arquitectura e Integraciones
+- **Backend / Persistencia**: PostgreSQL en Insforge.
+- **WhatsApp**: Meta Cloud API oficial con soporte de Webhooks y plantillas masivas.
+- **Pasarela de Pagos**: Culqi Checkout (Soles PEN).
+- **Framework**: TanStack Start + Nitro con soporte de Cloudflare Workers/Pages.
 
 ## Development
 

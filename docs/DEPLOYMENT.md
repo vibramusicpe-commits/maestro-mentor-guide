@@ -3,8 +3,7 @@
 # Plataforma: Cloudflare Pages + Workers (Nitro SSR)
 # =============================================================
 # Stack: TanStack Start (Nitro) → Cloudflare Workers (SSR)
-# La config de @lovable.dev/vite-tanstack-config ya usa
-# 'cloudflare' como target de Nitro por defecto.
+# La configuración de vite/nitro usa 'cloudflare' como target por defecto.
 # =============================================================
 
 ## Arquitectura
