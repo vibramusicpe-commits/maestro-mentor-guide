@@ -4,6 +4,22 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.6.8] - 2026-09-05
+
+### Añadido & Implementado
+- **Módulo de Gestión de WhatsApp Business & Agente Inteligente (`/admin/whatsapp`) (ADR 0073)**:
+  - Implementación completa de las 4 pestañas operativas basadas en los mockups aprobados (`media_1788622148516.png` y `media_1788622148468.jpg`):
+    - **Agente**: Estado de conexión de Meta Cloud API, configuración de nombre, saludo y contexto de negocio con sincronización en PostgreSQL (`whatsapp_bot_config`), atajos deterministas sin IA con toggle y modal de edición, lista de conversaciones recientes y chat interactivo en vivo con transcripción y envío de mensajes manuales por asesores.
+    - **Reglas**: Reglas de escalamiento y handoff automático a Claudia y Sergio (`requiere_asesor`), parámetros de inferencia Gemini con tool_choice forzado y horarios de atención.
+    - **Conversaciones**: Historial unificado de mensajes con estados y filtros rápidos.
+    - **Citas y Ventas**: Embudo de conversión y prospección conectado a la tabla `demo_requests` de Insforge, con métricas de tasa de cierre, botón para matricular directamente y generador de enlaces de cobro seguro con Culqi.
+- **Webhook Oficial de Meta Cloud API (`/api/webhook/whatsapp`)**:
+  - Servidor server-side en Nitro/Cloudflare Pages (`src/server/whatsapp-webhook.ts`), con handshake GET (`hub.verify_token`, `hub.challenge`) y procesamiento POST con idempotencia en Upstash Redis (`wa:msg:{message_id}`) y fallback en memoria.
+- **Página de Checkout Culqi Segura (`/checkout`)**:
+  - Portal de cobro oficial que solicita el email del apoderado y abre el modal de Culqi Checkout v4 para cobro con tarjeta, Yape y Plin, enlazado directamente a los prospectos de WhatsApp y Facebook Ads.
+- **Acceso en Barra Lateral (`/admin`)**:
+  - Integración del icono de WhatsApp Bot en la navegación administrativa.
+
 ## [1.6.7] - 2026-09-04
 
 ### Añadido & Corregido

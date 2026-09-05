@@ -17,3 +17,4 @@ export * from "./auth.service";
 export * from "./invitations.service";
 export * from "./time-tracking.service";
 export * from "./leads.service";
+export * from "./whatsapp.service";

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ================================================================
  * leads.service.ts — Capa de Datos: Módulo Prospectos & Clases Demo
  * ================================================================
@@ -16,10 +16,16 @@ import {
   postgrestInsert,
   postgrestPatch,
   postgrestSelect,
-} from @/lib/insforge;
-import type { Role } from @/store/app-store;
+} from "@/lib/insforge";
+import type { Role } from "@/store/app-store";
 
-export type LeadStatus = pendiente | confirmada | asistio | matriculado | cancelada;
+export type LeadStatus =
+  | "pendiente"
+  | "confirmada"
+  | "asistio"
+  | "matriculado"
+  | "cancelada"
+  | "requiere_asesor";
 
 export interface DBDemoRequest {
   id: string;
@@ -51,9 +57,9 @@ export interface CreateLeadPayload {
  * Obtener todos los prospectos / solicitudes de clase demo de Insforge.
  */
 export async function getLeadsFromDB(userRole: Role): Promise<DBDemoRequest[]> {
-  assertRole(userRole, [super_admin, staff]);
+  assertRole(userRole, ["super_admin", "staff"]);
   const records = await postgrestSelect<DBDemoRequest[]>(
-    demo_requests?select=*&order=created_at.desc
+    "demo_requests?select=*&order=created_at.desc"
   );
   return records || [];
 }
@@ -65,16 +71,16 @@ export async function createLeadInDB(
   userRole: Role,
   payload: CreateLeadPayload
 ): Promise<DBDemoRequest> {
-  assertRole(userRole, [super_admin, staff]);
-  const inserted = await postgrestInsert<DBDemoRequest>(demo_requests, {
+  assertRole(userRole, ["super_admin", "staff"]);
+  const inserted = await postgrestInsert<DBDemoRequest>("demo_requests", {
     parent_name: payload.parent_name.trim(),
     parent_phone: payload.parent_phone.trim(),
     student_name: payload.student_name.trim(),
     instrument: payload.instrument.trim(),
     preferred_date: payload.preferred_date || null,
     preferred_time: payload.preferred_time || null,
-    notes: payload.notes?.trim() || Lead capturado vía WhatsApp / Facebook Ads,
-    status: payload.status || pendiente,
+    notes: payload.notes?.trim() || "Lead capturado vía WhatsApp / Facebook Ads",
+    status: payload.status || "pendiente",
   });
   return inserted;
 }
@@ -88,7 +94,7 @@ export async function updateLeadStatusInDB(
   newStatus: LeadStatus,
   notes?: string
 ): Promise<void> {
-  assertRole(userRole, [super_admin, staff]);
+  assertRole(userRole, ["super_admin", "staff"]);
   const patch: Record<string, unknown> = {
     status: newStatus,
     updated_at: new Date().toISOString(),
@@ -96,5 +102,5 @@ export async function updateLeadStatusInDB(
   if (notes !== undefined) {
     patch.notes = notes;
   }
-  await postgrestPatch(demo_requests?id=eq., patch);
+  await postgrestPatch(`demo_requests?id=eq.${leadId}`, patch);
 }
