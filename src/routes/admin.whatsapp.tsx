@@ -981,8 +981,8 @@ export function AdminWhatsAppPage() {
 
             <div className="space-y-3 text-xs">
               <div className="bg-[#0f1115] p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="text-slate-400">Modelo LLM:</span>
-                <span className="font-mono text-white font-bold">Gemini 2.5 Flash</span>
+                <span className="text-slate-400">Modelo LLM (Env Var):</span>
+                <span className="font-mono text-white font-bold">GEMINI_MODEL_ID (gemini-3.1-flash-lite)</span>
               </div>
               <div className="bg-[#0f1115] p-3 rounded-xl border border-slate-800 flex justify-between items-center">
                 <span className="text-slate-400">Temperature:</span>
@@ -990,7 +990,7 @@ export function AdminWhatsAppPage() {
               </div>
               <div className="bg-[#0f1115] p-3 rounded-xl border border-slate-800 flex justify-between items-center">
                 <span className="text-slate-400">Tool Choice:</span>
-                <span className="font-mono text-emerald-400 font-bold">required (Forzado en turnos de acción)</span>
+                <span className="font-mono text-emerald-400 font-bold">mode: "ANY" (Forzado en turnos de acción)</span>
               </div>
               <div className="bg-[#0f1115] p-3 rounded-xl border border-slate-800 flex justify-between items-center">
                 <span className="text-slate-400">Memoria Efímera:</span>

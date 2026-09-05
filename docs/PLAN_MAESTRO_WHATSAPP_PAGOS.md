@@ -1,4 +1,4 @@
-﻿# Plan Maestro: Agente de WhatsApp + Pagos — Vibra Music Staff
+# Plan Maestro: Agente de WhatsApp + Pagos — Vibra Music Staff
 
 **Documento gobernante:** ADR-001-whatsapp-pagos-vibra-music-staff.md (leer primero, no contradecir)
 **Estado:** Aprobado para iniciar desarrollo
@@ -9,26 +9,27 @@ Este documento es el brief operativo. El ADR-001 tiene las decisiones de arquite
 ---
 
 ## Fase 0 — Antes de tocar código (aplicar primero)
-1. 	ool_choice forzado/equired en cada turno de calificación de lead — nunca uto.
-2. Pedir el email del apoderado en la página de checkout propia, no hardcodeado ni agregado como campo extra en WhatsApp.
+1. `tool_choice` forzado (`function_calling_config: { mode: "ANY" }` o `tool_choice: { allowed_tools: { mode: "any" } }`) en cada turno de calificación de lead — nunca `"AUTO"` ni texto libre alucinado.
+2. Pedir el email del apoderado en la página de checkout propia (`/checkout`), no hardcodeado ni agregado como campo extra en WhatsApp.
+3. El ID del modelo LLM se define en variable de entorno `GEMINI_MODEL_ID` (nunca hardcodeado en el código fuente), con fallback oficial por defecto a `gemini-3.1-flash-lite` (modelo oficial estable de Google AI Studio optimizado para alto volumen y bajo costo).
 
 ## Fase 1 — Conexión oficial de WhatsApp
-1. Business Manager → Usuarios del sistema → crear usuario admin → Asignar activos (cuenta de WhatsApp, permiso Administrar cuenta).
-2. Generar token permanente con scopes whatsapp_business_messaging + whatsapp_business_management (nunca el token temporal de 24h).
-3. Configurar el webhook en Meta Developers: URL https://musicstaff-vm.pages.dev/api/webhook/whatsapp, verify token propio, suscripción al campo messages.
-4. Implementar el handshake GET y guardar token + phone_number_id como secrets en Cloudflare Pages.
+1. Business Manager → Usuarios del sistema → crear usuario admin → Asignar activos (cuenta de WhatsApp, permiso "Administrar cuenta").
+2. Generar token permanente con scopes `whatsapp_business_messaging` + `whatsapp_business_management` (nunca el token temporal de 24h).
+3. Configurar el webhook en Meta Developers: URL `https://musicstaff-vm.pages.dev/api/webhook/whatsapp`, verify token propio, suscripción al campo `messages`.
+4. Implementar el handshake GET y guardar token + `phone_number_id` como secrets en Cloudflare Pages.
 
 ## Fase 2 — Idempotencia y sesión (Upstash Redis)
 1. Crear cuenta Upstash (free tier).
-2. Clave wa:msg:{message.id}, TTL 24h → descarta webhooks duplicados con 200 OK.
-3. Clave wa:session:{from_phone}, TTL 30 min → mantiene los últimos 4-6 turnos mientras se califica el lead.
+2. Clave `wa:msg:{message.id}`, TTL 24h → descarta webhooks duplicados con 200 OK.
+3. Clave `wa:session:{from_phone}`, TTL 30 min → mantiene los últimos 4-6 turnos mientras se califica el lead.
 
 ## Fase 3 — Motor del agente
-1. Filtro de costo: mensajes estándar (saludo, /precios, /horarios, y demás atajos definidos en el tab Reglas del panel) se responden por código directo, sin tocar el LLM.
-2. Preguntas abiertas o intención de agendar → Gemini 2.0 Flash (Google AI Studio) con las tools consultar_vacantes y gendar_clase_demo.
-3. 	ool_choice forzado en cuanto se detecta intención de agendar.
-4. Al completarse gendar_clase_demo → createLeadInDB() → escribe en demo_requests con status: 'pendiente'.
-5. Los campos Nombre del agente, Saludo inicial y Contexto del negocio del tab Agente del panel deben inyectarse como variables reales en el system prompt — no quedar solo como UI decorativa.
+1. Filtro de costo: mensajes estándar (saludo, `/precios`, `/horarios`, y demás atajos definidos en el tab Reglas del panel) se responden por código directo, sin tocar el LLM.
+2. Preguntas abiertas o intención de agendar → Motor Gemini vía Google AI Studio usando `GEMINI_MODEL_ID` (`gemini-3.1-flash-lite`) con las tools `consultar_vacantes` y `agendar_clase_demo`.
+3. `tool_choice` forzado explícito con `mode: "ANY"` en cuanto se detecta intención de agendar clase demo o consultar vacantes.
+4. Al completarse `agendar_clase_demo` → `createLeadInDB()` → escribe en `demo_requests` con `status: 'pendiente'`.
+5. Los campos "Nombre del agente", "Saludo inicial" y "Contexto del negocio" del tab Agente del panel se inyectan como variables reales en el system prompt — no quedan solo como UI decorativa.
 
 ## Fase 4 — Panel admin y notificaciones
 1. Nuevo status: 'requiere_asesor' en demo_requests para cuando el bot no resuelve o el padre lo pide — se refleja como badge en el tab Conversaciones.
