@@ -95,6 +95,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
 
 const ALL = "todos";
 
@@ -189,6 +190,7 @@ export function AgendaBoard() {
 
   // Estados de Libreta de Asistencias y Control de Plan (8 o 4 clases)
   const [isAttendanceLedgerOpen, setIsAttendanceLedgerOpen] = useState(false);
+  const [kardexLedgerStudent, setKardexLedgerStudent] = useState<AdminStudent | null>(null);
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState("");
   const [ledgerTeacherFilter, setLedgerTeacherFilter] = useState("all");
   const [ledgerPlanFilter, setLedgerPlanFilter] = useState("all");
@@ -4125,10 +4127,20 @@ export function AgendaBoard() {
                             🔵 {justificadas} Just (+Créd)
                           </span>
                           {st.makeupCredits > 0 && (
-                            <span className="ml-auto px-2 py-0.5 rounded-full bg-red-500/20 text-red-700 dark:text-red-300 font-black border border-red-500/30">
+                            <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-700 dark:text-red-300 font-black border border-red-500/30">
                               🎟️ {st.makeupCredits} Crédito{st.makeupCredits > 1 ? "s" : ""}
                             </span>
                           )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setKardexLedgerStudent(st)}
+                            className="ml-auto h-6 px-2 text-[10px] font-bold border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 rounded-lg gap-1"
+                            title={`Abrir Kardex con Fechas y Horas de ${st.name}`}
+                          >
+                            <BookOpen className="h-3 w-3 text-emerald-500" />
+                            Kardex Fechas
+                          </Button>
                         </div>
                       </div>
                     );
@@ -4153,6 +4165,17 @@ export function AgendaBoard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Kardex Cronológico con Fechas y Horas desde la Agenda */}
+      {kardexLedgerStudent && (
+        <StudentAttendanceKardex
+          student={kardexLedgerStudent}
+          isOpen={!!kardexLedgerStudent}
+          onClose={() => setKardexLedgerStudent(null)}
+          defaultMonth={selectedDate.getMonth()}
+          defaultYear={selectedDate.getFullYear()}
+        />
+      )}
     </div>
   );
 }

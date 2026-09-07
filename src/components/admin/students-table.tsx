@@ -38,6 +38,7 @@ import {
 } from "@/store/app-store";
 import { teachers, musicalInstruments, VIBRA_PRICING } from "@/store/admin-seeds";
 import { categoryStyles } from "@/components/admin/agenda-board";
+import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,6 +186,7 @@ export function StudentsTable() {
   const [deleteReqReason, setDeleteReqReason] = useState("");
 
   // Estado para Registrar Reingreso de Alumno
+  const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
   const [isReentryFormOpen, setIsReentryFormOpen] = useState(false);
   const [reentryDate, setReentryDate] = useState("2026-08-18");
   const [reentryReason, setReentryReason] = useState("");
@@ -626,10 +628,21 @@ export function StudentsTable() {
                     <TableCell>{modalityBadge(st.modality)}</TableCell>
                     <TableCell className="text-sm font-medium">{st.instrument}</TableCell>
                     <TableCell className="text-sm">{st.teacher}</TableCell>
-                    <TableCell>
+                    <TableCell
+                      className="cursor-pointer hover:bg-muted/50 rounded-lg transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setKardexStudent(st);
+                      }}
+                      title={`Ver y regularizar Kardex de ${st.name}`}
+                    >
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-xs font-semibold">
-                          <span>{st.attendanceRate}%</span>
+                          <span className="flex items-center gap-1 text-primary hover:underline font-bold">
+                            <BookOpen className="h-3 w-3 text-emerald-500" />
+                            {st.attendanceRate}%
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">Kardex</span>
                         </div>
                         <Progress value={st.attendanceRate} className="h-1.5" />
                       </div>
@@ -638,6 +651,19 @@ export function StudentsTable() {
                     <TableCell>{riskBadge(st.risk)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setKardexStudent(st);
+                          }}
+                          className="gap-1 text-xs font-bold border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                          title={`Kardex e Historial de Fechas y Horas de ${st.name}`}
+                        >
+                          <BookOpen className="h-3.5 w-3.5 text-emerald-500" />
+                          Kardex
+                        </Button>
                         <Button
                           size="sm"
                           variant="secondary"
@@ -1508,14 +1534,22 @@ export function StudentsTable() {
                   </div>
                 </div>
 
-                {/* Historial y Marcado de Asistencia en Vivo */}
-                <div className="space-y-3 rounded-xl border border-border p-4 bg-muted/20">
+                {/* Historial y Kardex Cronológico de Asistencia con Fechas y Horas */}
+                <div className="space-y-3 rounded-2xl border border-border p-4 bg-muted/20">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                      <CalendarCheck className="h-4 w-4 text-primary" />
-                      Control de Asistencia ({selectedStudent.attendanceRate}%)
+                      <BookOpen className="h-4 w-4 text-emerald-500" />
+                      Kardex de Asistencia ({selectedStudent.attendanceRate}%)
                     </span>
-                    <span className="text-[10px] text-muted-foreground">Últimas sesiones</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setKardexStudent(selectedStudent)}
+                      className="h-7 text-xs font-bold gap-1 rounded-lg border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                    >
+                      <CalendarCheck className="h-3.5 w-3.5" />
+                      Ver Fechas y Horas
+                    </Button>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -1535,57 +1569,17 @@ export function StudentsTable() {
                     ))}
                   </div>
 
-                  {/* Acciones de marcado rápido de asistencia por Secretaría */}
+                  {/* Acciones de marcado rápido y regularización de asistencia por Secretaría */}
                   <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[11px] font-semibold text-muted-foreground">Marcar hoy:</span>
-                    <div className="flex gap-1.5">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Regularización:</span>
+                    <div className="flex flex-wrap gap-1.5">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          const updated = ["presente", ...selectedStudent.recentAttendance.slice(0, 4)] as ("presente" | "ausente" | "tarde")[];
-                          const rate = Math.round((updated.filter((a) => a === "presente").length / updated.length) * 100);
-                          updateStudentDetails(selectedStudent.id, {
-                            recentAttendance: updated,
-                            attendanceRate: rate,
-                          });
-                          toast.success(`Asistencia marcada: Presente (${selectedStudent.name})`);
-                        }}
-                        className="h-7 text-xs font-bold border-success/40 text-success hover:bg-success/10"
+                        onClick={() => setKardexStudent(selectedStudent)}
+                        className="h-7 text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 border-primary/30 rounded-lg gap-1"
                       >
-                        ✓ Presente
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const updated = ["tarde", ...selectedStudent.recentAttendance.slice(0, 4)] as ("presente" | "ausente" | "tarde")[];
-                          const rate = Math.round((updated.filter((a) => a === "presente").length / updated.length) * 100);
-                          updateStudentDetails(selectedStudent.id, {
-                            recentAttendance: updated,
-                            attendanceRate: rate,
-                          });
-                          toast.warning(`Asistencia marcada: Tarde (${selectedStudent.name})`);
-                        }}
-                        className="h-7 text-xs font-bold border-warning/40 text-warning hover:bg-warning/10"
-                      >
-                        ⏰ Tarde
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const updated = ["ausente", ...selectedStudent.recentAttendance.slice(0, 4)] as ("presente" | "ausente" | "tarde")[];
-                          const rate = Math.round((updated.filter((a) => a === "presente").length / updated.length) * 100);
-                          updateStudentDetails(selectedStudent.id, {
-                            recentAttendance: updated,
-                            attendanceRate: rate,
-                          });
-                          toast.error(`Asistencia marcada: Falta (${selectedStudent.name})`);
-                        }}
-                        className="h-7 text-xs font-bold border-destructive/40 text-destructive hover:bg-destructive/10"
-                      >
-                        ✗ Falta
+                        ⚡ Regularizar por Fechas (1 Clic)
                       </Button>
                     </div>
                   </div>
@@ -1654,6 +1648,15 @@ export function StudentsTable() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Modal de Kardex de Asistencias y Registro de Sesiones con Fechas y Horas */}
+      {kardexStudent && (
+        <StudentAttendanceKardex
+          student={kardexStudent}
+          isOpen={!!kardexStudent}
+          onClose={() => setKardexStudent(null)}
+        />
+      )}
 
       {/* Modal Dialog de Importación de Alumnos CSV/Excel para Nayeli */}
       <Dialog open={isCsvModalOpen} onOpenChange={setIsCsvModalOpen}>

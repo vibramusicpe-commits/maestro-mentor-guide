@@ -153,6 +153,21 @@ type AppState = {
     notes?: string,
     targetWeekIndex?: number
   ) => void;
+  setStudentSessionAttendance: (
+    studentName: string,
+    lessonId: string,
+    weekIndex: number,
+    status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente",
+    notes?: string
+  ) => void;
+  bulkRegularizeStudentAttendance: (
+    studentName: string,
+    attendances: Array<{
+      lessonId: string;
+      weekIndex: number;
+      status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente";
+    }>
+  ) => void;
   scheduleMakeupLesson: (data: {
     studentName: string;
     teacher: string;
@@ -746,6 +761,184 @@ export const useAppStore = create<AppState>()(
               queueItem(
                 `Asistencia marcada (Semana ${weekIdx + 1}) · ${studentName || "Alumno"} (${status.toUpperCase()})`,
               ),
+            ],
+          };
+        }),
+      setStudentSessionAttendance: (studentName, lessonId, weekIndex, status, notes = "") =>
+        set((s) => {
+          const isJustificada = status === "justificada";
+          const newSchedule = s.schedule.map((l) => {
+            if (l.id === lessonId) {
+              const prevByWeek = { ...(l.attendanceByWeek || {}) };
+              if (status === "pendiente") {
+                delete prevByWeek[weekIndex];
+              } else {
+                prevByWeek[weekIndex] = status;
+              }
+              return {
+                ...l,
+                attendanceStatus: status === "pendiente" ? undefined : status,
+                attendanceByWeek: prevByWeek,
+              };
+            }
+            return l;
+          });
+
+          // Recalcular estadísticas del alumno
+          const studentLessons = newSchedule.filter(
+            (l) =>
+              (l.student.toLowerCase() === studentName.toLowerCase() ||
+                l.student.toLowerCase().includes(studentName.toLowerCase()) ||
+                studentName.toLowerCase().includes(l.student.toLowerCase())) &&
+              l.status !== "cancelada"
+          );
+
+          let totalPresentes = 0;
+          let totalTardes = 0;
+          let totalAusentes = 0;
+          let totalJustificadas = 0;
+          const allMarked: ("presente" | "ausente" | "tarde")[] = [];
+
+          studentLessons.forEach((l) => {
+            if (l.attendanceByWeek) {
+              Object.entries(l.attendanceByWeek).forEach(([_, st]) => {
+                if (st === "presente") {
+                  totalPresentes++;
+                  allMarked.push("presente");
+                } else if (st === "tarde") {
+                  totalTardes++;
+                  allMarked.push("tarde");
+                } else if (st === "ausente") {
+                  totalAusentes++;
+                  allMarked.push("ausente");
+                } else if (st === "justificada") {
+                  totalJustificadas++;
+                }
+              });
+            }
+          });
+
+          const totalEvaluated = totalPresentes + totalTardes + totalAusentes + totalJustificadas;
+          const newRate = totalEvaluated > 0
+            ? Math.round(((totalPresentes + totalTardes) / totalEvaluated) * 100)
+            : 100;
+
+          const newStudents = s.adminStudents.map((st) => {
+            if (
+              st.name.toLowerCase() === studentName.toLowerCase() ||
+              st.name.toLowerCase().includes(studentName.toLowerCase()) ||
+              studentName.toLowerCase().includes(st.name.toLowerCase())
+            ) {
+              return {
+                ...st,
+                attendanceRate: newRate,
+                recentAttendance: allMarked.length > 0 ? allMarked.slice(0, 5) : st.recentAttendance,
+                makeupCredits: isJustificada ? st.makeupCredits + 1 : st.makeupCredits,
+              };
+            }
+            return st;
+          });
+
+          return {
+            schedule: newSchedule,
+            adminStudents: newStudents,
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(`Asistencia regularizada: ${studentName} (Semana ${weekIndex + 1}: ${status.toUpperCase()})`),
+            ],
+          };
+        }),
+      bulkRegularizeStudentAttendance: (studentName, attendances) =>
+        set((s) => {
+          let extraCredits = 0;
+          const updatesMap = new Map<string, Record<number, "presente" | "ausente" | "tarde" | "justificada">>();
+
+          attendances.forEach(({ lessonId, weekIndex, status }) => {
+            if (status === "justificada") extraCredits++;
+            if (!updatesMap.has(lessonId)) {
+              updatesMap.set(lessonId, {});
+            }
+            if (status !== "pendiente") {
+              updatesMap.get(lessonId)![weekIndex] = status;
+            }
+          });
+
+          const newSchedule = s.schedule.map((l) => {
+            if (updatesMap.has(l.id)) {
+              const prevByWeek = { ...(l.attendanceByWeek || {}) };
+              const currentUpdates = updatesMap.get(l.id)!;
+              Object.entries(currentUpdates).forEach(([wStr, st]) => {
+                prevByWeek[Number(wStr)] = st;
+              });
+              return {
+                ...l,
+                attendanceByWeek: prevByWeek,
+              };
+            }
+            return l;
+          });
+
+          // Recalcular estadísticas del alumno
+          const studentLessons = newSchedule.filter(
+            (l) =>
+              (l.student.toLowerCase() === studentName.toLowerCase() ||
+                l.student.toLowerCase().includes(studentName.toLowerCase()) ||
+                studentName.toLowerCase().includes(l.student.toLowerCase())) &&
+              l.status !== "cancelada"
+          );
+
+          let totalPresentes = 0;
+          let totalTardes = 0;
+          let totalAusentes = 0;
+          let totalJustificadas = 0;
+          const allMarked: ("presente" | "ausente" | "tarde")[] = [];
+
+          studentLessons.forEach((l) => {
+            if (l.attendanceByWeek) {
+              Object.entries(l.attendanceByWeek).forEach(([_, st]) => {
+                if (st === "presente") {
+                  totalPresentes++;
+                  allMarked.push("presente");
+                } else if (st === "tarde") {
+                  totalTardes++;
+                  allMarked.push("tarde");
+                } else if (st === "ausente") {
+                  totalAusentes++;
+                  allMarked.push("ausente");
+                } else if (st === "justificada") {
+                  totalJustificadas++;
+                }
+              });
+            }
+          });
+
+          const totalEvaluated = totalPresentes + totalTardes + totalAusentes + totalJustificadas;
+          const newRate = totalEvaluated > 0
+            ? Math.round(((totalPresentes + totalTardes) / totalEvaluated) * 100)
+            : 100;
+
+          const newStudents = s.adminStudents.map((st) => {
+            if (
+              st.name.toLowerCase() === studentName.toLowerCase() ||
+              st.name.toLowerCase().includes(studentName.toLowerCase()) ||
+              studentName.toLowerCase().includes(st.name.toLowerCase())
+            ) {
+              return {
+                ...st,
+                attendanceRate: newRate,
+                recentAttendance: allMarked.length > 0 ? allMarked.slice(0, 5) : st.recentAttendance,
+                makeupCredits: st.makeupCredits + extraCredits,
+              };
+            }
+            return st;
+          });
+
+          return {
+            schedule: newSchedule,
+            adminStudents: newStudents,
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(`Regularización masiva de asistencias para ${studentName} (${attendances.length} sesiones)`),
             ],
           };
         }),

@@ -4,6 +4,19 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.7.0] - 2026-09-07
+
+### Añadido & Implementado
+- **Kardex de Asistencias y Regularización Cronológica con Fechas y Horas por Alumno (`StudentAttendanceKardex`) (ADR 0074)**:
+  - Mapeo automático de todas las lecciones del alumno a sus fechas calendario reales (Lunes a Sábado), bloques de hora (ej. 16:00 - 16:45), sala y profesor asignado utilizando las semanas lectivas calculadas (`getMonthWeeks`).
+  - **Regularización en 1 Clic**: Acciones directas para marcar `[✓ Presente]`, `[✗ Falta]`, `[⏰ Tardanza]`, `[🔵 Justificada]` y `[⚪ Sin marcar]` por cada sesión pasada con recálculo automático de la tasa de asistencia (`attendanceRate`) y créditos de recuperación (`makeupCredits`).
+  - **⚡ Regularizar todo como Presente**: Botón para actualizar todas las clases pendientes de un alumno a presentes de un solo golpe.
+  - **📋 Copiar Reporte para WhatsApp**: Generador de resumen formal con emojis, fechas y horas listo para compartir con el apoderado o dirección.
+  - **Integración Multicanal**:
+    - En el **Directorio de Alumnos (`/admin/alumnos`)**: Botón `Kardex` en la tabla, celda interactiva de porcentaje de asistencia y panel ampliado en la ficha lateral del alumno (Drawer).
+    - En la **Agenda Semanal (`/admin/agenda`)**: Botón `Kardex Fechas` en cada alumno dentro de la **Libreta de Asistencias y Control de Plan**.
+    - En el **Portal de Familias (`/family`)**: Botón `Ver Kardex de Fechas` para que los padres auditen el cumplimiento de clases de sus hijos.
+
 ## [1.6.9] - 2026-09-05
 
 ### Añadido & Actualizado

@@ -1,11 +1,53 @@
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { CalendarClock, Clock, GraduationCap, Ticket, CheckCircle2 } from "lucide-react";
-import type { Kid } from "@/store/app-store";
+import { CalendarClock, Clock, GraduationCap, Ticket, CheckCircle2, BookOpen } from "lucide-react";
+import type { Kid, AdminStudent } from "@/store/app-store";
 import { useAppStore } from "@/store/app-store";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { MinimalAgendaCalendar } from "@/components/agenda/minimal-agenda-calendar";
+import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
 
 export function KidSummary({ kid }: { kid: Kid }) {
+  const adminStudents = useAppStore((s) => s.adminStudents);
+  const [isKardexOpen, setIsKardexOpen] = useState(false);
+
+  const resolvedStudent: AdminStudent = useMemo(() => {
+    const match = adminStudents.find(
+      (s) =>
+        s.name.toLowerCase() === kid.name.toLowerCase() ||
+        s.name.toLowerCase().includes(kid.name.toLowerCase()) ||
+        kid.name.toLowerCase().includes(s.name.toLowerCase())
+    );
+    if (match) return match;
+
+    return {
+      id: kid.id,
+      name: kid.name,
+      family: "Familia Vibra",
+      age: 10,
+      birthdate: "2016-05-10",
+      ageCategory: "JUNIOR",
+      instrument: kid.instrument,
+      teacher: kid.teacher,
+      room: "Sala A",
+      modality: kid.id === "k1" ? "Regular (8 clases / 45 min)" : "Intensivo (4 clases / 90 min)",
+      planType: "Mensual",
+      status: "activo",
+      risk: "bajo",
+      attendanceRate: 85,
+      makeupCredits: kid.makeupCredits,
+      recentAttendance: ["presente", "presente"],
+      balance: 0,
+      lastPayment: "03/08/2026",
+      joinedAt: "01/03/2026",
+      emergencyContact: { name: "Contacto Familiar", relation: "Apoderado", phone: "+51 984 000 000" },
+      email: "familia@vibramusic.pe",
+      phone: "+51 984 000 000",
+      level: 1,
+    };
+  }, [adminStudents, kid]);
+
   return (
     <motion.section
       key={kid.id}
@@ -44,11 +86,22 @@ export function KidSummary({ kid }: { kid: Kid }) {
             style={{ width: kid.id === "k1" ? "25%" : "25%" }}
           />
         </div>
-        <p className="text-[11px] text-sidebar-foreground/75">
-          {kid.id === "k1"
-            ? "Clases asistidas: 2 · Faltantes: 6 (2 clases por semana)"
-            : "Clases asistidas: 1 · Faltantes: 3 (1 clase por semana)"}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <p className="text-[11px] text-sidebar-foreground/75">
+            {kid.id === "k1"
+              ? "Clases asistidas: 2 · Faltantes: 6 (2 clases por semana)"
+              : "Clases asistidas: 1 · Faltantes: 3 (1 clase por semana)"}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsKardexOpen(true)}
+            className="h-6 text-[10px] font-bold bg-sidebar-accent text-sidebar-foreground border-sidebar-border hover:bg-sidebar-border gap-1 rounded-lg"
+          >
+            <BookOpen className="h-3 w-3 text-primary" />
+            Ver Kardex de Fechas
+          </Button>
+        </div>
       </div>
 
       <div className="mt-3 space-y-2 text-sm text-sidebar-foreground/80">
@@ -72,6 +125,14 @@ export function KidSummary({ kid }: { kid: Kid }) {
           userType="family"
         />
       </div>
+
+      {isKardexOpen && resolvedStudent && (
+        <StudentAttendanceKardex
+          student={resolvedStudent}
+          isOpen={isKardexOpen}
+          onClose={() => setIsKardexOpen(false)}
+        />
+      )}
     </motion.section>
   );
 }
