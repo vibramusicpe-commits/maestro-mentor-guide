@@ -4,6 +4,16 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.7.1] - 2026-09-07
+
+### Añadido & Sincronizado
+- **Cruce Bidireccional de Asistencia Docente-Secretaría e Integración Insforge MCP (ADR 0075)**:
+  - **Kiosco Móvil del Profesor (`/teacher`)**: Cálculo determinista de la semana lectiva activa (`getCurrentWeekIndex()`). Al marcar asistencia (`[🟢 Pres.]`, `[🔴 Aus.]`, `[🟡 Tar.]`, `[🔵 Just.]`), se asocia inmediatamente a la semana lectiva real del mes en `schedule.attendanceByWeek`.
+  - **Recálculo Inmediato de Estadísticas**: `markLessonAttendance` ahora recalcula en tiempo real el `% de Asistencia` (`attendanceRate`) en el store global y añade créditos de recuperación para inasistencias justificadas.
+  - **Persistencia en Insforge PostgreSQL**: Despacho asíncrono en segundo plano a `attendance_logs` (registros inmutables con fecha/hora y usuario) y `students` (`attendance_rate` y `makeup_credits`).
+  - **Kardex para Docentes**: Botón `📖 Kardex` integrado en cada ficha de alumno dentro de `/teacher/alumnos`.
+  - **Auditoría MCP en Vivo**: Confirmación de 83 alumnos, 83 familias, 83 facturas y 6 usuarios RBAC en PostgreSQL, documentada en `docs/BACKEND_AUDIT.md`.
+
 ## [1.7.0] - 2026-09-07
 
 ### Añadido & Implementado

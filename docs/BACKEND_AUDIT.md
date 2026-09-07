@@ -1,39 +1,46 @@
 # Auditoría Quirúrgica de Backend: Insforge PostgreSQL (Vibra Music)
 
-Este documento detalla la estructura real de la base de datos PostgreSQL en Insforge, el estado de las tablas del MVP y el plan de sincronización bidireccional UI-Backend.
+Este documento detalla la estructura real y auditada de la base de datos PostgreSQL en Insforge (`https://pdey9yma.us-east.insforge.app`), el estado de las tablas del sistema y la arquitectura de sincronización bidireccional UI-Backend.
+
+**Última Auditoría en Vivo vía MCP `insforge-postgres`:** 2026-09-07 16:50:00 -05:00
 
 ---
 
-## 1. Inventario de Tablas Reales en PostgreSQL Insforge (18 Tablas Activas)
+## 1. Inventario Físico de Tablas en PostgreSQL Insforge (18 Tablas Activas)
 
-| Tabla | Columnas | Propósito en el MVP | Estado en Base de Datos |
-|---|---|---|---|
-| `users` | 19 | Usuarios con roles (`super_admin`, `staff`, `teacher`, `family`). | 1 registro activo (`dueña@vibramusic.pe`) |
-| `invitations` | 15 | Enlaces de acceso y contraseñas maestras (`token`, `master_password`). | 1 registro activo (`nayeli-secretaria-vibra`) |
-| `user_passwords` | 9 | Control de contraseñas y regla de cambio único (1 sola vez). | Estructura lista |
-| `password_audit_trail` | 9 | Registro inmutable de cambios de claves y eventos de seguridad. | Estructura lista |
-| `families` | 12 | Familias / Apoderados, teléfono WhatsApp y balance financiero. | Estructura lista |
-| `students` | 15 | Alumnos matriculados, categorías por edad, nivel e instrumento. | 0 registros (Listo para poblar) |
-| `lessons` | 12 | Horario oficial de clases (`16:00 - 19:45` y Sábados `09:00 - 13:30`). | Estructura lista |
-| `attendance_logs` | 9 | Registro diario de asistencia (`presente`, `ausente`, `tarde`, `recuperacion`). | Estructura lista |
-| `teacher_time_logs` | 13 | Fichaje y control horario de profesores (Reemplazo Bixpe). | Estructura lista |
-| `payroll_closings` | 9 | Cierre y liquidación de horas auditadas por profesor. | Estructura lista |
-| `invoices` | 13 | Facturación, abonos (Yape/Efectivo/Transferencia) y morosidad. | Estructura lista |
-| `payment_audit_logs` | 12 | Trazabilidad inmutable de pagos y comprobantes. | Estructura lista |
-| `company_expenses` | 8 | Gastos operativos de la sede (Solo visible por la Dueña). | Estructura lista |
-| `daily_closings` | 14 | Cuadre diario de caja chica y balance en sede. | Estructura lista |
-| `closing_audit_links` | 4 | Vinculación entre facturas/gastos y cierre de caja. | Estructura lista |
-| `online_resources` | 12 | Material didáctico (partituras, audios, PDFs para alumnos). | Estructura lista |
-| `notification_logs` | 11 | Historial de avisos enviados a WhatsApp/Email. | Estructura lista |
-| `demo_requests` | 12 | Solicitudes de clases muestra y leads. | Estructura lista |
+| Tabla | Columnas | Propósito Operativo | Conteo Físico en BD | Estado de Sincronización |
+|---|---|---|---|---|
+| `students` | 15 | Alumnos individualizados, nivel, instrumento, profesor asignado, créditos y tasa de asistencia. | **83 filas** | ✅ Activo y persistido |
+| `families` | 12 | Familias / Apoderados, teléfonos reales de WhatsApp y correos de contacto. | **83 filas** | ✅ Activo y persistido |
+| `invoices` | 13 | Facturación mensual de alumnos con planes oficiales (S/ 297, S/ 261.40, S/ 237.60). | **83 filas** | ✅ Activo y persistido |
+| `users` | 19 | Personal con roles RBAC (`super_admin`, `staff`, `teacher`). | **6 filas** | ✅ Activo (Dueña, Nayeli, Jeremy, Fernando, Nathaly, Demo) |
+| `invitations` | 15 | Enlaces de acceso y tokens (`nayeli-secretaria-vibra`, tokens de profesores). | **1 fila** | ✅ Activo y validado |
+| `attendance_logs` | 9 | Bitácora inmutable de asistencia con FK a `students` y `users`. | **0 filas** | 🟡 Sincronización activa desde Kardex y Kiosco Docente |
+| `lessons` | 12 | Horario oficial de clases (`16:00 - 19:45` y Sábados `09:00 - 13:30`). | **0 filas** | 🟡 Horario gestionado en Zustand `schedule` con persistencia |
+| `demo_requests` | 12 | Solicitudes de clases demostrativas y prospectos de Meta WhatsApp Cloud API. | **0 filas** | ✅ Conectado al Webhook de WhatsApp |
+| `daily_closings` | 14 | Cuadre diario de caja chica y balance en sede de Secretaría. | **0 filas** | Estructura lista |
+| `payment_audit_logs` | 12 | Trazabilidad inmutable de pagos y comprobantes con voucher. | **0 filas** | ✅ Conectado a `backgroundSyncPaymentToDB` |
+| `user_passwords` | 9 | Control de contraseñas maestras y personalizadas. | **0 filas** | ✅ Gestionado por `invitations.service.ts` |
+| `password_audit_trail` | 9 | Registro inmutable de cambios de claves y eventos de seguridad. | **0 filas** | ✅ Conectado |
+| `teacher_time_logs` | 13 | Fichaje y control horario de profesores (Kiosco docente). | **0 filas** | Estructura lista |
+| `payroll_closings` | 9 | Cierre y liquidación de horas auditadas por profesor. | **0 filas** | Estructura lista |
+| `company_expenses` | 8 | Gastos operativos de la sede (Solo visible por Dirección). | **0 filas** | Estructura lista |
+| `closing_audit_links` | 4 | Vinculación entre facturas/gastos y cierre de caja. | **0 filas** | Estructura lista |
+| `online_resources` | 12 | Material didáctico (partituras, audios, PDFs para alumnos). | **0 filas** | Estructura lista |
+| `notification_logs` | 11 | Historial de avisos enviados a WhatsApp/Email. | **0 filas** | Estructura lista |
 
 ---
 
-## 2. Diagnóstico del Estado Actual (Frontend vs Backend)
+## 2. Diagnóstico del Flujo de Datos (Cruce Kiosco Profesor ↔ Secretaría ↔ Insforge)
 
-1. **Estado del Backend**: La arquitectura PostgreSQL en Insforge cuenta con todas sus tablas, restricciones de integridad referencial y enums oficiales creados.
-2. **Estado del Frontend**:
-   - Actualmente, componentes como la Agenda y la Tabla de Alumnos utilizan **semillas en memoria con Zustand** (`admin-seeds.ts` / `app-store.ts`) como fallback para garantizar fluidez y funcionamiento offline.
-   - El servicio **`src/lib/services/invitations.service.ts`** ya está conectado a PostgREST (`postgrestInsert`, `postgrestSelect`, `verifyInvitationToken`).
-3. **Paso Quirúrgico Inmediato**:
-   - Poblar las tablas maestras (`students`, `lessons`, `families`) en PostgreSQL Insforge con los datos reales del Excel de Nayeli para que el sistema opere con persistencia real en la nube.
+1. **Estado del Backend en Insforge**:
+   - Motor PostgreSQL 15.18 100% operativo.
+   - Enums nativos validados: `attendance_enum` (`presente`, `ausente`, `tarde`, `recuperacion`).
+   - Claves foráneas íntegras: `attendance_logs.student_id -> students.id`, `attendance_logs.teacher_id -> users.id`.
+2. **Cruce de Asistencias (ADR 0074 y ADR 0075)**:
+   - **Kiosco del Profesor (`/teacher`)**: Cuando el profesor Jeremy, Fernando o Nathaly presiona `[🟢 Pres.]` o `[🔴 Aus.]` en su móvil, se registra la asistencia para la semana lectiva calculada en tiempo real (`getCurrentWeekIndex()`).
+   - **Recepción / Secretaría (`/admin/agenda`)**: Nayeli visualiza en vivo la celda del alumno con el punto de color y el estado actualizado.
+   - **Kardex de Asistencias (`StudentAttendanceKardex`)**: Reconstruye el historial cronológico con fechas y horas exactas. Tanto Secretaría como los Profesores y las Familias ven el mismo registro cruzado.
+   - **Persistencia Asíncrona**: Cada marcado ejecuta `backgroundSyncStudentToDB` (actualiza `attendance_rate` y `makeup_credits` en `students`) y `backgroundSyncAttendanceLogToDB` (inserta fila en `attendance_logs`).
+3. **Resiliencia Offline-First**:
+   - Si la conexión Wi-Fi de la sede parpadea, la interfaz nunca se bloquea ni muestra pantallas en blanco: Zustand resuelve la UI al instante y despacha las peticiones a PostgREST en segundo plano mediante colas resilientes.

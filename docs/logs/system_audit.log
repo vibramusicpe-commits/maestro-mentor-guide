@@ -699,3 +699,21 @@ Directorio de Logs: docs/logs/system_audit.log
    - `kid-summary.tsx`: Botón `Ver Kardex de Fechas` en el Portal de Familias.
 - Documentación: Generado ADR 0074 en `docs/adr/0074-kardex-cronologico-asistencias-regularizacion-fechas-horas.md`.
 - Estado: 100% FUNCIONAL, COMPILACIÓN NITRO Y VITE EN 0 ERRORES.
+
+[2026-09-07 16:55:00 -05:00] [CROSS-PORTAL SYNC & BACKEND] [TEACHER-KIOSK-ATTENDANCE-CROSS-REFERENCING-AND-INSFORGE-MCP]
+1. Diagnóstico de Cruce de Información:
+   - Los profesores en aula (Jeremy, Fernando, Nathaly) pueden marcar asistencia desde el móvil (`/teacher`), pero se requería garantizar el cruce inmediato con Secretaría (`/admin/agenda`) y el Kardex de fechas/horas.
+2. Mejoras de Lógica Temporal y Cruce en Tiempo Real:
+   - `getCurrentWeekIndex(year, monthIndex)` implementado en `src/lib/calendar-utils.ts` para calcular dinámicamente la semana lectiva activa a partir del día del mes.
+   - En `src/routes/teacher.index.tsx`, el Kiosco docente ancla el marcado a `activeWeekIndex`, asegurando que `[🟢 Pres.]`, `[🔴 Aus.]`, `[🟡 Tar.]` y `[🔵 Just.]` graben en la semana correcta en `schedule.attendanceByWeek`.
+   - En `src/store/app-store.ts`, `markLessonAttendance` actualizado para:
+     * Recalcular en caliente la tasa de asistencia (`attendanceRate`, 0 a 100%) sobre todas las sesiones programadas.
+     * Añadir +1 crédito de recuperación en inasistencias justificadas.
+     * Despachar asíncronamente `backgroundSyncStudentToDB` y `backgroundSyncAttendanceLogToDB` a Insforge PostgreSQL.
+3. Kardex para Profesores:
+   - Integrado el botón `📖 Kardex` en cada ficha de alumno dentro de `/teacher/alumnos` con visualización completa de fechas, horas y estados.
+4. Auditoría MCP `insforge-postgres` Registrada:
+   - 83 estudiantes, 83 familias, 83 facturas, 6 usuarios RBAC confirmados en vivo.
+   - `docs/BACKEND_AUDIT.md` actualizado con el inventario físico y estado de sincronización.
+- Documentación: Generado ADR 0075 en `docs/adr/0075-teacher-kiosk-bidirectional-attendance-sync-and-insforge-mcp.md`.
+- Estado: COMPILACIÓN EXITOSA (CÓDIGO 0) Y COMMITEADO.
