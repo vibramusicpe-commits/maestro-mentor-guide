@@ -32,6 +32,7 @@ import {
   type MatriculaType,
   VIBRA_PRICING,
 } from "./admin-seeds";
+import { getCurrentWeekIndex } from "@/lib/calendar-utils";
 
 export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow };
 export type {
@@ -764,42 +765,110 @@ export const useAppStore = create<AppState>()(
           const lesson = s.schedule.find((l) => l.id === lessonId);
           const studentName = lesson?.student;
           const isJustificada = status === "justificada";
-          const weekIdx = targetWeekIndex ?? lesson?.weekIndex ?? 1;
+          const weekIdx = targetWeekIndex ?? lesson?.weekIndex ?? getCurrentWeekIndex();
+
+          const newSchedule = s.schedule.map((l) => {
+            if (l.id === lessonId) {
+              const prevByWeek = { ...(l.attendanceByWeek || {}) };
+              return {
+                ...l,
+                attendanceStatus: status,
+                attendanceByWeek: {
+                  ...prevByWeek,
+                  [weekIdx]: status,
+                },
+              };
+            }
+            return l;
+          });
+
+          // Recalcular estadísticas del alumno para reflejar en el directorio y Kardex
+          const studentLessons = studentName
+            ? newSchedule.filter(
+                (l) =>
+                  (l.student.toLowerCase() === studentName.toLowerCase() ||
+                    l.student.toLowerCase().includes(studentName.toLowerCase()) ||
+                    studentName.toLowerCase().includes(l.student.toLowerCase())) &&
+                  l.status !== "cancelada"
+              )
+            : [];
+
+          let totalPresentes = 0;
+          let totalTardes = 0;
+          let totalAusentes = 0;
+          let totalJustificadas = 0;
+          const allMarked: ("presente" | "ausente" | "tarde")[] = [];
+
+          studentLessons.forEach((l) => {
+            if (l.attendanceByWeek) {
+              Object.entries(l.attendanceByWeek).forEach(([_, st]) => {
+                if (st === "presente") {
+                  totalPresentes++;
+                  allMarked.push("presente");
+                } else if (st === "tarde") {
+                  totalTardes++;
+                  allMarked.push("tarde");
+                } else if (st === "ausente") {
+                  totalAusentes++;
+                  allMarked.push("ausente");
+                } else if (st === "justificada") {
+                  totalJustificadas++;
+                }
+              });
+            }
+          });
+
+          const totalEvaluated = totalPresentes + totalTardes + totalAusentes + totalJustificadas;
+          const newRate = totalEvaluated > 0
+            ? Math.round(((totalPresentes + totalTardes) / totalEvaluated) * 100)
+            : 100;
+
+          const newStudents = s.adminStudents.map((st) => {
+            if (
+              studentName &&
+              (st.name.toLowerCase() === studentName.toLowerCase() ||
+                st.name.toLowerCase().includes(studentName.toLowerCase()) ||
+                studentName.toLowerCase().includes(st.name.toLowerCase()))
+            ) {
+              return {
+                ...st,
+                attendanceRate: newRate,
+                recentAttendance: [status === "justificada" ? "ausente" : status, ...(st.recentAttendance || []).slice(0, 4)],
+                makeupCredits: isJustificada ? st.makeupCredits + 1 : st.makeupCredits,
+              };
+            }
+            return st;
+          });
+
+          const updatedStudent = studentName
+            ? newStudents.find(
+                (st) =>
+                  st.name.toLowerCase() === studentName.toLowerCase() ||
+                  st.name.toLowerCase().includes(studentName.toLowerCase()) ||
+                  studentName.toLowerCase().includes(st.name.toLowerCase())
+              )
+            : undefined;
+
+          if (updatedStudent) {
+            backgroundSyncStudentToDB(s.activeRole, updatedStudent.id, {
+              attendanceRate: newRate,
+              makeupCredits: updatedStudent.makeupCredits,
+            });
+            backgroundSyncAttendanceLogToDB(
+              s.activeRole,
+              updatedStudent.id,
+              status,
+              `Semana ${weekIdx + 1} - Marcado por Profesor en Kiosco${notes ? `: ${notes}` : ""}`
+            );
+          }
 
           return {
-            schedule: s.schedule.map((l) => {
-              if (l.id === lessonId) {
-                const prevByWeek = l.attendanceByWeek || {};
-                return {
-                  ...l,
-                  attendanceStatus: status,
-                  attendanceByWeek: {
-                    ...prevByWeek,
-                    [weekIdx]: status,
-                  },
-                };
-              }
-              return l;
-            }),
-            adminStudents: s.adminStudents.map((st) => {
-              if (
-                studentName &&
-                (st.name.toLowerCase() === studentName.toLowerCase() ||
-                  st.name.toLowerCase().includes(studentName.toLowerCase()) ||
-                  studentName.toLowerCase().includes(st.name.toLowerCase()))
-              ) {
-                return {
-                  ...st,
-                  recentAttendance: [status, ...(st.recentAttendance || []).slice(0, 4)],
-                  makeupCredits: isJustificada ? st.makeupCredits + 1 : st.makeupCredits,
-                };
-              }
-              return st;
-            }),
+            schedule: newSchedule,
+            adminStudents: newStudents,
             syncQueue: [
               ...s.syncQueue,
               queueItem(
-                `Asistencia marcada (Semana ${weekIdx + 1}) · ${studentName || "Alumno"} (${status.toUpperCase()})`,
+                `Asistencia marcada por Profesor (Semana ${weekIdx + 1}) · ${studentName || "Alumno"} (${status.toUpperCase()})`,
               ),
             ],
           };

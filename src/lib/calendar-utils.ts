@@ -124,3 +124,25 @@ export function getMonthWeeks(year: number, monthIndex: number): CalendarWeekInf
   }));
 }
 
+/**
+ * Retorna el índice de la semana activa (0-indexed: 0=Semana 1, 1=Semana 2, ...)
+ * calculado deterministamente a partir del día del mes actual.
+ */
+export function getCurrentWeekIndex(year = new Date().getFullYear(), monthIndex = new Date().getMonth()): number {
+  const weeks = getMonthWeeks(year, monthIndex);
+  if (weeks.length === 0) return 0;
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  const foundWeek = weeks.find((w) => w.days.some((d) => d.dateStr === todayStr));
+  if (foundWeek) return foundWeek.weekIndex;
+
+  const dNum = today.getDate();
+  const weekByNum = weeks.find((w) => dNum >= w.startDayNum && dNum <= w.endDayNum);
+  if (weekByNum) return weekByNum.weekIndex;
+
+  if (today.getMonth() > monthIndex) return weeks.length - 1;
+  return 0;
+}
+

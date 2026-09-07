@@ -7,7 +7,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/app-store";
 import { categoryStyles } from "@/components/admin/agenda-board";
-import { teachers } from "@/store/admin-seeds";
+import { teachers, type AdminStudent } from "@/store/admin-seeds";
+import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
 
 export const Route = createFileRoute("/teacher/alumnos")({
   head: () => ({
@@ -56,6 +57,7 @@ function TeacherStudents() {
   }, [currentUser]);
 
   const [selectedTeacher, setSelectedTeacher] = useState<string>(initialTeacher);
+  const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
 
   // Lista unificada y enriquecida de alumnos cruzando datos con el horario oficial (schedule)
   const unifiedStudents = useMemo(() => {
@@ -316,9 +318,19 @@ function TeacherStudents() {
                     <span>Apoderado: <strong className="text-foreground">{s.emergencyContact?.name || s.family}</strong> ({s.emergencyContact?.phone || s.phone || "Sin tel."})</span>
                   )}
                 </span>
-                <span className="text-[11px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">
-                  {s.attendanceRate}% asist.
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setKardexStudent(s)}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded-md transition-colors"
+                    title="Ver Kardex de asistencias, fechas y horas"
+                  >
+                    📖 Kardex
+                  </button>
+                  <span className="text-[11px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">
+                    {s.attendanceRate}% asist.
+                  </span>
+                </div>
               </div>
             </motion.li>
           );
@@ -331,6 +343,15 @@ function TeacherStudents() {
           </li>
         )}
       </ul>
+
+      {/* 📖 MODAL DE KARDEX DE ASISTENCIAS PARA PROFESORES */}
+      {kardexStudent && (
+        <StudentAttendanceKardex
+          student={kardexStudent}
+          isOpen={Boolean(kardexStudent)}
+          onClose={() => setKardexStudent(null)}
+        />
+      )}
     </div>
   );
 }

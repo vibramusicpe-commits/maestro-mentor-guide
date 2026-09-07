@@ -15,6 +15,7 @@ import {
 import { IntegratedTeacherKioskHeader } from "@/components/teacher/integrated-kiosk-header";
 import { LessonNotes } from "@/components/teacher/lesson-notes";
 import { useAppStore, type ScheduledLesson, type WeekDay, type AttendanceStatus } from "@/store/app-store";
+import { getCurrentWeekIndex } from "@/lib/calendar-utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/teacher/")({
@@ -69,6 +70,8 @@ export function TeacherKiosk() {
   }, []);
 
   const [selectedDay, setSelectedDay] = useState<WeekDay>(todayDayShort);
+  // Semana lectiva activa del mes actual (0-indexed)
+  const activeWeekIndex = useMemo(() => getCurrentWeekIndex(), []);
 
   // Extraer el nombre del profesor logueado
   const teacherRawName = currentUser?.name ?? "Jeremy (Guitarra y Batería)";
@@ -216,7 +219,10 @@ export function TeacherKiosk() {
                 {/* Lista de Alumnos en este Bloque Horario */}
                 <div className="space-y-2">
                   {slot.lessons.map((lesson) => {
-                    const status = lesson.attendanceStatus || "pendiente";
+                    const status =
+                      (lesson.attendanceByWeek && lesson.attendanceByWeek[activeWeekIndex])
+                        ? lesson.attendanceByWeek[activeWeekIndex]!
+                        : lesson.attendanceStatus || "pendiente";
 
                     return (
                       <div
@@ -257,8 +263,8 @@ export function TeacherKiosk() {
                         <div className="pt-1.5 border-t border-border/40 grid grid-cols-4 gap-1.5">
                           <button
                             onClick={() => {
-                              markLessonAttendance(lesson.id, "presente");
-                              toast.success(`Asistencia: ${lesson.student} PRESENTE 🟢`);
+                              markLessonAttendance(lesson.id, "presente", "", activeWeekIndex);
+                              toast.success(`Asistencia: ${lesson.student} PRESENTE 🟢 (Semana ${activeWeekIndex + 1})`);
                             }}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
                               status === "presente"
@@ -270,7 +276,7 @@ export function TeacherKiosk() {
                           </button>
                           <button
                             onClick={() => {
-                              markLessonAttendance(lesson.id, "ausente");
+                              markLessonAttendance(lesson.id, "ausente", "", activeWeekIndex);
                               toast.error(`Asistencia: ${lesson.student} AUSENTE 🔴 (+1 Crédito de Recup.)`);
                             }}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
@@ -283,7 +289,7 @@ export function TeacherKiosk() {
                           </button>
                           <button
                             onClick={() => {
-                              markLessonAttendance(lesson.id, "tarde");
+                              markLessonAttendance(lesson.id, "tarde", "", activeWeekIndex);
                               toast.warning(`Asistencia: ${lesson.student} TARDE 🟡`);
                             }}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
@@ -296,7 +302,7 @@ export function TeacherKiosk() {
                           </button>
                           <button
                             onClick={() => {
-                              markLessonAttendance(lesson.id, "justificada");
+                              markLessonAttendance(lesson.id, "justificada", "", activeWeekIndex);
                               toast.info(`Asistencia: ${lesson.student} JUSTIFICADA 🔵 (+1 Crédito)`);
                             }}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
