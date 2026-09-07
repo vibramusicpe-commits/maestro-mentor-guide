@@ -304,10 +304,50 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       if (updates.teacherNote !== undefined) payload.notes = updates.teacherNote;
       if (updates.birthdate) payload.birthdate = updates.birthdate;
       if (updates.attendanceRate !== undefined) payload.attendance_rate = updates.attendanceRate;
+      if (updates.makeupCredits !== undefined) payload.makeup_credits = updates.makeupCredits;
 
       updateStudent(role, studentId, payload)
         .then(() => console.log(`[Insforge Sync] Alumno ${studentId} sincronizado en PostgreSQL`))
         .catch((err) => console.warn(`[Insforge Sync] Error sincronizando alumno ${studentId}:`, err));
+    }).catch(() => {});
+  } catch {}
+}
+
+// Sincronizador en segundo plano de bitácora de asistencias con Insforge PostgreSQL
+function backgroundSyncAttendanceLogToDB(
+  role: Role,
+  studentId: string,
+  status: "presente" | "ausente" | "tarde" | "justificada",
+  note?: string
+) {
+  try {
+    if (typeof window === "undefined") return;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId);
+
+    // Insforge attendance_enum acepta: 'presente', 'ausente', 'tarde', 'recuperacion'
+    let dbStatus: "presente" | "ausente" | "tarde" | "recuperacion" = "presente";
+    let dbNote = note || "";
+    if (status === "ausente") {
+      dbStatus = "ausente";
+    } else if (status === "tarde") {
+      dbStatus = "tarde";
+    } else if (status === "justificada") {
+      dbStatus = "ausente";
+      dbNote = `Inasistencia justificada (+1 crédito). ${dbNote}`.trim();
+    } else {
+      dbStatus = "presente";
+    }
+
+    import("@/lib/insforge").then(({ postgrestInsert }) => {
+      postgrestInsert("attendance_logs", {
+        student_id: isUUID ? studentId : null,
+        status: dbStatus,
+        credit_delta: status === "justificada" ? 1 : 0,
+        note: dbNote || null,
+        registered_at: new Date().toISOString(),
+      })
+        .then(() => console.log(`[Insforge Sync] Asistencia guardada en attendance_logs para ${studentId}`))
+        .catch((err) => console.warn(`[Insforge Sync] Error guardando attendance_log:`, err));
     }).catch(() => {});
   } catch {}
 }
@@ -839,6 +879,25 @@ export const useAppStore = create<AppState>()(
             return st;
           });
 
+          const updatedStudent = newStudents.find(
+            (st) =>
+              st.name.toLowerCase() === studentName.toLowerCase() ||
+              st.name.toLowerCase().includes(studentName.toLowerCase()) ||
+              studentName.toLowerCase().includes(st.name.toLowerCase())
+          );
+          if (updatedStudent) {
+            backgroundSyncStudentToDB(s.activeRole, updatedStudent.id, {
+              attendanceRate: newRate,
+              makeupCredits: updatedStudent.makeupCredits,
+            });
+            backgroundSyncAttendanceLogToDB(
+              s.activeRole,
+              updatedStudent.id,
+              status,
+              `Semana ${weekIndex + 1} - Regularización Kardex`
+            );
+          }
+
           return {
             schedule: newSchedule,
             adminStudents: newStudents,
@@ -932,6 +991,29 @@ export const useAppStore = create<AppState>()(
             }
             return st;
           });
+
+          const updatedStudent = newStudents.find(
+            (st) =>
+              st.name.toLowerCase() === studentName.toLowerCase() ||
+              st.name.toLowerCase().includes(studentName.toLowerCase()) ||
+              studentName.toLowerCase().includes(st.name.toLowerCase())
+          );
+          if (updatedStudent) {
+            backgroundSyncStudentToDB(s.activeRole, updatedStudent.id, {
+              attendanceRate: newRate,
+              makeupCredits: updatedStudent.makeupCredits,
+            });
+            attendances.forEach(({ weekIndex, status: attStatus }) => {
+              if (attStatus !== "pendiente") {
+                backgroundSyncAttendanceLogToDB(
+                  s.activeRole,
+                  updatedStudent.id,
+                  attStatus,
+                  `Semana ${weekIndex + 1} - Regularización Masiva Kardex`
+                );
+              }
+            });
+          }
 
           return {
             schedule: newSchedule,

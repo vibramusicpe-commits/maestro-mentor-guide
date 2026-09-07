@@ -662,7 +662,40 @@ Directorio de Logs: docs/logs/system_audit.log
 2. Solución: Declarado 'const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(true);' en 'NewStudentDialog'.
 - Estado: RESUELTO Y DESPLEGADO EN PRODUCCIÓN (Commit aa4c874).
 
+[2026-09-05 18:30:00 -05:00] [FEAT & INTEGRATION] [WHATSAPP-CLOUD-API-CULQI-CHECKOUT-AND-ADMIN-PANEL]
+1. Integración Oficial de Meta WhatsApp Cloud API (ADR 0073):
+   - Endpoint webhook en `/api/webhook/whatsapp` (`src/server/whatsapp-webhook.ts`) sobre Cloudflare/Nitro.
+   - Handshake oficial con `hub.mode`, `hub.verify_token` y `hub.challenge`.
+   - Atajos deterministas en PostgreSQL (`/precios`, `/horarios`, `/ubicacion`, `/instrumentos`, `/profesores`, `/cancelar`, `/pagos`).
+   - Idempotencia con Upstash Redis (`wa:msg:{message_id}`) y fallback LRU en memoria.
+2. Panel de Control de WhatsApp (`/admin/whatsapp`):
+   - 4 Pestañas: Agente (con chat interactivo), Reglas de escalamiento, Conversaciones y Citas/Ventas (`demo_requests`).
+3. Checkout Seguro Culqi (`/checkout`):
+   - Integración oficial de Culqi Checkout v4 en Soles (PEN) con recolección de correo del apoderado.
+- Documentación: Generado ADR 0073 en `docs/adr/0073-whatsapp-official-cloud-api-and-culqi-checkout.md`.
+- Estado: COMPILACIÓN EXITOSA Y AUDITADO.
 
-
-
-
+[2026-09-07 16:35:00 -05:00] [DATABASE_AUDIT & FEATURE] [KARDEX-ATTENDANCE-RETROACTIVE-REGULARIZATION-AND-INSFORGE-MCP]
+1. Diagnóstico de Incidencia Operativa de Asistencias:
+   - Se constató que Secretaría (Nayeli) omitió el marcado continuo de asistencia durante el ciclo activo.
+   - Padres de familia y Dirección exigieron un desglose histórico verificable con fecha exacta (día/mes/año) y rango de hora de cada clase tomada.
+2. Auditoría en Vivo de Insforge PostgreSQL vía MCP `insforge-postgres`:
+   - Esquema validado: 18 tablas públicas (`students`, `attendance_logs`, `lessons`, `demo_requests`, `invoices`, `families`, etc.).
+   - `SELECT count(*) FROM students;` -> 83 alumnos individualizados y activos.
+   - `SELECT count(*) FROM attendance_logs;` -> 0 registros físicos (corroborando en BD la omisión del registro).
+   - Verificación de esquema `attendance_logs`: claves foráneas `student_id -> students.id`, `lesson_id -> lessons.id`, `teacher_id -> users.id`, y enum nativo `attendance_enum` ('presente', 'ausente', 'tarde', 'recuperacion').
+3. Módulo Kardex de Asistencias (`StudentAttendanceKardex`):
+   - Generación determinista de sesiones con fecha real (`Lun 18 Ago 2026`), hora (`16:00 - 16:45`), aula y profesor usando `getMonthWeeks`.
+   - Botón de regularización masiva: `"⚡ Regularizar todo como Presente"`.
+   - Marcado rápido en 1 clic: `[✓ Pres]`, `[✗ Falta]`, `[⏰ Tar]`, `[🔵 Just]` (+1 crédito de recuperación), `[↺]`.
+   - Generador y copiado al portapapeles de Reporte para WhatsApp a apoderados.
+   - Botón de impresión física / PDF (`window.print()`).
+4. Persistencia y Sincronización Automática con Insforge PostgreSQL:
+   - `backgroundSyncStudentToDB` actualizado para sincronizar `attendance_rate` y `makeup_credits` en `students`.
+   - `backgroundSyncAttendanceLogToDB` implementado para persistir registros inmutables de auditoría en `attendance_logs`.
+5. Puntos de Acceso en la Webapp:
+   - `students-table.tsx`: Botón `📖 Kardex` en acciones, Drawer de detalles y clic en `% Asistencia`.
+   - `agenda-board.tsx`: Botón `Kardex Fechas` en el Sheet de clase y en la modal de Libreta de Asistencias.
+   - `kid-summary.tsx`: Botón `Ver Kardex de Fechas` en el Portal de Familias.
+- Documentación: Generado ADR 0074 en `docs/adr/0074-kardex-cronologico-asistencias-regularizacion-fechas-horas.md`.
+- Estado: 100% FUNCIONAL, COMPILACIÓN NITRO Y VITE EN 0 ERRORES.
