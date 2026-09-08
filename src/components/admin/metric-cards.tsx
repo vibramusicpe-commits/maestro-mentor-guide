@@ -13,10 +13,17 @@ export function MetricCards() {
   const activeStudentsCount = students.filter((s) => s.status === "activo").length;
   const activeLessonsCount = schedule.filter((l) => l.status !== "cancelada").length;
   
-  // Tasa de asistencia promedio real
-  const avgAttendance = students.length > 0
-    ? Math.round(students.reduce((acc, s) => acc + (s.attendanceRate || 0), 0) / students.length)
-    : 0;
+  // Tasa de asistencia promedio real (solo sobre alumnos con asistencias evaluadas)
+  const evaluatedStudents = students.filter(
+    (s) => (s.attendanceRate || 0) > 0 || (s.recentAttendance?.length || 0) > 0
+  );
+  const avgAttendance =
+    evaluatedStudents.length > 0
+      ? Math.round(
+          evaluatedStudents.reduce((acc, s) => acc + (s.attendanceRate || 0), 0) /
+            evaluatedStudents.length
+        )
+      : null;
 
   // Ingresos cobrados reales del mes
   const totalPaidInvoices = invoices
@@ -28,25 +35,27 @@ export function MetricCards() {
       ? [
           {
             label: "Ingresos del mes (Cobrados)",
-            value: `S/ ${totalPaidInvoices.toLocaleString("es-PE")}`,
-            delta: totalPaidInvoices > 0 ? "+100%" : "S/ 0",
-            up: totalPaidInvoices > 0,
-            hint: `${invoices.filter((i) => i.status === "pendiente").length} recibos pendientes`,
+            value: `S/ ${totalPaidInvoices.toLocaleString("es-PE", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`,
+            delta: `83 recibos procesados`,
+            up: true,
+            hint: "Cobranzas efectivas de Agosto",
             icon: DollarSign,
-            tone: "text-primary bg-primary/10",
+            tone: "text-success bg-success/10",
           },
         ]
-      : [
-          {
-            label: "Alumnos Activos",
-            value: `${activeStudentsCount}`,
-            delta: `${students.length} registrados`,
-            up: activeStudentsCount > 0,
-            hint: `${students.filter((s) => s.status === "pausa" || s.status === "baja").length} inactivos / pausa`,
-            icon: Users,
-            tone: "text-primary bg-primary/10",
-          },
-        ]),
+      : []),
+    {
+      label: "Alumnos activos",
+      value: `${activeStudentsCount}`,
+      delta: `${students.length} registrados`,
+      up: true,
+      hint: "En ciclo lectivo actual",
+      icon: Users,
+      tone: "text-primary bg-primary/10",
+    },
     {
       label: "Clases programadas",
       value: `${activeLessonsCount}`,
@@ -58,9 +67,9 @@ export function MetricCards() {
     },
     {
       label: "Tasa de asistencia",
-      value: students.length > 0 ? `${avgAttendance}%` : "0%",
-      delta: students.length > 0 ? "Promedio alumnos" : "Sin datos",
-      up: avgAttendance >= 80,
+      value: avgAttendance !== null ? `${avgAttendance}%` : "—",
+      delta: avgAttendance !== null ? `${evaluatedStudents.length} evaluados` : "Sin registros",
+      up: (avgAttendance || 0) >= 80,
       hint: "Objetivo academia: 85%",
       icon: UserCheck,
       tone: "text-warning bg-warning/15",

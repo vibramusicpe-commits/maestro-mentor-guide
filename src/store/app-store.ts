@@ -821,7 +821,7 @@ export const useAppStore = create<AppState>()(
           const totalEvaluated = totalPresentes + totalTardes + totalAusentes + totalJustificadas;
           const newRate = totalEvaluated > 0
             ? Math.round(((totalPresentes + totalTardes) / totalEvaluated) * 100)
-            : 100;
+            : 0;
 
           const newStudents = s.adminStudents.map((st) => {
             if (
@@ -930,7 +930,7 @@ export const useAppStore = create<AppState>()(
           const totalEvaluated = totalPresentes + totalTardes + totalAusentes + totalJustificadas;
           const newRate = totalEvaluated > 0
             ? Math.round(((totalPresentes + totalTardes) / totalEvaluated) * 100)
-            : 100;
+            : 0;
 
           const newStudents = s.adminStudents.map((st) => {
             if (
@@ -941,7 +941,7 @@ export const useAppStore = create<AppState>()(
               return {
                 ...st,
                 attendanceRate: newRate,
-                recentAttendance: allMarked.length > 0 ? allMarked.slice(0, 5) : st.recentAttendance,
+                recentAttendance: allMarked.length > 0 ? allMarked.slice(0, 5) : [],
                 makeupCredits: isJustificada ? st.makeupCredits + 1 : st.makeupCredits,
               };
             }
@@ -1043,7 +1043,7 @@ export const useAppStore = create<AppState>()(
           const totalEvaluated = totalPresentes + totalTardes + totalAusentes + totalJustificadas;
           const newRate = totalEvaluated > 0
             ? Math.round(((totalPresentes + totalTardes) / totalEvaluated) * 100)
-            : 100;
+            : 0;
 
           const newStudents = s.adminStudents.map((st) => {
             if (
@@ -1054,7 +1054,7 @@ export const useAppStore = create<AppState>()(
               return {
                 ...st,
                 attendanceRate: newRate,
-                recentAttendance: allMarked.length > 0 ? allMarked.slice(0, 5) : st.recentAttendance,
+                recentAttendance: allMarked.length > 0 ? allMarked.slice(0, 5) : [],
                 makeupCredits: st.makeupCredits + extraCredits,
               };
             }

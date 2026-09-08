@@ -4,6 +4,15 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.7.2] - 2026-09-07
+
+### Corregido & Refactorizado
+- **Aislamiento de Mes en Kardex, Rediseño de Libreta de Asistencias y Purgado Total de Mock Data (ADR 0076)**:
+  - **Aislamiento Estricto de Mes en Kardex (`StudentAttendanceKardex`)**: Se introdujo la exclusión estricta `if (!dayInfo.isCurrentMonth) return;` en el generador de sesiones cronológicas, impidiendo que días de meses adyacentes desborden el calendario lectivo (ej. resolviendo el error de 10 sesiones reportadas para alumnos en planes de 8 clases).
+  - **Tasa de Asistencia Verídica**: Si un alumno no cuenta con clases evaluadas aún, la tasa se establece en `null`, renderizándose como `—` o `Sin evaluar` tanto en la interfaz como en reportes de WhatsApp.
+  - **Rediseño Conceptual de la Libreta de Asistencias (`agenda-board.tsx`)**: Se diferenció el horario semanal (`🟢 Horario Completo (X frec/sem)` vs `🟡 Horario Parcial`) del cómputo mensual de asistencias (`totalAsistidas de targetLessons clases asistidas`), eliminando la confusión donde 2 frecuencias semanales se interpretaban como 2 asistencias mensuales.
+  - **Purgado de Mock Data de Asistencia**: Eliminación completa de historiales y tasas simuladas (`recentAttendance: []`, `attendanceRate: 0`) en las semillas oficiales y store para operación real con Insforge PostgreSQL.
+
 ## [1.7.1] - 2026-09-07
 
 ### Añadido & Sincronizado

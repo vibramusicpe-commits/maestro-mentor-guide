@@ -270,13 +270,13 @@ export function StudentsTable() {
         teacher: teacher || "Prof. por Asignar",
         modality,
         status: "activo",
-        attendanceRate: 100,
+        attendanceRate: 0,
         payment: "al-dia",
         risk: 0,
         joinedAt: "Ago 2026",
         makeupCredits: 0,
         balance: 0,
-        recentAttendance: ["presente", "presente", "presente"],
+        recentAttendance: [],
         teacherNote: "Alumno importado desde el registro oficial.",
         email: email || `${name.toLowerCase().replace(/\s+/g, ".")}@gmail.com`,
         phone: phone || "+51 900 000 000",
@@ -399,14 +399,26 @@ export function StudentsTable() {
           hint={`${students.filter((s) => s.status === "pausa").length} pausa, ${students.filter((s) => s.status === "baja").length} baja`}
           tone="text-warning"
         />
-        <Tile
-          icon={GraduationCap}
-          label="Asistencia Promedio"
-          value={`${Math.round(
-            students.reduce((acc, s) => acc + s.attendanceRate, 0) / (students.length || 1),
-          )}%`}
-          hint="Promedio general mensual"
-        />
+        {(() => {
+          const evaluatedStudents = students.filter(
+            (s) => (s.recentAttendance?.length || 0) > 0 || (s.attendanceRate || 0) > 0
+          );
+          const avgAttendance =
+            evaluatedStudents.length > 0
+              ? Math.round(
+                  evaluatedStudents.reduce((acc, s) => acc + (s.attendanceRate || 0), 0) /
+                    evaluatedStudents.length
+                )
+              : null;
+          return (
+            <Tile
+              icon={GraduationCap}
+              label="Asistencia Promedio"
+              value={avgAttendance !== null ? `${avgAttendance}%` : "—"}
+              hint={avgAttendance !== null ? "Promedio alumnos evaluados" : "Sin evaluaciones registradas"}
+            />
+          );
+        })()}
         <Tile
           icon={AlertTriangle}
           label="En Riesgo de Deserción"
@@ -640,11 +652,13 @@ export function StudentsTable() {
                         <div className="flex items-center justify-between text-xs font-semibold">
                           <span className="flex items-center gap-1 text-primary hover:underline font-bold">
                             <BookOpen className="h-3 w-3 text-emerald-500" />
-                            {st.attendanceRate}%
+                            {st.attendanceRate > 0 ? `${st.attendanceRate}%` : "—"}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">Kardex</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {st.attendanceRate > 0 ? "Kardex" : "Sin registro"}
+                          </span>
                         </div>
-                        <Progress value={st.attendanceRate} className="h-1.5" />
+                        <Progress value={st.attendanceRate || 0} className="h-1.5" />
                       </div>
                     </TableCell>
                     <TableCell>{statusBadge(st.status)}</TableCell>
@@ -1539,7 +1553,7 @@ export function StudentsTable() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
                       <BookOpen className="h-4 w-4 text-emerald-500" />
-                      Kardex de Asistencia ({selectedStudent.attendanceRate}%)
+                      Kardex de Asistencia {selectedStudent.attendanceRate > 0 ? `(${selectedStudent.attendanceRate}%)` : "(Sin evaluar)"}
                     </span>
                     <Button
                       size="sm"
@@ -1552,22 +1566,28 @@ export function StudentsTable() {
                     </Button>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {selectedStudent.recentAttendance.map((att, idx) => (
-                      <Badge
-                        key={idx}
-                        className={`capitalize border-0 text-xs px-2.5 py-0.5 ${
-                          att === "presente"
-                            ? "bg-success/20 text-success font-bold"
-                            : att === "tarde"
-                              ? "bg-warning/25 text-warning-foreground font-bold"
-                              : "bg-destructive/20 text-destructive font-bold"
-                        }`}
-                      >
-                        {att === "presente" ? "✓ Presente" : att === "tarde" ? "⏰ Tarde" : "✗ Ausente"}
-                      </Badge>
-                    ))}
-                  </div>
+                  {selectedStudent.recentAttendance && selectedStudent.recentAttendance.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedStudent.recentAttendance.map((att, idx) => (
+                        <Badge
+                          key={idx}
+                          className={`capitalize border-0 text-xs px-2.5 py-0.5 ${
+                            att === "presente"
+                              ? "bg-success/20 text-success font-bold"
+                              : att === "tarde"
+                                ? "bg-warning/25 text-warning-foreground font-bold"
+                                : "bg-destructive/20 text-destructive font-bold"
+                          }`}
+                        >
+                          {att === "presente" ? "✓ Presente" : att === "tarde" ? "⏰ Tarde" : "✗ Ausente"}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      Sin asistencias marcadas aún. Haz clic en "Ver Fechas y Horas" para consultar el cronograma o regularizar.
+                    </p>
+                  )}
 
                   {/* Acciones de marcado rápido y regularización de asistencia por Secretaría */}
                   <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between gap-2">

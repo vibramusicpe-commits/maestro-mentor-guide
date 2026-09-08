@@ -4045,22 +4045,56 @@ export function AgendaBoard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {filteredLedgerList.map((st) => {
                     const isIntensivo = st.modality?.includes("Intensivo");
+                    const targetWeeklySlots = isIntensivo ? 1 : 2;
                     const targetLessons = isIntensivo ? 4 : 8;
 
-                    // Clases en la agenda para este alumno
+                    // Clases del alumno en la agenda semanal (frecuencias asignadas)
                     const studentLessons = schedule.filter(
-                      (l) => l.student.toLowerCase() === st.name.toLowerCase() ||
-                        st.name.toLowerCase().includes(l.student.toLowerCase()) ||
-                        l.student.toLowerCase().includes(st.name.toLowerCase())
+                      (l) =>
+                        (l.student.toLowerCase() === st.name.toLowerCase() ||
+                          st.name.toLowerCase().includes(l.student.toLowerCase()) ||
+                          l.student.toLowerCase().includes(st.name.toLowerCase())) &&
+                        l.status !== "cancelada"
                     );
-                    const scheduledCount = studentLessons.length;
-                    const presentes = studentLessons.filter((l) => l.attendanceStatus === "presente").length;
-                    const ausentes = studentLessons.filter((l) => l.attendanceStatus === "ausente").length;
-                    const tardes = studentLessons.filter((l) => l.attendanceStatus === "tarde").length;
-                    const justificadas = studentLessons.filter((l) => l.attendanceStatus === "justificada").length;
+                    const weeklySlotsCount = studentLessons.length;
+                    const isScheduleComplete = weeklySlotsCount >= targetWeeklySlots;
+                    const pendingWeeklySlots = Math.max(0, targetWeeklySlots - weeklySlotsCount);
+
+                    // Calcular asistencias reales del mes para este alumno
+                    let presentes = 0;
+                    let ausentes = 0;
+                    let tardes = 0;
+                    let justificadas = 0;
+                    let pendientes = 0;
+
+                    monthWeeks.forEach((week) => {
+                      week.days.forEach((dayInfo) => {
+                        if (!dayInfo.isCurrentMonth) return;
+
+                        studentLessons.forEach((lesson) => {
+                          if (lesson.day !== dayInfo.dayKey) return;
+                          if (lesson.weekIndex !== undefined && lesson.weekIndex !== week.weekIndex) return;
+                          if (lesson.excludedWeeks && lesson.excludedWeeks.includes(week.weekIndex)) return;
+
+                          const status =
+                            lesson.attendanceByWeek && lesson.attendanceByWeek[week.weekIndex]
+                              ? lesson.attendanceByWeek[week.weekIndex]!
+                              : lesson.weekIndex === week.weekIndex && lesson.attendanceStatus
+                              ? lesson.attendanceStatus
+                              : "pendiente";
+
+                          if (status === "presente") presentes++;
+                          else if (status === "ausente") ausentes++;
+                          else if (status === "tarde") tardes++;
+                          else if (status === "justificada") justificadas++;
+                          else pendientes++;
+                        });
+                      });
+                    });
+
                     const totalAsistidas = presentes + tardes;
-                    const isComplete = scheduledCount >= targetLessons;
-                    const pendingToSchedule = Math.max(0, targetLessons - scheduledCount);
+                    const totalEvaluadas = presentes + ausentes + tardes + justificadas;
+                    const attendanceRate = totalEvaluadas > 0 ? Math.round((totalAsistidas / totalEvaluadas) * 100) : null;
 
                     return (
                       <div
@@ -4078,36 +4112,53 @@ export function AgendaBoard() {
                               )}
                             </p>
                             <p className="text-[11px] text-muted-foreground">
-                              {st.instrument} · Prof. <strong>{st.teacher || "Por asignar"}</strong> · <span className="font-semibold text-emerald-600 dark:text-emerald-400">{isIntensivo ? "Intensivo (4 clases)" : "Regular (8 clases)"}</span>
+                              {st.instrument} · Prof. <strong>{st.teacher || "Por asignar"}</strong> ·{" "}
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                {isIntensivo ? "Intensivo (4 clases)" : "Regular (8 clases)"}
+                              </span>
                             </p>
                           </div>
 
                           <div className="text-right shrink-0">
                             <span
                               className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
-                                isComplete
+                                isScheduleComplete
                                   ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
                                   : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
                               }`}
                             >
-                              {scheduledCount} / {targetLessons} clases
+                              {isScheduleComplete
+                                ? `🟢 Horario Completo (${weeklySlotsCount} frec/sem)`
+                                : `🟡 Horario Parcial (${weeklySlotsCount}/${targetWeeklySlots} frec)`}
                             </span>
                           </div>
                         </div>
 
-                        {/* Barra de progreso de cumplimiento de clases */}
+                        {/* Barra de progreso de cumplimiento de asistencias del mes */}
                         <div className="space-y-1">
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="font-semibold text-foreground">
+                              Cumplimiento de Asistencias del Mes:
+                            </span>
+                            <span className="font-mono font-bold text-primary">
+                              {totalAsistidas} de {targetLessons} clases asistidas
+                            </span>
+                          </div>
                           <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                             <div
                               className={`h-full transition-all rounded-full ${
-                                isComplete ? "bg-emerald-500" : "bg-amber-500"
+                                totalAsistidas >= targetLessons
+                                  ? "bg-emerald-500"
+                                  : totalAsistidas > 0
+                                  ? "bg-primary"
+                                  : "bg-muted-foreground/30"
                               }`}
-                              style={{ width: `${Math.min(100, (scheduledCount / targetLessons) * 100)}%` }}
+                              style={{ width: `${Math.min(100, (totalAsistidas / targetLessons) * 100)}%` }}
                             />
                           </div>
-                          {pendingToSchedule > 0 && (
+                          {pendingWeeklySlots > 0 && (
                             <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                              ⚠️ Faltan {pendingToSchedule} clase{pendingToSchedule > 1 ? "s" : ""} en agenda para completar el mes.
+                              ⚠️ Falta programar {pendingWeeklySlots} día{pendingWeeklySlots > 1 ? "s" : ""} en la agenda semanal para completar el plan.
                             </p>
                           )}
                         </div>
@@ -4124,8 +4175,16 @@ export function AgendaBoard() {
                             🟡 {tardes} Tar
                           </span>
                           <span className="px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold">
-                            🔵 {justificadas} Just (+Créd)
+                            🔵 {justificadas} Just
                           </span>
+                          <span className="px-2 py-0.5 rounded-lg bg-muted text-muted-foreground font-bold">
+                            ⚪ {pendientes} Pend
+                          </span>
+                          {attendanceRate !== null && (
+                            <span className="px-2 py-0.5 rounded-lg bg-primary/10 text-primary font-black">
+                              {attendanceRate}% Asist
+                            </span>
+                          )}
                           {st.makeupCredits > 0 && (
                             <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-700 dark:text-red-300 font-black border border-red-500/30">
                               🎟️ {st.makeupCredits} Crédito{st.makeupCredits > 1 ? "s" : ""}

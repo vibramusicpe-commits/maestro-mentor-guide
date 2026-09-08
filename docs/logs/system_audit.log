@@ -2,8 +2,26 @@
 ===================================================================
 Proyecto: Vibra Music — Cadencia (Maestro Mentor Guide)
 Directorio de Logs: docs/logs/system_audit.log
-Última Actualización: 2026-08-20 19:30:00 -05:00
+Última Actualización: 2026-09-07 19:00:00 -05:00
 ===================================================================
+
+[2026-09-07 19:00:00 -05:00] [FIX & AUDIT] [KARDEX-MONTH-ISOLATION-AND-MOCK-ATTENDANCE-PURGE]
+- Solucionados los problemas críticos de cálculo y visualización de asistencia reportados por Secretaría y Dirección:
+  1. **Aislamiento de Mes en Kardex (`student-attendance-kardex.tsx`):**
+     * Añadido filtrado estricto `if (!dayInfo.isCurrentMonth) return;` para evitar que días de meses adyacentes (ej. viernes 4 de setiembre) se sumen a las semanas del mes seleccionado (ej. agosto), eliminando el bug de las 10 sesiones pendientes en planes regulares de 8 clases.
+     * Tasa de asistencia (`stats.rate`) establecida en `null` cuando no hay clases evaluadas (`evaluadas === 0`), desplegando `—` o `Sin evaluar` en lugar del falso 100%.
+  2. **Rediseño de Libreta de Asistencias (`agenda-board.tsx`):**
+     * Desacoplado el número de frecuencias semanales del objetivo de clases del mes.
+     * La insignia superior ahora refleja el estado del horario semanal (`🟢 Horario Completo (2 frec/sem)` vs `🟡 Horario Parcial`).
+     * Cómputo dinámico de asistencias reales del mes mediante consolidación de semanas y `attendanceByWeek`.
+     * Barra de progreso y texto de cumplimiento ajustados a `${totalAsistidas} de ${targetLessons} clases asistidas`.
+  3. **Purgado Total de Mock Data de Asistencia:**
+     * `src/store/admin-seeds.ts`, `official-control-pagos-seeds.ts` y `official-seeds.ts` limpiados de arrays simulados de asistencia (`recentAttendance: []`, `attendanceRate: 0`).
+     * `src/components/admin/students-table.tsx` y `src/routes/teacher.alumnos.tsx` actualizados para mostrar `—` y `Sin registros` cuando no hay evaluaciones previas.
+- Documentación: ADR 0076 generado en `docs/adr/0076-kardex-month-isolation-ledger-redesign-and-mock-attendance-purge.md`.
+- Verificación: `npm run build` completado exitosamente (0 errores, código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
 
 [2026-08-20 19:30:00 -05:00] [SUCCESS & BACKEND] [POSTGRESQL-MCP-DIRECT-POPULATION]
 - Ejecutado el poblado físico en la base de datos PostgreSQL de Insforge vía MCP `insforge-postgres`:

@@ -132,7 +132,7 @@ function TeacherStudents() {
           instrument: l.instrument,
           teacher: l.teacher,
           ageCategory: "JUNIOR",
-          attendanceRate: 100,
+          attendanceRate: 0,
           modality: "Regular (8 clases / 45 min)",
           status: "activo",
           matchingLessons: [l],
@@ -327,9 +327,15 @@ function TeacherStudents() {
                   >
                     📖 Kardex
                   </button>
-                  <span className="text-[11px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">
-                    {s.attendanceRate}% asist.
-                  </span>
+                  {s.attendanceRate > 0 ? (
+                    <span className="text-[11px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">
+                      {s.attendanceRate}% asist.
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                      Sin registros
+                    </span>
+                  )}
                 </div>
               </div>
             </motion.li>

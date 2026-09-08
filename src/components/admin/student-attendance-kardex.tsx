@@ -118,6 +118,9 @@ export function StudentAttendanceKardex({
 
     monthWeeks.forEach((week) => {
       week.days.forEach((dayInfo) => {
+        // Ignorar días desbordados que no pertenecen al mes actual del ciclo
+        if (!dayInfo.isCurrentMonth) return;
+
         // Buscar si el alumno tiene lección este día de la semana
         studentLessons.forEach((lesson) => {
           // Si la lección es para un día específico
@@ -195,7 +198,7 @@ export function StudentAttendanceKardex({
     const pendientes = sessions.filter((s) => s.status === "pendiente").length;
     const evaluadas = presentes + ausentes + tardes + justificadas;
     const asistidasTotal = presentes + tardes;
-    const rate = evaluadas > 0 ? Math.round((asistidasTotal / evaluadas) * 100) : 100;
+    const rate: number | null = evaluadas > 0 ? Math.round((asistidasTotal / evaluadas) * 100) : null;
 
     return {
       total,
@@ -287,7 +290,7 @@ export function StudentAttendanceKardex({
     text += `• Clases asistidas: ${stats.asistidasTotal}\n`;
     text += `• Faltas no justificadas: ${stats.ausentes}\n`;
     text += `• Clases justificadas: ${stats.justificadas}\n`;
-    text += `• Tasa de asistencia: ${stats.rate}%\n`;
+    text += `• Tasa de asistencia: ${stats.rate !== null ? `${stats.rate}%` : "Sin evaluar"}\n`;
     if (student.makeupCredits > 0) {
       text += `🎟️ *Créditos de recuperación disponibles:* ${student.makeupCredits}\n`;
     }
@@ -390,7 +393,9 @@ export function StudentAttendanceKardex({
         </div>
         <div className="p-3 rounded-xl border border-primary/30 bg-primary/5 text-center">
           <p className="text-[10px] uppercase font-bold text-primary">Tasa Global</p>
-          <p className="text-xl font-black text-primary mt-0.5">{stats.rate}%</p>
+          <p className="text-xl font-black text-primary mt-0.5">
+            {stats.rate !== null ? `${stats.rate}%` : "—"}
+          </p>
         </div>
       </div>
 

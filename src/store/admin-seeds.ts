@@ -204,7 +204,13 @@ export const initialSchedule: ScheduledLesson[] = officialSchedule.map((l) => ({
 }));
 
 // Lista oficial de 99 alumnos extraída directamente del Control de Pagos de Vibra Music
-export const adminStudents: AdminStudent[] = officialControlPagosStudents;
+// Purgado de mock data: Las asistencias inician limpias (0% y sin registros ficticios)
+// para que el récord se construya en producción real desde la agenda y Kardex.
+export const adminStudents: AdminStudent[] = officialControlPagosStudents.map((st) => ({
+  ...st,
+  recentAttendance: [],
+  attendanceRate: 0,
+}));
 
 // Lista oficial de 99 facturas y estados de pago reales de Agosto 2026
 export const initialInvoices: Invoice[] = officialControlPagosInvoices;
