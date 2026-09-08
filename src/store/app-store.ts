@@ -30,6 +30,8 @@ import {
   type WeekDay,
   type VibraPlanType,
   type MatriculaType,
+  type DeletedStudentLog,
+  type DeletionReasonCategory,
   VIBRA_PRICING,
 } from "./admin-seeds";
 import { getCurrentWeekIndex } from "@/lib/calendar-utils";
@@ -49,6 +51,8 @@ export type {
   WeekDay,
   VibraPlanType,
   MatriculaType,
+  DeletedStudentLog,
+  DeletionReasonCategory,
 };
 export { VIBRA_PRICING };
 
@@ -139,8 +143,10 @@ type AppState = {
   clearStudents: () => void;
   resetToOfficialStudents: () => void;
   addNewStudent: (newSt: Omit<AdminStudent, "id" | "risk" | "joinedAt" | "attendanceRate" | "makeupCredits" | "balance" | "recentAttendance" | "teacherNote">) => void;
-  deleteStudent: (id: string) => void;
-  deleteStudents: (ids: string[]) => void;
+  deletedStudents: DeletedStudentLog[];
+  deleteStudent: (id: string, reasonCategory?: DeletionReasonCategory, reasonText?: string, deletedBy?: string) => void;
+  deleteStudents: (ids: string[], reasonCategory?: DeletionReasonCategory, reasonText?: string, deletedBy?: string) => void;
+  restoreDeletedStudent: (logId: string) => void;
   updateStudentDetails: (id: string, updates: Partial<AdminStudent>) => void;
   updateLessonCategory: (id: string, category: AgeCategory) => void;
   setStudentStatus: (id: string, status: StudentStatus) => void;
@@ -479,6 +485,7 @@ export const useAppStore = create<AppState>()(
       // ===== Dirección =====
       schedule: initialSchedule,
       adminStudents: adminStudents,
+      deletedStudents: [],
       invoices: initialInvoices,
       rescheduleLesson: (id, day, time, scope = "only-this-week", targetWeekIndex, teacher, room) =>
         set((s) => {
@@ -649,31 +656,76 @@ export const useAppStore = create<AppState>()(
           syncQueue: [...s.syncQueue, queueItem("Base oficial de 83 alumnos individualizados restaurada con éxito")],
         }));
       },
-      deleteStudent: (id) =>
+      deleteStudent: (id, reasonCategory = "otro", reasonText = "", deletedBy = "Nayeli (Secretaría)") =>
         set((s) => {
           const studentToDelete = s.adminStudents.find((st) => st.id === id);
-          const studentName = studentToDelete?.name;
+          if (!studentToDelete) return s;
+          const studentName = studentToDelete.name;
+
+          const logEntry: DeletedStudentLog = {
+            id: `del-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            studentId: studentToDelete.id,
+            studentName: studentToDelete.name,
+            family: studentToDelete.family,
+            instrument: studentToDelete.instrument,
+            teacher: studentToDelete.teacher,
+            deletedBy,
+            deletedAt: new Date().toISOString(),
+            reasonCategory,
+            reasonText,
+            studentSnapshot: { ...studentToDelete },
+          };
 
           return {
             adminStudents: s.adminStudents.filter((st) => st.id !== id),
-            schedule: studentName
-              ? s.schedule.filter((l) => l.student.toLowerCase() !== studentName.toLowerCase())
-              : s.schedule,
-            syncQueue: [...s.syncQueue, queueItem(`Alumno ${studentName || id} y sus horarios eliminados`)],
+            schedule: s.schedule.filter((l) => l.student.toLowerCase() !== studentName.toLowerCase()),
+            deletedStudents: [logEntry, ...(s.deletedStudents || [])],
+            syncQueue: [...s.syncQueue, queueItem(`Alumno ${studentName} movido a papelera [${reasonCategory}]`)],
           };
         }),
-      deleteStudents: (ids) =>
+      deleteStudents: (ids, reasonCategory = "otro", reasonText = "", deletedBy = "Nayeli (Secretaría)") =>
         set((s) => {
-          const namesToDelete = s.adminStudents
-            .filter((st) => ids.includes(st.id))
-            .map((st) => st.name.toLowerCase());
+          const studentsToDelete = s.adminStudents.filter((st) => ids.includes(st.id));
+          const namesToDelete = studentsToDelete.map((st) => st.name.toLowerCase());
+          const now = new Date().toISOString();
+
+          const newLogs: DeletedStudentLog[] = studentsToDelete.map((st, idx) => ({
+            id: `del-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+            studentId: st.id,
+            studentName: st.name,
+            family: st.family,
+            instrument: st.instrument,
+            teacher: st.teacher,
+            deletedBy,
+            deletedAt: now,
+            reasonCategory,
+            reasonText,
+            studentSnapshot: { ...st },
+          }));
 
           return {
             adminStudents: s.adminStudents.filter((st) => !ids.includes(st.id)),
             schedule: s.schedule.filter(
               (l) => !namesToDelete.includes(l.student.toLowerCase()),
             ),
-            syncQueue: [...s.syncQueue, queueItem(`${ids.length} alumnos y sus respectivos horarios eliminados`)],
+            deletedStudents: [...newLogs, ...(s.deletedStudents || [])],
+            syncQueue: [...s.syncQueue, queueItem(`${ids.length} alumnos movidos a papelera [${reasonCategory}]`)],
+          };
+        }),
+      restoreDeletedStudent: (logId) =>
+        set((s) => {
+          const log = (s.deletedStudents || []).find((l) => l.id === logId);
+          if (!log) return s;
+
+          const alreadyExists = s.adminStudents.some((st) => st.id === log.studentSnapshot.id);
+          const restoredStudent: AdminStudent = alreadyExists
+            ? { ...log.studentSnapshot, id: `st-${Date.now()}` }
+            : { ...log.studentSnapshot };
+
+          return {
+            adminStudents: [restoredStudent, ...s.adminStudents],
+            deletedStudents: (s.deletedStudents || []).filter((l) => l.id !== logId),
+            syncQueue: [...s.syncQueue, queueItem(`Alumno ${restoredStudent.name} restaurado de la papelera`)],
           };
         }),
       updateStudentDetails: (id, updates) =>
@@ -1405,10 +1457,10 @@ export const useAppStore = create<AppState>()(
             ...newSt,
             risk: 10,
             joinedAt: new Date().toLocaleDateString("es-PE"),
-            attendanceRate: 100,
+            attendanceRate: 0,
             makeupCredits: 0,
             balance: 0,
-            recentAttendance: ["presente"],
+            recentAttendance: [],
             teacherNote: "Alumno nuevo matriculado.",
           };
           return {
@@ -1495,9 +1547,26 @@ export const useAppStore = create<AppState>()(
           let updatedInvoices = s.invoices;
           let updatedAlerts = s.studentAlerts;
 
+          let newDeletedLog: DeletedStudentLog | null = null;
+
           if (req.entityType === "student") {
             const studentToDelete = s.adminStudents.find((st) => st.id === req.entityId || st.name.toLowerCase() === req.entityName.toLowerCase());
             const studentName = studentToDelete?.name || req.entityName;
+            if (studentToDelete) {
+              newDeletedLog = {
+                id: `del-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                studentId: studentToDelete.id,
+                studentName: studentToDelete.name,
+                family: studentToDelete.family,
+                instrument: studentToDelete.instrument,
+                teacher: studentToDelete.teacher,
+                deletedBy: req.requestedBy || "Dirección (Dueña)",
+                deletedAt: new Date().toISOString(),
+                reasonCategory: "retiro_voluntario",
+                reasonText: req.reason || "Solicitud de baja aprobada por Dirección",
+                studentSnapshot: { ...studentToDelete },
+              };
+            }
             updatedStudents = s.adminStudents.filter((st) => st.id !== req.entityId && st.name.toLowerCase() !== studentName.toLowerCase());
             updatedSchedule = s.schedule.filter((l) => l.student.toLowerCase() !== studentName.toLowerCase());
           } else if (req.entityType === "lesson") {
@@ -1526,6 +1595,7 @@ export const useAppStore = create<AppState>()(
             invoices: updatedInvoices,
             studentAlerts: updatedAlerts,
             deletionRequests: updatedRequests,
+            deletedStudents: newDeletedLog ? [newDeletedLog, ...(s.deletedStudents || [])] : (s.deletedStudents || []),
             syncQueue: [...s.syncQueue, queueItem(`Eliminación aprobada y ejecutada por Dirección · ${req.entityName}`)],
           };
         }),
@@ -1542,53 +1612,38 @@ export const useAppStore = create<AppState>()(
                 status: "rechazado" as const,
                 reviewedBy: "Dueña (Super Admin)",
                 reviewedAt: formattedDate,
-                reviewNotes: notes || "Denegado por Dirección. Se mantiene el registro activo.",
+                reviewNotes: notes || "Rechazado por Dirección",
               }
               : r,
           );
 
           return {
             deletionRequests: updatedRequests,
-            syncQueue: [...s.syncQueue, queueItem(`Solicitud de eliminación denegada por Dirección`)],
+            syncQueue: [...s.syncQueue, queueItem(`Solicitud de eliminación rechazada · ${requestId}`)],
           };
         }),
     }),
 
     {
-      name: "cadencia-app-v21",
-      version: 21,
+      name: "cadencia-app-v23",
       storage: createJSONStorage(() => localStorage),
-      onRehydrateStorage: () => (state) => {
-        // Al rehidratar desde localStorage, NUNCA sobreescribir los cambios locales
-        // si el usuario ya tiene datos persistidos en su navegador.
-        if (state) {
-          if (!state.adminStudents || state.adminStudents.length === 0) {
-            state.adminStudents = adminStudents;
-          }
-          if (!state.invoices || state.invoices.length === 0) {
-            state.invoices = initialInvoices;
-          }
-          if (!state.schedule || state.schedule.length === 0) {
-            state.schedule = initialSchedule;
-          }
-        }
-      },
+      version: 23,
       migrate: (persistedState: any, version: number) => {
-        // Limpiar claves antiguas de versiones anteriores (v1 a v20)
         try {
-          if (typeof window !== "undefined" && window.localStorage) {
-            for (let i = 1; i <= 20; i++) {
+          if (typeof window !== "undefined") {
+            for (let i = 1; i <= 22; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }
         } catch {}
 
-        if (version < 21 || !persistedState?.adminStudents?.length) {
+        if (version < 23 || !persistedState?.adminStudents?.length) {
           return {
             ...persistedState,
             adminStudents: adminStudents,
             invoices: initialInvoices,
             schedule: initialSchedule,
+            deletedStudents: [],
           };
         }
 
@@ -1600,6 +1655,7 @@ export const useAppStore = create<AppState>()(
           isAuthenticated: s.isAuthenticated,
           currentUser: s.currentUser,
           adminStudents: s.adminStudents,
+          deletedStudents: s.deletedStudents,
           invoices: s.invoices,
           schedule: s.schedule,
           lessons: s.lessons,

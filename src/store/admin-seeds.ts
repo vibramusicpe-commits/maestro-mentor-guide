@@ -134,6 +134,11 @@ export type AdminStudent = {
   teacherNote: string;
   email: string;
   phone: string;
+  // Datos completos de Padres y Contacto de Emergencia
+  fatherName?: string;
+  fatherPhone?: string;
+  motherName?: string;
+  motherPhone?: string;
   emergencyContact: EmergencyContact;
   birthdate: string;
   // Campos del Dossier con control exacto día por día
@@ -151,6 +156,27 @@ export type AdminStudent = {
   // Historial de Reingreso y Seguimiento
   isReentry?: boolean;
   reentryHistory?: Array<{ date: string; reason: string; notes?: string }>;
+};
+
+export type DeletionReasonCategory =
+  | "falta_pago"
+  | "error_registro"
+  | "prueba_sistema"
+  | "retiro_voluntario"
+  | "otro";
+
+export type DeletedStudentLog = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  family: string;
+  instrument: string;
+  teacher: string;
+  deletedBy: string;
+  deletedAt: string; // ISO string
+  reasonCategory: DeletionReasonCategory;
+  reasonText: string;
+  studentSnapshot: AdminStudent;
 };
 
 export type InvoiceStatus = "pagado" | "parcial" | "pendiente" | "vencido";

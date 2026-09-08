@@ -35,6 +35,8 @@ import {
   type AgeCategory,
   type LessonModality,
   type StudentStatus,
+  type DeletionReasonCategory,
+  type DeletedStudentLog,
 } from "@/store/app-store";
 import { teachers, musicalInstruments, VIBRA_PRICING } from "@/store/admin-seeds";
 import { categoryStyles } from "@/components/admin/agenda-board";
@@ -140,6 +142,8 @@ export function StudentsTable() {
   const resetToOfficialStudents = useAppStore((s) => s.resetToOfficialStudents);
   const deleteStudent = useAppStore((s) => s.deleteStudent);
   const deleteStudents = useAppStore((s) => s.deleteStudents);
+  const deletedStudents = useAppStore((s) => s.deletedStudents || []);
+  const restoreDeletedStudent = useAppStore((s) => s.restoreDeletedStudent);
   const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
 
   const [search, setSearch] = useState("");
@@ -148,6 +152,13 @@ export function StudentsTable() {
   const [modalityFilter, setModalityFilter] = useState(ALL);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]); // Selección múltiple para eliminar
+
+  // Estados de Modal de Eliminación con Motivo Obligatorio y Papelera
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [studentsToDelete, setStudentsToDelete] = useState<AdminStudent[]>([]);
+  const [deletionReasonCategory, setDeletionReasonCategory] = useState<DeletionReasonCategory>("falta_pago");
+  const [deletionReasonText, setDeletionReasonText] = useState("");
+  const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
 
   // Estados de Importador CSV de Alumnos
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
@@ -496,12 +507,11 @@ export function StudentsTable() {
           <Button
             variant="destructive"
             onClick={() => {
-              const count = selectedStudentIds.length;
-              if (confirm(`¿Estás seguro de eliminar a los ${count} alumno(s) seleccionados y liberar todos sus horarios asignados?`)) {
-                deleteStudents(selectedStudentIds);
-                toast.success(`🗑️ ${count} alumno(s) y sus horarios fueron eliminados correctamente`);
-                setSelectedStudentIds([]);
-              }
+              const toDelete = students.filter((s) => selectedStudentIds.includes(s.id));
+              setStudentsToDelete(toDelete);
+              setDeletionReasonCategory("falta_pago");
+              setDeletionReasonText("");
+              setDeleteModalOpen(true);
             }}
             className="gap-1.5 font-bold animate-in fade-in"
           >
@@ -509,6 +519,17 @@ export function StudentsTable() {
             Eliminar Seleccionados ({selectedStudentIds.length})
           </Button>
         )}
+
+        {/* Botón de Papelera y Base de Datos de Alumnos Eliminados */}
+        <Button
+          variant="outline"
+          onClick={() => setIsTrashModalOpen(true)}
+          className="gap-1.5 font-bold border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20"
+          title="Ver historial de alumnos eliminados con motivo y opción de restaurar"
+        >
+          <Trash2 className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          Papelera ({deletedStudents.length})
+        </Button>
 
         <Button
           variant="outline"
@@ -749,13 +770,13 @@ export function StudentsTable() {
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm(`¿Estás seguro de eliminar a ${st.name} y liberar todos sus horarios asignados de la escuela?`)) {
-                              deleteStudent(st.id);
-                              toast.success(`Alumno ${st.name} y sus horarios fueron eliminados correctamente`);
-                            }
+                            setStudentsToDelete([st]);
+                            setDeletionReasonCategory("falta_pago");
+                            setDeletionReasonText("");
+                            setDeleteModalOpen(true);
                           }}
                           className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
-                          title={`Eliminar ${st.name} y liberar sus horarios`}
+                          title={`Eliminar ${st.name} y mover a papelera con motivo`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1196,32 +1217,102 @@ export function StudentsTable() {
                 </div>
 
                 {/* Contacto, Cumpleaños y Contacto de Emergencia EDITABLES */}
+                {/* Ficha Familiar y Contactos de Padres / Emergencia (Editable) */}
                 <div className="space-y-4 rounded-xl border border-border bg-card p-4">
                   <div className="flex items-center justify-between border-b pb-2">
                     <p className="font-bold text-xs uppercase tracking-wider text-primary flex items-center gap-1.5">
                       <Phone className="h-3.5 w-3.5" />
-                      Ficha de Contacto & Cumpleaños (Editable)
+                      Ficha Familiar & Contactos de Padres / Emergencia (Editable)
                     </p>
                     <span className="text-[10px] text-muted-foreground">Guardado automático</span>
                   </div>
 
+                  {/* Datos del Papá y de la Mamá */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                        <Mail className="h-3 w-3 text-primary" /> Correo Electrónico
-                      </label>
-                      <Input
-                        type="email"
-                        value={selectedStudent.email}
-                        onChange={(e) => updateStudentDetails(selectedStudent.id, { email: e.target.value })}
-                        placeholder="correo@ejemplo.com"
-                        className="text-xs h-8 bg-background"
-                      />
+                    {/* Tarjeta Papá */}
+                    <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[11px] text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                          👨‍👦 Datos del Padre (Papá)
+                        </span>
+                        {selectedStudent.fatherPhone && (
+                          <a
+                            href={`https://wa.me/${selectedStudent.fatherPhone.replace(/\D/g, "").startsWith("51") ? selectedStudent.fatherPhone.replace(/\D/g, "") : `51${selectedStudent.fatherPhone.replace(/\D/g, "")}`}?text=${encodeURIComponent(`Hola Sr. ${selectedStudent.fatherName || ""}, le saludamos de Secretaría Vibra Music sobre su hijo(a) ${selectedStudent.name}.`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-emerald-600 hover:underline font-bold"
+                          >
+                            💬 WhatsApp
+                          </a>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-0.5">Nombre del Papá</label>
+                        <Input
+                          type="text"
+                          value={selectedStudent.fatherName || ""}
+                          onChange={(e) => updateStudentDetails(selectedStudent.id, { fatherName: e.target.value })}
+                          placeholder="Ej: Roberto García"
+                          className="text-xs h-8 bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-0.5">Teléfono / WhatsApp Papá</label>
+                        <Input
+                          type="text"
+                          value={selectedStudent.fatherPhone || ""}
+                          onChange={(e) => updateStudentDetails(selectedStudent.id, { fatherPhone: e.target.value })}
+                          placeholder="Ej: 987 654 321"
+                          className="text-xs h-8 bg-background"
+                        />
+                      </div>
                     </div>
 
+                    {/* Tarjeta Mamá */}
+                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                          👩‍👧 Datos de la Madre (Mamá)
+                        </span>
+                        {selectedStudent.motherPhone && (
+                          <a
+                            href={`https://wa.me/${selectedStudent.motherPhone.replace(/\D/g, "").startsWith("51") ? selectedStudent.motherPhone.replace(/\D/g, "") : `51${selectedStudent.motherPhone.replace(/\D/g, "")}`}?text=${encodeURIComponent(`Hola Sra. ${selectedStudent.motherName || ""}, le saludamos de Secretaría Vibra Music sobre su hijo(a) ${selectedStudent.name}.`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-emerald-600 hover:underline font-bold"
+                          >
+                            💬 WhatsApp
+                          </a>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-0.5">Nombre de la Mamá</label>
+                        <Input
+                          type="text"
+                          value={selectedStudent.motherName || ""}
+                          onChange={(e) => updateStudentDetails(selectedStudent.id, { motherName: e.target.value })}
+                          placeholder="Ej: Patricia Rivas"
+                          className="text-xs h-8 bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-0.5">Teléfono / WhatsApp Mamá</label>
+                        <Input
+                          type="text"
+                          value={selectedStudent.motherPhone || ""}
+                          onChange={(e) => updateStudentDetails(selectedStudent.id, { motherPhone: e.target.value })}
+                          placeholder="Ej: 998 877 665"
+                          className="text-xs h-8 bg-background"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Datos del Alumno y Familia */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                        <Phone className="h-3 w-3 text-primary" /> Teléfono / WhatsApp
+                        <Phone className="h-3 w-3 text-primary" /> Teléfono Principal / Alumno
                       </label>
                       <Input
                         type="text"
@@ -1257,12 +1348,25 @@ export function StudentsTable() {
                         className="text-xs h-8 bg-background"
                       />
                     </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                        <Mail className="h-3 w-3 text-primary" /> Correo Electrónico
+                      </label>
+                      <Input
+                        type="email"
+                        value={selectedStudent.email}
+                        onChange={(e) => updateStudentDetails(selectedStudent.id, { email: e.target.value })}
+                        placeholder="correo@ejemplo.com"
+                        className="text-xs h-8 bg-background"
+                      />
+                    </div>
                   </div>
 
-                  {/* Sección de Emergencia */}
+                  {/* Sección de Emergencia Adicional (Abuela, Tutor, etc.) */}
                   <div className="pt-2 border-t border-border/70 space-y-2">
-                    <p className="font-bold text-[11px] text-destructive flex items-center gap-1">
-                      <ShieldAlert className="h-3.5 w-3.5" /> Contacto de Emergencia
+                    <p className="font-bold text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                      <ShieldAlert className="h-3.5 w-3.5" /> Contacto de Emergencia Adicional (Por si acaso: Abuela, Tutor)
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
@@ -1275,7 +1379,7 @@ export function StudentsTable() {
                               emergencyContact: { ...selectedStudent.emergencyContact, name: e.target.value },
                             })
                           }
-                          placeholder="Nombre apoderado"
+                          placeholder="Ej: Abuela Carmen"
                           className="text-xs h-8 bg-background"
                         />
                       </div>
@@ -1289,7 +1393,7 @@ export function StudentsTable() {
                               emergencyContact: { ...selectedStudent.emergencyContact, relation: e.target.value },
                             })
                           }
-                          placeholder="Ej: Mamá / Papá"
+                          placeholder="Ej: Abuela / Tío / Tutor"
                           className="text-xs h-8 bg-background"
                         />
                       </div>
@@ -1651,11 +1755,10 @@ export function StudentsTable() {
                       size="sm"
                       variant="destructive"
                       onClick={() => {
-                        if (confirm(`¿Estás seguro de eliminar a ${selectedStudent.name} y liberar todos sus horarios de la escuela?`)) {
-                          deleteStudent(selectedStudent.id);
-                          setSelectedStudentId(null);
-                          toast.success(`Alumno ${selectedStudent.name} y sus horarios fueron eliminados correctamente`);
-                        }
+                        setStudentsToDelete([selectedStudent]);
+                        setDeletionReasonCategory("falta_pago");
+                        setDeletionReasonText("");
+                        setDeleteModalOpen(true);
                       }}
                       className="text-xs font-bold"
                     >
@@ -1930,6 +2033,203 @@ export function StudentsTable() {
             >
               ⚠️ Confirmar y Vaciar Alumnos
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Obligatorio de Confirmación de Eliminación con Motivo y Auditoría */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent className="sm:max-w-md p-6 rounded-3xl border-destructive/30 bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Eliminar Alumno{studentsToDelete.length > 1 ? "s" : ""} del Directorio
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Esta acción dará de baja al alumno, liberará sus horarios en la agenda y archivará su expediente completo en la base de datos de eliminados para auditoría de Dirección.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Resumen de los alumnos a eliminar */}
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 space-y-1">
+              <p className="font-bold text-foreground">
+                {studentsToDelete.length === 1
+                  ? `Alumno: ${studentsToDelete[0].name}`
+                  : `Se eliminarán ${studentsToDelete.length} alumnos seleccionados`}
+              </p>
+              {studentsToDelete.length === 1 && (
+                <p className="text-[11px] text-muted-foreground">
+                  {studentsToDelete[0].family} · {studentsToDelete[0].instrument} · Prof. {studentsToDelete[0].teacher}
+                </p>
+              )}
+            </div>
+
+            {/* Selector de Motivo Obligatorio */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-foreground flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 text-warning" />
+                Motivo de Eliminación (Obligatorio)
+              </label>
+              <select
+                value={deletionReasonCategory}
+                onChange={(e) => setDeletionReasonCategory(e.target.value as DeletionReasonCategory)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-bold text-foreground"
+              >
+                <option value="falta_pago">🔴 Falta de pago / Deudor</option>
+                <option value="error_registro">⚠️ Error de registro de secretaría (duplicado/error)</option>
+                <option value="prueba_sistema">🧪 Prueba técnica / Test de funcionamiento</option>
+                <option value="retiro_voluntario">🚪 Retiro voluntario / Traslado de academia</option>
+                <option value="otro">📝 Otro motivo (especificar abajo)</option>
+              </select>
+            </div>
+
+            {/* Detalle o notas adicionales */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-foreground">Detalles u Observaciones de Secretaría</label>
+              <textarea
+                value={deletionReasonText}
+                onChange={(e) => setDeletionReasonText(e.target.value)}
+                placeholder="Indica el contexto del retiro, saldo pendiente o motivo del error para que quede registrado en el archivo histórico..."
+                rows={3}
+                className="w-full rounded-xl border border-input bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-destructive/40 resize-none"
+              />
+            </div>
+
+            <div className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground flex items-center justify-between">
+              <span>Registrado por: <strong>{activeRole === "staff" ? "Nayeli (Secretaría)" : "Dirección (Dueña)"}</strong></span>
+              <span>Destino: <strong>Papelera Histórica</strong></span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setStudentsToDelete([]);
+                }}
+                className="text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                onClick={() => {
+                  if (studentsToDelete.length === 0) return;
+                  const ids = studentsToDelete.map((s) => s.id);
+                  const operatorName = activeRole === "staff" ? "Nayeli (Secretaría)" : "Dirección (Dueña)";
+                  
+                  if (ids.length === 1) {
+                    deleteStudent(ids[0], deletionReasonCategory, deletionReasonText, operatorName);
+                    toast.success(`🗑️ Alumno ${studentsToDelete[0].name} movido a la papelera [${deletionReasonCategory}]`);
+                  } else {
+                    deleteStudents(ids, deletionReasonCategory, deletionReasonText, operatorName);
+                    toast.success(`🗑️ ${ids.length} alumnos movidos a la papelera [${deletionReasonCategory}]`);
+                  }
+
+                  if (selectedStudentId && ids.includes(selectedStudentId)) {
+                    setSelectedStudentId(null);
+                  }
+                  setSelectedStudentIds((prev) => prev.filter((id) => !ids.includes(id)));
+                  setDeleteModalOpen(false);
+                  setStudentsToDelete([]);
+                }}
+                className="text-xs font-bold"
+              >
+                🗑️ Confirmar y Mover a Papelera
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Papelera y Base de Datos de Alumnos Eliminados */}
+      <Dialog open={isTrashModalOpen} onOpenChange={setIsTrashModalOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto p-6 rounded-3xl border-rose-500/30 bg-card">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                <Trash2 className="h-5 w-5 text-rose-500" />
+                Papelera y Base de Datos de Alumnos Eliminados
+              </DialogTitle>
+              <Badge variant="outline" className="text-xs font-bold text-rose-600 border-rose-500/40 bg-rose-500/10">
+                {deletedStudents.length} {deletedStudents.length === 1 ? "alumno archivado" : "alumnos archivados"}
+              </Badge>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Historial de alumnos retirados o eliminados con fecha, responsable y motivo exacto. Puedes restaurar cualquier alumno en cualquier momento con 1 solo clic.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-3 space-y-3">
+            {deletedStudents.length === 0 ? (
+              <div className="text-center py-12 border border-dashed border-border rounded-2xl space-y-2">
+                <Trash2 className="h-10 w-10 mx-auto text-muted-foreground/40" />
+                <p className="text-sm font-bold text-foreground">La papelera está vacía</p>
+                <p className="text-xs text-muted-foreground">No hay alumnos eliminados en la base de datos histórica.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {deletedStudents.map((del) => {
+                  const categoryBadge = {
+                    falta_pago: { label: "Falta de pago", color: "bg-destructive/15 text-destructive border-destructive/30" },
+                    error_registro: { label: "Error de registro", color: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
+                    prueba_sistema: { label: "Prueba de sistema", color: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30" },
+                    retiro_voluntario: { label: "Retiro voluntario", color: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
+                    otro: { label: "Otro motivo", color: "bg-muted text-muted-foreground border-border" },
+                  }[del.reasonCategory] || { label: del.reasonCategory, color: "bg-muted text-muted-foreground" };
+
+                  return (
+                    <div
+                      key={del.id}
+                      className="p-3.5 rounded-2xl border border-border bg-card/60 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                    >
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-foreground text-sm">{del.studentName}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${categoryBadge.color}`}>
+                            {categoryBadge.label}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {del.family} · {del.instrument} · Prof. {del.teacher}
+                          </span>
+                        </div>
+
+                        {del.reasonText && (
+                          <p className="text-[11px] text-foreground italic bg-muted/30 px-2 py-1 rounded-md">
+                            "{del.reasonText}"
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                          <span>👤 Eliminado por: <strong>{del.deletedBy}</strong></span>
+                          <span>📅 {new Date(del.deletedAt).toLocaleString("es-PE")}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            restoreDeletedStudent(del.id);
+                            toast.success(`✓ Alumno ${del.studentName} restaurado con éxito al directorio activo.`);
+                          }}
+                          className="h-8 text-xs font-bold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Restaurar Alumno
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -2244,8 +2544,15 @@ function NewStudentDialog() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [birthdate, setBirthdate] = useState("15/05/2015");
+  // Datos completos de Padres y Contacto de Emergencia
+  const [fatherName, setFatherName] = useState("");
+  const [fatherPhone, setFatherPhone] = useState("");
+  const [motherName, setMotherName] = useState("");
+  const [motherPhone, setMotherPhone] = useState("");
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [emergencyRelation, setEmergencyRelation] = useState("Abuela");
+
   const [planType, setPlanType] = useState<"Mensual" | "Trimestral" | "Anual">("Mensual");
   const [matriculaType, setMatriculaType] = useState<"Promo Demo (S/ 30)" | "Regular (S/ 120)" | "Exonerada">("Promo Demo (S/ 30)");
   const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(true);
@@ -2298,9 +2605,19 @@ function NewStudentDialog() {
       return;
     }
 
-    if (!isAdultStudent && !family.trim()) {
-      toast.error("Ingresa los apellidos de la familia o apoderado para alumnos menores de edad.");
-      return;
+    if (!isAdultStudent) {
+      if (!family.trim()) {
+        toast.error("Ingresa los apellidos de la familia.");
+        return;
+      }
+      if (!fatherName.trim() || !fatherPhone.trim()) {
+        toast.error("Por favor completa los datos del Papá (Nombre y Teléfono/WhatsApp).");
+        return;
+      }
+      if (!motherName.trim() || !motherPhone.trim()) {
+        toast.error("Por favor completa los datos de la Mamá (Nombre y Teléfono/WhatsApp).");
+        return;
+      }
     }
 
     // Calcular fecha de fin según el plan contratado
@@ -2337,7 +2654,7 @@ function NewStudentDialog() {
       status: "activo",
       payment: "al-dia",
       email: email || `${name.toLowerCase().replace(/\s+/g, ".")}@gmail.com`,
-      phone: phone || "987 654 321",
+      phone: isAdultStudent ? (phone || "987 654 321") : (motherPhone || fatherPhone || phone || "987 654 321"),
       birthdate,
       planType,
       planPrice: prices[planType],
@@ -2347,22 +2664,33 @@ function NewStudentDialog() {
       planEndDate: calculatedEndDate,
       planStartMonth: startMonthStr,
       planEndMonth: endMonthStr,
+      fatherName: fatherName.trim() || undefined,
+      fatherPhone: fatherPhone.trim() || undefined,
+      motherName: motherName.trim() || undefined,
+      motherPhone: motherPhone.trim() || undefined,
       emergencyContact: {
-        name: emergencyName || (isAdultStudent ? name : family),
-        phone: emergencyPhone || phone || "987 654 321",
-        relation: isAdultStudent ? "Titular Directo" : "Apoderado",
+        name: emergencyName.trim() || (isAdultStudent ? name : (motherName.trim() || fatherName.trim() || family)),
+        phone: emergencyPhone.trim() || (isAdultStudent ? phone : (motherPhone.trim() || fatherPhone.trim() || phone || "987 654 321")),
+        relation: emergencyRelation.trim() || (isAdultStudent ? "Titular Directo" : "Apoderado"),
       },
     });
 
     toast.success(`Alumno ${name} matriculado en plan ${planType} (${effectiveCategory}).`, {
       description: isAdultStudent
         ? `Alumno Adulto registrado sin apoderado requerido. Período: ${planStartDate || "03/08/2026"} al ${calculatedEndDate}.`
-        : `Período activo: ${planStartDate || "03/08/2026"} al ${calculatedEndDate}.`,
+        : `Padres y apoderados vinculados. Período activo: ${planStartDate || "03/08/2026"} al ${calculatedEndDate}.`,
     });
     setOpen(false);
     setName("");
     setFamily("");
     setIsAdult(false);
+    setFatherName("");
+    setFatherPhone("");
+    setMotherName("");
+    setMotherPhone("");
+    setEmergencyName("");
+    setEmergencyPhone("");
+    setEmergencyRelation("Abuela");
     setSelectedCategory("AUTO");
     setPlanStartDate(todayStr);
     setPackUtilesPaid(true);
@@ -2624,26 +2952,188 @@ function NewStudentDialog() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold mb-1">
-                {isAdult ? "Teléfono / WhatsApp (Alumno)" : "Teléfono Apoderado"}
-              </label>
-              <Input
-                placeholder="987654321"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
+          {!isAdult ? (
+            /* Bloque Obligatorio: Datos Completos de los Padres (Papá y Mamá) */
+            <div className="space-y-3 rounded-2xl border border-primary/30 bg-primary/5 p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+                  👨‍👩‍👦 Datos Completos de los Padres (Obligatorio)
+                </span>
+                <Badge variant="outline" className="text-[9px] font-bold border-primary/40 text-primary">
+                  Menor de Edad
+                </Badge>
+              </div>
+
+              {/* Datos del Papá */}
+              <div className="rounded-xl border border-blue-500/30 bg-background/80 p-2.5 space-y-2">
+                <span className="font-bold text-[11px] text-blue-600 dark:text-blue-400 block">
+                  👨‍👦 Datos del Padre (Papá)
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Nombre Completo Papá *</label>
+                    <Input
+                      placeholder="Ej. Roberto García"
+                      value={fatherName}
+                      onChange={(e) => setFatherName(e.target.value)}
+                      className="h-8 text-xs"
+                      required={!isAdult}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">WhatsApp / Teléfono Papá *</label>
+                    <Input
+                      placeholder="987654321"
+                      value={fatherPhone}
+                      onChange={(e) => setFatherPhone(e.target.value)}
+                      className="h-8 text-xs"
+                      required={!isAdult}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Datos de la Mamá */}
+              <div className="rounded-xl border border-rose-500/30 bg-background/80 p-2.5 space-y-2">
+                <span className="font-bold text-[11px] text-rose-600 dark:text-rose-400 block">
+                  👩‍👧 Datos de la Madre (Mamá)
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Nombre Completo Mamá *</label>
+                    <Input
+                      placeholder="Ej. Patricia Rivas"
+                      value={motherName}
+                      onChange={(e) => setMotherName(e.target.value)}
+                      className="h-8 text-xs"
+                      required={!isAdult}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">WhatsApp / Teléfono Mamá *</label>
+                    <Input
+                      placeholder="998877665"
+                      value={motherPhone}
+                      onChange={(e) => setMotherPhone(e.target.value)}
+                      className="h-8 text-xs"
+                      required={!isAdult}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Contacto de Emergencia Adicional (Abuela, Tutor) */}
+              <div className="rounded-xl border border-amber-500/30 bg-background/80 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] text-amber-700 dark:text-amber-300">
+                    🛡️ Contacto de Emergencia Adicional (Opcional / Por si acaso)
+                  </span>
+                  <span className="text-[9px] text-muted-foreground">Abuela, tía, tutor</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Nombre</label>
+                    <Input
+                      placeholder="Ej. Abuela Carmen"
+                      value={emergencyName}
+                      onChange={(e) => setEmergencyName(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Parentesco</label>
+                    <select
+                      value={emergencyRelation}
+                      onChange={(e) => setEmergencyRelation(e.target.value)}
+                      className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
+                    >
+                      <option value="Abuela">Abuela</option>
+                      <option value="Abuelo">Abuelo</option>
+                      <option value="Tía">Tía</option>
+                      <option value="Tío">Tío</option>
+                      <option value="Hermano Mayor">Hermano(a) Mayor</option>
+                      <option value="Tutor Legal">Tutor Legal</option>
+                      <option value="Otro">Otro apoderado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Teléfono Emergencia</label>
+                    <Input
+                      placeholder="987654321"
+                      value={emergencyPhone}
+                      onChange={(e) => setEmergencyPhone(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Fecha de Cumpleaños</label>
+                  <Input
+                    placeholder="DD/MM/AAAA"
+                    value={birthdate}
+                    onChange={(e) => setBirthdate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Correo Electrónico</label>
+                  <Input
+                    placeholder="correo@ejemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Fecha de Cumpleaños</label>
-              <Input
-                placeholder="DD/MM/AAAA"
-                value={birthdate}
-                onChange={(e) => setBirthdate(e.target.value)}
-              />
+          ) : (
+            /* Campos para Alumno Adulto */
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">
+                    Teléfono / WhatsApp (Alumno Titular) *
+                  </label>
+                  <Input
+                    placeholder="987654321"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Fecha de Cumpleaños</label>
+                  <Input
+                    placeholder="DD/MM/AAAA"
+                    value={birthdate}
+                    onChange={(e) => setBirthdate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Opcional para Adultos: Contacto de Emergencia */}
+              <div className="rounded-xl border border-border p-3 space-y-2 bg-muted/20">
+                <span className="font-bold text-[11px] text-muted-foreground block">
+                  🛡️ Contacto de Emergencia (Opcional para Alumno Adulto)
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Nombre contacto emergencia"
+                    value={emergencyName}
+                    onChange={(e) => setEmergencyName(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                  <Input
+                    placeholder="Teléfono emergencia"
+                    value={emergencyPhone}
+                    onChange={(e) => setEmergencyPhone(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           <Button type="submit" className="w-full font-bold mt-4">
             Guardar Matrícula
@@ -2709,9 +3199,14 @@ function EditStudentSheetInner({
   const [email, setEmail] = useState(student.email || "");
   const [phone, setPhone] = useState(student.phone || "");
   const [birthdate, setBirthdate] = useState(student.birthdate || "");
+  // Datos completos de Padres y Contacto de Emergencia
+  const [fatherName, setFatherName] = useState(student.fatherName || "");
+  const [fatherPhone, setFatherPhone] = useState(student.fatherPhone || "");
+  const [motherName, setMotherName] = useState(student.motherName || "");
+  const [motherPhone, setMotherPhone] = useState(student.motherPhone || "");
   const [emergencyName, setEmergencyName] = useState(student.emergencyContact?.name || "");
   const [emergencyPhone, setEmergencyPhone] = useState(student.emergencyContact?.phone || "");
-  const [emergencyRelation, setEmergencyRelation] = useState(student.emergencyContact?.relation || "Apoderado");
+  const [emergencyRelation, setEmergencyRelation] = useState(student.emergencyContact?.relation || "Abuela");
   const [planType, setPlanType] = useState<"Mensual" | "Trimestral" | "Anual">(student.planType || "Mensual");
   const [matriculaType, setMatriculaType] = useState<"Promo Demo (S/ 30)" | "Regular (S/ 120)" | "Exonerada">(
     student.matriculaType || "Promo Demo (S/ 30)"
@@ -2775,6 +3270,10 @@ function EditStudentSheetInner({
       packUtilesPaid,
       planStartDate,
       planEndDate,
+      fatherName: fatherName.trim() || undefined,
+      fatherPhone: fatherPhone.trim() || undefined,
+      motherName: motherName.trim() || undefined,
+      motherPhone: motherPhone.trim() || undefined,
       emergencyContact: {
         name: emergencyName || (isAdultStudent ? name : resolvedFamily),
         phone: emergencyPhone || phone || "987 654 321",
@@ -3080,64 +3579,213 @@ function EditStudentSheetInner({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold mb-1">
-                {isAdult ? "Teléfono / WhatsApp (Alumno)" : "Teléfono Apoderado"}
-              </label>
-              <Input
-                placeholder="987654321"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Correo Electrónico</label>
-              <Input
-                placeholder="correo@ejemplo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-          </div>
+          {!isAdult ? (
+            /* Bloque: Datos Completos de los Padres (Papá y Mamá) */
+            <div className="space-y-3 rounded-2xl border border-primary/30 bg-primary/5 p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+                  👨‍👩‍👦 Datos Completos de los Padres
+                </span>
+                <Badge variant="outline" className="text-[9px] font-bold border-primary/40 text-primary">
+                  Menor de Edad
+                </Badge>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold mb-1">Fecha de Cumpleaños</label>
-              <Input
-                placeholder="DD/MM/AAAA"
-                value={birthdate}
-                onChange={(e) => setBirthdate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Nombre Contacto Emergencia</label>
-              <Input
-                placeholder="Nombre contacto"
-                value={emergencyName}
-                onChange={(e) => setEmergencyName(e.target.value)}
-              />
-            </div>
-          </div>
+              {/* Datos del Papá */}
+              <div className="rounded-xl border border-blue-500/30 bg-background/80 p-2.5 space-y-2">
+                <span className="font-bold text-[11px] text-blue-600 dark:text-blue-400 block">
+                  👨‍👦 Datos del Padre (Papá)
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Nombre Completo Papá</label>
+                    <Input
+                      placeholder="Ej. Roberto García"
+                      value={fatherName}
+                      onChange={(e) => setFatherName(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">WhatsApp / Teléfono Papá</label>
+                    <Input
+                      placeholder="987654321"
+                      value={fatherPhone}
+                      onChange={(e) => setFatherPhone(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold mb-1">Teléfono Emergencia</label>
-              <Input
-                placeholder="987654321"
-                value={emergencyPhone}
-                onChange={(e) => setEmergencyPhone(e.target.value)}
-              />
+              {/* Datos de la Mamá */}
+              <div className="rounded-xl border border-rose-500/30 bg-background/80 p-2.5 space-y-2">
+                <span className="font-bold text-[11px] text-rose-600 dark:text-rose-400 block">
+                  👩‍👧 Datos de la Madre (Mamá)
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Nombre Completo Mamá</label>
+                    <Input
+                      placeholder="Ej. Patricia Rivas"
+                      value={motherName}
+                      onChange={(e) => setMotherName(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">WhatsApp / Teléfono Mamá</label>
+                    <Input
+                      placeholder="998877665"
+                      value={motherPhone}
+                      onChange={(e) => setMotherPhone(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Contacto de Emergencia Adicional (Abuela, Tutor) */}
+              <div className="rounded-xl border border-amber-500/30 bg-background/80 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] text-amber-700 dark:text-amber-300">
+                    🛡️ Contacto de Emergencia Adicional (Por si acaso)
+                  </span>
+                  <span className="text-[9px] text-muted-foreground">Abuela, tía, tutor</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Nombre</label>
+                    <Input
+                      placeholder="Ej. Abuela Carmen"
+                      value={emergencyName}
+                      onChange={(e) => setEmergencyName(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Parentesco</label>
+                    <select
+                      value={emergencyRelation}
+                      onChange={(e) => setEmergencyRelation(e.target.value)}
+                      className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
+                    >
+                      <option value="Abuela">Abuela</option>
+                      <option value="Abuelo">Abuelo</option>
+                      <option value="Tía">Tía</option>
+                      <option value="Tío">Tío</option>
+                      <option value="Hermano Mayor">Hermano(a) Mayor</option>
+                      <option value="Tutor Legal">Tutor Legal</option>
+                      <option value="Otro">Otro apoderado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Teléfono Emergencia</label>
+                    <Input
+                      placeholder="987654321"
+                      value={emergencyPhone}
+                      onChange={(e) => setEmergencyPhone(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <div>
+                  <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Teléfono Principal</label>
+                  <Input
+                    placeholder="987654321"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Cumpleaños</label>
+                  <Input
+                    placeholder="DD/MM/AAAA"
+                    value={birthdate}
+                    onChange={(e) => setBirthdate(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Correo Electrónico</label>
+                  <Input
+                    placeholder="correo@ejemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Parentesco</label>
-              <Input
-                placeholder="Ej: Mamá / Papá / Titular"
-                value={emergencyRelation}
-                onChange={(e) => setEmergencyRelation(e.target.value)}
-              />
+          ) : (
+            /* Campos para Alumno Adulto */
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">
+                    Teléfono / WhatsApp (Alumno Titular) *
+                  </label>
+                  <Input
+                    placeholder="987654321"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Correo Electrónico</label>
+                  <Input
+                    placeholder="correo@ejemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Fecha de Cumpleaños</label>
+                  <Input
+                    placeholder="DD/MM/AAAA"
+                    value={birthdate}
+                    onChange={(e) => setBirthdate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Parentesco Titular</label>
+                  <Input
+                    placeholder="Titular Directo"
+                    value={emergencyRelation}
+                    onChange={(e) => setEmergencyRelation(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Opcional para Adultos: Contacto de Emergencia */}
+              <div className="rounded-xl border border-border p-3 space-y-2 bg-muted/20">
+                <span className="font-bold text-[11px] text-muted-foreground block">
+                  🛡️ Contacto de Emergencia (Opcional para Alumno Adulto)
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Nombre contacto emergencia"
+                    value={emergencyName}
+                    onChange={(e) => setEmergencyName(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                  <Input
+                    placeholder="Teléfono emergencia"
+                    value={emergencyPhone}
+                    onChange={(e) => setEmergencyPhone(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           <Button type="submit" className="w-full font-bold mt-4">
             Guardar Cambios del Alumno
@@ -3163,16 +3811,13 @@ function ScheduleStudentForm({
   const assignTeacher = useAppStore((s) => s.assignTeacher);
 
   const isRegular = student.modality.toLowerCase().includes("reg") || student.modality.includes("8");
+  const isIntensive = student.modality.toLowerCase().includes("inten") || student.modality.includes("4");
 
-  // Estado del formulario
-  const [teacher, setTeacher] = useState(
-    student.teacher && student.teacher !== "Prof. por Asignar" ? student.teacher : availableTeachers[0] || "",
-  );
-  const [instrument, setInstrument] = useState(student.instrument || "Piano");
-  const [category, setCategory] = useState<AgeCategory>(student.ageCategory || "JUNIOR");
+  // Modo de asignación: "pareadas" (por defecto oficial) o "personalizado"
+  const [scheduleMode, setScheduleMode] = useState<"pareadas" | "personalizado">("pareadas");
 
-  // Sesión 1 (obligatoria para todos los planes)
-  const [day1, setDay1] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">("Lun");
+  // Sesión 1 (obligatoria para todos los planes; si es intensivo sugiere Viernes o Sábado)
+  const [day1, setDay1] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">(isIntensive ? "Vie" : "Lun");
   const [time1, setTime1] = useState("16:00");
   const [room1, setRoom1] = useState("Sala A");
 
@@ -3180,6 +3825,45 @@ function ScheduleStudentForm({
   const [day2, setDay2] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">("Mié");
   const [time2, setTime2] = useState("16:00");
   const [room2, setRoom2] = useState("Sala A");
+
+  // Helpers de sincronización para Modo Días Pareados Oficiales
+  const handleDay1Change = (newDay: "Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb") => {
+    setDay1(newDay);
+    if (scheduleMode === "pareadas") {
+      if (newDay === "Lun") setDay2("Mié");
+      else if (newDay === "Mié") setDay2("Lun");
+      else if (newDay === "Mar") setDay2("Jue");
+      else if (newDay === "Jue") setDay2("Mar");
+      else if (newDay === "Vie") setDay2("Sáb");
+      else if (newDay === "Sáb") setDay2("Vie");
+    }
+  };
+
+  const handleTime1Change = (newTime: string) => {
+    setTime1(newTime);
+    if (scheduleMode === "pareadas") {
+      setTime2(newTime);
+    }
+  };
+
+  const handleRoom1Change = (newRoom: string) => {
+    setRoom1(newRoom);
+    if (scheduleMode === "pareadas") {
+      setRoom2(newRoom);
+    }
+  };
+
+  const setPairedOption = (pair: "LM" | "MJ") => {
+    if (pair === "LM") {
+      setDay1("Lun");
+      setDay2("Mié");
+    } else {
+      setDay1("Mar");
+      setDay2("Jue");
+    }
+    setTime2(time1);
+    setRoom2(room1);
+  };
 
   const weekdayTimes = ["16:00", "16:45", "17:30", "18:15", "19:00", "19:45", "20:30", "21:15"];
   const saturdayTimes = [
@@ -3345,16 +4029,124 @@ function ScheduleStudentForm({
         )}
       </div>
 
+      {/* Selector de Modo de Horario: Pareadas Oficial vs Personalizado */}
+      {isRegular ? (
+        <div className="space-y-2 p-3 rounded-2xl border border-primary/20 bg-primary/5">
+          <div className="flex items-center justify-between">
+            <label className="font-bold text-foreground flex items-center gap-1.5">
+              <span>Modalidad de Días</span>
+              <Badge variant="outline" className="text-[10px] font-bold border-primary text-primary">
+                2 clases / semana
+              </Badge>
+            </label>
+            <div className="flex items-center bg-background rounded-lg p-0.5 border border-border">
+              <button
+                type="button"
+                onClick={() => setScheduleMode("pareadas")}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
+                  scheduleMode === "pareadas"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                🔗 Días Pareados (Oficial)
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleMode("personalizado")}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
+                  scheduleMode === "personalizado"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                ⚙️ Modo Personalizado
+              </button>
+            </div>
+          </div>
+
+          {scheduleMode === "pareadas" ? (
+            <div className="space-y-1.5">
+              <p className="text-[11px] text-muted-foreground">
+                Regla Vibra: <strong>Lunes</strong> jala automáticamente <strong>Miércoles</strong>; <strong>Martes</strong> jala <strong>Jueves</strong>. Mantiene la misma hora y sala en ambas clases.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={day1 === "Lun" && day2 === "Mié" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPairedOption("LM")}
+                  className="h-7 text-[11px] font-bold"
+                >
+                  🎹 Par Lunes + Miércoles
+                </Button>
+                <Button
+                  type="button"
+                  variant={day1 === "Mar" && day2 === "Jue" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPairedOption("MJ")}
+                  className="h-7 text-[11px] font-bold"
+                >
+                  🎸 Par Martes + Jueves
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[11px] text-amber-500 font-medium">
+              ⚙️ <strong>Modo Personalizado Activo</strong>: Puedes escoger libremente cualquier combinación de días de la semana según disponibilidad (ej. Miércoles + Viernes, Lunes + Sábado).
+            </p>
+          )}
+        </div>
+      ) : isIntensive ? (
+        <div className="p-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-amber-500 flex items-center gap-1.5">
+              ⚡ Plan Intensivo (1x semana · 90 min)
+            </span>
+            <div className="flex gap-1.5">
+              <Button
+                type="button"
+                variant={day1 === "Vie" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDay1("Vie")}
+                className="h-6 px-2 text-[10px] font-bold"
+              >
+                Viernes
+              </Button>
+              <Button
+                type="button"
+                variant={day1 === "Sáb" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDay1("Sáb")}
+                className="h-6 px-2 text-[10px] font-bold"
+              >
+                Sábado
+              </Button>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Los intensivos se recomiendan los <strong>Viernes</strong> o <strong>Sábados</strong> para cubrir los 90 minutos continuos sin cruces de horario.
+          </p>
+        </div>
+      ) : null}
+
       {/* Bloque Sesión 1 */}
       <div className="rounded-2xl border border-border p-3.5 space-y-2.5 bg-muted/20">
-        <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-          <Clock className="h-3.5 w-3.5" />
-          {isRegular ? "Primera Clase Semanal (Día 1)" : "Horario Semanal Oficial"}
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            {isRegular ? "Primera Clase Semanal (Día 1)" : "Horario Semanal Oficial"}
+          </span>
+          {scheduleMode === "pareadas" && isRegular && (
+            <Badge variant="outline" className="text-[10px] text-primary border-primary/30">
+              Control Principal
+            </Badge>
+          )}
+        </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-muted-foreground">Día</label>
-            <Select value={day1} onValueChange={(v: any) => setDay1(v)}>
+            <Select value={day1} onValueChange={(v: any) => handleDay1Change(v)}>
               <SelectTrigger className="text-xs bg-background">
                 <SelectValue />
               </SelectTrigger>
@@ -3368,7 +4160,7 @@ function ScheduleStudentForm({
 
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-muted-foreground">Hora</label>
-            <Select value={time1} onValueChange={setTime1}>
+            <Select value={time1} onValueChange={handleTime1Change}>
               <SelectTrigger className="text-xs bg-background">
                 <SelectValue />
               </SelectTrigger>
@@ -3382,7 +4174,7 @@ function ScheduleStudentForm({
 
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-muted-foreground">Sala</label>
-            <Select value={room1} onValueChange={setRoom1}>
+            <Select value={room1} onValueChange={handleRoom1Change}>
               <SelectTrigger className="text-xs bg-background">
                 <SelectValue />
               </SelectTrigger>
@@ -3399,14 +4191,36 @@ function ScheduleStudentForm({
       {/* Bloque Sesión 2 (Solo si es Plan Regular) */}
       {isRegular && (
         <div className="rounded-2xl border border-border p-3.5 space-y-2.5 bg-muted/20">
-          <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5" />
-            Segunda Clase Semanal (Día 2)
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              Segunda Clase Semanal (Día 2)
+            </span>
+            {scheduleMode === "pareadas" ? (
+              <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-bold">
+                ✓ Pareado con Día 1 ({day1} ➔ {day2})
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30">
+                Personalizado Libre
+              </Badge>
+            )}
+          </div>
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-muted-foreground">Día</label>
-              <Select value={day2} onValueChange={(v: any) => setDay2(v)}>
+              <Select
+                value={day2}
+                onValueChange={(v: any) => {
+                  setDay2(v);
+                  if (scheduleMode === "pareadas") {
+                    setScheduleMode("personalizado");
+                    toast.info("Cambiaste a Modo Personalizado", {
+                      description: `Se desacopló el par automático para permitir ${v}.`,
+                    });
+                  }
+                }}
+              >
                 <SelectTrigger className="text-xs bg-background">
                   <SelectValue />
                 </SelectTrigger>
@@ -3446,6 +4260,11 @@ function ScheduleStudentForm({
               </Select>
             </div>
           </div>
+          {scheduleMode === "pareadas" && (
+            <p className="text-[10px] text-muted-foreground italic">
+              Hora y sala sincronizadas automáticamente con la Clase 1. Si modificas el Día 2 directamente, el sistema cambiará a Modo Personalizado.
+            </p>
+          )}
         </div>
       )}
 
