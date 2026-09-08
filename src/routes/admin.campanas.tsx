@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAppStore } from "@/store/app-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,14 +41,6 @@ interface CampaignTemplate {
   name: string;
   category: "Utilidad" | "Marketing";
   body: string;
-}
-
-interface CampaignContact {
-  id: string;
-  name: string;
-  phone: string;
-  avatarColor: string;
-  selected: boolean;
 }
 
 interface CampaignHistoryItem {
@@ -98,7 +90,24 @@ const TEMPLATES_SEED: CampaignTemplate[] = [
     category: "Marketing",
     body: "Hola {{1}}, disfruta este mes de 15% de descuento por matrícula de hermano.",
   },
+  {
+    id: "tpl-7",
+    name: "Promoción de reincorporación",
+    category: "Marketing",
+    body: "¡Hola {{1}}! 🎵 En Vibra Music te extrañamos. Aprovecha este mes nuestra promoción de reincorporación con matrícula libre y tarifa preferencial para retomar tus clases de {{2}}.",
+  },
 ];
+
+interface CampaignContact {
+  id: string;
+  name: string;
+  phone: string;
+  avatarColor: string;
+  selected: boolean;
+  type?: "activo" | "reincorporacion";
+  studentName?: string;
+  instrument?: string;
+}
 
 const CONTACTS_SEED: CampaignContact[] = [
   { id: "c-1", name: "Ana María López", phone: "+51 987 654 321", avatarColor: "from-orange-500 to-amber-500", selected: true },
@@ -141,15 +150,70 @@ const HISTORY_SEED: CampaignHistoryItem[] = [
 ];
 
 export function AdminCampanasPage() {
+  const students = useAppStore((s) => s.students || []);
+  const deletedStudents = useAppStore((s) => s.deletedStudents || []);
+
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("tpl-1");
   const [templateSearch, setTemplateSearch] = useState("");
   const [contactSearch, setContactSearch] = useState("");
+  const [audienceFilter, setAudienceFilter] = useState<"todos" | "activos" | "reincorporacion">("todos");
   const [contacts, setContacts] = useState<CampaignContact[]>(CONTACTS_SEED);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [isSending, setIsSending] = useState(false);
+
+  // Sincronizar alumnos activos y leads de reincorporación (descartando errores y pruebas)
+  useEffect(() => {
+    const list: CampaignContact[] = [];
+
+    // 1. Alumnos Activos
+    students.forEach((st) => {
+      const p = st.phone || st.motherPhone || st.fatherPhone || "";
+      if (p) {
+        list.push({
+          id: `act-${st.id}`,
+          name: st.family ? `${st.name} (${st.family})` : st.name,
+          phone: p.startsWith("+") ? p : `+51 ${p.replace(/\D/g, "")}`,
+          avatarColor: "from-orange-500 to-amber-500",
+          selected: true,
+          type: "activo",
+          studentName: st.name,
+          instrument: st.instrument,
+        });
+      }
+    });
+
+    // 2. Leads de Reincorporación (Falta de Pago + Retiro Voluntario)
+    // Se excluyen expresamente errores de registro y pruebas técnicas
+    deletedStudents.forEach((del) => {
+      if (del.reasonCategory === "falta_pago" || del.reasonCategory === "retiro_voluntario") {
+        const p = del.motherPhone || del.fatherPhone || del.phone || del.studentSnapshot?.emergencyContact?.phone || "";
+        if (p) {
+          list.push({
+            id: `del-${del.id}`,
+            name: `${del.studentName} (Lead: ${del.reasonCategory === "falta_pago" ? "Deudor" : "Retirado"})`,
+            phone: p.startsWith("+") ? p : `+51 ${p.replace(/\D/g, "")}`,
+            avatarColor: del.reasonCategory === "falta_pago" ? "from-red-500 to-rose-600" : "from-amber-500 to-yellow-600",
+            selected: true,
+            type: "reincorporacion",
+            studentName: del.studentName,
+            instrument: del.instrument,
+          });
+        }
+      }
+    });
+
+    if (list.length > 0) {
+      setContacts(list);
+    }
+  }, [students, deletedStudents]);
+
+  // Conteo de leads de reincorporación
+  const reincorpCount = useMemo(() => {
+    return contacts.filter((c) => c.type === "reincorporacion").length;
+  }, [contacts]);
 
   // Filtrado de plantillas
   const filteredTemplates = useMemo(() => {
@@ -164,25 +228,31 @@ export function AdminCampanasPage() {
     return TEMPLATES_SEED.find((t) => t.id === selectedTemplateId) || TEMPLATES_SEED[0];
   }, [selectedTemplateId]);
 
-  // Filtrado de contactos
+  // Filtrado de contactos por buscador y por audiencia
   const filteredContacts = useMemo(() => {
-    return contacts.filter(
-      (c) =>
+    return contacts.filter((c) => {
+      if (audienceFilter === "activos" && c.type !== "activo") return false;
+      if (audienceFilter === "reincorporacion" && c.type !== "reincorporacion") return false;
+      return (
         c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
         c.phone.includes(contactSearch)
-    );
-  }, [contacts, contactSearch]);
+      );
+    });
+  }, [contacts, contactSearch, audienceFilter]);
 
   // Selección de contactos
   const selectedContactsCount = useMemo(() => {
     return contacts.filter((c) => c.selected).length;
   }, [contacts]);
 
-  const isAllSelected = contacts.length > 0 && selectedContactsCount === contacts.length;
+  const isAllFilteredSelected = filteredContacts.length > 0 && filteredContacts.every((c) => c.selected);
 
   function handleToggleSelectAll() {
-    const nextState = !isAllSelected;
-    setContacts((prev) => prev.map((c) => ({ ...c, selected: nextState })));
+    const nextState = !isAllFilteredSelected;
+    const filteredIds = new Set(filteredContacts.map((c) => c.id));
+    setContacts((prev) =>
+      prev.map((c) => (filteredIds.has(c.id) ? { ...c, selected: nextState } : c))
+    );
   }
 
   function handleToggleContact(id: string) {
@@ -472,6 +542,43 @@ export function AdminCampanasPage() {
                 </p>
               </div>
 
+              {/* Filtro de Audiencia: Todos vs Activos vs Leads Reincorporación */}
+              <div className="flex items-center gap-1.5 p-1 bg-muted/40 rounded-xl border border-border">
+                <button
+                  type="button"
+                  onClick={() => setAudienceFilter("todos")}
+                  className={`flex-1 text-[11px] py-1 font-semibold rounded-lg transition-all ${
+                    audienceFilter === "todos"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Todos ({contacts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAudienceFilter("activos")}
+                  className={`flex-1 text-[11px] py-1 font-semibold rounded-lg transition-all ${
+                    audienceFilter === "activos"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Activos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAudienceFilter("reincorporacion")}
+                  className={`flex-1 text-[11px] py-1 font-bold rounded-lg transition-all ${
+                    audienceFilter === "reincorporacion"
+                      ? "bg-amber-500 text-black shadow-xs"
+                      : "text-amber-500 hover:text-amber-400"
+                  }`}
+                >
+                  🎯 Reincorporación ({reincorpCount})
+                </button>
+              </div>
+
               {/* Buscador de contactos */}
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -486,12 +593,12 @@ export function AdminCampanasPage() {
               {/* Seleccionar Todos */}
               <div className="flex items-center gap-2 p-2 bg-muted/40 rounded-xl border border-border">
                 <Checkbox
-                  checked={isAllSelected}
+                  checked={isAllFilteredSelected}
                   onCheckedChange={handleToggleSelectAll}
                   className="data-[state=checked]:bg-[#F47B20] data-[state=checked]:border-[#F47B20]"
                 />
                 <span className="text-xs font-bold text-foreground">
-                  Seleccionar todos ({contacts.length})
+                  Seleccionar todos ({filteredContacts.length})
                 </span>
               </div>
 
@@ -519,8 +626,15 @@ export function AdminCampanasPage() {
                         {c.name.slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs font-semibold text-foreground truncate">
-                          {c.name}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-semibold text-foreground truncate">
+                            {c.name}
+                          </span>
+                          {c.type === "reincorporacion" && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                              🎯 Lead Promo
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-muted-foreground font-mono truncate">
                           {c.phone}

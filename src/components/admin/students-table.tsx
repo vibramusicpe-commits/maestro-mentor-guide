@@ -41,6 +41,7 @@ import {
 import { teachers, musicalInstruments, VIBRA_PRICING } from "@/store/admin-seeds";
 import { categoryStyles } from "@/components/admin/agenda-board";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
+import { DeletedStudentsTrashModal } from "@/components/admin/deleted-students-trash-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2147,92 +2148,11 @@ export function StudentsTable() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Papelera y Base de Datos de Alumnos Eliminados */}
-      <Dialog open={isTrashModalOpen} onOpenChange={setIsTrashModalOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto p-6 rounded-3xl border-rose-500/30 bg-card">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
-                <Trash2 className="h-5 w-5 text-rose-500" />
-                Papelera y Base de Datos de Alumnos Eliminados
-              </DialogTitle>
-              <Badge variant="outline" className="text-xs font-bold text-rose-600 border-rose-500/40 bg-rose-500/10">
-                {deletedStudents.length} {deletedStudents.length === 1 ? "alumno archivado" : "alumnos archivados"}
-              </Badge>
-            </div>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Historial de alumnos retirados o eliminados con fecha, responsable y motivo exacto. Puedes restaurar cualquier alumno en cualquier momento con 1 solo clic.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-3 space-y-3">
-            {deletedStudents.length === 0 ? (
-              <div className="text-center py-12 border border-dashed border-border rounded-2xl space-y-2">
-                <Trash2 className="h-10 w-10 mx-auto text-muted-foreground/40" />
-                <p className="text-sm font-bold text-foreground">La papelera está vacía</p>
-                <p className="text-xs text-muted-foreground">No hay alumnos eliminados en la base de datos histórica.</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {deletedStudents.map((del) => {
-                  const categoryBadge = {
-                    falta_pago: { label: "Falta de pago", color: "bg-destructive/15 text-destructive border-destructive/30" },
-                    error_registro: { label: "Error de registro", color: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
-                    prueba_sistema: { label: "Prueba de sistema", color: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30" },
-                    retiro_voluntario: { label: "Retiro voluntario", color: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
-                    otro: { label: "Otro motivo", color: "bg-muted text-muted-foreground border-border" },
-                  }[del.reasonCategory] || { label: del.reasonCategory, color: "bg-muted text-muted-foreground" };
-
-                  return (
-                    <div
-                      key={del.id}
-                      className="p-3.5 rounded-2xl border border-border bg-card/60 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
-                    >
-                      <div className="space-y-1 text-xs">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-foreground text-sm">{del.studentName}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${categoryBadge.color}`}>
-                            {categoryBadge.label}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {del.family} · {del.instrument} · Prof. {del.teacher}
-                          </span>
-                        </div>
-
-                        {del.reasonText && (
-                          <p className="text-[11px] text-foreground italic bg-muted/30 px-2 py-1 rounded-md">
-                            "{del.reasonText}"
-                          </p>
-                        )}
-
-                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                          <span>👤 Eliminado por: <strong>{del.deletedBy}</strong></span>
-                          <span>📅 {new Date(del.deletedAt).toLocaleString("es-PE")}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            restoreDeletedStudent(del.id);
-                            toast.success(`✓ Alumno ${del.studentName} restaurado con éxito al directorio activo.`);
-                          }}
-                          className="h-8 text-xs font-bold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Restaurar Alumno
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Modal Avanzado de Papelera y Leads de Reincorporación */}
+      <DeletedStudentsTrashModal
+        open={isTrashModalOpen}
+        onOpenChange={setIsTrashModalOpen}
+      />
 
       {/* Modal para Organizar / Programar Horario del Alumno */}
       <Dialog open={!!scheduleModalStudent} onOpenChange={(o) => !o && setScheduleModalStudent(null)}>
