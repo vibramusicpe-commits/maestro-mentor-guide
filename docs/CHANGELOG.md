@@ -4,6 +4,14 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.7.8] - 2026-09-09
+
+### Añadido & Corregido
+- **Tutorial Interactivo de Inducción para Secretaría y Estabilización de Horarios (ADR 0084)**:
+  - **Corrección de Error en Panel de Alumnos (`/admin/alumnos`)**: Resuelto el `ReferenceError: teacher is not defined` en `ScheduleStudentForm`, inicializando correctamente los estados de profesor, instrumento y categoría oficial.
+  - **Guía de Inducción Paso a Paso (`StaffOnboardingTutorial`)**: Tutorial interactivo de 6 módulos visuales diseñado especialmente para secretarias (óptimo para perfiles con TDAH), explicando registro completo, días pareados, control de asistencia sincronizada, cobros, claves maestras y fichaje docente.
+  - **Activación y Control en Perfil (`/admin`)**: Interruptor para activar/desactivar la inducción automática y botón de lanzamiento directo `Guía de Inducción` en la cabecera y en el modal de personalización de perfil.
+
 ## [1.7.7] - 2026-09-09
 
 ### Corregido & Estabilizado

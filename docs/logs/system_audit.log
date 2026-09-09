@@ -5,6 +5,21 @@ Directorio de Logs: docs/logs/system_audit.log
 Última Actualización: 2026-09-09 17:35:00 -05:00
 ===================================================================
 
+[2026-09-09 18:05:00 -05:00] [FEAT & FIX] [STAFF-ONBOARDING-TUTORIAL-AND-STUDENT-SCHEDULE-FIX]
+- Creación de la Guía de Inducción Interactiva para Secretaría y Corrección del Panel de Alumnos:
+  1. **Corrección de Referencia en `/admin/alumnos`**:
+     * Solucionado el error `ReferenceError: teacher is not defined` en `ScheduleStudentForm` de `students-table.tsx`.
+     * Inicializados los hooks de estado para `teacher`, `instrument` y `category` asegurando estabilidad al abrir la asignación de horario.
+  2. **Implementación de `StaffOnboardingTutorial`**:
+     * Módulo interactivo de 6 pasos pedagógicos adaptados para perfiles con TDAH y secretarias nuevas.
+     * Cubre: 1) Registro completo de padres y contactos de emergencia; 2) Horarios pareados vs. personalizados y vacantes (máx. 5); 3) Marcado de asistencia docente en quiosco y kardex sincronizado; 4) Cobros y facturación; 5) Invitaciones y claves maestras oficiales; 6) Asistencia docente en sede y nómina.
+  3. **Control en Perfil (`/admin`)**:
+     * Botón `Guía de Inducción` en cabecera principal y switch de activación en modal "Personalizar Perfil".
+- Documentación: ADR 0084 (`docs/adr/0084-staff-onboarding-tutorial-and-student-schedule-fix.md`) y CHANGELOG v1.7.8.
+- Verificación: `npm run build` completado exitosamente (código 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+
 [2026-09-09 17:50:00 -05:00] [FIX & AUTH] [STABLE-MASTER-CREDENTIALS-AND-INVITATION-SYNCHRONIZATION]
 - Resolución de inconsistencia de claves maestras y sincronización de Fernando en Insforge PostgreSQL:
   1. **Causas Raíces Identificadas:**
