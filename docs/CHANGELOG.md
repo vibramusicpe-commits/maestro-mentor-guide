@@ -4,6 +4,15 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.7.6] - 2026-09-09
+
+### Corregido & Sincronizado
+- **Paridad Multi-Navegador en Verificación de Invitaciones y Autenticación Docente (ADR 0082)**:
+  - **Eliminación de Bucle de Creación de Contraseña**: Se solucionó el fallo donde al ingresar desde Brave, Chrome u otro dispositivo distinto al original, el sistema trataba la invitación como pendiente y forzaba a crear una nueva contraseña en cada navegador.
+  - **PostgreSQL como Fuente Primaria en `verifyInvitationToken`**: Se prioriza la consulta en vivo a `public.invitations` en Insforge PostgreSQL, eliminando la intercepción por semillas estáticas (`TEACHER_SEEDS`) y evitando depender de un `localStorage` vacío en navegadores nuevos.
+  - **Validación Cross-Browser en `src/routes/invite.$token.tsx`**: Reconoce el estado `"aceptado"` y la contraseña real (`"nathaly1"`), permitiendo ingreso directo al portal docente sin volver a mostrar el formulario de cambio de clave.
+  - **Resiliencia de Credenciales**: Soporte tanto para la clave personalizada vigente como para las contraseñas maestras iniciales de contingencia.
+
 ## [1.7.5] - 2026-09-09
 
 ### Añadido & Optimizado

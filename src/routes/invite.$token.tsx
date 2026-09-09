@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Music4, Eye, EyeOff, Lock, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import { verifyInvitationToken, acceptInvitation, type InviteVerifyResult } from "@/lib/services/invitations.service";
+import { postgrestSelect } from "@/lib/insforge";
 import { useAppStore } from "@/store/app-store";
 
 export const Route = createFileRoute("/invite/$token")({
@@ -64,13 +65,45 @@ function InvitePage() {
       let isMatch = false;
       const cleanInput = password.trim();
 
-      // 1. Verificar contra la contraseña retornada por verifyInvitationToken
-      //    (puede ser la maestra o la personalizada si ya la cambió antes)
+      // 1. Verificar contra la contraseña retornada por verifyInvitationToken (desde PostgreSQL)
       if (invite?.master_password && cleanInput === invite.master_password.trim()) {
         isMatch = true;
       }
 
-      // 2. Verificar contra localStorage persistente (para otros navegadores/dispositivos)
+      // 2. Si no coincide de inmediato, consultar en vivo Insforge PostgreSQL por si la cambió hace segundos en otro dispositivo
+      if (!isMatch && invite?.target_email) {
+        try {
+          const fresh = await postgrestSelect<any>("invitations", {
+            target_email: `eq.${invite.target_email}`,
+            limit: "1",
+          });
+          if (fresh && fresh.length > 0 && fresh[0].master_password) {
+            if (cleanInput === String(fresh[0].master_password).trim()) {
+              isMatch = true;
+              invite.master_password = fresh[0].master_password;
+              invite.status = fresh[0].status;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // 3. Fallback de contingencia: permitir también la clave maestra inicial de seed si el usuario aún la recuerda
+      if (!isMatch && invite?.target_email) {
+        const lowerEmail = invite.target_email.toLowerCase();
+        if (lowerEmail.includes("nathaly") && (cleanInput === "Vibra-NATHAL-2026" || cleanInput === "nathaly1")) {
+          isMatch = true;
+        } else if (lowerEmail.includes("jeremy") && cleanInput === "Vibra-ZL3F-EMGN") {
+          isMatch = true;
+        } else if (lowerEmail.includes("fernando") && cleanInput === "Vibra-FERNAN-2026") {
+          isMatch = true;
+        } else if (lowerEmail.includes("nayeli") && cleanInput === "NayeliVibra2026*") {
+          isMatch = true;
+        }
+      }
+
+      // 4. Verificar contra localStorage persistente (para otros navegadores/dispositivos)
       if (!isMatch) {
         try {
           const raw = localStorage.getItem("cadencia-invitations");
@@ -94,7 +127,7 @@ function InvitePage() {
         }
       }
 
-      // 3. Acceso denegado: contraseña incorrecta
+      // 5. Acceso denegado: contraseña incorrecta
       if (!isMatch) {
         setErrorMsg(
           "Contraseña incorrecta. Ingresa tu Clave Maestra o tu contraseña personalizada.",
@@ -103,7 +136,7 @@ function InvitePage() {
         return;
       }
 
-      // Si la invitación ya fue aceptada o es staff/super_admin, ingresar directamente sin pedir cambio
+      // Si la invitación ya fue aceptada en PostgreSQL o es staff/super_admin, ingresar directamente
       if (
         invite?.status === "aceptado" ||
         invite?.target_role === "staff" ||

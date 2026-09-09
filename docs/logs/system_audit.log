@@ -2,8 +2,25 @@
 ===================================================================
 Proyecto: Vibra Music — Cadencia (Maestro Mentor Guide)
 Directorio de Logs: docs/logs/system_audit.log
-Última Actualización: 2026-09-09 17:00:00 -05:00
+Última Actualización: 2026-09-09 17:35:00 -05:00
 ===================================================================
+
+[2026-09-09 17:35:00 -05:00] [FIX & AUTH] [CROSS-BROWSER-INVITATION-VERIFICATION-AND-AUTH-PARITY]
+- Resolución de paridad multi-navegador en el flujo de invitaciones docentes y cambio de contraseña:
+  1. **Causa Raíz Diagnosticada y Resuelta:**
+     * En `invitations.service.ts` (`verifyInvitationToken`), el mapa estático `TEACHER_SEEDS` interceptaba la consulta antes de acceder a PostgreSQL.
+     * Al interceptar, `TEACHER_SEEDS` leía el estado de aceptación y la contraseña personalizada exclusivamente desde `localStorage.getItem("cadencia-invitations")`.
+     * Dado que el `localStorage` de Edge no se comparte con Chrome o Brave, en estos últimos el caché estaba vacío, provocando que `status` retornara `"pendiente"` y la contraseña fuera la semilla antigua `"Vibra-NATHAL-2026"`.
+     * En consecuencia, la UI forzaba el formulario `"change_password"` una y otra vez en cada nuevo navegador o modo incógnito, rechazando la clave real de Nathaly (`"nathaly1"`).
+  2. **Implementación de Solución Definitiva:**
+     * `verifyInvitationToken`: Insforge PostgreSQL (`public.invitations`) establecido como fuente de verdad primaria. Consulta la base de datos remota en primer lugar; si existe el registro, retorna el estado real (`"aceptado"`) y la contraseña vigente (`"nathaly1"`).
+     * `src/routes/invite.$token.tsx`: `handlePasswordSubmit` ahora valida contra la contraseña de PostgreSQL con verificación en tiempo real y soporte para claves maestras.
+     * Si `invite.status === "aceptado"`, se ejecuta `loginUser` directamente y se redirige a `/teacher` sin volver a solicitar cambio de clave.
+     * `getInvitations`: Preservación de `master_password: remote.master_password` al fusionar registros para visualización administrativa.
+- Documentación: ADR 0082 (`docs/adr/0082-cross-browser-invitation-verification-and-auth-parity.md`) y CHANGELOG v1.7.6.
+- Verificación: `npm run build` completado exitosamente (0 errores, código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
 
 [2026-09-09 17:00:00 -05:00] [FEAT & UX] [TEACHER-ATTENDANCE-MONTHLY-DASHBOARD-AND-KARDEX]
 - Creación quirúrgica del Dashboard Mensual de Asistencia Docente y Kardex Histórico para Dirección (Dueña / Sergio) y Secretaría (Nayeli):

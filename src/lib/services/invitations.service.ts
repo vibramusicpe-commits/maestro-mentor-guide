@@ -236,7 +236,80 @@ export async function createInvitation(
 export async function verifyInvitationToken(
   token: string,
 ): Promise<InviteVerifyResult> {
-  // Primero buscar en el almacenamiento local persistente (Modo Híbrido / MVP)
+  const cleanToken = token.trim();
+  const normalizedToken = cleanToken.toLowerCase();
+
+  // ---------------------------------------------------------------
+  // 1. FUENTE DE VERDAD PRIMARIA: Insforge PostgreSQL (Cloud DB)
+  // Sincronización multi-navegador en tiempo real (Chrome, Brave, Edge, Safari, Móvil)
+  // ---------------------------------------------------------------
+  try {
+    // A. Buscar por token exacto
+    let remoteInvites = await postgrestSelect<DBInvitation & { master_password?: string }>("invitations", {
+      token: `eq.${cleanToken}`,
+      limit: "1",
+    });
+
+    // B. Si no se encontró exacto, buscar case-insensitive
+    if (!remoteInvites || remoteInvites.length === 0) {
+      remoteInvites = await postgrestSelect<DBInvitation & { master_password?: string }>("invitations", {
+        token: `ilike.${cleanToken}`,
+        limit: "1",
+      });
+    }
+
+    // C. Si el token contiene el nombre de algún docente o personal, buscar por email en PostgreSQL
+    if (!remoteInvites || remoteInvites.length === 0) {
+      let targetEmail: string | null = null;
+      if (normalizedToken.includes("nathaly")) targetEmail = "nathaly@vibramusic.pe";
+      else if (normalizedToken.includes("jeremy")) targetEmail = "jeremy@vibramusic.pe";
+      else if (normalizedToken.includes("fernando")) targetEmail = "fernando@vibramusic.pe";
+      else if (normalizedToken.includes("nayeli")) targetEmail = "nayeli@vibramusic.pe";
+
+      if (targetEmail) {
+        remoteInvites = await postgrestSelect<DBInvitation & { master_password?: string }>("invitations", {
+          target_email: `eq.${targetEmail}`,
+          order: "created_at.desc",
+          limit: "1",
+        });
+      }
+    }
+
+    if (remoteInvites && remoteInvites.length > 0) {
+      const inv = remoteInvites[0];
+      const isExpired = inv.expires_at ? new Date(inv.expires_at).getTime() < Date.now() : false;
+      const isRevoked = inv.status === "revocado";
+      const isValid = !isRevoked && !isExpired;
+
+      // Auto-actualizar almacenamiento local de este navegador para acelerar cargas offline
+      try {
+        const raw = localStorage.getItem("cadencia-invitations");
+        const list: any[] = raw ? JSON.parse(raw) : [];
+        const filtered = list.filter((i) => i.id !== inv.id && i.token !== inv.token);
+        filtered.unshift(inv);
+        localStorage.setItem("cadencia-invitations", JSON.stringify(filtered));
+      } catch {
+        // ignore
+      }
+
+      return {
+        invitation_id: inv.id,
+        target_name: inv.target_name,
+        target_role: inv.target_role,
+        target_email: inv.target_email,
+        master_password: inv.master_password || null,
+        status: inv.status,
+        is_valid: isValid,
+        error_code: isRevoked ? "TOKEN_REVOKED" : isExpired ? "TOKEN_EXPIRED" : null,
+      };
+    }
+  } catch (err) {
+    console.warn("Aviso al consultar token en Insforge PostgreSQL, recurriendo a fallback:", err);
+  }
+
+  // ---------------------------------------------------------------
+  // 2. FALLBACK SECUNDARIO: Almacenamiento Local (por si se pierde conexión)
+  // ---------------------------------------------------------------
   try {
     const raw = localStorage.getItem("cadencia-invitations");
     if (raw) {
@@ -259,8 +332,7 @@ export async function verifyInvitationToken(
     // Ignorar si no está disponible (ej. modo incógnito)
   }
 
-  // 1. Tokens directos y permanentes de alta prioridad (Acceso inmediato sin dependencias de red)
-  const normalizedToken = token.trim().toLowerCase();
+  // 3. Tokens directos y permanentes de alta prioridad (Acceso offline de contingencia)
   
   if (
     normalizedToken === "nayeli-secretaria-vibra" ||
@@ -803,6 +875,7 @@ export async function getInvitations(
           ...item,
           status: remote.status,
           accepted_at: remote.accepted_at || item.accepted_at,
+          master_password: remote.master_password || item.master_password,
         };
       }
       return item;
