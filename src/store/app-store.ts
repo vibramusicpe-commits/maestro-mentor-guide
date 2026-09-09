@@ -299,7 +299,13 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
   try {
     if (typeof window === "undefined") return;
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId);
-    if (!isUUID) return;
+    const resolvedStudentId = isUUID
+      ? studentId
+      : !isNaN(Number(studentId))
+      ? `00000000-0000-0000-0002-${String(studentId).padStart(12, "0")}`
+      : null;
+
+    if (!resolvedStudentId) return;
 
     import("@/lib/services/students.service").then(({ updateStudent }) => {
       const payload: Record<string, unknown> = {};
@@ -313,9 +319,9 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       if (updates.attendanceRate !== undefined) payload.attendance_rate = updates.attendanceRate;
       if (updates.makeupCredits !== undefined) payload.makeup_credits = updates.makeupCredits;
 
-      updateStudent(role, studentId, payload)
-        .then(() => console.log(`[Insforge Sync] Alumno ${studentId} sincronizado en PostgreSQL`))
-        .catch((err) => console.warn(`[Insforge Sync] Error sincronizando alumno ${studentId}:`, err));
+      updateStudent(role, resolvedStudentId, payload)
+        .then(() => console.log(`[Insforge Sync] Alumno ${resolvedStudentId} sincronizado en PostgreSQL`))
+        .catch((err) => console.warn(`[Insforge Sync] Error sincronizando alumno ${resolvedStudentId}:`, err));
     }).catch(() => {});
   } catch {}
 }
@@ -330,6 +336,11 @@ function backgroundSyncAttendanceLogToDB(
   try {
     if (typeof window === "undefined") return;
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId);
+    const resolvedStudentId = isUUID
+      ? studentId
+      : !isNaN(Number(studentId))
+      ? `00000000-0000-0000-0002-${String(studentId).padStart(12, "0")}`
+      : null;
 
     // Insforge attendance_enum acepta: 'presente', 'ausente', 'tarde', 'recuperacion'
     let dbStatus: "presente" | "ausente" | "tarde" | "recuperacion" = "presente";
@@ -347,13 +358,13 @@ function backgroundSyncAttendanceLogToDB(
 
     import("@/lib/insforge").then(({ postgrestInsert }) => {
       postgrestInsert("attendance_logs", {
-        student_id: isUUID ? studentId : null,
+        student_id: resolvedStudentId,
         status: dbStatus,
         credit_delta: status === "justificada" ? 1 : 0,
         note: dbNote || null,
         registered_at: new Date().toISOString(),
       })
-        .then(() => console.log(`[Insforge Sync] Asistencia guardada en attendance_logs para ${studentId}`))
+        .then(() => console.log(`[Insforge Sync] Asistencia guardada en attendance_logs para ${resolvedStudentId}`))
         .catch((err) => console.warn(`[Insforge Sync] Error guardando attendance_log:`, err));
     }).catch(() => {});
   } catch {}

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MetricCards } from "@/components/admin/metric-cards";
 import { DeletionRequestsPanel } from "@/components/admin/deletion-requests-panel";
 import { RiskFamiliesTable } from "@/components/admin/risk-families-table";
@@ -56,6 +56,16 @@ function AdminDashboard() {
       return true;
     }
   });
+
+  useEffect(() => {
+    try {
+      const autoEnabled = localStorage.getItem("vibra-onboarding-auto-open") !== "false";
+      const completed = localStorage.getItem("vibra-onboarding-completed") === "true";
+      if (autoEnabled && !completed) {
+        setIsTutorialOpen(true);
+      }
+    } catch {}
+  }, []);
 
   const greetingPhrase = getDailyGreeting();
   const displayName = currentUser?.name || (isStaff ? "Nayeli" : "Rocío");

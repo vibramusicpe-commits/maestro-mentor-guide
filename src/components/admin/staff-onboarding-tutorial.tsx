@@ -18,11 +18,15 @@ import {
   ShieldCheck,
   HelpCircle,
   Lightbulb,
+  Check,
+  Copy,
+  RotateCcw,
+  Star,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate } from "@tanstack/react-router";
 
 interface StaffOnboardingTutorialProps {
@@ -30,199 +34,33 @@ interface StaffOnboardingTutorialProps {
   onClose: () => void;
 }
 
-interface StepData {
-  step: number;
-  badge: string;
-  icon: any;
-  title: string;
-  subtitle: string;
-  route: string;
-  routeLabel: string;
-  color: string;
-  tips: { title: string; desc: string; icon?: string }[];
-  keyRule: string;
-}
-
-const TUTORIAL_STEPS: StepData[] = [
-  {
-    step: 1,
-    badge: "Paso 1 de 6 · Directorio y Fichas",
-    icon: GraduationCap,
-    title: "Registro de Nuevos Alumnos",
-    subtitle: "Cómo matricular correctamente a un alumno asegurando datos completos de contacto y emergencia.",
-    route: "/admin/alumnos",
-    routeLabel: "Ir al Directorio de Alumnos",
-    color: "text-[#FFB52E]",
-    tips: [
-      {
-        icon: "👤",
-        title: "Ficha del Alumno",
-        desc: "Ingresa nombre completo, edad exacta (define su categoría oficial) e instrumento de estudio (Piano, Canto, Guitarra, Batería, etc.).",
-      },
-      {
-        icon: "👨‍👩‍👧",
-        title: "Papá y Mamá Obligatorios",
-        desc: "Pide siempre los nombres y teléfonos completos tanto de la mamá como del papá para asegurar contacto en caso de pagos o ausencias.",
-      },
-      {
-        icon: "🚨",
-        title: "Contacto de Emergencia Extra",
-        desc: "Registra siempre un apoderado adicional (abuela, tío, tutor) por si los padres no contestan ante emergencias médicas o retrasos al recoger.",
-      },
-    ],
-    keyRule: "💡 Regla Vibra: Un alumno bien registrado desde el día 1 previene morosidades y llamadas perdidas.",
-  },
-  {
-    step: 2,
-    badge: "Paso 2 de 6 · Horario y Vacantes",
-    icon: Calendar,
-    title: "Implementación del Horario",
-    subtitle: "Asignación de clases semanales respetando los Días Pareados y el aforo máximo de 5 alumnos por clase.",
-    route: "/admin/agenda",
-    routeLabel: "Ver Horario de Clases",
-    color: "text-[#F47B20]",
-    tips: [
-      {
-        icon: "🔗",
-        title: "Modo Días Pareados (Predefinido)",
-        desc: "Al elegir Lunes se jala automáticamente Miércoles a la misma hora y sala; si eliges Martes jala Jueves. Cumple 2 veces por semana (8 clases al mes).",
-      },
-      {
-        icon: "⚙️",
-        title: "Modo Personalizado",
-        desc: "Si el alumno no puede días pareados, activa el modo personalizado para elegir libremente cualquier par de días (ej. Miércoles + Viernes o Lunes + Sábado).",
-      },
-      {
-        icon: "✋",
-        title: "Límite Estricto: Máximo 5 Alumnos",
-        desc: "Ninguna clase puede tener más de 5 alumnos por profesor. El sistema bloquea automáticamente la franja si está en (5/5) para proteger la calidad educativa.",
-      },
-    ],
-    keyRule: "💡 Regla Vibra: Intensivos son 1 vez por semana (Viernes o Sábados). Recuperaciones se dan según disponibilidad.",
-  },
-  {
-    step: 3,
-    badge: "Paso 3 de 6 · Asistencia en Vivo",
-    icon: CheckCircle2,
-    title: "Control de Asistencias y Kardex",
-    subtitle: "Cómo registran asistencia los profesores desde su celular y cómo la supervisa la secretaría.",
-    route: "/admin/alumnos",
-    routeLabel: "Ver Asistencias en Kardex",
-    color: "text-emerald-400",
-    tips: [
-      {
-        icon: "📱",
-        title: "Marcado Docente en 1 Clic (/teacher)",
-        desc: "El profesor ingresa a su quiosco móvil y marca a cada alumno en su bloque horario: 🟢 Presente, 🔴 Ausente, 🟡 Tarde o 🔵 Justificada.",
-      },
-      {
-        icon: "🔄",
-        title: "Créditos de Recuperación Automáticos",
-        desc: "Si el profesor o secretaría marca 'Justificada' (avisó antes), el sistema le suma automáticamente +1 crédito de recuperación al alumno.",
-      },
-      {
-        icon: "📊",
-        title: "Kardex Histórico en Tiempo Real",
-        desc: "La secretaría puede abrir la ficha del alumno en cualquier momento para ver fecha por fecha cuándo vino, con qué profesor y porcentaje de asistencia.",
-      },
-    ],
-    keyRule: "💡 Regla Vibra: Se sincroniza al instante con la base de datos en la nube y se refleja en el portal familiar.",
-  },
-  {
-    step: 4,
-    badge: "Paso 4 de 6 · Pagos y Morosidad",
-    icon: CreditCard,
-    title: "Cobros, Cuotas y Facturación",
-    subtitle: "Seguimiento del estado de pago de las familias y registro de transferencias o pasarela Culqi.",
-    route: "/admin/facturacion",
-    routeLabel: "Ir a Cobros y Facturación",
-    color: "text-[#FF9E3D]",
-    tips: [
-      {
-        icon: "🏷️",
-        title: "Estados: Al Día vs Pendiente/Vencido",
-        desc: "El semáforo financiero te indica en verde las familias que ya pagaron y en rojo/naranja las cuotas que requieren recordatorio por WhatsApp.",
-      },
-      {
-        icon: "🧾",
-        title: "Registro Rápido de Pagos",
-        desc: "Registra pagos en Soles (PEN) indicando método (Transferencia BCP/BBVA, Yape, Plin o Tarjeta Culqi). Emite recibo digital inmediato.",
-      },
-      {
-        icon: "🚨",
-        title: "Familias en Riesgo",
-        desc: "El panel principal detecta automáticamente si una familia acumula faltas o pagos pendientes para coordinar su reincorporación o promociones.",
-      },
-    ],
-    keyRule: "💡 Regla Vibra: Culqi es la pasarela oficial para cobros en Soles peruanos (PEN).",
-  },
-  {
-    step: 5,
-    badge: "Paso 5 de 6 · Claves y Accesos",
-    icon: UserPlus,
-    title: "Invitaciones y Claves Maestras",
-    subtitle: "Envío de accesos seguros por WhatsApp con contraseñas maestras estables de contingencia.",
-    route: "/admin/invitaciones",
-    routeLabel: "Gestionar Invitaciones",
-    color: "text-[#FFB52E]",
-    tips: [
-      {
-        icon: "💬",
-        title: "Mensaje Oficial de WhatsApp",
-        desc: "Al crear una invitación, el sistema genera el texto listo para copiar y enviar al profesor o familia con su enlace personalizado.",
-      },
-      {
-        icon: "🔑",
-        title: "Claves Maestras Únicas",
-        desc: "Cada profesor tiene su Clave Maestra oficial (Fernando: Vibra-FERNAN-2026, Jeremy: Vibra-ZL3F-EMGN, Nathaly: Vibra-NATHAL-2026). No cambian solas.",
-      },
-      {
-        icon: "🔄",
-        title: "Botón Reset Seguro",
-        desc: "Si un profesor olvida su clave personal, el botón 'Reset' restaura su Clave Maestra oficial a estado pendiente para que vuelva a ingresar.",
-      },
-    ],
-    keyRule: "💡 Regla Vibra: Una vez aceptada en su teléfono, el docente entra directo sin volver a crear clave.",
-  },
-  {
-    step: 6,
-    badge: "Paso 6 de 6 · Fichaje y Nómina",
-    icon: UserCheck,
-    title: "Asistencia Docente en Sede",
-    subtitle: "Monitoreo en vivo de los profesores presentes en la sede de Miraflores y cálculo mensual de horas.",
-    route: "/admin/control-horario",
-    routeLabel: "Ver Asistencia Docente",
-    color: "text-emerald-400",
-    tips: [
-      {
-        icon: "⏱️",
-        title: "Reloj de Fichaje al Llegar",
-        desc: "Al ingresar a la academia, el profesor presiona 'Marcar Entrada' en su móvil. El sistema empieza a contabilizar sus horas trabajadas en sede.",
-      },
-      {
-        icon: "🟢",
-        title: "Monitoreo en Vivo para Secretaría",
-        desc: "En el dashboard y en Control Horario ves la lista de profesores que están actualmente 'Trabajando' en sede esperando a sus alumnos.",
-      },
-      {
-        icon: "📑",
-        title: "Kardex Mensual de Nómina",
-        desc: "Al final del mes, secretaría y dirección pueden ver el total de horas netas y turnos de cada docente para el cierre de pagos.",
-      },
-    ],
-    keyRule: "💡 Regla Vibra: Los profesores fichan desde su enlace personal en cualquier celular o tablet de sede.",
-  },
-];
-
 export function StaffOnboardingTutorial({ isOpen, onClose }: StaffOnboardingTutorialProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const navigate = useNavigate();
 
-  const currentStep = TUTORIAL_STEPS[currentStepIndex];
-  const progressPercent = Math.round(((currentStepIndex + 1) / TUTORIAL_STEPS.length) * 100);
+  // Estados interactivos para los mini-simuladores cute de cada paso
+  const [simFamilyShown, setSimFamilyShown] = useState(true);
+  const [simPairedDay, setSimPairedDay] = useState<"LM" | "MJ">("LM");
+  const [simAttendanceState, setSimAttendanceState] = useState<"presente" | "ausente" | "tarde" | "justificada">("presente");
+  const [simPaymentDone, setSimPaymentDone] = useState(false);
+  const [simCopiedInvite, setSimCopiedInvite] = useState(false);
+  const [simTeacherClockedIn, setSimTeacherClockedIn] = useState(true);
+  const [simElapsedSeconds, setSimElapsedSeconds] = useState(24);
+
+  // Timer para el simulador del paso 6
+  useEffect(() => {
+    if (!simTeacherClockedIn) return;
+    const interval = setInterval(() => {
+      setSimElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [simTeacherClockedIn]);
+
+  const stepsCount = 6;
+  const progressPercent = Math.round(((currentStepIndex + 1) / stepsCount) * 100);
 
   const handleNext = () => {
-    if (currentStepIndex < TUTORIAL_STEPS.length - 1) {
+    if (currentStepIndex < stepsCount - 1) {
       setCurrentStepIndex((prev) => prev + 1);
     } else {
       handleFinish();
@@ -249,118 +87,632 @@ export function StaffOnboardingTutorial({ isOpen, onClose }: StaffOnboardingTuto
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[94vw] sm:max-w-2xl w-full p-0 overflow-hidden rounded-3xl bg-[#0D0B0A] border-2 border-[#F47B20]/30 shadow-2xl text-[#FFF8EC]">
-        {/* Cabecera con Progreso y Colores Oficiales */}
-        <div className="bg-[#1A1410] border-b border-[#F47B20]/20 p-5 sm:p-6 space-y-3">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl w-full p-0 overflow-hidden rounded-3xl bg-[#0D0B0A] border-2 border-[#F47B20]/40 shadow-2xl text-[#FFF8EC]">
+        {/* Título oculto accesible para cumplir requerimientos de Dialog */}
+        <DialogTitle className="sr-only">Guía de Inducción Operativa Vibra Music</DialogTitle>
+
+        {/* 🌟 CABECERA OFICIAL VIBRA MUSIC */}
+        <div className="bg-[#1A1410] border-b border-[#F47B20]/25 p-4 sm:p-6 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-[#F47B20]/20 text-[#F47B20] font-black text-sm">
-                🎓
-              </span>
+            <div className="flex items-center gap-2.5">
+              <motion.div
+                whileHover={{ rotate: 15, scale: 1.1 }}
+                className="flex items-center justify-center h-9 w-9 rounded-2xl bg-gradient-to-br from-[#F47B20] to-[#FFB52E] text-[#15120F] font-black text-base shadow-md"
+              >
+                🎶
+              </motion.div>
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-[#FFB52E]">
-                  Guía de Inducción Operativa · Vibra Music
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Paso a paso para Secretaría y Dirección General
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-[#F47B20]/20 text-[#FFB52E] border border-[#F47B20]/30">
+                    Vibra Music Staff
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-semibold">· Inducción</span>
+                </div>
+                <h3 className="text-sm font-black text-white">Guía Operativa Paso a Paso</h3>
               </div>
             </div>
-            <button
+
+            <motion.button
+              whileTap={{ scale: 0.9 }}
               onClick={onClose}
-              className="p-1.5 rounded-full hover:bg-white/10 text-muted-foreground hover:text-white transition-colors"
-              title="Cerrar tutorial"
+              className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+              title="Cerrar guía"
             >
               <X className="h-5 w-5" />
-            </button>
+            </motion.button>
           </div>
 
-          {/* Barra de progreso */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] font-bold">
-              <span className="text-[#FF9E3D]">{currentStep.badge}</span>
-              <span className="text-muted-foreground font-mono">{progressPercent}% completado</span>
-            </div>
-            <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-gradient-to-r from-[#F47B20] to-[#FFB52E] h-full transition-all duration-300 rounded-full"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
+          {/* Selector de Píldoras de Pasos (1..6) */}
+          <div className="flex items-center justify-between gap-1.5 pt-1">
+            {[
+              { num: 1, label: "Alumnos", icon: "🎓" },
+              { num: 2, label: "Horarios", icon: "🗓️" },
+              { num: 3, label: "Asistencia", icon: "✅" },
+              { num: 4, label: "Cobros", icon: "💳" },
+              { num: 5, label: "Accesos", icon: "🔑" },
+              { num: 6, label: "Docentes", icon: "⏱️" },
+            ].map((p, idx) => (
+              <motion.button
+                key={p.num}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setCurrentStepIndex(idx)}
+                className={`flex-1 py-1.5 px-1 rounded-xl text-center text-[10px] font-black transition-all border ${
+                  currentStepIndex === idx
+                    ? "bg-[#F47B20] text-[#15120F] border-[#FFB52E] shadow-md font-black"
+                    : idx < currentStepIndex
+                    ? "bg-[#1A1410] text-[#FFB52E] border-[#FFB52E]/30"
+                    : "bg-white/5 text-neutral-400 border-white/10 hover:border-white/20"
+                }`}
+              >
+                <span className="block sm:inline">{p.icon} </span>
+                <span className="hidden sm:inline">{p.label}</span>
+                <span className="sm:hidden">{p.num}</span>
+              </motion.button>
+            ))}
+          </div>
+
+          {/* Barra de progreso interactiva */}
+          <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+            <motion.div
+              className="bg-gradient-to-r from-[#F47B20] via-[#FF9E3D] to-[#FFB52E] h-full rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPercent}%` }}
+              transition={{ duration: 0.3 }}
+            />
           </div>
         </div>
 
-        {/* Contenido del Paso */}
-        <div className="p-5 sm:p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+        {/* 📋 CUERPO DEL PASO CON MINI-SIMULADOR CUTE INTERACTIVO */}
+        <div className="p-4 sm:p-6 space-y-4 max-h-[68vh] overflow-y-auto">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep.step}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-4"
-            >
-              {/* Título del paso */}
-              <div className="space-y-1">
-                <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5">
-                  <currentStep.icon className={`h-6 w-6 ${currentStep.color} shrink-0`} />
-                  {currentStep.title}
-                </h2>
-                <p className="text-xs sm:text-sm text-neutral-300 font-medium">
-                  {currentStep.subtitle}
-                </p>
-              </div>
+            {/* ── PASO 1: REGISTRO DE ALUMNOS ── */}
+            {currentStepIndex === 0 && (
+              <motion.div
+                key="step-1"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-4"
+              >
+                <div>
+                  <Badge className="bg-[#FFB52E]/20 text-[#FFB52E] border-[#FFB52E]/40 font-black text-[10px] uppercase">
+                    Paso 1 de 6 · Directorio y Matrículas
+                  </Badge>
+                  <h2 className="text-xl sm:text-2xl font-black text-white mt-1 flex items-center gap-2">
+                    🎓 Registro de Alumnos con Contactos Completos
+                  </h2>
+                  <p className="text-xs sm:text-sm text-neutral-300">
+                    Al presionar <strong>"Registrar Nuevo Alumno"</strong>, es obligatorio registrar la información de ambos padres y un contacto de emergencia adicional.
+                  </p>
+                </div>
 
-              {/* Tarjetas con Consejos y Reglas Operativas */}
-              <div className="grid gap-2.5 sm:gap-3">
-                {currentStep.tips.map((tip, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-3 p-3 sm:p-3.5 rounded-2xl bg-[#1A1410] border border-white/10 hover:border-[#F47B20]/40 transition-colors shadow-xs"
+                {/* Simulador Interactivo Cute: Ficha Familiar */}
+                <div className="rounded-2xl border-2 border-[#F47B20]/30 bg-[#1A1410] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-[#FFB52E] flex items-center gap-1.5">
+                      ✨ Vista Interactiva: Ficha Familiar Vibra
+                    </span>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setSimFamilyShown(!simFamilyShown)}
+                      className="text-[11px] font-bold text-[#F47B20] hover:underline"
+                    >
+                      {simFamilyShown ? "Ocultar Ejemplo" : "Mostrar Ejemplo"}
+                    </motion.button>
+                  </div>
+
+                  {simFamilyShown && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="grid gap-2.5 text-xs"
+                    >
+                      <div className="p-2.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">👧</span>
+                          <div>
+                            <p className="font-bold text-white">Luciana Mendoza (9 años)</p>
+                            <p className="text-[11px] text-[#FFB52E]">Categoría: 🟡 Junior (7 a 12 años) · Piano</p>
+                          </div>
+                        </div>
+                        <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px]">Activo</Badge>
+                      </div>
+
+                      <div className="grid sm:grid-cols-3 gap-2">
+                        <motion.div whileHover={{ scale: 1.02 }} className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                          <p className="text-[10px] text-neutral-400 font-bold uppercase">👨 Papá</p>
+                          <p className="font-bold text-white">Carlos Mendoza</p>
+                          <p className="text-[10px] font-mono text-[#FF9E3D]">987-654-321</p>
+                        </motion.div>
+
+                        <motion.div whileHover={{ scale: 1.02 }} className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                          <p className="text-[10px] text-neutral-400 font-bold uppercase">👩 Mamá</p>
+                          <p className="font-bold text-white">Rosa Huamán</p>
+                          <p className="text-[10px] font-mono text-[#FF9E3D]">984-123-456</p>
+                        </motion.div>
+
+                        <motion.div whileHover={{ scale: 1.02 }} className="p-2.5 rounded-xl bg-[#F47B20]/15 border border-[#F47B20]/40">
+                          <p className="text-[10px] text-[#FFB52E] font-black uppercase">👵 Apoderado Emergencia</p>
+                          <p className="font-bold text-white">Elena (Abuela)</p>
+                          <p className="text-[10px] font-mono text-[#FFB52E]">991-000-222</p>
+                        </motion.div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-[#FFB52E]/30 bg-[#FFB52E]/10 p-3 text-xs font-semibold text-[#FFB52E] flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 shrink-0 text-[#FFB52E]" />
+                  <span><strong>Regla de Oro:</strong> Contar con los teléfonos de ambos padres y la abuela/tío evita llamadas perdidas ante urgencias o reprogramaciones.</span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── PASO 2: HORARIO Y DÍAS PAREADOS ── */}
+            {currentStepIndex === 1 && (
+              <motion.div
+                key="step-2"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-4"
+              >
+                <div>
+                  <Badge className="bg-[#F47B20]/20 text-[#F47B20] border-[#F47B20]/40 font-black text-[10px] uppercase">
+                    Paso 2 de 6 · Horario y Vacantes
+                  </Badge>
+                  <h2 className="text-xl sm:text-2xl font-black text-white mt-1 flex items-center gap-2">
+                    🗓️ Días Pareados (Regla Vibra) y Aforo Máximo
+                  </h2>
+                  <p className="text-xs sm:text-sm text-neutral-300">
+                    El Plan Regular tiene <strong>2 clases por semana</strong> (8 clases/mes). Vibra Music utiliza la lógica de días pareados predefinida.
+                  </p>
+                </div>
+
+                {/* Simulador Interactivo Cute: Días Pareados */}
+                <div className="rounded-2xl border-2 border-[#F47B20]/30 bg-[#1A1410] p-4 space-y-3">
+                  <span className="text-xs font-black text-[#FFB52E] block">
+                    ✨ Toca un botón para probar la sincronización automática:
+                  </span>
+
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setSimPairedDay("LM")}
+                      className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs transition-all border ${
+                        simPairedDay === "LM"
+                          ? "bg-[#F47B20] text-[#15120F] border-[#FFB52E] shadow-md"
+                          : "bg-white/5 text-white border-white/10 hover:border-white/20"
+                      }`}
+                    >
+                      🎹 Par Lunes + Miércoles
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setSimPairedDay("MJ")}
+                      className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs transition-all border ${
+                        simPairedDay === "MJ"
+                          ? "bg-[#F47B20] text-[#15120F] border-[#FFB52E] shadow-md"
+                          : "bg-white/5 text-white border-white/10 hover:border-white/20"
+                      }`}
+                    >
+                      🎸 Par Martes + Jueves
+                    </motion.button>
+                  </div>
+
+                  {/* Visualización del par seleccionado */}
+                  <div className="p-3 rounded-xl bg-black/50 border border-white/10 flex items-center justify-around text-center text-xs">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">1ra Sesión</span>
+                      <p className="font-black text-lg text-white">
+                        {simPairedDay === "LM" ? "Lunes" : "Martes"}
+                      </p>
+                      <Badge variant="outline" className="text-[10px] border-[#FFB52E] text-[#FFB52E]">4:00 PM · Sala A</Badge>
+                    </div>
+
+                    <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="text-[#F47B20] font-black text-lg">
+                      🔗
+                    </motion.div>
+
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">2da Sesión (Automática)</span>
+                      <p className="font-black text-lg text-[#FFB52E]">
+                        {simPairedDay === "LM" ? "Miércoles" : "Jueves"}
+                      </p>
+                      <Badge variant="outline" className="text-[10px] border-[#FFB52E] text-[#FFB52E]">4:00 PM · Sala A</Badge>
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-300">
+                    <span className="font-bold">👥 Aforo de esta clase: 3 / 5 alumnos</span>
+                    <span className="text-[11px] font-black bg-emerald-500/20 px-2 py-0.5 rounded-md">2 vacantes libres</span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-[#FFB52E]/30 bg-[#FFB52E]/10 p-3 text-xs font-semibold text-[#FFB52E] flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 shrink-0 text-[#FFB52E]" />
+                  <span><strong>Modo Personalizado:</strong> Si el alumno no puede días pareados, activa "Modo Personalizado" para agendar cualquier día (ej. Miércoles + Sábado). Límite estricto: máximo 5 alumnos por profesor.</span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── PASO 3: CONTROL DE ASISTENCIA Y KARDEX ── */}
+            {currentStepIndex === 2 && (
+              <motion.div
+                key="step-3"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-4"
+              >
+                <div>
+                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-black text-[10px] uppercase">
+                    Paso 3 de 6 · Asistencia en Vivo
+                  </Badge>
+                  <h2 className="text-xl sm:text-2xl font-black text-white mt-1 flex items-center gap-2">
+                    ✅ Control de Asistencias y Sincronización en Kardex
+                  </h2>
+                  <p className="text-xs sm:text-sm text-neutral-300">
+                    El profesor toma asistencia desde su celular con 1 toque en <strong>/teacher</strong>. Se refleja al instante en el Kardex y en la base de datos PostgreSQL.
+                  </p>
+                </div>
+
+                {/* Simulador Interactivo Cute: 4 Botones de Asistencia */}
+                <div className="rounded-2xl border-2 border-emerald-500/30 bg-[#1A1410] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-white">
+                      Alumno: <strong>Mateo Morales (Batería)</strong>
+                    </span>
+                    <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-black/40 border border-white/20">
+                      Estado: <strong className="text-emerald-300">{simAttendanceState.toUpperCase()}</strong>
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground">
+                    Prueba pulsar los 4 estados para ver qué ocurre en el sistema:
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.93 }}
+                      onClick={() => setSimAttendanceState("presente")}
+                      className={`p-2 rounded-xl text-xs font-black border text-center transition-all ${
+                        simAttendanceState === "presente"
+                          ? "bg-emerald-600 text-white border-emerald-400 shadow-md"
+                          : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20"
+                      }`}
+                    >
+                      🟢 Presente
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.93 }}
+                      onClick={() => setSimAttendanceState("ausente")}
+                      className={`p-2 rounded-xl text-xs font-black border text-center transition-all ${
+                        simAttendanceState === "ausente"
+                          ? "bg-red-600 text-white border-red-400 shadow-md"
+                          : "bg-red-500/10 text-red-300 border-red-500/30 hover:bg-red-500/20"
+                      }`}
+                    >
+                      🔴 Ausente
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.93 }}
+                      onClick={() => setSimAttendanceState("tarde")}
+                      className={`p-2 rounded-xl text-xs font-black border text-center transition-all ${
+                        simAttendanceState === "tarde"
+                          ? "bg-amber-600 text-white border-amber-400 shadow-md"
+                          : "bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
+                      }`}
+                    >
+                      🟡 Tarde
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.93 }}
+                      onClick={() => setSimAttendanceState("justificada")}
+                      className={`p-2 rounded-xl text-xs font-black border text-center transition-all ${
+                        simAttendanceState === "justificada"
+                          ? "bg-blue-600 text-white border-blue-400 shadow-md"
+                          : "bg-blue-500/10 text-blue-300 border-blue-500/30 hover:bg-blue-500/20"
+                      }`}
+                    >
+                      🔵 Justificada
+                    </motion.button>
+                  </div>
+
+                  {/* Feedback dinámico */}
+                  <motion.div
+                    key={simAttendanceState}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-2.5 rounded-xl bg-black/40 border border-white/10 text-xs flex items-center gap-2"
                   >
-                    <span className="text-xl shrink-0 p-1 bg-white/5 rounded-xl">{tip.icon}</span>
-                    <div className="space-y-0.5 min-w-0">
-                      <p className="text-xs sm:text-sm font-bold text-white">{tip.title}</p>
-                      <p className="text-[11px] sm:text-xs text-neutral-300 leading-relaxed font-normal">
-                        {tip.desc}
+                    {simAttendanceState === "presente" && <span>🟢 Asistencia sumada (+1 clase computada en el mes).</span>}
+                    {simAttendanceState === "ausente" && <span>🔴 Falta sin aviso registrada. El porcentaje de asistencia baja.</span>}
+                    {simAttendanceState === "tarde" && <span>🟡 Marcado tardío registrado. El alumno ingresó a clase.</span>}
+                    {simAttendanceState === "justificada" && (
+                      <span className="text-blue-300 font-bold flex items-center gap-1">
+                        <Star className="h-3.5 w-3.5 text-blue-400 fill-blue-400" />
+                        ¡Aviso anticipado! Se le abonó +1 Crédito de Recuperación automáticamente.
+                      </span>
+                    )}
+                  </motion.div>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs font-semibold text-emerald-300 flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 shrink-0 text-emerald-300" />
+                  <span><strong>Secretaría también puede marcar:</strong> En Directorio de Alumnos, toca "Kardex" para ver el historial y corregir o justificar una falta si la mamá avisó por WhatsApp.</span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── PASO 4: COBROS Y FACTURACIÓN ── */}
+            {currentStepIndex === 3 && (
+              <motion.div
+                key="step-4"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-4"
+              >
+                <div>
+                  <Badge className="bg-[#FF9E3D]/20 text-[#FF9E3D] border-[#FF9E3D]/40 font-black text-[10px] uppercase">
+                    Paso 4 de 6 · Pagos y Facturación
+                  </Badge>
+                  <h2 className="text-xl sm:text-2xl font-black text-white mt-1 flex items-center gap-2">
+                    💳 Cobros de Cuotas en Soles (PEN) y Culqi
+                  </h2>
+                  <p className="text-xs sm:text-sm text-neutral-300">
+                    En <strong>Cobros y Abonos</strong> controlas qué familias están al día y registras los pagos de mensualidad o matrícula.
+                  </p>
+                </div>
+
+                {/* Simulador Interactivo Cute: Cobro en 1 Clic */}
+                <div className="rounded-2xl border-2 border-[#FF9E3D]/30 bg-[#1A1410] p-4 space-y-3">
+                  <span className="text-xs font-black text-[#FFB52E] block">
+                    ✨ Prueba registrar un pago en Soles peruanos:
+                  </span>
+
+                  <div className="p-3 rounded-xl bg-black/50 border border-white/10 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold text-white">Familia Paredes · Alumno: Thiago</p>
+                      <p className="text-[11px] text-neutral-400">Cuota Mensual: <strong className="text-white font-mono">S/ 320.00 PEN</strong></p>
+                    </div>
+
+                    <Badge
+                      className={`text-xs font-black ${
+                        simPaymentDone
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                          : "bg-red-500/20 text-red-300 border-red-500/40"
+                      }`}
+                    >
+                      {simPaymentDone ? "🟢 Al Día" : "🔴 Pendiente"}
+                    </Badge>
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSimPaymentDone(!simPaymentDone)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#F47B20] to-[#FF9E3D] hover:opacity-95 text-[#15120F] font-black text-xs shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    {simPaymentDone ? (
+                      <>
+                        <RotateCcw className="h-4 w-4" /> Deshacer Pago de Prueba
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-4 w-4" /> Registrar Pago en Soles (Transferencia / Culqi)
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+
+                <div className="rounded-2xl border border-[#FFB52E]/30 bg-[#FFB52E]/10 p-3 text-xs font-semibold text-[#FFB52E] flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 shrink-0 text-[#FFB52E]" />
+                  <span><strong>Pasarela Culqi:</strong> Integrada para cobros oficiales con tarjeta y transferencias bancarias en Soles PEN. Emite comprobante automático.</span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── PASO 5: INVITACIONES Y CLAVES MAESTRAS ── */}
+            {currentStepIndex === 4 && (
+              <motion.div
+                key="step-5"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-4"
+              >
+                <div>
+                  <Badge className="bg-[#FFB52E]/20 text-[#FFB52E] border-[#FFB52E]/40 font-black text-[10px] uppercase">
+                    Paso 5 de 6 · Enlaces y Credenciales
+                  </Badge>
+                  <h2 className="text-xl sm:text-2xl font-black text-white mt-1 flex items-center gap-2">
+                    🔑 Enlaces de WhatsApp y Claves Maestras Oficiales
+                  </h2>
+                  <p className="text-xs sm:text-sm text-neutral-300">
+                    A cada profesor y apoderado se le envía su enlace oficial para ingresar sin contraseña compleja. Cada docente tiene su <strong>Clave Maestra única</strong>.
+                  </p>
+                </div>
+
+                {/* Simulador Interactivo Cute: Copiar Enlace y Reset */}
+                <div className="rounded-2xl border-2 border-[#FFB52E]/30 bg-[#1A1410] p-4 space-y-3">
+                  <div className="p-3 rounded-xl bg-black/50 border border-white/10 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white">Prof. Fernando (Violín y Piano)</span>
+                      <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px]">Aceptado</Badge>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-white/5 font-mono text-[11px] text-[#FFB52E] flex items-center justify-between">
+                      <span>Clave Maestra Oficial: <strong>Vibra-FERNAN-2026</strong></span>
+                      <span className="text-[9px] text-muted-foreground">(Inmutable)</span>
+                    </div>
+
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setSimCopiedInvite(true);
+                        setTimeout(() => setSimCopiedInvite(false), 2500);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+                    >
+                      {simCopiedInvite ? (
+                        <>
+                          <Check className="h-4 w-4 text-emerald-400" /> ¡Mensaje Copiado para WhatsApp!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4 text-[#FFB52E]" /> Copiar Enlace y Mensaje de WhatsApp
+                        </>
+                      )}
+                    </motion.button>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1">
+                    <span>Jeremy: <strong className="text-white font-mono">Vibra-ZL3F-EMGN</strong></span>
+                    <span>Nathaly: <strong className="text-white font-mono">Vibra-NATHAL-2026</strong></span>
+                    <span>Nayeli: <strong className="text-white font-mono">NayeliVibra2026*</strong></span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-[#FFB52E]/30 bg-[#FFB52E]/10 p-3 text-xs font-semibold text-[#FFB52E] flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 shrink-0 text-[#FFB52E]" />
+                  <span><strong>Botón Reset:</strong> Si el profesor olvidó su clave personalizada, pulsar "Reset" en el panel restaura su Clave Maestra oficial directamente a estado pendiente.</span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── PASO 6: ASISTENCIA DOCENTE EN SEDE ── */}
+            {currentStepIndex === 5 && (
+              <motion.div
+                key="step-6"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-4"
+              >
+                <div>
+                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-black text-[10px] uppercase">
+                    Paso 6 de 6 · Fichaje y Nómina
+                  </Badge>
+                  <h2 className="text-xl sm:text-2xl font-black text-white mt-1 flex items-center gap-2">
+                    ⏱️ Asistencia Docente en Sede y Cómputo de Nómina
+                  </h2>
+                  <p className="text-xs sm:text-sm text-neutral-300">
+                    Al llegar a la sede de Miraflores, los profesores pulsan <strong>"Marcar Entrada"</strong>. Secretaría y Dirección ven en tiempo real quiénes están presentes.
+                  </p>
+                </div>
+
+                {/* Simulador Interactivo Cute: Reloj de Sede */}
+                <div className="rounded-2xl border-2 border-emerald-500/30 bg-[#1A1410] p-4 space-y-3">
+                  <div className="p-3 rounded-xl bg-black/50 border border-white/10 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-black">
+                        🎻
+                      </div>
+                      <div>
+                        <p className="font-black text-white">Fernando (Violín y Piano)</p>
+                        <p className="text-[11px] text-neutral-400">Sede Principal · Sala B</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[11px]">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+                        Trabajando
+                      </span>
+                      <p className="font-mono text-[10px] text-neutral-400 mt-0.5">
+                        {Math.floor(simElapsedSeconds / 60)}m {simElapsedSeconds % 60}s transcurridos
                       </p>
                     </div>
                   </div>
-                ))}
-              </div>
 
-              {/* Regla de Oro / Alerta Clave */}
-              <div className="rounded-2xl border border-[#FFB52E]/30 bg-[#FFB52E]/10 p-3 text-xs font-semibold text-[#FFB52E] flex items-center gap-2">
-                <Lightbulb className="h-4 w-4 shrink-0 text-[#FFB52E]" />
-                <span>{currentStep.keyRule}</span>
-              </div>
-            </motion.div>
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs flex items-center justify-between text-neutral-300">
+                    <span>Monitoreo en vivo: <strong>3 profesores en sede</strong></span>
+                    <Badge variant="outline" className="text-[10px] border-emerald-400 text-emerald-400 font-bold">🟢 Sincronizado</Badge>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs font-semibold text-emerald-300 flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 shrink-0 text-emerald-300" />
+                  <span><strong>Cierre de Mes:</strong> En "Asistencia Docente", la pestaña "Kardex Mensual" consolida automáticamente todas las horas netas y turnos de cada profesor para su pago.</span>
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
 
-        {/* Pie de navegación */}
-        <div className="bg-[#1A1410] border-t border-[#F47B20]/20 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2.5">
+        {/* 🔘 PIE DE NAVEGACIÓN CON ANIMACIONES CUTE */}
+        <div className="bg-[#1A1410] border-t border-[#F47B20]/25 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.95 }}
               onClick={handlePrev}
               disabled={currentStepIndex === 0}
-              className="border-white/10 hover:bg-white/10 text-white font-bold h-9 text-xs"
+              className="px-3.5 py-2 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white font-bold text-xs disabled:opacity-30 disabled:pointer-events-none flex items-center gap-1"
             >
-              <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
-            </Button>
+              <ChevronLeft className="h-4 w-4" /> Anterior
+            </motion.button>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleNavigateToModule(currentStep.route)}
-              className="text-[#FF9E3D] hover:bg-[#FF9E3D]/10 font-bold h-9 text-xs gap-1.5"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              {currentStep.routeLabel}
-            </Button>
+            {currentStepIndex === 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleNavigateToModule("/admin/alumnos")}
+                className="text-[#FFB52E] hover:bg-[#FFB52E]/10 font-bold h-9 text-xs gap-1"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Ir a Alumnos
+              </Button>
+            )}
+            {currentStepIndex === 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleNavigateToModule("/admin/agenda")}
+                className="text-[#F47B20] hover:bg-[#F47B20]/10 font-bold h-9 text-xs gap-1"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Ir a Horarios
+              </Button>
+            )}
+            {currentStepIndex === 3 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleNavigateToModule("/admin/facturacion")}
+                className="text-[#FF9E3D] hover:bg-[#FF9E3D]/10 font-bold h-9 text-xs gap-1"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Ir a Facturación
+              </Button>
+            )}
+            {currentStepIndex === 4 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleNavigateToModule("/admin/invitaciones")}
+                className="text-[#FFB52E] hover:bg-[#FFB52E]/10 font-bold h-9 text-xs gap-1"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Ir a Invitaciones
+              </Button>
+            )}
+            {currentStepIndex === 5 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleNavigateToModule("/admin/control-horario")}
+                className="text-emerald-400 hover:bg-emerald-400/10 font-bold h-9 text-xs gap-1"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Ir a Control Horario
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -368,26 +720,27 @@ export function StaffOnboardingTutorial({ isOpen, onClose }: StaffOnboardingTuto
               variant="ghost"
               size="sm"
               onClick={handleFinish}
-              className="text-muted-foreground hover:text-white text-xs"
+              className="text-neutral-400 hover:text-white text-xs"
             >
               Saltar
             </Button>
 
-            <Button
-              size="sm"
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.94 }}
               onClick={handleNext}
-              className="bg-gradient-to-r from-[#F47B20] to-[#FF9E3D] hover:from-[#F47B20]/90 hover:to-[#FF9E3D]/90 text-white font-black h-9 text-xs gap-1.5 shadow-md px-4"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#F47B20] via-[#FF9E3D] to-[#FFB52E] text-[#15120F] font-black text-xs shadow-lg flex items-center gap-1.5 transition-all"
             >
-              {currentStepIndex === TUTORIAL_STEPS.length - 1 ? (
+              {currentStepIndex === stepsCount - 1 ? (
                 <>
-                  <CheckCircle2 className="h-4 w-4" /> ¡Entendido! Completar
+                  <CheckCircle2 className="h-4 w-4" /> ¡Entendido! Completar Inducción
                 </>
               ) : (
                 <>
                   Siguiente <ChevronRight className="h-4 w-4" />
                 </>
               )}
-            </Button>
+            </motion.button>
           </div>
         </div>
       </DialogContent>
