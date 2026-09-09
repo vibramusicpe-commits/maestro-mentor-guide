@@ -3730,6 +3730,18 @@ function ScheduleStudentForm({
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
   const assignTeacher = useAppStore((s) => s.assignTeacher);
 
+  // Estados de profesor, instrumento y categoría
+  const [teacher, setTeacher] = useState(
+    student.teacher && student.teacher !== "Prof. por Asignar"
+      ? student.teacher
+      : availableTeachers[0] || "Prof. por Asignar"
+  );
+  const [instrument, setInstrument] = useState(student.instrument || musicalInstruments[0] || "Piano");
+  const [category, setCategory] = useState<AgeCategory>(
+    (student.category as AgeCategory) ||
+      (student.age >= 18 ? "ADULTO" : student.age >= 13 ? "JUVENIL" : student.age >= 7 ? "JUNIOR" : "INFANTIL")
+  );
+
   const isRegular = student.modality.toLowerCase().includes("reg") || student.modality.includes("8");
   const isIntensive = student.modality.toLowerCase().includes("inten") || student.modality.includes("4");
 
