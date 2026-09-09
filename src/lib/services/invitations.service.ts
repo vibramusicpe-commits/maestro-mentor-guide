@@ -173,6 +173,38 @@ export async function createInvitation(
   const safeNameSlug = encodeURIComponent(payload.targetName.trim().replace(/\s+/g, "_"));
   const token = `inv-${payload.targetRole}-${safeNameSlug}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
+  // Sanitización de UUIDs obligatoria para PostgreSQL
+  const resolveCreatorUUID = (input?: string): string => {
+    if (!input) return "00000000-0000-0000-0000-000000000001";
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input);
+    if (isUuid) return input;
+    const lower = input.toLowerCase();
+    if (lower.includes("sergio")) return "00000000-0000-0000-0000-000000000007";
+    if (lower.includes("nayeli")) return "00000000-0000-0000-0000-000000000002";
+    if (lower.includes("jeremy")) return "00000000-0000-0000-0000-000000000003";
+    if (lower.includes("fernando")) return "00000000-0000-0000-0000-000000000004";
+    if (lower.includes("nathaly")) return "00000000-0000-0000-0000-000000000005";
+    return "00000000-0000-0000-0000-000000000001"; // Dueña default
+  };
+
+  const validCreatorId = resolveCreatorUUID(createdByUserId);
+  const validFamilyId =
+    payload.targetFamilyId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.targetFamilyId)
+      ? payload.targetFamilyId
+      : null;
+
+  let validTeacherId: string | null = null;
+  if (payload.targetTeacherId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.targetTeacherId)) {
+    validTeacherId = payload.targetTeacherId;
+  } else if (payload.targetRole === "teacher") {
+    const lowerEmail = payload.targetEmail.toLowerCase();
+    if (lowerEmail.includes("jeremy")) validTeacherId = "00000000-0000-0000-0000-000000000003";
+    else if (lowerEmail.includes("fernando")) validTeacherId = "00000000-0000-0000-0000-000000000004";
+    else if (lowerEmail.includes("nathaly")) validTeacherId = "00000000-0000-0000-0000-000000000005";
+    else if (lowerEmail.includes("demo")) validTeacherId = "00000000-0000-0000-0000-000000000006";
+  }
+
   let invitation: DBInvitation;
   try {
     invitation = await postgrestInsert<DBInvitation>("invitations", {
@@ -180,15 +212,16 @@ export async function createInvitation(
       target_role: payload.targetRole,
       target_name: payload.targetName,
       target_email: payload.targetEmail,
-      target_family_id: payload.targetFamilyId ?? null,
-      target_teacher_id: payload.targetTeacherId ?? null,
+      target_family_id: validFamilyId,
+      target_teacher_id: validTeacherId,
       master_password: masterPassword,
       master_password_hint: masterPasswordHint,
-      created_by_user_id: createdByUserId || "00000000-0000-0000-0000-000000000001",
+      created_by_user_id: validCreatorId,
       created_by_role: userRole,
       status: "pendiente",
     });
-  } catch {
+  } catch (insertErr) {
+    console.warn("Aviso al insertar en Insforge PostgreSQL, recurriendo a fallback local:", insertErr);
     // Fallback local seguro para MVP y entorno offline
     invitation = {
       id: `local-inv-${Date.now()}`,
@@ -196,10 +229,10 @@ export async function createInvitation(
       target_role: payload.targetRole,
       target_name: payload.targetName,
       target_email: payload.targetEmail,
-      target_family_id: payload.targetFamilyId ?? null,
-      target_teacher_id: payload.targetTeacherId ?? null,
+      target_family_id: validFamilyId,
+      target_teacher_id: validTeacherId,
       master_password_hint: masterPasswordHint,
-      created_by_user_id: createdByUserId || "00000000-0000-0000-0000-000000000001",
+      created_by_user_id: validCreatorId,
       created_by_role: userRole,
       status: "pendiente",
       accepted_at: null,
@@ -873,9 +906,11 @@ export async function getInvitations(
       if (remote) {
         return {
           ...item,
+          id: remote.id,
+          token: remote.token,
           status: remote.status,
           accepted_at: remote.accepted_at || item.accepted_at,
-          master_password: remote.master_password || item.master_password,
+          master_password: (remote as any).master_password || item.master_password,
         };
       }
       return item;
