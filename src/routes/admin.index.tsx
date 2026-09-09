@@ -5,6 +5,7 @@ import { DeletionRequestsPanel } from "@/components/admin/deletion-requests-pane
 import { RiskFamiliesTable } from "@/components/admin/risk-families-table";
 import { AlertsPanel } from "@/components/admin/alerts-panel";
 import { BirthdayWidget } from "@/components/admin/birthday-widget";
+import { TeacherAttendanceWidget } from "@/components/admin/teacher-attendance-widget";
 import { useAppStore } from "@/store/app-store";
 import { getDailyGreeting } from "@/lib/greetings";
 import { Settings, Sparkles, User, Check } from "lucide-react";
@@ -95,6 +96,9 @@ function AdminDashboard() {
       </div>
 
       <MetricCards />
+
+      {/* Widget de Asistencia Docente y Monitoreo en Vivo */}
+      <TeacherAttendanceWidget />
 
       {/* Panel de Solicitudes de Eliminación (Exclusivo Dirección y Secretaría) */}
       <DeletionRequestsPanel />

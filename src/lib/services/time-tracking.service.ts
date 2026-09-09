@@ -37,6 +37,18 @@ export interface PayrollReportRow {
   total_hours: number;
 }
 
+export interface TeacherMonthlySummary {
+  teacherId: string;
+  teacherName: string;
+  specialty?: string;
+  totalShifts: number;
+  totalMinutes: number;
+  totalHours: number;
+  lastShiftDate: string | null;
+  lastShiftStatus: ShiftStatus | "fuera";
+  isCurrentlyInSede: boolean;
+}
+
 // ---------------------------------------------------------------
 // MAPEO DE UUIDs DE PROFESORES EN POSTGRESQL
 // ---------------------------------------------------------------
@@ -345,5 +357,205 @@ export function exportPayrollToCSV(
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------
+// EDGE: getTeacherTimeLogs (Historial completo de asistencias docentes)
+// ---------------------------------------------------------------
+export async function getTeacherTimeLogs(params?: {
+  teacherId?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+}): Promise<DBTeacherTimeLog[]> {
+  try {
+    const filter: Record<string, string> = {
+      order: "clock_in.desc",
+      limit: String(params?.limit || 200),
+    };
+
+    if (params?.teacherId && params.teacherId !== "todos") {
+      filter.teacher_id = `eq.${params.teacherId}`;
+    }
+
+    const remote = await postgrestSelect<DBTeacherTimeLog>("teacher_time_logs", filter);
+    const local = getShiftsFromLocalCache();
+
+    // Combinar y desduplicar por ID
+    const map = new Map<string, DBTeacherTimeLog>();
+    remote.forEach((r) => map.set(r.id, r));
+    local.forEach((l) => {
+      if (!map.has(l.id)) map.set(l.id, l);
+    });
+
+    let list = Array.from(map.values()).sort(
+      (a, b) => new Date(b.clock_in).getTime() - new Date(a.clock_in).getTime()
+    );
+
+    if (params?.teacherId && params.teacherId !== "todos") {
+      list = list.filter((s) => s.teacher_id === params.teacherId);
+    }
+    if (params?.startDate) {
+      const startMs = new Date(params.startDate).getTime();
+      list = list.filter((s) => new Date(s.clock_in).getTime() >= startMs);
+    }
+    if (params?.endDate) {
+      const endMs = new Date(params.endDate).getTime() + 86400000;
+      list = list.filter((s) => new Date(s.clock_in).getTime() <= endMs);
+    }
+
+    return list;
+  } catch (err) {
+    console.warn("Aviso al consultar historial de turnos en Insforge:", err);
+    return getShiftsFromLocalCache();
+  }
+}
+
+// ---------------------------------------------------------------
+// HELPER: computeTeacherMonthlySummary (Consolidado por docente para el Dashboard)
+// ---------------------------------------------------------------
+export function computeTeacherMonthlySummary(
+  shifts: DBTeacherTimeLog[],
+  activeShifts: DBTeacherTimeLog[],
+): TeacherMonthlySummary[] {
+  const teachersList = [
+    {
+      id: "00000000-0000-0000-0000-000000000005",
+      name: "Nathaly",
+      fullName: "Nathaly (Canto y Piano)",
+      specialty: "Canto, Técnica Vocal & Piano",
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000003",
+      name: "Jeremy",
+      fullName: "Jeremy (Batería & Guitarra)",
+      specialty: "Batería, Percusión & Guitarra",
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000004",
+      name: "Fernando",
+      fullName: "Fernando (Guitarra & Violín)",
+      specialty: "Guitarra Clásica/Eléctrica & Violín",
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000006",
+      name: "Profesor Demo",
+      fullName: "Profesor Demo (General)",
+      specialty: "Iniciación Musical & Suplencias",
+    },
+  ];
+
+  return teachersList.map((t) => {
+    const teacherShifts = shifts.filter(
+      (s) => s.teacher_id === t.id || s.teacher_name?.toLowerCase().includes(t.name.toLowerCase())
+    );
+
+    const activeShift = activeShifts.find(
+      (s) => (s.teacher_id === t.id || s.teacher_name?.toLowerCase().includes(t.name.toLowerCase())) && s.status !== "finalizado"
+    );
+
+    let totalMinutes = 0;
+    teacherShifts.forEach((s) => {
+      let mins = s.total_minutes_worked || 0;
+      if (mins === 0 && s.clock_out) {
+        mins = Math.max(0, Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 60000) - (s.break_minutes || 0));
+      } else if (mins === 0 && !s.clock_out) {
+        mins = Math.max(0, Math.floor((Date.now() - new Date(s.clock_in).getTime()) / 60000) - (s.break_minutes || 0));
+      }
+      totalMinutes += mins;
+    });
+
+    const latestShift = teacherShifts[0];
+
+    return {
+      teacherId: t.id,
+      teacherName: t.fullName,
+      specialty: t.specialty,
+      totalShifts: teacherShifts.length,
+      totalMinutes,
+      totalHours: Number((totalMinutes / 60).toFixed(2)),
+      lastShiftDate: latestShift ? latestShift.clock_in : null,
+      lastShiftStatus: activeShift ? activeShift.status : (latestShift ? latestShift.status : "fuera"),
+      isCurrentlyInSede: !!activeShift,
+    };
+  });
+}
+
+// ---------------------------------------------------------------
+// HELPER: exportDetailedAttendanceCSV (Exportación detallada de asistencias docentes)
+// ---------------------------------------------------------------
+export function exportDetailedAttendanceCSV(
+  shifts: DBTeacherTimeLog[],
+  monthLabel: string,
+): void {
+  const BOM = "\uFEFF";
+  const headerLines = [
+    `"VIBRA MUSIC — REPORTE DE ASISTENCIA Y CONTROL HORARIO DOCENTE"`,
+    `"Periodo:","${monthLabel}"`,
+    `"Fecha de Exportación:","${new Date().toLocaleDateString("es-PE")} ${new Date().toLocaleTimeString("es-PE")}"`,
+    `""`,
+  ];
+
+  const columnHeaders = [
+    '"Fecha"',
+    '"Profesor"',
+    '"Hora Ingreso"',
+    '"Hora Salida"',
+    '"Pausa (Min)"',
+    '"Minutos Netos"',
+    '"Horas Decimales"',
+    '"Tiempo Formateado"',
+    '"Estado"',
+    '"Dispositivo"',
+  ].join(",");
+
+  const dataRows = shifts.map((s) => {
+    const d = new Date(s.clock_in);
+    const dateStr = d.toLocaleDateString("es-PE", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+    const inTime = d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+    const outTime = s.clock_out
+      ? new Date(s.clock_out).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
+      : "En sede (Sin salida)";
+
+    let mins = s.total_minutes_worked || 0;
+    if (mins === 0 && s.clock_out) {
+      mins = Math.max(0, Math.floor((new Date(s.clock_out).getTime() - d.getTime()) / 60000) - (s.break_minutes || 0));
+    } else if (mins === 0 && !s.clock_out) {
+      mins = Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000) - (s.break_minutes || 0));
+    }
+    const hrsDecimal = (mins / 60).toFixed(2);
+    const hrs = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    const formattedHours = hrs > 0 ? `${hrs}h ${remMins}m` : `${remMins}m`;
+
+    return [
+      `"${dateStr}"`,
+      `"${s.teacher_name}"`,
+      `"${inTime}"`,
+      `"${outTime}"`,
+      `"${s.break_minutes || 0}"`,
+      `"${mins}"`,
+      `"${hrsDecimal}"`,
+      `"${formattedHours}"`,
+      `"${s.status === "trabajando" ? "En Sede" : s.status === "pausa" ? "En Pausa" : "Finalizado"}"`,
+      `"${s.origin_device || "Kiosco Móvil"}"`,
+    ].join(",");
+  });
+
+  const csvContent = [BOM, ...headerLines, columnHeaders, ...dataRows].join("\r\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `asistencias_docentes_${monthLabel.replace(/[\s\/]+/g, "_").toLowerCase()}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }

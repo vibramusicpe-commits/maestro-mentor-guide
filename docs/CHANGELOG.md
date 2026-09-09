@@ -4,6 +4,16 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.7.5] - 2026-09-09
+
+### Añadido & Optimizado
+- **Dashboard Mensual de Asistencia Docente, Kardex Histórico y Monitoreo en Vivo (ADR 0081)**:
+  - **Kardex Mensual de Profesores (`/admin/control-horario`)**: Nueva pestaña con selector dinámico de mes y año (2026), filtro por docente (Nathaly, Jeremy, Fernando, Demo), 4 tarjetas KPI (Horas netas, días asistidos, docentes en sede, promedio de horas por turno) y tabla cronológica de turnos históricos con insignias de estado.
+  - **Descubrimiento y Navegación Directa (`/admin`)**: Ítem del menú lateral actualizado a **"Asistencia Docente"** con el ícono representativo `UserCheck`.
+  - **Widget de Presencia Docente en Dashboard Principal (`TeacherAttendanceWidget`)**: Banner interactivo en `/admin` mostrando en tiempo real los docentes presentes en la sede de Miraflores con badge verde pulsante y botón de acceso rápido `"Ver Asistencias del Mes →"`.
+  - **Auditoría y Exportación Oficial**: Función `exportDetailedAttendanceCSV` para exportar a Microsoft Excel (.CSV con UTF-8 BOM) el detalle de asistencia con fecha, hora de entrada, salida, refrigerio y horas trabajadas.
+  - **Persistencia en Insforge PostgreSQL**: Conexión con `teacher_time_logs` respaldando registros reales como el fichaje de Nathaly (`647fd9d3-51cb-4df0-9136-dea9eed334b7`).
+
 ## [1.7.4] - 2026-09-08
 
 ### Certificado & Optimizado

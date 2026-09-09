@@ -2,8 +2,32 @@
 ===================================================================
 Proyecto: Vibra Music — Cadencia (Maestro Mentor Guide)
 Directorio de Logs: docs/logs/system_audit.log
-Última Actualización: 2026-09-08 20:00:00 -05:00
+Última Actualización: 2026-09-09 17:00:00 -05:00
 ===================================================================
+
+[2026-09-09 17:00:00 -05:00] [FEAT & UX] [TEACHER-ATTENDANCE-MONTHLY-DASHBOARD-AND-KARDEX]
+- Creación quirúrgica del Dashboard Mensual de Asistencia Docente y Kardex Histórico para Dirección (Dueña / Sergio) y Secretaría (Nayeli):
+  1. **Causa Raíz de la Ausencia del Registro:**
+     * El turno de la profesora de canto (Nathaly) sí se guardó correctamente en `public.teacher_time_logs` (`id: 647fd9d3-51cb-4df0-9136-dea9eed334b7`), pero al haber finalizado su jornada (`status: 'finalizado'`), la pantalla anterior de `/admin/control-horario` solo mostraba turnos activos (`status !== 'finalizado'`), desvaneciéndose de la vista.
+     * No existía selector mensual ni historial cronológico para ver qué días asistió cada docente en el mes.
+  2. **Implementación de Servicios (`src/lib/services/time-tracking.service.ts`):**
+     * `getTeacherTimeLogs`: Consulta filtrada por mes, año y docente en PostgreSQL con soporte para deduplicación y fallback.
+     * `computeTeacherMonthlySummary`: Computa turnos mensuales, minutos acumulados, horas netas, último día asistido y estado actual de presencia para cada docente de la academia (Nathaly, Jeremy, Fernando, Demo).
+     * `exportDetailedAttendanceCSV`: Generador oficial de reportes en Excel (.CSV con UTF-8 BOM) con desglose por fecha, hora de entrada, salida, receso y horas trabajadas.
+  3. **Nueva Interfaz de Control de Asistencia Docente (`src/routes/admin.control-horario.tsx`):**
+     * 3 Pestañas operativas: "Kardex Mensual de Profesores", "Profesores en Sede en Vivo", y "Cierre de Nómina & Horas".
+     * Selector de mes y año interactivo (Enero a Diciembre 2026) con selector de profesor individual o vista global.
+     * 4 Tarjetas KPI: Horas Acumuladas, Días/Turnos Asistidos, En Sede Ahora Mismo, Promedio por Turno.
+     * Cuadrícula de tarjetas de resumen docente con horas acumuladas y badge de presencia en vivo.
+     * Tabla cronológica completa con fecha formateada en español, horas exactas, minutos de break, total neto y estado.
+     * Acción para forzar cierre administrativo de turnos que quedaron abiertos.
+  4. **Navegación y Acceso Directo:**
+     * En `src/routes/admin.tsx`: Menú lateral actualizado de "Control Horario" a "Asistencia Docente" con ícono `UserCheck`.
+     * En `src/routes/admin.index.tsx`: Componente `TeacherAttendanceWidget` integrado en el panel principal con contador en tiempo real de docentes en sede y botón directo "Ver Asistencias del Mes →".
+- Documentación: ADR 0081 (`docs/adr/0081-teacher-attendance-monthly-dashboard-and-kardex.md`) y CHANGELOG v1.7.5.
+- Verificación: `npm run build` completado exitosamente (0 errores, código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
 
 [2026-09-08 20:00:00 -05:00] [AUDIT & ARCH] [BACKEND-MASTER-AUDIT-AND-RPC-NORMALIZATION]
 - Certificación exhaustiva del estado del backend en Insforge PostgreSQL (v15.18) y capa de PostgREST API:
