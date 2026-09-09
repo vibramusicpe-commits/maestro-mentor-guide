@@ -181,9 +181,15 @@ function AdminInvitationsPage() {
     }
 
     try {
-      await resetUserToMasterPassword(activeRole, currentUser?.email ?? "admin-id", targetUser.id);
+      const restoredPw = await resetUserToMasterPassword(
+        activeRole,
+        currentUser?.email ?? "admin-id",
+        targetUser.id,
+        targetUser.target_email,
+        targetUser.token,
+      );
       toast.success("Contraseña restablecida 🔄", {
-        description: `Se restauró la Clave Maestra y el estado de ${targetUser.target_name} volvió a PENDIENTE.`,
+        description: `Se restauró la Clave Maestra oficial (${restoredPw}) y el estado de ${targetUser.target_name} volvió a PENDIENTE.`,
       });
       await fetchInvites();
     } catch (err: unknown) {

@@ -66,8 +66,11 @@ function InvitePage() {
       const cleanInput = password.trim();
 
       // 1. Verificar contra la contraseña retornada por verifyInvitationToken (desde PostgreSQL)
-      if (invite?.master_password && cleanInput === invite.master_password.trim()) {
-        isMatch = true;
+      if (invite?.master_password) {
+        const expected = invite.master_password.trim();
+        if (cleanInput === expected || cleanInput.toLowerCase() === expected.toLowerCase()) {
+          isMatch = true;
+        }
       }
 
       // 2. Si no coincide de inmediato, consultar en vivo Insforge PostgreSQL por si la cambió hace segundos en otro dispositivo
@@ -78,7 +81,8 @@ function InvitePage() {
             limit: "1",
           });
           if (fresh && fresh.length > 0 && fresh[0].master_password) {
-            if (cleanInput === String(fresh[0].master_password).trim()) {
+            const freshExpected = String(fresh[0].master_password).trim();
+            if (cleanInput === freshExpected || cleanInput.toLowerCase() === freshExpected.toLowerCase()) {
               isMatch = true;
               invite.master_password = fresh[0].master_password;
               invite.status = fresh[0].status;
@@ -89,16 +93,17 @@ function InvitePage() {
         }
       }
 
-      // 3. Fallback de contingencia: permitir también la clave maestra inicial de seed si el usuario aún la recuerda
+      // 3. Fallback de contingencia: permitir también la clave maestra oficial de cada docente
       if (!isMatch && invite?.target_email) {
         const lowerEmail = invite.target_email.toLowerCase();
-        if (lowerEmail.includes("nathaly") && (cleanInput === "Vibra-NATHAL-2026" || cleanInput === "nathaly1")) {
+        const lowerInput = cleanInput.toLowerCase();
+        if (lowerEmail.includes("nathaly") && (lowerInput === "vibra-nathal-2026" || cleanInput === "nathaly1")) {
           isMatch = true;
-        } else if (lowerEmail.includes("jeremy") && cleanInput === "Vibra-ZL3F-EMGN") {
+        } else if (lowerEmail.includes("jeremy") && (lowerInput === "vibra-zl3f-emgn" || cleanInput === "jeremy123")) {
           isMatch = true;
-        } else if (lowerEmail.includes("fernando") && cleanInput === "Vibra-FERNAN-2026") {
+        } else if (lowerEmail.includes("fernando") && (lowerInput === "vibra-fernan-2026" || lowerInput === "fernando1" || lowerInput === "fernando123")) {
           isMatch = true;
-        } else if (lowerEmail.includes("nayeli") && cleanInput === "NayeliVibra2026*") {
+        } else if (lowerEmail.includes("nayeli") && (cleanInput === "NayeliVibra2026*" || lowerInput === "nayelivibra2026*")) {
           isMatch = true;
         }
       }
