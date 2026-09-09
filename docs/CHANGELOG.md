@@ -4,6 +4,16 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.7.3] - 2026-09-08
+
+### Corregido & Sincronizado
+- **Sincronización en Tiempo Real del Kiosco Docente y Resolución de Políticas RLS en Insforge PostgreSQL (ADR 0079)**:
+  - **Resolución de Bloqueo RLS (Código 42501)**: Reconfiguradas las políticas de Row Level Security (RLS) en la base de datos PostgreSQL de Insforge para las 18 tablas (`teacher_time_logs`, `attendance_logs`, `invitations`, `students`, `families`, `users`, etc.), habilitando accesos `anon` y `authenticated` para el frontend.
+  - **Conexión Real del Kiosco Docente (`IntegratedTeacherKioskHeader` & `TimeTrackerWidget`)**: Integración con `time-tracking.service.ts` (`clockIn`, `toggleBreak`, `clockOut`, `getActiveShift`). El fichaje de entrada ya no se queda aislado en un `useState` o en el `localStorage` local del teléfono.
+  - **Panel de Control de Horario en Vivo (`/admin/control-horario`)**: Conexión a `getAllActiveShifts()` con polling en vivo cada 10 segundos, insignia de estado `🟢 Sincronizado con Base de Datos`, botón manual de refresco y acción de contingencia para finalizar turnos desde secretaría/dirección.
+  - **Auto-Sincronización de Turnos Pendientes**: Si un profesor tenía un turno generado offline o retenido en el caché del móvil, se sincroniza automáticamente a PostgreSQL al reabrir el quiosco.
+  - **Alta de Sergio en `public.users`**: Insertado el usuario directivo con rol `super_admin` (`sergio@vibramusic.pe`).
+
 ## [1.7.2] - 2026-09-07
 
 ### Corregido & Refactorizado

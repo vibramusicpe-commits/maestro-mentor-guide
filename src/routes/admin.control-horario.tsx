@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppStore } from "@/store/app-store";
 import {
   generatePayrollReport,
   exportPayrollToCSV,
+  getAllActiveShifts,
+  clockOut,
   type PayrollReportRow,
+  type DBTeacherTimeLog,
 } from "@/lib/services/time-tracking.service";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -16,6 +19,8 @@ import {
   CheckCircle2,
   Lock,
   FileSpreadsheet,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/control-horario")({
@@ -44,15 +49,42 @@ function AdminControlHorarioPage() {
   const activeRole = useAppStore((s) => s.activeRole);
   const currentUser = useAppStore((s) => s.currentUser);
 
-  // Lista en vivo dinámica de fichajes de la sede
-  const [activeShifts, setActiveShifts] = useState<ActiveShift[]>(() => {
+  // Lista en vivo de fichajes de la sede conectada a PostgreSQL / Insforge
+  const [activeShifts, setActiveShifts] = useState<DBTeacherTimeLog[]>([]);
+  const [loadingShifts, setLoadingShifts] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+
+  const fetchLiveShifts = async () => {
     try {
-      const raw = localStorage.getItem("cadencia-active-shifts");
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
+      setLoadingShifts(true);
+      const shifts = await getAllActiveShifts();
+      setActiveShifts(shifts);
+      setLastSyncTime(new Date());
+    } catch (err) {
+      console.warn("Error cargando turnos de Insforge:", err);
+    } finally {
+      setLoadingShifts(false);
     }
-  });
+  };
+
+  useEffect(() => {
+    fetchLiveShifts();
+
+    // Auto-polling en vivo cada 10 segundos
+    const interval = setInterval(() => {
+      fetchLiveShifts();
+    }, 10000);
+
+    const onFocus = () => fetchLiveShifts();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onFocus);
+    };
+  }, []);
 
   const [startDate, setStartDate] = useState("2026-08-01");
   const [endDate, setEndDate] = useState("2026-08-15");
@@ -86,6 +118,16 @@ function AdminControlHorarioPage() {
     toast.success("Archivo .CSV descargado para Excel.");
   };
 
+  const handleAdminClockOut = async (shiftId: string, teacherName: string) => {
+    try {
+      await clockOut(activeRole, shiftId);
+      toast.success(`✓ Turno de ${teacherName} finalizado correctamente en PostgreSQL.`);
+      fetchLiveShifts();
+    } catch (err: any) {
+      toast.error("Error al finalizar turno: " + err.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -97,41 +139,96 @@ function AdminControlHorarioPage() {
         </p>
       </div>
 
-      {/* 1. Profesores en Sede en Vivo */}
+      {/* 1. Profesores en Sede en Vivo (PostgreSQL / Insforge) */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
-        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-          <UserCheck className="h-5 w-5 text-success" /> Profesores en Sede (En Vivo)
-        </h2>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-emerald-500" /> Profesores en Sede (En Vivo)
+            </h2>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Sincronizado con Base de Datos
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground">
+              Última actualización: {lastSyncTime.toLocaleTimeString("es-PE")}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={fetchLiveShifts}
+              disabled={loadingShifts}
+              className="h-7 text-xs font-semibold gap-1.5 border-border"
+            >
+              <RefreshCw className={`h-3 w-3 ${loadingShifts ? "animate-spin text-primary" : ""}`} />
+              Actualizar
+            </Button>
+          </div>
+        </div>
 
         {activeShifts.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground space-y-1">
             <UserCheck className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-            <p className="font-semibold text-foreground">No hay profesores en sede actualmente</p>
-            <p className="mt-0.5 text-[11px]">Cuando los profesores fichen su entrada desde su panel docente o kiosco, aparecerán aquí en vivo.</p>
+            <p className="font-semibold text-foreground text-sm">No hay profesores en sede actualmente</p>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              Cuando los profesores fichen su entrada desde su móvil o kiosco docente, su registro aparecerá aquí en tiempo real sincronizado vía PostgreSQL / Insforge.
+            </p>
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-3">
-            {activeShifts.map((shift) => (
-              <div
-                key={shift.id}
-                className="flex items-center justify-between rounded-xl border border-border bg-background p-3.5"
-              >
-                <div>
-                  <p className="text-sm font-bold text-foreground">{shift.teacherName}</p>
-                  <p className="text-xs text-muted-foreground">Entrada: {shift.clockIn} hs</p>
-                </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {activeShifts.map((shift) => {
+              const elapsedMinutes = Math.max(
+                0,
+                Math.floor((Date.now() - new Date(shift.clock_in).getTime()) / 60000) - (shift.break_minutes || 0)
+              );
+              const hrs = Math.floor(elapsedMinutes / 60);
+              const mins = elapsedMinutes % 60;
+              const formattedDuration = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} min`;
 
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    shift.status === "trabajando"
-                      ? "bg-success/15 text-success border border-success/30"
-                      : "bg-warning/20 text-warning border border-warning/40"
-                  }`}
+              return (
+                <div
+                  key={shift.id}
+                  className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2.5 transition-all shadow-xs"
                 >
-                  {shift.status === "trabajando" ? "● TRABAJANDO" : "PAUSA"}
-                </span>
-              </div>
-            ))}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-foreground">{shift.teacher_name}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Entrada: <strong>{new Date(shift.clock_in).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })} hs</strong>
+                      </p>
+                    </div>
+
+                    <span
+                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                        shift.status === "trabajando"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 animate-pulse"
+                          : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                      }`}
+                    >
+                      {shift.status === "trabajando" ? "● EN SEDE" : "PAUSA"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-border/40 text-xs">
+                    <span className="text-[11px] text-muted-foreground">
+                      Tiempo en sede: <strong className="text-foreground">{formattedDuration}</strong>
+                    </span>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleAdminClockOut(shift.id, shift.teacher_name)}
+                      className="h-6 text-[10px] font-bold text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 px-2 rounded-lg"
+                    >
+                      Finalizar Turno
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

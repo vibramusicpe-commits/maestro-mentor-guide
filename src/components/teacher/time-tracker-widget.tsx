@@ -3,13 +3,47 @@ import { Play, Pause, Square, Clock, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAppStore } from "@/store/app-store";
+import {
+  clockIn,
+  toggleBreak,
+  clockOut,
+  getActiveShift,
+  resolveTeacherUserId,
+} from "@/lib/services/time-tracking.service";
 
 export function TimeTrackerWidget() {
-  const activeRole = useAppStore((s) => s.activeRole);
+  const activeRole = useAppStore((s) => s.activeRole) || "teacher";
   const currentUser = useAppStore((s) => s.currentUser);
 
   const [shiftStatus, setShiftStatus] = useState<"fuera" | "trabajando" | "pausa">("fuera");
   const [seconds, setSeconds] = useState(0);
+  const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
+
+  // Restaurar turno activo al montar desde PostgreSQL / Insforge
+  useEffect(() => {
+    async function restoreShift() {
+      const teacherName = currentUser?.name ?? "Profesor/a Vibra";
+      const teacherEmail = currentUser?.email ?? "";
+      const teacherUserId = resolveTeacherUserId(teacherEmail, teacherName);
+
+      try {
+        const active = await getActiveShift(teacherUserId, teacherName);
+        if (active && active.status !== "finalizado") {
+          setCurrentShiftId(active.id);
+          setShiftStatus(active.status);
+
+          const startTime = new Date(active.clock_in).getTime();
+          const now = Date.now();
+          const elapsedSec = Math.max(0, Math.floor((now - startTime) / 1000) - (active.break_minutes || 0) * 60);
+          setSeconds(elapsedSec);
+        }
+      } catch (err) {
+        console.warn("Aviso al verificar turno activo en widget:", err);
+      }
+    }
+
+    restoreShift();
+  }, [currentUser]);
 
   // Timer activo durante la jornada
   useEffect(() => {
@@ -31,29 +65,56 @@ export function TimeTrackerWidget() {
       .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleClockIn = () => {
-    setShiftStatus("trabajando");
-    toast.success("Entrada registrada a la sede", {
-      description: `Hora de inicio: ${new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`,
-    });
-  };
+  const handleClockIn = async () => {
+    const teacherName = currentUser?.name ?? "Profesor/a Vibra";
+    const teacherEmail = currentUser?.email ?? "";
+    const teacherUserId = resolveTeacherUserId(teacherEmail, teacherName);
 
-  const handleToggleBreak = () => {
-    if (shiftStatus === "trabajando") {
-      setShiftStatus("pausa");
-      toast.info("Jornada en pausa");
-    } else {
+    try {
+      const shift = await clockIn(activeRole, teacherUserId, teacherName);
+      setCurrentShiftId(shift.id);
       setShiftStatus("trabajando");
-      toast.success("Reanudando jornada");
+      setSeconds(0);
+      toast.success("Entrada registrada a la sede en vivo", {
+        description: `Hora de inicio: ${new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`,
+      });
+    } catch (err: any) {
+      toast.error("Error al registrar entrada: " + err.message);
     }
   };
 
-  const handleClockOut = () => {
-    toast.success("Salida registrada correctamente", {
-      description: `Tiempo total en sede: ${formatTimer(seconds)}`,
-    });
-    setShiftStatus("fuera");
-    setSeconds(0);
+  const handleToggleBreak = async () => {
+    if (!currentShiftId) return;
+    try {
+      const updated = await toggleBreak(activeRole, currentShiftId, shiftStatus);
+      setShiftStatus(updated.status);
+      if (updated.status === "pausa") {
+        toast.info("Jornada en pausa");
+      } else {
+        toast.success("Reanudando jornada");
+      }
+    } catch (err: any) {
+      toast.error("Error al pausar: " + err.message);
+    }
+  };
+
+  const handleClockOut = async () => {
+    if (!currentShiftId) {
+      setShiftStatus("fuera");
+      setSeconds(0);
+      return;
+    }
+    try {
+      await clockOut(activeRole, currentShiftId);
+      toast.success("Salida registrada correctamente en PostgreSQL", {
+        description: `Tiempo total en sede: ${formatTimer(seconds)}`,
+      });
+      setShiftStatus("fuera");
+      setCurrentShiftId(null);
+      setSeconds(0);
+    } catch (err: any) {
+      toast.error("Error al salir: " + err.message);
+    }
   };
 
   return (

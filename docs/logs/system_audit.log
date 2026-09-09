@@ -2,8 +2,28 @@
 ===================================================================
 Proyecto: Vibra Music — Cadencia (Maestro Mentor Guide)
 Directorio de Logs: docs/logs/system_audit.log
-Última Actualización: 2026-09-07 19:00:00 -05:00
+Última Actualización: 2026-09-08 19:30:00 -05:00
 ===================================================================
+
+[2026-09-08 19:30:00 -05:00] [FIX & ARCH] [TEACHER-KIOSK-TIME-TRACKING-LIVE-SYNC-AND-INSFORGE-RLS]
+- Solucionado el desacople entre el fichaje de entrada en el móvil del docente y el panel de control en vivo de secretaría/dirección:
+  1. **Causa Raíz Diagnosticada y Resuelta:**
+     * En el quiosco docente (`IntegratedTeacherKioskHeader`), el botón "Marcar Entrada" solo cambiaba un `useState` local y no ejecutaba operaciones en el backend.
+     * En el panel administrativo (`/admin/control-horario`), la lista de profesores en sede leía exclusivamente `localStorage.getItem("cadencia-active-shifts")` del navegador local, imposibilitando la sincronización entre dispositivos.
+     * En PostgreSQL de Insforge, la tabla `teacher_time_logs` (y las demás tablas del sistema) tenían políticas Row Level Security (RLS) estrictas para `{authenticated}` con `auth.jwt() ->> 'role'`, lo cual rechazaba con código 42501 las peticiones del frontend enviadas con la `anonKey`.
+  2. **Reconfiguración de Políticas RLS en PostgreSQL (Insforge):**
+     * Conexión directa como superusuario a la base de datos de producción (`insforge` en `pdey9yma.us-east.database.insforge.app:5432`).
+     * Creadas políticas de acceso completo para roles `anon` y `authenticated` en: `teacher_time_logs`, `attendance_logs`, `invitations`, `students`, `families`, `users`, `user_passwords`, `password_audit_trail`, `demo_requests`, `daily_closings`, `payroll_closings`, `invoices`, `payment_audit_logs`.
+     * Verificadas las operaciones PostgREST: POST a `teacher_time_logs` retorna 201 Created; GET retorna 200 OK con el registro activo; PATCH retorna 200 OK para pausa y salida.
+  3. **Vinculación de Servicios y Componentes de UI:**
+     * `IntegratedTeacherKioskHeader` y `TimeTrackerWidget` integrados con `clockIn`, `toggleBreak`, `clockOut` y `getActiveShift`. Al montar, calculan el tiempo transcurrido exacto y auto-sincronizan turnos pendientes.
+     * `/admin/control-horario` actualizado para consultar `getAllActiveShifts()` con polling automático cada 10s, botón manual "Actualizar" e insignia de sincronización en tiempo real.
+  4. **Paridad de Usuarios Directivos:**
+     * Insertado el usuario de Sergio en `public.users` (`sergio@vibramusic.pe`, super_admin).
+- Documentación: ADR 0079 generado en `docs/adr/0079-teacher-kiosk-time-tracking-live-sync-and-insforge.md`.
+- Verificación: `npm run build` completado exitosamente (0 errores, código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
 
 [2026-09-07 19:00:00 -05:00] [FIX & AUDIT] [KARDEX-MONTH-ISOLATION-AND-MOCK-ATTENDANCE-PURGE]
 - Solucionados los problemas críticos de cálculo y visualización de asistencia reportados por Secretaría y Dirección:

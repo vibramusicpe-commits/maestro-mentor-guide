@@ -4,6 +4,13 @@ import { Play, Pause, Square, ShieldCheck, MapPin, UserCheck, Clock } from "luci
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAppStore } from "@/store/app-store";
+import {
+  clockIn,
+  toggleBreak,
+  clockOut,
+  getActiveShift,
+  resolveTeacherUserId,
+} from "@/lib/services/time-tracking.service";
 
 interface IntegratedTeacherKioskHeaderProps {
   totalDayStudents?: number;
@@ -11,11 +18,41 @@ interface IntegratedTeacherKioskHeaderProps {
 
 export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: IntegratedTeacherKioskHeaderProps) {
   const currentUser = useAppStore((s) => s.currentUser);
+  const activeRole = useAppStore((s) => s.activeRole) || "teacher";
 
   const [shiftStatus, setShiftStatus] = useState<"fuera" | "trabajando" | "pausa">("fuera");
   const [seconds, setSeconds] = useState(0);
+  const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Timer activo durante el turno
+  // 1. Restaurar turno activo al cargar desde PostgreSQL / Insforge
+  useEffect(() => {
+    async function restoreShift() {
+      const teacherName = currentUser?.name ?? "Profesor/a Vibra";
+      const teacherEmail = currentUser?.email ?? "";
+      const teacherUserId = resolveTeacherUserId(teacherEmail, teacherName);
+
+      try {
+        const active = await getActiveShift(teacherUserId, teacherName);
+        if (active && active.status !== "finalizado") {
+          setCurrentShiftId(active.id);
+          setShiftStatus(active.status);
+
+          // Calcular segundos reales transcurridos desde clock_in
+          const startTime = new Date(active.clock_in).getTime();
+          const now = Date.now();
+          const elapsedSec = Math.max(0, Math.floor((now - startTime) / 1000) - (active.break_minutes || 0) * 60);
+          setSeconds(elapsedSec);
+        }
+      } catch (err) {
+        console.warn("Aviso al verificar turno activo del profesor:", err);
+      }
+    }
+
+    restoreShift();
+  }, [currentUser]);
+
+  // 2. Timer activo durante el turno
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (shiftStatus === "trabajando") {
@@ -33,29 +70,65 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
       .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleClockIn = () => {
-    setShiftStatus("trabajando");
-    toast.success("Turno iniciado en sede", {
-      description: `Ingreso: ${new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`,
-    });
-  };
+  const handleClockIn = async () => {
+    const teacherName = currentUser?.name ?? "Profesor/a Vibra";
+    const teacherEmail = currentUser?.email ?? "";
+    const teacherUserId = resolveTeacherUserId(teacherEmail, teacherName);
 
-  const handleToggleBreak = () => {
-    if (shiftStatus === "trabajando") {
-      setShiftStatus("pausa");
-      toast.info("Jornada en pausa");
-    } else {
+    setLoading(true);
+    try {
+      const shift = await clockIn(activeRole, teacherUserId, teacherName);
+      setCurrentShiftId(shift.id);
       setShiftStatus("trabajando");
-      toast.success("Reanudando jornada");
+      setSeconds(0);
+      toast.success("Turno iniciado en sede (Conectado en Vivo)", {
+        description: `Ingreso: ${new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })} — Ya visible para secretaría y dirección.`,
+      });
+    } catch (err: any) {
+      toast.error("Error al registrar entrada: " + (err.message || "Intenta nuevamente"));
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleClockOut = () => {
-    toast.success("Turno finalizado", {
-      description: `Tiempo total en sede: ${formatTimer(seconds)}`,
-    });
-    setShiftStatus("fuera");
-    setSeconds(0);
+  const handleToggleBreak = async () => {
+    if (!currentShiftId) return;
+    setLoading(true);
+    try {
+      const updated = await toggleBreak(activeRole, currentShiftId, shiftStatus);
+      setShiftStatus(updated.status);
+      if (updated.status === "pausa") {
+        toast.info("Jornada en pausa (Registrado en Insforge)");
+      } else {
+        toast.success("Reanudando jornada (Registrado en Insforge)");
+      }
+    } catch (err: any) {
+      toast.error("Error al cambiar estado: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClockOut = async () => {
+    if (!currentShiftId) {
+      setShiftStatus("fuera");
+      setSeconds(0);
+      return;
+    }
+    setLoading(true);
+    try {
+      await clockOut(activeRole, currentShiftId);
+      toast.success("Turno finalizado y sincronizado en PostgreSQL", {
+        description: `Tiempo total en sede: ${formatTimer(seconds)}`,
+      });
+      setShiftStatus("fuera");
+      setCurrentShiftId(null);
+      setSeconds(0);
+    } catch (err: any) {
+      toast.error("Error al finalizar turno: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
