@@ -105,7 +105,15 @@ export async function fetchFromInsforge<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${INSFORGE_CONFIG.baseUrl}${endpoint}`, {
+    const isRpc = endpoint.startsWith("/rpc/") || endpoint.startsWith("rpc/");
+    const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    
+    // Normalización de endpoints: /rpc va a /api/database/rpc, el resto a /api/database/records
+    const requestUrl = isRpc
+      ? `${INSFORGE_CONFIG.baseUrl.replace(/\/records\/?$/, "")}${cleanEndpoint}`
+      : `${INSFORGE_CONFIG.baseUrl}${cleanEndpoint}`;
+
+    response = await fetch(requestUrl, {
       ...options,
       headers: {
         ...buildHeaders(),
@@ -163,15 +171,23 @@ export function assertRole(
 
 // ---------------------------------------------------------------
 // HELPER: SELECT con filtros PostgREST
-// Ejemplo: postgrestSelect('/students', { status: 'eq.activo' })
+// Ejemplo: postgrestSelect('students', { status: 'eq.activo' })
 // ---------------------------------------------------------------
 export async function postgrestSelect<T>(
   table: string,
   params: Record<string, string> = {},
   select = "*",
 ): Promise<T[]> {
+  const cleanTable = table.replace(/^\/+/, "");
+  if (cleanTable.includes("?")) {
+    const [baseTable, existingQs] = cleanTable.split("?");
+    const urlParams = new URLSearchParams(existingQs);
+    if (!urlParams.has("select")) urlParams.set("select", select);
+    Object.entries(params).forEach(([k, v]) => urlParams.set(k, v));
+    return fetchFromInsforge<T[]>(`/${baseTable}?${urlParams.toString()}`);
+  }
   const qs = new URLSearchParams({ select, ...params });
-  return fetchFromInsforge<T[]>(`/${table}?${qs.toString()}`);
+  return fetchFromInsforge<T[]>(`/${cleanTable}?${qs.toString()}`);
 }
 
 // ---------------------------------------------------------------
@@ -181,7 +197,8 @@ export async function postgrestInsert<T>(
   table: string,
   payload: Partial<T>,
 ): Promise<T> {
-  const result = await fetchFromInsforge<T[]>(`/${table}`, {
+  const cleanTable = table.replace(/^\/+/, "");
+  const result = await fetchFromInsforge<T[]>(`/${cleanTable}`, {
     method: "POST",
     headers: { Prefer: "return=representation" },
     body: JSON.stringify(payload),
@@ -191,15 +208,28 @@ export async function postgrestInsert<T>(
 
 // ---------------------------------------------------------------
 // HELPER: PATCH (update por filtro)
-// Ejemplo: postgrestPatch('/students', { id: 'eq.abc' }, { status: 'baja' })
+// Ejemplo: postgrestPatch('students', { id: 'eq.abc' }, { status: 'baja' })
 // ---------------------------------------------------------------
 export async function postgrestPatch<T>(
   table: string,
-  filter: Record<string, string>,
-  payload: Partial<T>,
+  filter: Record<string, string> = {},
+  payload: Partial<T> = {},
 ): Promise<T> {
+  const cleanTable = table.replace(/^\/+/, "");
+  if (cleanTable.includes("?")) {
+    const [baseTable, existingQs] = cleanTable.split("?");
+    const urlParams = new URLSearchParams(existingQs);
+    Object.entries(filter).forEach(([k, v]) => urlParams.set(k, v));
+    const result = await fetchFromInsforge<T[]>(`/${baseTable}?${urlParams.toString()}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify(payload),
+    });
+    return result[0]!;
+  }
+
   const qs = new URLSearchParams(filter);
-  const result = await fetchFromInsforge<T[]>(`/${table}?${qs.toString()}`, {
+  const result = await fetchFromInsforge<T[]>(`/${cleanTable}?${qs.toString()}`, {
     method: "PATCH",
     headers: { Prefer: "return=representation" },
     body: JSON.stringify(payload),
@@ -226,10 +256,21 @@ export async function postgrestRPC<T>(
 // ---------------------------------------------------------------
 export async function postgrestDelete(
   table: string,
-  filter: Record<string, string>,
+  filter: Record<string, string> = {},
 ): Promise<void> {
+  const cleanTable = table.replace(/^\/+/, "");
+  if (cleanTable.includes("?")) {
+    const [baseTable, existingQs] = cleanTable.split("?");
+    const urlParams = new URLSearchParams(existingQs);
+    Object.entries(filter).forEach(([k, v]) => urlParams.set(k, v));
+    await fetchFromInsforge<unknown>(`/${baseTable}?${urlParams.toString()}`, {
+      method: "DELETE",
+    });
+    return;
+  }
+
   const qs = new URLSearchParams(filter);
-  await fetchFromInsforge<unknown>(`/${table}?${qs.toString()}`, {
+  await fetchFromInsforge<unknown>(`/${cleanTable}?${qs.toString()}`, {
     method: "DELETE",
   });
 }

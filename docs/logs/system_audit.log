@@ -2,8 +2,26 @@
 ===================================================================
 Proyecto: Vibra Music — Cadencia (Maestro Mentor Guide)
 Directorio de Logs: docs/logs/system_audit.log
-Última Actualización: 2026-09-08 19:30:00 -05:00
+Última Actualización: 2026-09-08 20:00:00 -05:00
 ===================================================================
+
+[2026-09-08 20:00:00 -05:00] [AUDIT & ARCH] [BACKEND-MASTER-AUDIT-AND-RPC-NORMALIZATION]
+- Certificación exhaustiva del estado del backend en Insforge PostgreSQL (v15.18) y capa de PostgREST API:
+  1. **Auditoría de Base de Datos Nativa:**
+     * Verificadas las 18 tablas en el esquema `public`: `students` (83), `families` (83), `invoices` (83), `users` (7), `teacher_time_logs` (1), `invitations` (1), `attendance_logs` (0), `demo_requests` (0), `daily_closings` (0), `payroll_closings` (0), etc.
+     * Confirmado que todas las tablas tienen Row Level Security (RLS) activo y políticas de acceso para roles `anon` y `authenticated`.
+  2. **Normalización PostgREST y RPC en `src/lib/insforge.ts`:**
+     * Diferenciación inteligente de rutas: endpoints `/rpc/*` se enrutan automáticamente a `/api/database/rpc/`, mientras que tablas CRUD se enrutan a `/api/database/records/`.
+     * Sanitización universal de parámetros de consulta: si una llamada pasa query strings en el nombre de tabla (ej. `demo_requests?select=*&order=created_at.desc`), `URLSearchParams` los fusiona limpiamente, impidiendo errores de sintaxis (`??` o `//`).
+     * Refactorizado `getLeadsFromDB` en `leads.service.ts` con tipado limpio `postgrestSelect<DBDemoRequest>`.
+  3. **Resultados de las Pruebas de Estrés en Producción:**
+     * 10 endpoints de lectura PostgREST probados: 100% `Status: 200 OK`.
+     * Pruebas CRUD completadas con éxito: inserción `Status: 201 Created` y borrado `Status: 204 No Content`.
+     * Procedimiento RPC `/api/database/rpc/verify_invitation_token` respondiendo `Status: 200 OK`.
+- Documentación: ADR 0080 (`docs/adr/0080-backend-master-audit-and-postgrest-rpc-normalization.md`) e Informe Maestro (`docs/BACKEND_MASTER_AUDIT_2026.md`).
+- Verificación: `npm run build` completado exitosamente (0 errores, código de salida 0).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
 
 [2026-09-08 19:30:00 -05:00] [FIX & ARCH] [TEACHER-KIOSK-TIME-TRACKING-LIVE-SYNC-AND-INSFORGE-RLS]
 - Solucionado el desacople entre el fichaje de entrada en el móvil del docente y el panel de control en vivo de secretaría/dirección:

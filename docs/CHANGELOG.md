@@ -4,6 +4,16 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.7.4] - 2026-09-08
+
+### Certificado & Optimizado
+- **Auditoría Maestra de Backend Insforge PostgreSQL y Normalización PostgREST / RPC (ADR 0080)**:
+  - **Certificación de 18 Tablas en Producción**: 83 alumnos, 83 familias, 83 facturas oficiales y 7 usuarios RBAC en PostgreSQL con Row Level Security (RLS) verificado.
+  - **Enrutamiento Inteligente RPC vs Records (`src/lib/insforge.ts`)**: Desacople de `/rpc/*` a `/api/database/rpc/` y operaciones CRUD a `/api/database/records/`.
+  - **Sanitización de Consultas**: Fusión limpia de parámetros URL evitando errores de sintaxis (`??` y `//`).
+  - **Pruebas de Estrés Superadas**: 10 endpoints PostgREST probados con HTTP 200 OK, inserciones HTTP 201 Created y procedimiento RPC verificado.
+  - **Documentación Completa**: Publicado el informe maestro en `docs/BACKEND_MASTER_AUDIT_2026.md`.
+
 ## [1.7.3] - 2026-09-08
 
 ### Corregido & Sincronizado

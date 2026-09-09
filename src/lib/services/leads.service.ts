@@ -58,9 +58,9 @@ export interface CreateLeadPayload {
  */
 export async function getLeadsFromDB(userRole: Role): Promise<DBDemoRequest[]> {
   assertRole(userRole, ["super_admin", "staff"]);
-  const records = await postgrestSelect<DBDemoRequest[]>(
-    "demo_requests?select=*&order=created_at.desc"
-  );
+  const records = await postgrestSelect<DBDemoRequest>("demo_requests", {
+    order: "created_at.desc",
+  });
   return records || [];
 }
 
