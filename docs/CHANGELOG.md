@@ -4,6 +4,15 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.7.7] - 2026-09-09
+
+### Corregido & Estabilizado
+- **Clave Maestra Estable y Sincronización de Credenciales en Insforge PostgreSQL (ADR 0083)**:
+  - **Fin de Contraseñas Aleatorias en "Reset"**: Se eliminó la generación aleatoria en cada clic de restablecimiento. Ahora la acción de Reset restaura estrictamente la Clave Maestra oficial única de cada docente (`Vibra-FERNAN-2026` para Fernando, `Vibra-ZL3F-EMGN` para Jeremy, `Vibra-NATHAL-2026` para Nathaly, `NayeliVibra2026*` para Nayeli).
+  - **Sincronización Total de Fernando en PostgreSQL**: Inserción y enlace de Fernando en `public.invitations` en la nube (`id: 0e9ad54a-ef5d-49fb-9ae0-4dcdc884d111`), permitiendo resolución inmediata de su token desde cualquier navegador o móvil.
+  - **Actualización Cruzada en Base de Datos**: `resetUserToMasterPassword` busca y actualiza en PostgreSQL por UUID, correo o token, retornando el estado a `pendiente` y reflejando la clave en el toast administrativo.
+  - **Tolerancia Case-Insensitive**: `handlePasswordSubmit` valida mayúsculas y minúsculas indistintamente para claves maestras, facilitando el tipeo en teléfonos móviles.
+
 ## [1.7.6] - 2026-09-09
 
 ### Corregido & Sincronizado

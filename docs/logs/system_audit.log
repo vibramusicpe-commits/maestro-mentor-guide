@@ -5,6 +5,25 @@ Directorio de Logs: docs/logs/system_audit.log
 Última Actualización: 2026-09-09 17:35:00 -05:00
 ===================================================================
 
+[2026-09-09 17:50:00 -05:00] [FIX & AUTH] [STABLE-MASTER-CREDENTIALS-AND-INVITATION-SYNCHRONIZATION]
+- Resolución de inconsistencia de claves maestras y sincronización de Fernando en Insforge PostgreSQL:
+  1. **Causas Raíces Identificadas:**
+     * Fernando no existía en `public.invitations` en PostgreSQL, dependiendo exclusivamente de `baseSeeds` y `localStorage`.
+     * La acción "Reset" invocaba `generateMasterPassword()` en cada clic, mutando la clave de forma impredecible en vez de restaurar la oficial.
+     * La query en PostgreSQL comparaba `target_email: eq.${targetUserId}` pasando un ID de semilla (`inv-teacher-fernando`), fallando silenciosamente.
+  2. **Medidas Ejecutadas:**
+     * Inserción y sincronización en vivo de Fernando en PostgreSQL (`0e9ad54a-ef5d-49fb-9ae0-4dcdc884d111`).
+     * Unificación de Claves Maestras estables oficiales: Fernando (`Vibra-FERNAN-2026`), Jeremy (`Vibra-ZL3F-EMGN`), Nathaly (`Vibra-NATHAL-2026`), Nayeli (`NayeliVibra2026*`).
+     * `resetUserToMasterPassword` actualizado para buscar por UUID, email o token y reflejar la clave en la notificación del panel.
+     * Tolerancia insensible a mayúsculas/minúsculas añadida en `invite.$token.tsx`.
+  3. **Verificación de Producción:**
+     * Fernando aceptó su invitación con su clave (`fernando123`), ingresó y fichó entrada a las `22:50:07Z` en `teacher_time_logs`.
+     * Los 3 profesores de Vibra Music se encuentran en estado activo y trabajando en sede.
+- Documentación: ADR 0083 (`docs/adr/0083-stable-master-credentials-and-invitation-synchronization.md`) y CHANGELOG v1.7.7.
+- Verificación: `npm run build` exitoso (0 errores).
+- Autor: Fabricio (Coordinación de TI) / Antigravity AI.
+
+
 [2026-09-09 17:35:00 -05:00] [FIX & AUTH] [CROSS-BROWSER-INVITATION-VERIFICATION-AND-AUTH-PARITY]
 - Resolución de paridad multi-navegador en el flujo de invitaciones docentes y cambio de contraseña:
   1. **Causa Raíz Diagnosticada y Resuelta:**
