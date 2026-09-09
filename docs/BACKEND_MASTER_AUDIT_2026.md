@@ -1,7 +1,7 @@
 # Auditoría Maestra del Backend: Insforge PostgreSQL 15.18 & PostgREST API
 ================================================================================
 **Proyecto:** Vibra Music — Cadencia (Maestro Mentor Guide)  
-**Fecha de Certificación:** 2026-09-08 20:00:00 -05:00  
+**Fecha de Certificación:** 2026-09-09 17:15:00 -05:00  
 **Estado:** 100% Operativo, Conectado y Verificado en Producción  
 **Base de Datos:** `insforge` en `pdey9yma.us-east.database.insforge.app:5432`  
 **API REST Base:** `https://pdey9yma.us-east.insforge.app/api/database`  
@@ -105,6 +105,8 @@ Si un servicio pasa un nombre de tabla con parámetros existentes (ej. `demo_req
 === PRUEBAS DE ESCRITURA Y ELIMINACIÓN (CRUD) ===
 ✓ POST   /api/database/records/demo_requests  -> Status 201 Created
 ✓ DELETE /api/database/records/demo_requests  -> Status 204 No Content
+✓ POST   /api/database/records/teacher_time_logs -> Status 201 Created (Audit Shift)
+✓ DELETE /api/database/records/teacher_time_logs -> Status 204 No Content (Audit Clean)
 
 === PRUEBAS DE PROCEDIMIENTOS ALMACENADOS (RPC) ===
 ✓ POST   /api/database/rpc/verify_invitation_token -> Status 200 OK
@@ -112,5 +114,25 @@ Si un servicio pasa un nombre de tabla con parámetros existentes (ej. `demo_req
 
 ---
 
-## 6. Conclusión
+## 6. Certificación del Módulo de Asistencia Docente (ADR 0081)
+
+En la auditoría del 2026-09-09, se verificó la persistencia y consulta del flujo completo del quiosco docente:
+- **Registro de Turno Real:**
+  - `id`: `647fd9d3-51cb-4df0-9136-dea9eed334b7`
+  - `teacher_id`: `00000000-0000-0000-0000-000000000005` (Nathaly)
+  - `clock_in`: `2026-09-09T00:27:28.508Z`
+  - `clock_out`: `2026-09-09T00:27:46.042Z`
+  - `status`: `finalizado`
+  - `origin_device`: `kiosk_mobile`
+- **Filtro PostgREST Verificado:**
+  - Consulta mensual: `GET /teacher_time_logs?clock_in=gte.2026-09-01T00:00:00.000Z&clock_in=lte.2026-09-30T23:59:59.999Z&order=clock_in.desc` (200 OK).
+- **Consistencia de Usuarios:**
+  - 7 usuarios en `public.users` confirmados: Dueña, Sergio, Nayeli, Nathaly, Jeremy, Fernando y Profesor Demo.
+- **Exportación CSV:**
+  - Generación de reportes limpios con UTF-8 BOM para apertura directa en Microsoft Excel sin problemas de tildes o caracteres especiales.
+
+---
+
+## 7. Conclusión
 El backend con Insforge PostgreSQL se encuentra en estado **Verde / Producción Completa**. No existen errores de permisos (RLS 42501), las consultas están optimizadas y la sincronización en vivo entre dispositivos móviles y equipos de escritorio está 100% activa.
+
