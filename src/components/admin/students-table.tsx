@@ -2680,6 +2680,7 @@ function NewStudentDialog() {
               {isAdult ? "Apellidos / Familia (Opcional para Adultos)" : "Apellidos de la Familia / Apoderado"}
             </label>
             <Input
+              data-tour="input-family-name"
               placeholder={isAdult ? "Ej. García (Opcional)" : "Ej. García Rivas"}
               value={family}
               onChange={(e) => setFamily(e.target.value)}
@@ -3075,7 +3076,11 @@ function NewStudentDialog() {
             >
               Cancelar
             </Button>
-            <Button type="submit" className="flex-1 font-bold text-xs">
+            <Button
+              type="submit"
+              data-tour="btn-submit-new-student"
+              className="flex-1 font-bold text-xs"
+            >
               Guardar Matrícula
             </Button>
           </div>

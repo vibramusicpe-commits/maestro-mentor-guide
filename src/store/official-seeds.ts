@@ -2103,6 +2103,105 @@ export const officialSchedule: ScheduledLesson[] = [
     "status": "programada"
   },
   {
+    "id": "sch-1-b",
+    "day": "Lun",
+    "time": "16:00",
+    "room": "Sala A",
+    "student": "Carlos Daniel Rojas",
+    "teacher": "Jeremy",
+    "instrument": "Batería",
+    "category": "JUNIOR",
+    "status": "programada"
+  },
+  {
+    "id": "sch-1-c",
+    "day": "Lun",
+    "time": "16:00",
+    "room": "Sala A",
+    "student": "Rodrigo Silva Castro",
+    "teacher": "Jeremy",
+    "instrument": "Guitarra",
+    "category": "JUVENIL",
+    "status": "programada"
+  },
+  {
+    "id": "sch-1-d",
+    "day": "Lun",
+    "time": "16:00",
+    "room": "Sala A",
+    "student": "Valentina Morales Ramos",
+    "teacher": "Jeremy",
+    "instrument": "Batería",
+    "category": "JUNIOR",
+    "status": "programada"
+  },
+  {
+    "id": "sch-1-e",
+    "day": "Lun",
+    "time": "16:00",
+    "room": "Sala A",
+    "student": "Joaquín Vargas Peña",
+    "teacher": "Jeremy",
+    "instrument": "Guitarra",
+    "category": "JUVENIL",
+    "status": "programada"
+  },
+  {
+    "id": "sch-mie-1",
+    "day": "Mié",
+    "time": "16:00",
+    "room": "Sala A",
+    "student": "Asaf Chipana Urribarri",
+    "teacher": "Jeremy",
+    "instrument": "Batería",
+    "category": "JUNIOR",
+    "status": "programada"
+  },
+  {
+    "id": "sch-mie-2",
+    "day": "Mié",
+    "time": "16:00",
+    "room": "Sala A",
+    "student": "Carlos Daniel Rojas",
+    "teacher": "Jeremy",
+    "instrument": "Batería",
+    "category": "JUNIOR",
+    "status": "programada"
+  },
+  {
+    "id": "sch-mie-3",
+    "day": "Mié",
+    "time": "16:00",
+    "room": "Sala A",
+    "student": "Rodrigo Silva Castro",
+    "teacher": "Jeremy",
+    "instrument": "Guitarra",
+    "category": "JUVENIL",
+    "status": "programada"
+  },
+  {
+    "id": "sch-mie-4",
+    "day": "Mié",
+    "time": "16:00",
+    "room": "Sala A",
+    "student": "Valentina Morales Ramos",
+    "teacher": "Jeremy",
+    "instrument": "Batería",
+    "category": "JUNIOR",
+    "status": "programada"
+  },
+  {
+    "id": "sch-mie-5",
+    "day": "Mié",
+    "time": "16:00",
+    "room": "Sala A",
+    "student": "Joaquín Vargas Peña",
+    "teacher": "Jeremy",
+    "instrument": "Guitarra",
+    "category": "JUVENIL",
+    "status": "programada"
+  },
+  {
     "id": "sch-2",
     "day": "Lun",
     "time": "16:00",
