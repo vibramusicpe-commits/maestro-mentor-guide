@@ -28,13 +28,14 @@ Aceptado e Implementado
      - ⏮️ / ⏭️ Salto manual entre pasos 1 al 6 con cierre automático de modales intermedios.
      - ❌ Botón "Salir / Tomar Control" (y tecla Escape) para cancelar inmediatamente la animación y devolver el control al usuario sin dejar formularios bloqueados.
 
-3. **6 Pasos Operativos Demostrados sobre la Interfaz Real**:
-   - **Paso 1 (Alumnos)**: Desplazamiento a `/admin/alumnos`, clic real en `+ Registrar Nuevo Alumno` que abre el Sheet auténtico, tipeo real en los campos de Luciana Mendoza Gómez, Carlos Mendoza (987 654 321), Rosa Huamán (984 123 456) y Elena Gómez (991 000 222), y cierre seguro con el botón Cancelar.
-   - **Paso 2 (Horarios)**: Desplazamiento a `/admin/agenda`, foco sobre las celdas pareadas de la Agenda y explicación del aforo de 5 alumnos.
-   - **Paso 3 (Asistencia)**: Retorno a `/admin/alumnos`, apertura del Kardex real desde la fila de un alumno, foco sobre el botón "Justificada" (+1 crédito) y cierre limpio.
-   - **Paso 4 (Papelera)**: Clic real en el botón `Papelera` que abre el auténtico diálogo `DeletedStudentsTrashModal`, clic en la pestaña real `🎯 Leads Reincorporación`, demostración de filtros por motivo y botón verde `Restaurar Alumno`, y cierre con el botón `Cerrar Papelera`.
-   - **Paso 5 (Cobros)**: Desplazamiento a `/admin/facturacion`, foco sobre los recibos en Soles PEN y pasarela Culqi.
-   - **Paso 6 (Docentes en Sede)**: Retorno a `/admin`, foco sobre el widget en vivo de asistencia docente y conclusión.
+3. **7 Pasos Operativos Demostrados sobre la Interfaz Real**:
+   - **Paso 1 (Directorio - Registro)**: Desplazamiento a `/admin/alumnos`, clic real en `+ Registrar Nuevo Alumno` que abre el Sheet auténtico, tipeo real en los campos de Luciana Mendoza Gómez, Carlos Mendoza (987 654 321), Rosa Huamán (984 123 456) y Elena Gómez (991 000 222), y cierre seguro con el botón Cancelar.
+   - **Paso 2 (Horario del Alumno - + Horario)**: En `/admin/alumnos`, clic real en el botón `+ Horario` de la fila del alumno, apertura del diálogo `ScheduleStudentForm`, foco y clic en `🔗 Días Pareados (Oficial)` (Lunes jala Miércoles / Martes jala Jueves), foco y clic en `⚙️ Modo Personalizado` (horarios libres ej. Miércoles + Sábado con aforo máx de 5 alumnos por profesor), y cierre seguro con Cancelar.
+   - **Paso 3 (Agenda General y Aforo)**: Desplazamiento a `/admin/agenda`, foco sobre las celdas pareadas de la Agenda y explicación del aforo estricto de 5 alumnos por profesor.
+   - **Paso 4 (Asistencia y Kardex)**: Retorno a `/admin/alumnos`, apertura del Kardex real desde la fila de un alumno, foco sobre el botón "Justificada" (+1 crédito de recuperación automático) y cierre limpio.
+   - **Paso 5 (Papelera y Restauración)**: Clic real en el botón `Papelera` que abre el auténtico diálogo `DeletedStudentsTrashModal`, clic en la pestaña real `🎯 Leads Reincorporación`, demostración de filtros por motivo y botón verde `Restaurar Alumno` en 1 clic, y cierre con el botón `Cerrar Papelera`.
+   - **Paso 6 (Cobros)**: Desplazamiento a `/admin/facturacion`, foco sobre los recibos en Soles PEN y pasarela oficial Culqi.
+   - **Paso 7 (Docentes en Sede)**: Retorno a `/admin`, foco sobre el widget en vivo de asistencia docente en sede y conclusión.
 
 4. **Acceso Dual en la Interfaz**:
    - Botón `🎮 Tour en Vivo (Autopiloto)` incorporado en la cabecera principal de `/admin`.
