@@ -40,6 +40,7 @@ import {
   DialogTitle as DialogTitleComponent,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { AutopilotTourOverlay } from "@/components/admin/autopilot-tour-overlay";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: () => {
@@ -460,6 +461,9 @@ function AdminLayout() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Overlay Global de Tour Autopiloto en Pantalla Completa con Cursor Virtual */}
+      <AutopilotTourOverlay />
     </div>
   );
 }

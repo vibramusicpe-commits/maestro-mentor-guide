@@ -8,8 +8,9 @@ import { BirthdayWidget } from "@/components/admin/birthday-widget";
 import { TeacherAttendanceWidget } from "@/components/admin/teacher-attendance-widget";
 import { StaffOnboardingTutorial } from "@/components/admin/staff-onboarding-tutorial";
 import { useAppStore } from "@/store/app-store";
+import { useAutopilotStore } from "@/store/autopilot-store";
 import { getDailyGreeting } from "@/lib/greetings";
-import { Settings, Sparkles, User, Check, BookOpen, HelpCircle } from "lucide-react";
+import { Settings, Sparkles, User, Check, BookOpen, HelpCircle, Gamepad2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -44,6 +45,7 @@ function AdminDashboard() {
   const activeRole = useAppStore((s) => s.activeRole);
   const currentUser = useAppStore((s) => s.currentUser);
   const updateUserName = useAppStore((s) => s.updateUserName);
+  const startAutopilotTour = useAutopilotStore((s) => s.startTour);
   const isStaff = activeRole === "staff";
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -99,13 +101,27 @@ function AdminDashboard() {
           </p>
         </div>
 
-        {/* Botones de Cabecera: Guía de Inducción y Configuración Personal */}
-        <div className="flex items-center gap-2">
+        {/* Botones de Cabecera: Tour Autopiloto en Vivo, Guía de Inducción y Configuración */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              toast.info("Iniciando Tour Autopiloto en Vivo...", {
+                description: "El cursor animado demostrará el flujo paso a paso. Pulsa Espacio para pausar o Escape para salir.",
+              });
+              startAutopilotTour();
+            }}
+            className="gap-1.5 font-black rounded-xl bg-gradient-to-r from-[#F47B20] via-[#FF9E3D] to-[#FFB52E] text-[#15120F] hover:opacity-95 shadow-md text-xs border border-[#FFB52E]/50"
+          >
+            <Gamepad2 className="h-4 w-4" />
+            🎮 Tour en Vivo (Autopiloto)
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => setIsTutorialOpen(true)}
-            className="gap-1.5 font-bold rounded-xl border-primary/40 text-primary hover:bg-primary/10 shadow-xs"
+            className="gap-1.5 font-bold rounded-xl border-primary/40 text-primary hover:bg-primary/10 shadow-xs text-xs"
           >
             <BookOpen className="h-4 w-4" />
             Guía de Inducción
@@ -118,7 +134,7 @@ function AdminDashboard() {
               setCustomName(displayName);
               setIsSettingsOpen(true);
             }}
-            className="gap-2 font-bold rounded-xl border-border hover:bg-muted shadow-xs"
+            className="gap-2 font-bold rounded-xl border-border hover:bg-muted shadow-xs text-xs"
           >
             <Settings className="h-4 w-4 text-primary" />
             Personalizar Perfil
@@ -208,17 +224,32 @@ function AdminDashboard() {
                   </span>
                 </label>
 
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    setIsSettingsOpen(false);
-                    setIsTutorialOpen(true);
-                  }}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xs gap-1.5 rounded-xl shadow-xs"
-                >
-                  <BookOpen className="h-3.5 w-3.5" /> Iniciar Tutorial Guiado
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setIsSettingsOpen(false);
+                      startAutopilotTour();
+                    }}
+                    className="bg-gradient-to-r from-[#F47B20] to-[#FF9E3D] hover:opacity-95 text-[#15120F] font-black text-xs gap-1.5 rounded-xl shadow-xs"
+                  >
+                    <Gamepad2 className="h-3.5 w-3.5" /> Iniciar Autopiloto en Vivo
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsSettingsOpen(false);
+                      setIsTutorialOpen(true);
+                    }}
+                    className="border-primary/40 text-primary hover:bg-primary/10 font-bold text-xs gap-1.5 rounded-xl"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" /> Guía Teórica
+                  </Button>
+                </div>
               </div>
             </div>
 
