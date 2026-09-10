@@ -200,6 +200,10 @@ export function StudentsTable() {
 
   // Estado para Registrar Reingreso de Alumno
   const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
+  const liveKardexStudent = useMemo(() => {
+    if (!kardexStudent) return null;
+    return adminStudents.find((st) => st.id === kardexStudent.id) || kardexStudent;
+  }, [adminStudents, kardexStudent]);
   const [isReentryFormOpen, setIsReentryFormOpen] = useState(false);
   const [reentryDate, setReentryDate] = useState("2026-08-18");
   const [reentryReason, setReentryReason] = useState("");
@@ -1779,10 +1783,10 @@ export function StudentsTable() {
       </Sheet>
 
       {/* Modal de Kardex de Asistencias y Registro de Sesiones con Fechas y Horas */}
-      {kardexStudent && (
+      {liveKardexStudent && (
         <StudentAttendanceKardex
-          student={kardexStudent}
-          isOpen={!!kardexStudent}
+          student={liveKardexStudent}
+          isOpen={!!liveKardexStudent}
           onClose={() => setKardexStudent(null)}
         />
       )}

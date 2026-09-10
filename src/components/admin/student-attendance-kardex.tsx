@@ -30,8 +30,10 @@ import {
   getMonthWeeks,
   MONTHS_NAME,
   WEEKDAY_FULL_NAMES,
+  getCurrentWeekIndex,
   type CalendarWeekInfo,
 } from "@/lib/calendar-utils";
+import { isMatchingStudentName } from "@/lib/student-matching";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -83,16 +85,24 @@ export function StudentAttendanceKardex({
   student,
   isOpen = true,
   onClose,
-  defaultMonth = 7, // Agosto
-  defaultYear = 2026,
+  defaultMonth,
+  defaultYear,
   isDialog = true,
 }: StudentAttendanceKardexProps) {
   const schedule = useAppStore((s) => s.schedule);
   const setStudentSessionAttendance = useAppStore((s) => s.setStudentSessionAttendance);
   const bulkRegularizeStudentAttendance = useAppStore((s) => s.bulkRegularizeStudentAttendance);
 
-  const [selectedMonth, setSelectedMonth] = useState<number>(defaultMonth);
-  const [selectedYear, setSelectedYear] = useState<number>(defaultYear);
+  const now = new Date();
+  const currentRealMonth = now.getMonth();
+  const currentRealYear = now.getFullYear();
+
+  const [selectedMonth, setSelectedMonth] = useState<number>(
+    defaultMonth !== undefined ? defaultMonth : currentRealMonth
+  );
+  const [selectedYear, setSelectedYear] = useState<number>(
+    defaultYear !== undefined ? defaultYear : currentRealYear
+  );
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
 
   // Semanas del mes seleccionado
@@ -100,21 +110,17 @@ export function StudentAttendanceKardex({
     return getMonthWeeks(selectedYear, selectedMonth);
   }, [selectedYear, selectedMonth]);
 
-  // Clases agendadas para este alumno
+  // Clases agendadas para este alumno (matching inteligente de nombres)
   const studentLessons = useMemo(() => {
-    const q = student.name.trim().toLowerCase();
     return schedule.filter(
-      (l) =>
-        (l.student.toLowerCase() === q ||
-          l.student.toLowerCase().includes(q) ||
-          q.includes(l.student.toLowerCase())) &&
-        l.status !== "cancelada"
+      (l) => isMatchingStudentName(l.student, student.name) && l.status !== "cancelada"
     );
   }, [schedule, student.name]);
 
   // Generar lista cronológica exacta de sesiones con fecha y hora
   const sessions: StudentSessionItem[] = useMemo(() => {
     const result: StudentSessionItem[] = [];
+    const currentActiveWeek = getCurrentWeekIndex(selectedYear, selectedMonth);
 
     monthWeeks.forEach((week) => {
       week.days.forEach((dayInfo) => {
@@ -144,6 +150,8 @@ export function StudentAttendanceKardex({
             (lesson.attendanceByWeek && lesson.attendanceByWeek[week.weekIndex])
               ? lesson.attendanceByWeek[week.weekIndex]!
               : (lesson.weekIndex === week.weekIndex && lesson.attendanceStatus)
+              ? lesson.attendanceStatus
+              : (selectedMonth === currentRealMonth && week.weekIndex === currentActiveWeek && lesson.attendanceStatus)
               ? lesson.attendanceStatus
               : "pendiente";
 
@@ -340,14 +348,36 @@ export function StudentAttendanceKardex({
           </p>
         </div>
 
-        {/* Selector de Mes del Ciclo */}
-        <div className="flex items-center gap-2 shrink-0">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+        {/* Selector de Mes del Ciclo con pestañas rápidas Agosto / Setiembre */}
+        <div className="flex items-center gap-1.5 shrink-0 bg-muted/60 p-1 rounded-xl border border-border">
+          <button
+            type="button"
+            onClick={() => setSelectedMonth(7)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+              selectedMonth === 7
+                ? "bg-background text-foreground shadow-2xs font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Agosto
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedMonth(8)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              selectedMonth === 8
+                ? "bg-primary text-primary-foreground shadow-2xs font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Setiembre
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          </button>
           <Select
             value={String(selectedMonth)}
             onValueChange={(v) => setSelectedMonth(parseInt(v, 10))}
           >
-            <SelectTrigger className="h-8 text-xs w-[140px] rounded-xl font-bold">
+            <SelectTrigger className="h-7 text-[11px] w-[115px] rounded-lg font-bold border-0 bg-transparent">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -220,6 +220,7 @@ export type RecurringConcept = {
 
 import { officialAdminStudents, officialSchedule } from "./official-seeds";
 import { officialControlPagosStudents, officialControlPagosInvoices } from "./official-control-pagos-seeds";
+import { isMatchingStudentName } from "@/lib/student-matching";
 
 // ===== Datos de Producción Oficiales (Alumnos y Horarios desde CSV con vigencia Agosto 2026) =====
 
@@ -229,14 +230,72 @@ export const initialSchedule: ScheduledLesson[] = officialSchedule.map((l) => ({
   month: 7, // Agosto (0-indexed)
 }));
 
-// Lista oficial de 99 alumnos extraída directamente del Control de Pagos de Vibra Music
+// Lista oficial de alumnos extraída del Control de Pagos y Horario de Vibra Music
 // Purgado de mock data: Las asistencias inician limpias (0% y sin registros ficticios)
 // para que el récord se construya en producción real desde la agenda y Kardex.
-export const adminStudents: AdminStudent[] = officialControlPagosStudents.map((st) => ({
+const baseControlStudents: AdminStudent[] = officialControlPagosStudents.map((st) => ({
   ...st,
   recentAttendance: [],
   attendanceRate: 0,
 }));
+
+// Alumnos complementarios presentes en el horario oficial o registro administrativo
+const missingAdminStudents = officialAdminStudents
+  .filter((oSt) => !baseControlStudents.some((bSt) => isMatchingStudentName(bSt.name, oSt.name)))
+  .map((st) => ({
+    ...st,
+    recentAttendance: [],
+    attendanceRate: 0,
+  }));
+
+const combinedNames = [...baseControlStudents, ...missingAdminStudents];
+const missingScheduleStudents: AdminStudent[] = [];
+
+officialSchedule.forEach((sch) => {
+  if (!sch.student || sch.student.startsWith("Slot") || sch.student === "Piano" || sch.student === "Piano Juvenil") return;
+  const exists =
+    combinedNames.some((st) => isMatchingStudentName(st.name, sch.student)) ||
+    missingScheduleStudents.some((st) => isMatchingStudentName(st.name, sch.student));
+  if (!exists) {
+    missingScheduleStudents.push({
+      id: `as-sch-${missingScheduleStudents.length + 1}`,
+      name: sch.student,
+      family: `Familia ${sch.student.split(" ").slice(-1)[0] || sch.student}`,
+      instrument: sch.instrument || "Música",
+      level: "Nivel 1",
+      teacher: sch.teacher,
+      modality: "Regular (8 clases / 45 min)",
+      status: "activo",
+      ageCategory: sch.category || "JUNIOR",
+      age: 10,
+      attendanceRate: 0,
+      payment: "al-dia",
+      risk: 10,
+      joinedAt: "Ago 2026",
+      makeupCredits: 0,
+      balance: 297,
+      recentAttendance: [],
+      teacherNote: "Horario activo",
+      email: `alumno_${sch.student.toLowerCase().replace(/[^a-z0-9]/g, "")}@vibramusic.pe`,
+      phone: "999999999",
+      planType: "Mensual",
+      planPrice: 297,
+      matriculaType: "Promo Demo (S/ 30)",
+      packUtilesPaid: true,
+      planStartDate: "2026-08-01",
+      planEndDate: "2026-08-31",
+      planStartMonth: "2026-08",
+      planEndMonth: "2026-08",
+    });
+  }
+});
+
+export const adminStudents: AdminStudent[] = [
+  ...baseControlStudents,
+  ...missingAdminStudents,
+  ...missingScheduleStudents,
+];
+
 
 // Lista oficial de 99 facturas y estados de pago reales de Agosto 2026
 export const initialInvoices: Invoice[] = officialControlPagosInvoices;

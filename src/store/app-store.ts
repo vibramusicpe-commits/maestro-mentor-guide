@@ -35,6 +35,7 @@ import {
   VIBRA_PRICING,
 } from "./admin-seeds";
 import { getCurrentWeekIndex } from "@/lib/calendar-utils";
+import { isMatchingStudentName, resolveStudentUUID } from "@/lib/student-matching";
 
 export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow };
 export type {
@@ -298,13 +299,7 @@ function queueItem(label: string): SyncItem {
 function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Partial<AdminStudent>) {
   try {
     if (typeof window === "undefined") return;
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId);
-    const resolvedStudentId = isUUID
-      ? studentId
-      : !isNaN(Number(studentId))
-      ? `00000000-0000-0000-0002-${String(studentId).padStart(12, "0")}`
-      : null;
-
+    const resolvedStudentId = resolveStudentUUID(studentId);
     if (!resolvedStudentId) return;
 
     import("@/lib/services/students.service").then(({ updateStudent }) => {
@@ -335,12 +330,7 @@ function backgroundSyncAttendanceLogToDB(
 ) {
   try {
     if (typeof window === "undefined") return;
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId);
-    const resolvedStudentId = isUUID
-      ? studentId
-      : !isNaN(Number(studentId))
-      ? `00000000-0000-0000-0002-${String(studentId).padStart(12, "0")}`
-      : null;
+    const resolvedStudentId = resolveStudentUUID(studentId);
 
     // Insforge attendance_enum acepta: 'presente', 'ausente', 'tarde', 'recuperacion'
     let dbStatus: "presente" | "ausente" | "tarde" | "recuperacion" = "presente";
@@ -848,11 +838,7 @@ export const useAppStore = create<AppState>()(
           // Recalcular estadísticas del alumno para reflejar en el directorio y Kardex
           const studentLessons = studentName
             ? newSchedule.filter(
-                (l) =>
-                  (l.student.toLowerCase() === studentName.toLowerCase() ||
-                    l.student.toLowerCase().includes(studentName.toLowerCase()) ||
-                    studentName.toLowerCase().includes(l.student.toLowerCase())) &&
-                  l.status !== "cancelada"
+                (l) => isMatchingStudentName(l.student, studentName) && l.status !== "cancelada"
               )
             : [];
 
@@ -887,12 +873,7 @@ export const useAppStore = create<AppState>()(
             : 0;
 
           const newStudents = s.adminStudents.map((st) => {
-            if (
-              studentName &&
-              (st.name.toLowerCase() === studentName.toLowerCase() ||
-                st.name.toLowerCase().includes(studentName.toLowerCase()) ||
-                studentName.toLowerCase().includes(st.name.toLowerCase()))
-            ) {
+            if (studentName && isMatchingStudentName(st.name, studentName)) {
               return {
                 ...st,
                 attendanceRate: newRate,
@@ -904,12 +885,7 @@ export const useAppStore = create<AppState>()(
           });
 
           const updatedStudent = studentName
-            ? newStudents.find(
-                (st) =>
-                  st.name.toLowerCase() === studentName.toLowerCase() ||
-                  st.name.toLowerCase().includes(studentName.toLowerCase()) ||
-                  studentName.toLowerCase().includes(st.name.toLowerCase())
-              )
+            ? newStudents.find((st) => isMatchingStudentName(st.name, studentName))
             : undefined;
 
           if (updatedStudent) {
@@ -958,11 +934,7 @@ export const useAppStore = create<AppState>()(
 
           // Recalcular estadísticas del alumno
           const studentLessons = newSchedule.filter(
-            (l) =>
-              (l.student.toLowerCase() === studentName.toLowerCase() ||
-                l.student.toLowerCase().includes(studentName.toLowerCase()) ||
-                studentName.toLowerCase().includes(l.student.toLowerCase())) &&
-              l.status !== "cancelada"
+            (l) => isMatchingStudentName(l.student, studentName) && l.status !== "cancelada"
           );
 
           let totalPresentes = 0;
@@ -996,11 +968,7 @@ export const useAppStore = create<AppState>()(
             : 0;
 
           const newStudents = s.adminStudents.map((st) => {
-            if (
-              st.name.toLowerCase() === studentName.toLowerCase() ||
-              st.name.toLowerCase().includes(studentName.toLowerCase()) ||
-              studentName.toLowerCase().includes(st.name.toLowerCase())
-            ) {
+            if (isMatchingStudentName(st.name, studentName)) {
               return {
                 ...st,
                 attendanceRate: newRate,
@@ -1011,12 +979,7 @@ export const useAppStore = create<AppState>()(
             return st;
           });
 
-          const updatedStudent = newStudents.find(
-            (st) =>
-              st.name.toLowerCase() === studentName.toLowerCase() ||
-              st.name.toLowerCase().includes(studentName.toLowerCase()) ||
-              studentName.toLowerCase().includes(st.name.toLowerCase())
-          );
+          const updatedStudent = newStudents.find((st) => isMatchingStudentName(st.name, studentName));
           if (updatedStudent) {
             backgroundSyncStudentToDB(s.activeRole, updatedStudent.id, {
               attendanceRate: newRate,
@@ -1071,11 +1034,7 @@ export const useAppStore = create<AppState>()(
 
           // Recalcular estadísticas del alumno
           const studentLessons = newSchedule.filter(
-            (l) =>
-              (l.student.toLowerCase() === studentName.toLowerCase() ||
-                l.student.toLowerCase().includes(studentName.toLowerCase()) ||
-                studentName.toLowerCase().includes(l.student.toLowerCase())) &&
-              l.status !== "cancelada"
+            (l) => isMatchingStudentName(l.student, studentName) && l.status !== "cancelada"
           );
 
           let totalPresentes = 0;
@@ -1109,11 +1068,7 @@ export const useAppStore = create<AppState>()(
             : 0;
 
           const newStudents = s.adminStudents.map((st) => {
-            if (
-              st.name.toLowerCase() === studentName.toLowerCase() ||
-              st.name.toLowerCase().includes(studentName.toLowerCase()) ||
-              studentName.toLowerCase().includes(st.name.toLowerCase())
-            ) {
+            if (isMatchingStudentName(st.name, studentName)) {
               return {
                 ...st,
                 attendanceRate: newRate,
@@ -1124,12 +1079,7 @@ export const useAppStore = create<AppState>()(
             return st;
           });
 
-          const updatedStudent = newStudents.find(
-            (st) =>
-              st.name.toLowerCase() === studentName.toLowerCase() ||
-              st.name.toLowerCase().includes(studentName.toLowerCase()) ||
-              studentName.toLowerCase().includes(st.name.toLowerCase())
-          );
+          const updatedStudent = newStudents.find((st) => isMatchingStudentName(st.name, studentName));
           if (updatedStudent) {
             backgroundSyncStudentToDB(s.activeRole, updatedStudent.id, {
               attendanceRate: newRate,

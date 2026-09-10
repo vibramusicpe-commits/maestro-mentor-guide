@@ -72,8 +72,10 @@ import {
   getMonthWeeks,
   MONTHS_NAME,
   WEEKDAY_FULL_NAMES,
+  getCurrentWeekIndex,
   type CalendarWeekInfo,
 } from "@/lib/calendar-utils";
+import { isMatchingStudentName } from "@/lib/student-matching";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,8 +151,20 @@ export function AgendaBoard() {
   const [moveScope, setMoveScope] = useState<"only-this-week" | "all">("only-this-week");
 
   // Estado del Selector de Fecha (Meses / Años / Histórico / Semanas)
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2026, 7, 12)); // Agosto 2026
-  const [currentWeekIndex, setCurrentWeekIndex] = useState(1); // Semana 2 (Semana activa de Agosto 2026)
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const now = new Date();
+    if (now.getFullYear() === 2026 && now.getMonth() >= 7) {
+      return now;
+    }
+    return new Date(2026, 7, 12);
+  });
+  const [currentWeekIndex, setCurrentWeekIndex] = useState<number>(() => {
+    const now = new Date();
+    if (now.getFullYear() === 2026 && now.getMonth() >= 7) {
+      return getCurrentWeekIndex(now.getFullYear(), now.getMonth());
+    }
+    return 1;
+  });
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
@@ -1464,26 +1478,41 @@ export function AgendaBoard() {
                                                   🔴 Recuperación
                                                 </span>
                                               )}
-                                              {/* Puntito Indicador de Asistencia Marcada (Aislado por Semana) */}
-                                              {(() => {
-                                                const cardAtt = lesson.attendanceByWeek?.[currentWeekIndex] ?? (lesson.weekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined);
-                                                if (!cardAtt) return null;
-                                                return (
-                                                  <span
-                                                    className={`absolute top-0.5 left-0.5 w-2 h-2 rounded-full border border-white shadow-2xs ${
-                                                      cardAtt === "presente"
-                                                        ? "bg-emerald-500 ring-1 ring-emerald-400/50"
-                                                        : cardAtt === "ausente"
-                                                        ? "bg-red-500 ring-1 ring-red-400/50"
-                                                        : cardAtt === "tarde"
-                                                        ? "bg-amber-500 ring-1 ring-amber-400/50"
-                                                        : "bg-blue-500 ring-1 ring-blue-400/50"
-                                                    }`}
-                                                    title={`Asistencia Semana ${currentWeekIndex + 1}: ${cardAtt.toUpperCase()}`}
-                                                  />
-                                                );
-                                              })()}
-                                              {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
+                                               {/* Indicador de Asistencia Marcada por Profesor / Secretaría */}
+                                               {(() => {
+                                                 const cardAtt =
+                                                   lesson.attendanceByWeek?.[safeWeekIndex] ??
+                                                   (lesson.weekIndex === safeWeekIndex
+                                                     ? lesson.attendanceStatus
+                                                     : (safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined));
+                                                 if (!cardAtt) return null;
+                                                 return (
+                                                   <div
+                                                     className={`mt-1 flex items-center justify-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shadow-2xs border ${
+                                                       cardAtt === "presente"
+                                                         ? "bg-emerald-600 text-white border-emerald-700"
+                                                         : cardAtt === "ausente"
+                                                         ? "bg-red-600 text-white border-red-700"
+                                                         : cardAtt === "tarde"
+                                                         ? "bg-amber-600 text-white border-amber-700"
+                                                         : "bg-blue-600 text-white border-blue-700"
+                                                     }`}
+                                                     title={`Asistencia Semana ${safeWeekIndex + 1}: ${cardAtt.toUpperCase()}`}
+                                                   >
+                                                     <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                                     <span>
+                                                       {cardAtt === "presente"
+                                                         ? "Presente"
+                                                         : cardAtt === "ausente"
+                                                         ? "Falta"
+                                                         : cardAtt === "tarde"
+                                                         ? "Tarde"
+                                                         : "Justif."}
+                                                     </span>
+                                                   </div>
+                                                 );
+                                               })()}
+                                               {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
                                               {lesson.category === "PERSONALIZADA" && (
                                                 <span
                                                   className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
@@ -1875,15 +1904,42 @@ export function AgendaBoard() {
                                               </span>
                                             </div>
 
-                                            {/* Línea 2: Instrumento + Botón de Editar */}
-                                            <div className="flex items-center justify-between text-[9.5px] pt-0.5 mt-0.5 border-t border-black/10">
-                                              <span className={`font-semibold ${catStyle.text} opacity-90 truncate`}>
-                                                🎵 {lesson.instrument}
-                                              </span>
-                                              <span className={`font-bold ${catStyle.text} opacity-80 text-[8.5px] group-hover:opacity-100 group-hover:underline`}>
-                                                Editar →
-                                              </span>
-                                            </div>
+                                             {/* Línea 2: Instrumento + Asistencia */}
+                                             <div className="flex items-center justify-between text-[9.5px] pt-0.5 mt-0.5 border-t border-black/10">
+                                               <span className={`font-semibold ${catStyle.text} opacity-90 truncate`}>
+                                                 🎵 {lesson.instrument}
+                                               </span>
+                                               {(() => {
+                                                 const cardAtt =
+                                                   lesson.attendanceByWeek?.[safeWeekIndex] ??
+                                                   (lesson.weekIndex === safeWeekIndex
+                                                     ? lesson.attendanceStatus
+                                                     : (safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined));
+                                                 if (!cardAtt) {
+                                                   return (
+                                                     <span className={`font-bold ${catStyle.text} opacity-80 text-[8.5px] group-hover:opacity-100 group-hover:underline`}>
+                                                       Editar →
+                                                     </span>
+                                                   );
+                                                 }
+                                                 return (
+                                                   <span
+                                                     className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase text-white shadow-2xs ${
+                                                       cardAtt === "presente"
+                                                         ? "bg-emerald-600"
+                                                         : cardAtt === "ausente"
+                                                         ? "bg-red-600"
+                                                         : cardAtt === "tarde"
+                                                         ? "bg-amber-600"
+                                                         : "bg-blue-600"
+                                                     }`}
+                                                     title={`Asistencia Semana ${safeWeekIndex + 1}: ${cardAtt.toUpperCase()}`}
+                                                   >
+                                                     {cardAtt === "presente" ? "🟢 Pres" : cardAtt === "ausente" ? "🔴 Aus" : cardAtt === "tarde" ? "🟡 Tar" : "🔵 Just"}
+                                                   </span>
+                                                 );
+                                               })()}
+                                             </div>
                                           </div>
                                         );
                                       })}
@@ -2047,7 +2103,33 @@ export function AgendaBoard() {
                                   </div>
                                   <div className="flex items-center justify-between text-[8.5px] font-semibold opacity-90 mt-0.5 leading-none">
                                     <span className="truncate">{lesson.instrument}</span>
-                                    <span className="truncate text-muted-foreground/90 ml-1">Prof. {lesson.teacher}</span>
+                                    <div className="flex items-center gap-1">
+                                      {(() => {
+                                        const cardAtt =
+                                          lesson.attendanceByWeek?.[safeWeekIndex] ??
+                                          (lesson.weekIndex === safeWeekIndex
+                                            ? lesson.attendanceStatus
+                                            : (safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined));
+                                        if (!cardAtt) return null;
+                                        return (
+                                          <span
+                                            className={`px-1 py-0.2 rounded text-[7.5px] font-black uppercase text-white shadow-2xs ${
+                                              cardAtt === "presente"
+                                                ? "bg-emerald-600"
+                                                : cardAtt === "ausente"
+                                                ? "bg-red-600"
+                                                : cardAtt === "tarde"
+                                                ? "bg-amber-600"
+                                                : "bg-blue-600"
+                                            }`}
+                                            title={`Asistencia Semana ${safeWeekIndex + 1}: ${cardAtt.toUpperCase()}`}
+                                          >
+                                            {cardAtt === "presente" ? "🟢 Pres" : cardAtt === "ausente" ? "🔴 Aus" : cardAtt === "tarde" ? "🟡 Tar" : "🔵 Just"}
+                                          </span>
+                                        );
+                                      })()}
+                                      <span className="truncate text-muted-foreground/90 ml-0.5">Prof. {lesson.teacher}</span>
+                                    </div>
                                   </div>
                                 </button>
                               );
@@ -2180,7 +2262,33 @@ export function AgendaBoard() {
                                 </div>
                                 <div className="flex items-center justify-between text-[8.5px] font-semibold opacity-90 mt-0.5 leading-none">
                                   <span className="truncate">{lesson.instrument}</span>
-                                  <span className="truncate text-muted-foreground/90 ml-1">Prof. {lesson.teacher}</span>
+                                  <div className="flex items-center gap-1">
+                                    {(() => {
+                                      const cardAtt =
+                                        lesson.attendanceByWeek?.[safeWeekIndex] ??
+                                        (lesson.weekIndex === safeWeekIndex
+                                          ? lesson.attendanceStatus
+                                          : (safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined));
+                                      if (!cardAtt) return null;
+                                      return (
+                                        <span
+                                          className={`px-1 py-0.2 rounded text-[7.5px] font-black uppercase text-white shadow-2xs ${
+                                            cardAtt === "presente"
+                                              ? "bg-emerald-600"
+                                              : cardAtt === "ausente"
+                                              ? "bg-red-600"
+                                              : cardAtt === "tarde"
+                                              ? "bg-amber-600"
+                                              : "bg-blue-600"
+                                          }`}
+                                          title={`Asistencia Semana ${safeWeekIndex + 1}: ${cardAtt.toUpperCase()}`}
+                                        >
+                                          {cardAtt === "presente" ? "🟢 Pres" : cardAtt === "ausente" ? "🔴 Aus" : cardAtt === "tarde" ? "🟡 Tar" : "🔵 Just"}
+                                        </span>
+                                      );
+                                    })()}
+                                    <span className="truncate text-muted-foreground/90 ml-0.5">Prof. {lesson.teacher}</span>
+                                  </div>
                                 </div>
                               </button>
                             );
@@ -2270,7 +2378,9 @@ export function AgendaBoard() {
                 {(() => {
                   const currentAttendance =
                     selected.attendanceByWeek?.[safeWeekIndex] ??
-                    (selected.weekIndex === safeWeekIndex ? selected.attendanceStatus : undefined);
+                    (selected.weekIndex === safeWeekIndex
+                      ? selected.attendanceStatus
+                      : (safeWeekIndex === currentWeekIndex ? selected.attendanceStatus : undefined));
                   return (
                     <div className="space-y-3 rounded-2xl border-2 border-primary/20 p-4 bg-card shadow-xs">
                       <div className="flex items-center justify-between">
