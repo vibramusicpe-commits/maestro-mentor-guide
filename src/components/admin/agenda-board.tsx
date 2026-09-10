@@ -1,6 +1,7 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import {
   AlertTriangle,
+  AlertCircle,
   Bell,
   Calendar,
   CalendarX2,
@@ -10,6 +11,8 @@ import {
   DoorOpen,
   GraduationCap,
   History,
+  Info,
+  Layers,
   Search,
   FileSpreadsheet,
   Upload,
@@ -183,6 +186,11 @@ export function AgendaBoard() {
   const [newLessonCategory, setNewLessonCategory] = useState<AgeCategory>("JUNIOR");
   const [newLessonScope, setNewLessonScope] = useState<"only-this-week" | "all">("only-this-week");
   const [targetExistingLessonId, setTargetExistingLessonId] = useState<string | "new">("new");
+  // Modo Unificado de Programación: Plan Regular Pareado vs Sesión Individual
+  const [newLessonPlanMode, setNewLessonPlanMode] = useState<"paired" | "individual">("paired");
+  const [newLessonPairGroup, setNewLessonPairGroup] = useState<"L-M" | "M-J" | "Vie" | "Sáb">("L-M");
+  const [newLessonTime2, setNewLessonTime2] = useState(timeSlotsWeekday[0] || "16:00");
+  const [newLessonRoom2, setNewLessonRoom2] = useState(rooms[0] || "Sala A");
 
   // Estados de Búsqueda y Autocompletado de Alumnos (99 Alumnos)
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
@@ -465,6 +473,279 @@ export function AgendaBoard() {
 
     return ids;
   }, [schedule]);
+
+  // Helper universal para evaluar ocupación, aforo y posibles cruces de sala de cualquier franja
+  const getSlotCapacityInfo = useCallback(
+    (targetWeekIndex: number, d: string, t: string, r: string, teacherName: string) => {
+      const cleanTeacher = teacherName.toLowerCase().replace(/\s*\(.*?\)/, "").trim();
+      const matching = schedule.filter(
+        (l) =>
+          l.day === d &&
+          l.time === t &&
+          l.status !== "cancelada" &&
+          (l.weekIndex === undefined || l.weekIndex === targetWeekIndex)
+      );
+      const teacherLessons = matching.filter((l) => {
+        const teach = l.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").trim();
+        return teach.includes(cleanTeacher) || cleanTeacher.includes(teach);
+      });
+      const enrolled = teacherLessons.length;
+      const roomConflictLesson = matching.find((l) => {
+        const teach = l.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").trim();
+        return l.room === r && !teach.includes(cleanTeacher) && !cleanTeacher.includes(teach);
+      });
+
+      let conflictReason: string | null = null;
+      if (enrolled >= 5) {
+        conflictReason = `Aforo completo (${enrolled}/5 alumnos) con Prof. ${teacherName}`;
+      } else if (roomConflictLesson) {
+        conflictReason = `Cruce de Sala: ${r} ya está ocupada por Prof. ${roomConflictLesson.teacher}`;
+      }
+
+      return {
+        enrolled,
+        vacancies: Math.max(0, 5 - enrolled),
+        isFull: enrolled >= 5,
+        hasConflict: !!conflictReason,
+        reason: conflictReason,
+      };
+    },
+    [schedule]
+  );
+
+  // Detección de clases habituales del alumno para determinar si proviene de un Jueves
+  const makeupStudentHabitualLessons = useMemo(() => {
+    if (!makeupStudent) return [];
+    return schedule.filter(
+      (l) =>
+        (l.student.toLowerCase() === makeupStudent.toLowerCase() ||
+          l.student.toLowerCase().includes(makeupStudent.toLowerCase()) ||
+          makeupStudent.toLowerCase().includes(l.student.toLowerCase())) &&
+        l.status !== "cancelada"
+    );
+  }, [schedule, makeupStudent]);
+
+  const isThursdayMakeupOrigin = useMemo(() => {
+    return (
+      makeupStudentHabitualLessons.some((l) => l.day === "Jue") ||
+      makeupOriginalDate.toLowerCase().includes("jue")
+    );
+  }, [makeupStudentHabitualLessons, makeupOriginalDate]);
+
+  // Validación en vivo de aforo y cruces para la franja seleccionada en el modal de recuperación
+  const currentMakeupSlotConflict = useMemo(() => {
+    const finalT = makeupTeacher || availableTeachers[0] || "Jeremy";
+    return getSlotCapacityInfo(makeupWeekIndex, makeupDay, makeupTime, makeupRoom, finalT);
+  }, [getSlotCapacityInfo, makeupWeekIndex, makeupDay, makeupTime, makeupRoom, makeupTeacher, availableTeachers]);
+
+  // Sugerencias Opción A: Misma semana en Intensivos (Viernes o Sábado con cupos libres < 5)
+  const sameWeekIntensiveSlots = useMemo(() => {
+    const finalT = makeupTeacher || availableTeachers[0] || "Jeremy";
+    const suggestions: {
+      day: WeekDay;
+      time: string;
+      room: string;
+      teacher: string;
+      vacancies: number;
+      label: string;
+    }[] = [];
+
+    // Revisar Viernes
+    for (const t of timeSlotsWeekday) {
+      for (const r of rooms) {
+        const info = getSlotCapacityInfo(safeWeekIndex, "Vie", t, r, finalT);
+        if (!info.hasConflict && info.vacancies > 0) {
+          suggestions.push({
+            day: "Vie",
+            time: t,
+            room: r,
+            teacher: finalT,
+            vacancies: info.vacancies,
+            label: `Viernes ${t} (${r} · ${info.vacancies} cupos libres)`,
+          });
+          break;
+        }
+      }
+      if (suggestions.length >= 2) break;
+    }
+
+    // Revisar Sábado
+    for (const t of timeSlotsSaturday) {
+      for (const r of rooms) {
+        const info = getSlotCapacityInfo(safeWeekIndex, "Sáb", t, r, finalT);
+        if (!info.hasConflict && info.vacancies > 0) {
+          suggestions.push({
+            day: "Sáb",
+            time: t,
+            room: r,
+            teacher: finalT,
+            vacancies: info.vacancies,
+            label: `Sábado ${t} (${r} · ${info.vacancies} cupos libres)`,
+          });
+          break;
+        }
+      }
+      if (suggestions.length >= 4) break;
+    }
+
+    return suggestions.slice(0, 4);
+  }, [getSlotCapacityInfo, safeWeekIndex, makeupTeacher, availableTeachers, timeSlotsWeekday, timeSlotsSaturday, rooms]);
+
+  // Sugerencias Opción B: Próxima semana en días regulares (Lunes a Jueves)
+  const nextWeekRegularSlots = useMemo(() => {
+    const nextWeekIdx = Math.min(monthWeeks.length - 1, safeWeekIndex + 1);
+    const finalT = makeupTeacher || availableTeachers[0] || "Jeremy";
+    const suggestions: {
+      day: WeekDay;
+      time: string;
+      room: string;
+      teacher: string;
+      weekIndex: number;
+      vacancies: number;
+      label: string;
+    }[] = [];
+
+    const regDays: WeekDay[] = ["Lun", "Mar", "Mié", "Jue"];
+    for (const d of regDays) {
+      for (const t of timeSlotsWeekday) {
+        for (const r of rooms) {
+          const info = getSlotCapacityInfo(nextWeekIdx, d, t, r, finalT);
+          if (!info.hasConflict && info.vacancies > 0) {
+            suggestions.push({
+              day: d,
+              time: t,
+              room: r,
+              teacher: finalT,
+              weekIndex: nextWeekIdx,
+              vacancies: info.vacancies,
+              label: `Semana ${nextWeekIdx + 1}: ${d} ${t} (${r} · ${info.vacancies} vac.)`,
+            });
+            break;
+          }
+        }
+        if (suggestions.length >= 4) break;
+      }
+      if (suggestions.length >= 4) break;
+    }
+
+    return suggestions.slice(0, 4);
+  }, [getSlotCapacityInfo, safeWeekIndex, monthWeeks.length, makeupTeacher, availableTeachers, timeSlotsWeekday, rooms]);
+
+  // Días pareados correspondientes según el grupo seleccionado en el modal
+  const pairedDays = useMemo(() => {
+    switch (newLessonPairGroup) {
+      case "L-M":
+        return { day1: "Lun" as WeekDay, day2: "Mié" as WeekDay, isRegular: true };
+      case "M-J":
+        return { day1: "Mar" as WeekDay, day2: "Jue" as WeekDay, isRegular: true };
+      case "Vie":
+        return { day1: "Vie" as WeekDay, day2: null, isRegular: false };
+      case "Sáb":
+        return { day1: "Sáb" as WeekDay, day2: null, isRegular: false };
+      default:
+        return { day1: "Lun" as WeekDay, day2: "Mié" as WeekDay, isRegular: true };
+    }
+  }, [newLessonPairGroup]);
+
+  // Reporte de conflicto reactivo para el modal de Programar Clase en modo pareado
+  const pairedConflictReport = useMemo(() => {
+    const finalTeacher = newLessonTeacher || availableTeachers[0] || "Prof. por Asignar";
+    const s1 = getSlotCapacityInfo(safeWeekIndex, pairedDays.day1, newLessonTime, newLessonRoom, finalTeacher);
+    const s2 = pairedDays.isRegular && pairedDays.day2
+      ? getSlotCapacityInfo(safeWeekIndex, pairedDays.day2, newLessonTime2 || newLessonTime, newLessonRoom2 || newLessonRoom, finalTeacher)
+      : null;
+
+    const hasConflict1 = s1.hasConflict;
+    const hasConflict2 = s2 ? s2.hasConflict : false;
+    const conflictingDaysCount = (hasConflict1 ? 1 : 0) + (hasConflict2 ? 1 : 0);
+
+    return {
+      hasConflict: hasConflict1 || hasConflict2,
+      conflictingDaysCount,
+      session1: {
+        hasConflict: hasConflict1,
+        day: pairedDays.day1,
+        time: newLessonTime,
+        room: newLessonRoom,
+        enrolled: s1.enrolled,
+        vacancies: s1.vacancies,
+        reason: s1.reason,
+      },
+      session2: s2
+        ? {
+            hasConflict: hasConflict2,
+            day: pairedDays.day2!,
+            time: newLessonTime2 || newLessonTime,
+            room: newLessonRoom2 || newLessonRoom,
+            enrolled: s2.enrolled,
+            vacancies: s2.vacancies,
+            reason: s2.reason,
+          }
+        : null,
+    };
+  }, [
+    getSlotCapacityInfo,
+    safeWeekIndex,
+    pairedDays,
+    newLessonTime,
+    newLessonRoom,
+    newLessonTime2,
+    newLessonRoom2,
+    newLessonTeacher,
+    availableTeachers,
+  ]);
+
+  // Franjas sugeridas libres de conflictos para el modo pareado
+  const suggestedPairedSlots = useMemo(() => {
+    if (newLessonPlanMode !== "paired") return [];
+    const finalTeacher = newLessonTeacher || availableTeachers[0] || "Prof. por Asignar";
+    const times = pairedDays.day1 === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
+    const suggestions: {
+      time: string;
+      vacancies1: number;
+      vacancies2?: number;
+      minVacancies: number;
+      label: string;
+    }[] = [];
+
+    times.forEach((t) => {
+      const s1 = getSlotCapacityInfo(safeWeekIndex, pairedDays.day1, t, newLessonRoom, finalTeacher);
+      if (s1.isFull || s1.hasConflict) return;
+
+      if (pairedDays.isRegular && pairedDays.day2) {
+        const s2 = getSlotCapacityInfo(safeWeekIndex, pairedDays.day2, t, newLessonRoom2 || newLessonRoom, finalTeacher);
+        if (s2.isFull || s2.hasConflict) return;
+        const minVac = Math.min(s1.vacancies, s2.vacancies);
+        suggestions.push({
+          time: t,
+          vacancies1: s1.vacancies,
+          vacancies2: s2.vacancies,
+          minVacancies: minVac,
+          label: `${pairedDays.day1} + ${pairedDays.day2} a las ${t} (${minVac} vacante${minVac > 1 ? "s" : ""})`,
+        });
+      } else {
+        suggestions.push({
+          time: t,
+          vacancies1: s1.vacancies,
+          minVacancies: s1.vacancies,
+          label: `${pairedDays.day1} a las ${t} (${s1.vacancies} vacante${s1.vacancies > 1 ? "s" : ""})`,
+        });
+      }
+    });
+
+    return suggestions.slice(0, 3);
+  }, [
+    newLessonPlanMode,
+    getSlotCapacityInfo,
+    safeWeekIndex,
+    pairedDays,
+    newLessonRoom,
+    newLessonRoom2,
+    newLessonTeacher,
+    availableTeachers,
+    timeSlotsSaturday,
+    timeSlotsWeekday,
+  ]);
 
   const active = schedule.filter((l) => l.status !== "cancelada");
   const capacity = weekDays.length * timeSlots.length * rooms.length;
@@ -820,8 +1101,24 @@ export function AgendaBoard() {
                 setMakeupTeacher(studentWithCredit.teacher || availableTeachers[0] || "Jeremy");
                 setMakeupInstrument(studentWithCredit.instrument || "Piano");
                 setMakeupCategory(studentWithCredit.ageCategory || "JUNIOR");
+
+                // Verificar si el alumno tiene clase los Jueves
+                const stLessons = schedule.filter(
+                  (l) =>
+                    (l.student.toLowerCase() === studentWithCredit.name.toLowerCase() ||
+                      studentWithCredit.name.toLowerCase().includes(l.student.toLowerCase())) &&
+                    l.status !== "cancelada"
+                );
+                const hasThu = stLessons.some((l) => l.day === "Jue");
+                if (hasThu) {
+                  setMakeupWeekIndex(Math.min(monthWeeks.length - 1, safeWeekIndex + 1));
+                  setMakeupDay("Lun");
+                } else {
+                  setMakeupWeekIndex(safeWeekIndex);
+                }
+              } else {
+                setMakeupWeekIndex(safeWeekIndex);
               }
-              setMakeupWeekIndex(safeWeekIndex);
               setIsMakeupModalOpen(true);
             }}
             className="gap-1.5 font-bold border-red-500/40 text-red-700 dark:text-red-300 bg-red-500/10 hover:bg-red-500/20"
@@ -3331,16 +3628,16 @@ export function AgendaBoard() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal para Programar Nueva Clase en Horario */}
+      {/* Modal para Programar Nueva Clase en Horario (Unificado: Plan Regular Pareado vs Sesión Individual) */}
       <Dialog open={isAddLessonOpen} onOpenChange={setIsAddLessonOpen}>
-        <DialogContent className="sm:max-w-md p-6 rounded-3xl border-primary/30 bg-card">
+        <DialogContent className="sm:max-w-lg p-6 rounded-3xl border-primary/30 bg-card">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
               <PlusCircle className="h-5 w-5 text-primary" />
               Programar Clase en Horario
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Asigna a un alumno existente o ingresa su nombre, elige profesor, sala y horario de clase.
+              Asigna el plan regular completo (días pareados oficiales con detección de conflictos) o ajusta una sesión individual.
             </DialogDescription>
           </DialogHeader>
 
@@ -3353,6 +3650,68 @@ export function AgendaBoard() {
               }
               const finalTeacher = newLessonTeacher || availableTeachers[0] || "Prof. por Asignar";
 
+              // Modalidad 1: Plan Regular Completo (Días Pareados Oficiales)
+              if (newLessonPlanMode === "paired") {
+                if (pairedConflictReport.hasConflict) {
+                  toast.error("No se puede guardar: El horario presenta conflictos de aforo o sala.", {
+                    description: "Por favor selecciona una de las franjas recomendadas disponibles.",
+                  });
+                  return;
+                }
+
+                // Programar Día 1
+                addLessonToSchedule({
+                  student: newLessonStudent.trim(),
+                  teacher: finalTeacher,
+                  instrument: newLessonInstrument,
+                  day: pairedDays.day1,
+                  time: newLessonTime,
+                  room: newLessonRoom,
+                  category: newLessonCategory,
+                  status: "programada",
+                  weekIndex: newLessonScope === "only-this-week" ? safeWeekIndex : undefined,
+                });
+
+                // Programar Día 2 si es regular
+                if (pairedDays.isRegular && pairedDays.day2) {
+                  addLessonToSchedule({
+                    student: newLessonStudent.trim(),
+                    teacher: finalTeacher,
+                    instrument: newLessonInstrument,
+                    day: pairedDays.day2,
+                    time: newLessonTime2 || newLessonTime,
+                    room: newLessonRoom2 || newLessonRoom,
+                    category: newLessonCategory,
+                    status: "programada",
+                    weekIndex: newLessonScope === "only-this-week" ? safeWeekIndex : undefined,
+                  });
+
+                  toast.success(`Plan Regular Pareado programado para ${newLessonStudent}`, {
+                    description: `${pairedDays.day1} a las ${newLessonTime} (${newLessonRoom}) y ${pairedDays.day2} a las ${newLessonTime2 || newLessonTime} (${newLessonRoom2 || newLessonRoom}) con Prof. ${finalTeacher}.`,
+                  });
+                } else {
+                  toast.success(`Clase Intensiva programada para ${newLessonStudent}`, {
+                    description: `${pairedDays.day1} a las ${newLessonTime} (${newLessonRoom}) con Prof. ${finalTeacher}.`,
+                  });
+                }
+
+                // Auto-sincronizar la pestaña visible al par de días
+                if (pairedDays.day1 === "Lun" || pairedDays.day1 === "Mié") {
+                  setActivePair(0);
+                } else if (pairedDays.day1 === "Mar" || pairedDays.day1 === "Jue") {
+                  setActivePair(1);
+                } else {
+                  setActivePair(2);
+                }
+
+                setIsAddLessonOpen(false);
+                setNewLessonStudent("");
+                setStudentSearchQuery("");
+                setTargetExistingLessonId("new");
+                return;
+              }
+
+              // Modalidad 2: Sesión Individual / Mover Casilla
               if (targetExistingLessonId && targetExistingLessonId !== "new") {
                 // Reprogramar horario existente (Mover al niño de día / hora)
                 rescheduleLesson(
@@ -3390,7 +3749,7 @@ export function AgendaBoard() {
                 });
               }
 
-              // Auto-sincronizar la pestaña visible al par de días correspondiente para que Nayeli lo vea de inmediato en pantalla
+              // Auto-sincronizar la pestaña visible al par de días correspondiente
               if (newLessonDay === "Lun" || newLessonDay === "Mié") {
                 setActivePair(0);
               } else if (newLessonDay === "Mar" || newLessonDay === "Jue") {
@@ -3406,6 +3765,34 @@ export function AgendaBoard() {
             }}
             className="space-y-4 py-2 text-xs"
           >
+            {/* Selector de Modo: Plan Regular Pareado vs Sesión Individual */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-muted/60 rounded-2xl border border-border">
+              <button
+                type="button"
+                onClick={() => setNewLessonPlanMode("paired")}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  newLessonPlanMode === "paired"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                🔗 Plan Regular (Días Pareados)
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewLessonPlanMode("individual")}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  newLessonPlanMode === "individual"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                📌 Sesión Individual / Mover
+              </button>
+            </div>
+
             <div className="space-y-1.5 relative">
               <div className="flex items-center justify-between">
                 <label className="font-bold text-foreground">Alumno</label>
@@ -3434,7 +3821,7 @@ export function AgendaBoard() {
                 />
                 <Search className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
 
-                {/* Menú Desplegable Inteligente: Solo visible cuando el usuario escribe */}
+                {/* Menú Desplegable Inteligente */}
                 {isStudentDropdownOpen && studentSearchQuery.trim().length > 0 && filteredStudentsList.length > 0 && (
                   <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-2xl shadow-xl max-h-48 overflow-y-auto p-1.5 space-y-1">
                     {filteredStudentsList.map((st) => (
@@ -3477,73 +3864,340 @@ export function AgendaBoard() {
               )}
             </div>
 
-            {/* Panel Inteligente de Horarios Actuales del Alumno (Permite Mover de Día) */}
-            {currentStudentLessons.length > 0 && (
-              <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-primary flex items-center gap-1.5 text-xs">
-                    <Calendar className="h-4 w-4" /> Horario(s) actual(es) del alumno:
-                  </span>
-                  <span className="text-[10px] text-muted-foreground font-semibold">
-                    {currentStudentLessons.length} {currentStudentLessons.length === 1 ? "clase asignada" : "clases asignadas"}
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Elige si deseas mover/cambiar una de sus clases actuales a otro día/hora o agregar una sesión adicional:
-                </p>
+            {/* Selector de Modalidad Pareada vs Sesión Individual */}
+            {newLessonPlanMode === "paired" ? (
+              <>
+                {/* Modalidad de Días Pareados Oficiales */}
                 <div className="space-y-1.5">
-                  {currentStudentLessons.map((ex) => {
-                    const isSelected = targetExistingLessonId === ex.id;
-                    return (
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-foreground">Modalidad de Días Oficiales</label>
+                    <span className="text-[10px] text-primary font-semibold">
+                      {pairedDays.isRegular ? "2 clases x semana (45 min)" : "1 clase intensiva (90 min)"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { id: "L-M", label: "Lun + Mié", sub: "Regular 45m" },
+                      { id: "M-J", label: "Mar + Jue", sub: "Regular 45m" },
+                      { id: "Vie", label: "Viernes", sub: "Intensivo 90m" },
+                      { id: "Sáb", label: "Sábado", sub: "Intensivo 90m" },
+                    ].map((opt) => (
                       <button
-                        key={ex.id}
+                        key={opt.id}
                         type="button"
                         onClick={() => {
-                          setTargetExistingLessonId(ex.id);
-                          setNewLessonDay(ex.day);
-                          setNewLessonTime(ex.time);
-                          setNewLessonTeacher(ex.teacher);
-                          setNewLessonRoom(ex.room);
-                          setNewLessonInstrument(ex.instrument);
-                          if (ex.category) setNewLessonCategory(ex.category);
+                          const g = opt.id as "L-M" | "M-J" | "Vie" | "Sáb";
+                          setNewLessonPairGroup(g);
+                          if (g === "Sáb") {
+                            setNewLessonTime(timeSlotsSaturday[0] || "09:00");
+                            setNewLessonTime2(timeSlotsSaturday[0] || "09:00");
+                          } else {
+                            setNewLessonTime(timeSlotsWeekday[0] || "16:00");
+                            setNewLessonTime2(timeSlotsWeekday[0] || "16:00");
+                          }
                         }}
-                        className={`w-full p-2 rounded-xl border text-xs text-left transition-all flex items-center justify-between ${
-                          isSelected
-                            ? "border-primary bg-primary/15 text-primary font-bold shadow-xs ring-1 ring-primary"
-                            : "border-border bg-background text-foreground hover:bg-muted/70"
+                        className={`p-2 rounded-xl border text-center transition-all ${
+                          newLessonPairGroup === opt.id
+                            ? "border-primary bg-primary text-primary-foreground font-bold shadow-xs"
+                            : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
                         }`}
                       >
-                        <div>
-                          <span className="font-bold">{ex.day} a las {ex.time}</span> · {ex.room} · Prof. {ex.teacher} ({ex.instrument})
-                          {ex.weekIndex !== undefined && (
-                            <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
-                              Semana {ex.weekIndex + 1}
-                            </span>
-                          )}
+                        <div className="text-xs">{opt.label}</div>
+                        <div className="text-[9px] opacity-80 mt-0.5">{opt.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Diagnóstico Reactivo de Conflictos en Tiempo Real (1 Día vs 2 Días) */}
+                {pairedConflictReport.hasConflict ? (
+                  <div className="p-3 rounded-2xl bg-destructive/10 border border-destructive/20 text-xs text-destructive space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <p className="font-bold">
+                          {pairedConflictReport.conflictingDaysCount === 1
+                            ? "⚠️ Tu horario tiene conflicto en 1 día:"
+                            : "⚠️ Tu horario tiene conflictos en 2 días:"}
+                        </p>
+                        {pairedConflictReport.session1.hasConflict && (
+                          <p className="text-[11px]">
+                            • Día 1 ({pairedConflictReport.session1.day} {pairedConflictReport.session1.time} · {pairedConflictReport.session1.room}):{" "}
+                            <span className="font-bold">{pairedConflictReport.session1.reason}</span>
+                          </p>
+                        )}
+                        {pairedConflictReport.session2?.hasConflict && (
+                          <p className="text-[11px]">
+                            • Día 2 ({pairedConflictReport.session2.day} {pairedConflictReport.session2.time} · {pairedConflictReport.session2.room}):{" "}
+                            <span className="font-bold">{pairedConflictReport.session2.reason}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Franjas sugeridas recomendadas */}
+                    {suggestedPairedSlots.length > 0 && (
+                      <div className="pt-2 border-t border-destructive/20 space-y-1.5">
+                        <span className="text-[10.5px] font-bold text-foreground">
+                          💡 Franjas recomendadas disponibles sin cruces:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {suggestedPairedSlots.map((sug, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => {
+                                setNewLessonTime(sug.time);
+                                setNewLessonTime2(sug.time);
+                                toast.success(`Horario ajustado a las ${sug.time}`, {
+                                  description: `Disponible en ${sug.label}`,
+                                });
+                              }}
+                              className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-background border border-border text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all flex items-center gap-1 shadow-xs"
+                            >
+                              <span>🕒 {sug.time}</span>
+                              <span className="opacity-70 text-[9px]">({sug.minVacancies} vac.)</span>
+                            </button>
+                          ))}
                         </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary/10 text-primary">
-                          {isSelected ? "✓ Seleccionado para cambiar de día" : "Mover este día ↵"}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span>
+                        Horario disponible sin conflictos ({pairedConflictReport.session1.vacancies} vacantes en {pairedDays.day1}
+                        {pairedDays.isRegular && pairedConflictReport.session2 ? ` · ${pairedConflictReport.session2.vacancies} en ${pairedDays.day2}` : ""})
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      {pairedDays.isRegular ? "2 Clases Pareadas" : "Intensivo"}
+                    </span>
+                  </div>
+                )}
+
+                {/* Configuración de Día 1 y Día 2 */}
+                <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-muted/20 border border-border">
+                  {/* Día 1 */}
+                  <div className="space-y-2">
+                    <div className="font-bold text-xs text-foreground flex items-center justify-between">
+                      <span>{pairedDays.isRegular ? `Día 1 (${pairedDays.day1})` : `Día Oficial (${pairedDays.day1})`}</span>
+                      <span className="text-[10px] text-muted-foreground">{pairedDays.day1}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground">Hora</label>
+                      <Select
+                        value={newLessonTime}
+                        onValueChange={(v) => {
+                          setNewLessonTime(v);
+                          if (pairedDays.isRegular && newLessonTime2 === newLessonTime) {
+                            setNewLessonTime2(v);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(pairedDays.day1 === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday).map((t) => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground">Sala</label>
+                      <Select
+                        value={newLessonRoom}
+                        onValueChange={(v) => {
+                          setNewLessonRoom(v);
+                          if (pairedDays.isRegular && newLessonRoom2 === newLessonRoom) {
+                            setNewLessonRoom2(v);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {rooms.map((r) => (
+                            <SelectItem key={r} value={r}>{r}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Día 2 (si es regular) */}
+                  {pairedDays.isRegular && pairedDays.day2 ? (
+                    <div className="space-y-2">
+                      <div className="font-bold text-xs text-foreground flex items-center justify-between">
+                        <span>Día 2 ({pairedDays.day2})</span>
+                        <span className="text-[10px] text-muted-foreground">{pairedDays.day2}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-muted-foreground">Hora</label>
+                        <Select value={newLessonTime2} onValueChange={setNewLessonTime2}>
+                          <SelectTrigger className="text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {timeSlotsWeekday.map((t) => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-muted-foreground">Sala</label>
+                        <Select value={newLessonRoom2} onValueChange={setNewLessonRoom2}>
+                          <SelectTrigger className="text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {rooms.map((r) => (
+                              <SelectItem key={r} value={r}>{r}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col justify-center items-center text-center p-3 rounded-xl bg-muted/40 text-muted-foreground text-xs space-y-1">
+                      <p className="font-bold text-foreground">Modalidad Intensiva</p>
+                      <p className="text-[11px] opacity-80">
+                        Los intensivos de 90 min se concentran en una sola sesión semanal continua.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Panel Inteligente de Horarios Actuales del Alumno (Permite Mover de Día en modo Individual) */}
+                {currentStudentLessons.length > 0 && (
+                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-primary flex items-center gap-1.5 text-xs">
+                        <Calendar className="h-4 w-4" /> Horario(s) actual(es) del alumno:
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-semibold">
+                        {currentStudentLessons.length} {currentStudentLessons.length === 1 ? "clase asignada" : "clases asignadas"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Elige si deseas mover/cambiar una de sus clases actuales a otro día/hora o agregar una sesión adicional:
+                    </p>
+                    <div className="space-y-1.5">
+                      {currentStudentLessons.map((ex) => {
+                        const isSelected = targetExistingLessonId === ex.id;
+                        return (
+                          <button
+                            key={ex.id}
+                            type="button"
+                            onClick={() => {
+                              setTargetExistingLessonId(ex.id);
+                              setNewLessonDay(ex.day);
+                              setNewLessonTime(ex.time);
+                              setNewLessonTeacher(ex.teacher);
+                              setNewLessonRoom(ex.room);
+                              setNewLessonInstrument(ex.instrument);
+                              if (ex.category) setNewLessonCategory(ex.category);
+                            }}
+                            className={`w-full p-2 rounded-xl border text-xs text-left transition-all flex items-center justify-between ${
+                              isSelected
+                                ? "border-primary bg-primary/15 text-primary font-bold shadow-xs ring-1 ring-primary"
+                                : "border-border bg-background text-foreground hover:bg-muted/70"
+                            }`}
+                          >
+                            <div>
+                              <span className="font-bold">{ex.day} a las {ex.time}</span> · {ex.room} · Prof. {ex.teacher} ({ex.instrument})
+                              {ex.weekIndex !== undefined && (
+                                <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
+                                  Semana {ex.weekIndex + 1}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary/10 text-primary">
+                              {isSelected ? "✓ Seleccionado para cambiar de día" : "Mover este día ↵"}
+                            </span>
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => setTargetExistingLessonId("new")}
+                        className={`w-full p-2 rounded-xl border text-xs text-left transition-all flex items-center justify-between ${
+                          targetExistingLessonId === "new"
+                            ? "border-emerald-500 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-bold shadow-xs ring-1 ring-emerald-500"
+                            : "border-dashed border-border bg-background text-muted-foreground hover:bg-muted/70"
+                        }`}
+                      >
+                        <span>➕ Inscribir como nueva sesión adicional (sin mover los anteriores)</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-600">
+                          {targetExistingLessonId === "new" ? "✓ Nueva sesión" : "Elegir"}
                         </span>
                       </button>
-                    );
-                  })}
+                    </div>
+                  </div>
+                )}
 
-                  <button
-                    type="button"
-                    onClick={() => setTargetExistingLessonId("new")}
-                    className={`w-full p-2 rounded-xl border text-xs text-left transition-all flex items-center justify-between ${
-                      targetExistingLessonId === "new"
-                        ? "border-emerald-500 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-bold shadow-xs ring-1 ring-emerald-500"
-                        : "border-dashed border-border bg-background text-muted-foreground hover:bg-muted/70"
-                    }`}
-                  >
-                    <span>➕ Inscribir como nueva sesión adicional (sin mover los anteriores)</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-600">
-                      {targetExistingLessonId === "new" ? "✓ Nueva sesión" : "Elegir"}
-                    </span>
-                  </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-foreground">Día</label>
+                    <Select value={newLessonDay} onValueChange={(v) => setNewLessonDay(v as WeekDay)}>
+                      <SelectTrigger className="text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {weekDays.map((d) => (
+                          <SelectItem key={d} value={d}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-foreground">Horario</label>
+                    <Select
+                      value={newLessonTime}
+                      onValueChange={setNewLessonTime}
+                    >
+                      <SelectTrigger className="text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(newLessonDay === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday).map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-foreground">Sala</label>
+                    <Select value={newLessonRoom} onValueChange={setNewLessonRoom}>
+                      <SelectTrigger className="text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {rooms.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
             {/* Selector de Alcance de la Programación: Solo esta semana vs Todo el mes */}
@@ -3650,59 +4304,6 @@ export function AgendaBoard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1.5">
-                <label className="font-bold text-foreground">Día</label>
-                <Select value={newLessonDay} onValueChange={(v) => setNewLessonDay(v as WeekDay)}>
-                  <SelectTrigger className="text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {weekDays.map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {d}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold text-foreground">Horario</label>
-                <Select
-                  value={newLessonTime}
-                  onValueChange={setNewLessonTime}
-                >
-                  <SelectTrigger className="text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(newLessonDay === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday).map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold text-foreground">Sala</label>
-                <Select value={newLessonRoom} onValueChange={setNewLessonRoom}>
-                  <SelectTrigger className="text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {rooms.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             <div className="flex justify-end gap-2 pt-3 border-t border-border">
               <Button
                 type="button"
@@ -3716,9 +4317,16 @@ export function AgendaBoard() {
               <Button
                 type="submit"
                 size="sm"
-                className="text-xs font-bold bg-primary text-primary-foreground"
+                disabled={newLessonPlanMode === "paired" && pairedConflictReport.hasConflict}
+                className={`text-xs font-bold ${
+                  newLessonPlanMode === "paired" && pairedConflictReport.hasConflict
+                    ? "opacity-50 cursor-not-allowed bg-muted text-muted-foreground"
+                    : "bg-primary text-primary-foreground"
+                }`}
               >
-                Guardar en Horario
+                {newLessonPlanMode === "paired"
+                  ? (pairedConflictReport.hasConflict ? "⚠️ Resolver conflictos antes de guardar" : `Guardar Plan (${pairedDays.isRegular ? "2 Clases Semanales" : "1 Clase Intensiva"})`)
+                  : "Guardar en Horario"}
               </Button>
             </div>
           </form>
@@ -3745,6 +4353,13 @@ export function AgendaBoard() {
               e.preventDefault();
               if (!makeupStudent.trim()) {
                 toast.error("Por favor selecciona un alumno.");
+                return;
+              }
+
+              if (currentMakeupSlotConflict.hasConflict) {
+                toast.error("No se puede guardar: La franja seleccionada supera el aforo pedagógico o tiene cruce de sala.", {
+                  description: currentMakeupSlotConflict.reason || "Por favor selecciona una franja con cupos disponibles.",
+                });
                 return;
               }
 
@@ -3788,6 +4403,20 @@ export function AgendaBoard() {
                     if (st.instrument) setMakeupInstrument(st.instrument);
                     if (st.ageCategory) setMakeupCategory(st.ageCategory);
                   }
+
+                  // Verificar si el alumno tiene clase de Jueves para proyectar automáticamente a la próxima semana
+                  const stLessons = schedule.filter(
+                    (l) =>
+                      (l.student.toLowerCase() === val.toLowerCase() ||
+                        val.toLowerCase().includes(l.student.toLowerCase())) &&
+                      l.status !== "cancelada"
+                  );
+                  const hasThu = stLessons.some((l) => l.day === "Jue");
+                  if (hasThu) {
+                    const nextWk = Math.min(monthWeeks.length - 1, safeWeekIndex + 1);
+                    setMakeupWeekIndex(nextWk);
+                    setMakeupDay("Lun");
+                  }
                 }}
               >
                 <SelectTrigger className="text-xs">
@@ -3801,6 +4430,142 @@ export function AgendaBoard() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Banner de Aviso Pedagógico si el Alumno Proviene de un Jueves */}
+            {isThursdayMakeupOrigin && (
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span>Regla de Clases Pareadas (Clase de Jueves / Fin de Ciclo Regular):</span>
+                </div>
+                <p className="opacity-90">
+                  Las clases regulares se dictan en pares oficiales (<strong>Lunes–Miércoles</strong> / <strong>Martes–Jueves</strong>). Al faltar o reprogramar un Jueves, las clases regulares ya culminaron en la semana, por lo que el sistema sugiere de forma predeterminada la <strong>Próxima Semana (Semana {Math.min(monthWeeks.length, safeWeekIndex + 2)})</strong>.
+                </p>
+              </div>
+            )}
+
+            {/* Sugerencias Inteligentes de Recuperación (Misma Semana en Intensivos vs Próxima Semana en Regulares) */}
+            <div className="space-y-2.5 p-3 rounded-2xl bg-muted/40 border border-border">
+              {/* Opción A: Misma semana en Intensivos (Viernes o Sábado con cupos < 5) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-foreground text-[11px] flex items-center gap-1.5">
+                    🟢 Opción A: Recuperar esta misma semana en Intensivos
+                  </span>
+                  <span className="text-[9.5px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                    Excepción permitida (Aforo &lt; 5)
+                  </span>
+                </div>
+                {sameWeekIntensiveSlots.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {sameWeekIntensiveSlots.map((sug, i) => {
+                      const isSelected =
+                        makeupWeekIndex === safeWeekIndex &&
+                        makeupDay === sug.day &&
+                        makeupTime === sug.time &&
+                        makeupRoom === sug.room;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setMakeupWeekIndex(safeWeekIndex);
+                            setMakeupDay(sug.day);
+                            setMakeupTime(sug.time);
+                            setMakeupRoom(sug.room);
+                            if (sug.teacher) setMakeupTeacher(sug.teacher);
+                            toast.info(`Seleccionado: ${sug.label}`, {
+                              description: `Recuperación agendada para la Semana ${safeWeekIndex + 1} (${sug.day} ${sug.time}).`,
+                            });
+                          }}
+                          className={`p-2 rounded-xl border text-left transition-all flex items-center justify-between group ${
+                            isSelected
+                              ? "border-emerald-500 bg-emerald-500/20 text-emerald-900 dark:text-emerald-100 font-bold shadow-xs ring-1 ring-emerald-500"
+                              : "border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold text-[11px] text-foreground group-hover:text-emerald-600 transition-colors">
+                              {sug.day === "Vie" ? "Viernes" : "Sábado"} {sug.time}
+                            </div>
+                            <div className="text-[9.5px] text-muted-foreground">
+                              {sug.room} · Prof. {sug.teacher}
+                            </div>
+                          </div>
+                          <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            {sug.vacancies} {sug.vacancies === 1 ? "cupo libre" : "cupos libres"} ↵
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground italic">
+                    No hay vacantes disponibles en los intensivos de Viernes o Sábado de esta semana (aforo completo 5/5).
+                  </p>
+                )}
+              </div>
+
+              {/* Opción B: Próxima semana en días regulares (Lunes a Jueves) */}
+              <div className="space-y-1.5 pt-2 border-t border-border/60">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-foreground text-[11px] flex items-center gap-1.5">
+                    📅 Opción B: Próxima Semana en Días Regulares (Lun - Jue)
+                  </span>
+                  <span className="text-[9.5px] text-blue-700 dark:text-blue-300 font-bold bg-blue-500/15 px-2 py-0.5 rounded-full border border-blue-500/20">
+                    Semana {Math.min(monthWeeks.length, safeWeekIndex + 2)}
+                  </span>
+                </div>
+                {nextWeekRegularSlots.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {nextWeekRegularSlots.map((sug, i) => {
+                      const isSelected =
+                        makeupWeekIndex === sug.weekIndex &&
+                        makeupDay === sug.day &&
+                        makeupTime === sug.time &&
+                        makeupRoom === sug.room;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setMakeupWeekIndex(sug.weekIndex);
+                            setMakeupDay(sug.day);
+                            setMakeupTime(sug.time);
+                            setMakeupRoom(sug.room);
+                            if (sug.teacher) setMakeupTeacher(sug.teacher);
+                            toast.info(`Seleccionado: ${sug.label}`, {
+                              description: `Recuperación agendada para la Semana ${sug.weekIndex + 1} (${sug.day} ${sug.time}).`,
+                            });
+                          }}
+                          className={`p-2 rounded-xl border text-left transition-all flex items-center justify-between group ${
+                            isSelected
+                              ? "border-blue-500 bg-blue-500/20 text-blue-900 dark:text-blue-100 font-bold shadow-xs ring-1 ring-blue-500"
+                              : "border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold text-[11px] text-foreground group-hover:text-blue-600 transition-colors">
+                              {sug.day} {sug.time}
+                            </div>
+                            <div className="text-[9.5px] text-muted-foreground">
+                              {sug.room} · Prof. {sug.teacher}
+                            </div>
+                          </div>
+                          <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                            {sug.vacancies} vac. ↵
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Sin sugerencias directas para la próxima semana.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Selector de Semana Específica para la Recuperación */}
@@ -3922,11 +4687,35 @@ export function AgendaBoard() {
               </div>
             </div>
 
+            {/* Diagnóstico Reactivo de Aforo y Conflictos de Sala en la Franja Seleccionada */}
+            {currentMakeupSlotConflict.hasConflict ? (
+              <div className="p-3 rounded-2xl bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold">Conflicto de Horario / Aforo:</p>
+                  <p className="text-[11px] opacity-90">{currentMakeupSlotConflict.reason}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    El límite pedagógico oficial es de máximo 5 alumnos por profesor/sala. Selecciona una de las franjas sugeridas arriba con cupos libres.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Franja disponible ({currentMakeupSlotConflict.vacancies} vacantes con Prof. {makeupTeacher || "Jeremy"})</span>
+                </div>
+                <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  Aforo actual: {currentMakeupSlotConflict.enrolled}/5
+                </span>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label className="font-bold text-foreground">Motivo / Fecha de la Falta Original</label>
               <Input
                 type="text"
-                placeholder="Ej: Falta justificada del Viernes 08/08 (Salud / Viaje)"
+                placeholder="Ej: Falta justificada del Jueves 07/08 (Salud / Viaje)"
                 value={makeupOriginalDate}
                 onChange={(e) => setMakeupOriginalDate(e.target.value)}
                 className="text-xs"
@@ -3950,9 +4739,15 @@ export function AgendaBoard() {
               <Button
                 type="submit"
                 size="sm"
-                className="text-xs font-bold bg-red-600 hover:bg-red-700 text-white gap-1.5"
+                disabled={currentMakeupSlotConflict.hasConflict}
+                className={`text-xs font-bold gap-1.5 ${
+                  currentMakeupSlotConflict.hasConflict
+                    ? "opacity-50 cursor-not-allowed bg-muted text-muted-foreground"
+                    : "bg-red-600 hover:bg-red-700 text-white"
+                }`}
               >
-                <RotateCcw className="h-3.5 w-3.5" /> Guardar y Descontar Crédito
+                <RotateCcw className="h-3.5 w-3.5" />
+                {currentMakeupSlotConflict.hasConflict ? "⚠️ Resolver conflicto de aforo" : "Guardar y Descontar Crédito"}
               </Button>
             </div>
           </form>
