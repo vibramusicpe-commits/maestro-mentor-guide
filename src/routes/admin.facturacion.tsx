@@ -732,7 +732,7 @@ function AdminFacturacionPage() {
                       const dayNum = inv.dueDate ? inv.dueDate.split("-")[2] : "01";
 
                       return (
-                        <TableRow key={inv.id} className="hover:bg-muted/30 text-xs">
+                        <TableRow key={inv.id} data-tour="facturacion-invoice-row" className="hover:bg-muted/30 text-xs">
                           <TableCell className="font-black text-foreground">{inv.family}</TableCell>
                           <TableCell className="font-semibold text-foreground">
                             <span className="font-mono font-bold bg-muted px-1.5 py-0.5 rounded text-[11px]">

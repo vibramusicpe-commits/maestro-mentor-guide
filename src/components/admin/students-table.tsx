@@ -523,6 +523,7 @@ export function StudentsTable() {
 
         {/* Botón de Papelera y Base de Datos de Alumnos Eliminados */}
         <Button
+          data-tour="btn-trash"
           variant="outline"
           onClick={() => setIsTrashModalOpen(true)}
           className="gap-1.5 font-bold border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20"
@@ -690,6 +691,7 @@ export function StudentsTable() {
                         <Button
                           size="sm"
                           variant="outline"
+                          data-tour="btn-row-kardex"
                           onClick={(e) => {
                             e.stopPropagation();
                             setKardexStudent(st);
@@ -2618,7 +2620,7 @@ function NewStudentDialog() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <Button onClick={() => setOpen(true)} className="ml-auto font-bold gap-2">
+      <Button data-tour="btn-new-student" onClick={() => setOpen(true)} className="ml-auto font-bold gap-2">
         <PlusCircle className="h-4 w-4" /> Registrar Nuevo Alumno
       </Button>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
@@ -2664,6 +2666,7 @@ function NewStudentDialog() {
           <div>
             <label className="block text-xs font-semibold mb-1">Nombre Completo del Alumno</label>
             <Input
+              data-tour="input-student-name"
               placeholder="Ej. Mateo García"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -2893,6 +2896,7 @@ function NewStudentDialog() {
                   <div>
                     <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Nombre Completo Papá *</label>
                     <Input
+                      data-tour="input-father-name"
                       placeholder="Ej. Roberto García"
                       value={fatherName}
                       onChange={(e) => setFatherName(e.target.value)}
@@ -2903,6 +2907,7 @@ function NewStudentDialog() {
                   <div>
                     <label className="block text-[10px] text-muted-foreground font-semibold mb-1">WhatsApp / Teléfono Papá *</label>
                     <Input
+                      data-tour="input-father-phone"
                       placeholder="987654321"
                       value={fatherPhone}
                       onChange={(e) => setFatherPhone(e.target.value)}
@@ -2922,6 +2927,7 @@ function NewStudentDialog() {
                   <div>
                     <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Nombre Completo Mamá *</label>
                     <Input
+                      data-tour="input-mother-name"
                       placeholder="Ej. Patricia Rivas"
                       value={motherName}
                       onChange={(e) => setMotherName(e.target.value)}
@@ -2932,6 +2938,7 @@ function NewStudentDialog() {
                   <div>
                     <label className="block text-[10px] text-muted-foreground font-semibold mb-1">WhatsApp / Teléfono Mamá *</label>
                     <Input
+                      data-tour="input-mother-phone"
                       placeholder="998877665"
                       value={motherPhone}
                       onChange={(e) => setMotherPhone(e.target.value)}
@@ -2954,6 +2961,7 @@ function NewStudentDialog() {
                   <div>
                     <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Nombre</label>
                     <Input
+                      data-tour="input-emerg-name"
                       placeholder="Ej. Abuela Carmen"
                       value={emergencyName}
                       onChange={(e) => setEmergencyName(e.target.value)}
@@ -2979,6 +2987,7 @@ function NewStudentDialog() {
                   <div>
                     <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Teléfono Emergencia</label>
                     <Input
+                      data-tour="input-emerg-phone"
                       placeholder="987654321"
                       value={emergencyPhone}
                       onChange={(e) => setEmergencyPhone(e.target.value)}
@@ -3055,9 +3064,20 @@ function NewStudentDialog() {
             </div>
           )}
 
-          <Button type="submit" className="w-full font-bold mt-4">
-            Guardar Matrícula
-          </Button>
+          <div className="flex gap-2 mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              data-tour="btn-cancel-new-student"
+              onClick={() => setOpen(false)}
+              className="flex-1 font-bold text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" className="flex-1 font-bold text-xs">
+              Guardar Matrícula
+            </Button>
+          </div>
         </form>
       </SheetContent>
     </Sheet>

@@ -13,20 +13,23 @@ import {
   ChevronRight,
   X,
   Sparkles,
-  MousePointer2,
-  CheckCircle2,
-  ShieldCheck,
-  RotateCcw,
-  MessageCircle,
-  Copy,
-  Users,
-  Check,
-  Calendar,
-  CreditCard,
-  GraduationCap,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
+// Función utilitaria para inyectar texto real en un Input controlado por React
+function setNativeInputValue(input: HTMLInputElement, value: string) {
+  const nativeSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value"
+  )?.set;
+  if (nativeSetter) {
+    nativeSetter.call(input, value);
+  } else {
+    input.value = value;
+  }
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
 
 export function AutopilotTourOverlay() {
   const navigate = useNavigate();
@@ -41,6 +44,7 @@ export function AutopilotTourOverlay() {
     cursorVisible,
     clickRipple,
     bubble,
+    spotlightRect,
     stopTour,
     pauseTour,
     resumeTour,
@@ -50,25 +54,10 @@ export function AutopilotTourOverlay() {
     setStep,
     setCursorPos,
     triggerClick,
+    setSpotlight,
     setBubble,
   } = useAutopilotStore();
 
-  // Estados locales para simulación visual interactiva dentro del tour
-  const [typedStudentName, setTypedStudentName] = useState("");
-  const [typedDadName, setTypedDadName] = useState("");
-  const [typedDadPhone, setTypedDadPhone] = useState("");
-  const [typedMomName, setTypedMomName] = useState("");
-  const [typedMomPhone, setTypedMomPhone] = useState("");
-  const [typedEmergName, setTypedEmergName] = useState("");
-  const [typedEmergPhone, setTypedEmergPhone] = useState("");
-  const [demoModalOpen, setDemoModalOpen] = useState<"student" | "kardex" | "trash" | null>(null);
-  const [demoTrashTab, setDemoTrashTab] = useState<"reincorporacion" | "descartables">("reincorporacion");
-  const [demoCopiedMsg, setDemoCopiedMsg] = useState(false);
-  const [demoRestored, setDemoRestored] = useState(false);
-  const [demoAttendanceChoice, setDemoAttendanceChoice] = useState<string>("justificada");
-  const [demoInvoicePaid, setDemoInvoicePaid] = useState(false);
-
-  // Referencia para cancelar bucles de animación si el usuario sale o pausa
   const abortRef = useRef<boolean>(false);
 
   // Pausar y reanudar con tecla Espacio, salir con Escape
@@ -76,6 +65,7 @@ export function AutopilotTourOverlay() {
     if (!isActive) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        closeAnyOpenTourModals();
         stopTour();
       } else if (e.key === " " && (e.target as HTMLElement)?.tagName !== "INPUT") {
         e.preventDefault();
@@ -86,6 +76,18 @@ export function AutopilotTourOverlay() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isActive, isPaused, stopTour, pauseTour, resumeTour]);
+
+  // Cierra cualquier sheet o modal abierto por el tour
+  const closeAnyOpenTourModals = () => {
+    const cancelSheet = document.querySelector<HTMLElement>('[data-tour="btn-cancel-new-student"]');
+    if (cancelSheet) cancelSheet.click();
+
+    const closeTrash = document.querySelector<HTMLElement>('[data-tour="trash-close-btn"]');
+    if (closeTrash) closeTrash.click();
+
+    const closeKardex = document.querySelector<HTMLElement>('[data-tour="kardex-close-btn"]');
+    if (closeKardex) closeKardex.click();
+  };
 
   // Función de espera reactiva a la velocidad y a la pausa
   const wait = useCallback(
@@ -106,266 +108,347 @@ export function AutopilotTourOverlay() {
     [speedMultiplier]
   );
 
-  // Simulación de tipeo con efecto máquina de escribir (Letras iniciales mayúsculas)
-  const typeText = useCallback(
-    async (text: string, setter: (val: string) => void) => {
+  // Esperar a que un elemento exista en el DOM real
+  const waitForElement = useCallback(
+    async (selector: string, timeoutMs = 7000): Promise<HTMLElement | null> => {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (abortRef.current) return null;
+        const el = document.querySelector<HTMLElement>(selector);
+        if (el && el.getBoundingClientRect().width > 0) {
+          return el;
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return null;
+    },
+    []
+  );
+
+  // Mover cursor suavemente a un elemento real del DOM
+  const moveCursorToElement = useCallback(
+    async (el: HTMLElement, clickIt = false) => {
+      if (abortRef.current) return;
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      await wait(300);
+
+      const rect = el.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+
+      setCursorPos({ x, y });
+      setSpotlight({
+        top: Math.max(0, rect.top - 6),
+        left: Math.max(0, rect.left - 6),
+        width: rect.width + 12,
+        height: rect.height + 12,
+      });
+
+      await wait(600);
+      if (clickIt) {
+        triggerClick({ x, y });
+        el.click();
+        await wait(400);
+      }
+    },
+    [setCursorPos, setSpotlight, triggerClick, wait]
+  );
+
+  // Simulación de tipeo en vivo dentro del Input real
+  const typeIntoRealInput = useCallback(
+    async (input: HTMLInputElement, text: string) => {
+      if (abortRef.current) return;
+      input.focus();
       let current = "";
       for (let i = 0; i < text.length; i++) {
         if (abortRef.current) return;
         current += text[i];
-        setter(current);
+        setNativeInputValue(input, current);
         await wait(35);
       }
     },
     [wait]
   );
 
-  // EJECUCIÓN SECUENCIAL DEL TOUR SEGÚN EL PASO ACTUAL
+  // EJECUCIÓN 100% REAL EN EL DOM SEGÚN EL PASO
   useEffect(() => {
     if (!isActive) {
-      setDemoModalOpen(null);
+      setSpotlight(null);
       return;
     }
 
     abortRef.current = false;
     let isCancelled = false;
 
-    const runCurrentStep = async () => {
+    const executeRealTour = async () => {
       const step = AUTOPILOT_STEPS[currentStepIndex];
 
-      // 1. Asegurar navegación a la ruta real correspondiente
+      // Navegar a la página real si es necesario
       if (pathname !== step.route) {
         navigate({ to: step.route });
-        await wait(600);
+        await wait(800);
         if (isCancelled || abortRef.current) return;
       }
 
-      // ─── PASO 1: REGISTRO DE ALUMNO CON PAPÁ, MAMÁ Y CONTACTO DE EMERGENCIA ───
+      // ─── PASO 1: REGISTRO DE ALUMNOS (SHEET REAL) ───
       if (currentStepIndex === 0) {
-        setDemoModalOpen(null);
-        setTypedStudentName("");
-        setTypedDadName("");
-        setTypedDadPhone("");
-        setTypedMomName("");
-        setTypedMomPhone("");
-        setTypedEmergName("");
-        setTypedEmergPhone("");
-
         setBubble(
           "Paso 1: Registro de Alumnos con Contactos Completos",
-          "El cursor se desplaza automáticamente hacia el botón de nuevo alumno...",
-          "Regla Vibra: Papá, Mamá y Apoderado de Emergencia obligatorios."
+          "Moviendo el cursor hacia el botón real '+ Registrar Nuevo Alumno'...",
+          "Regla Vibra: Papá, Mamá y Contacto de Emergencia obligatorios."
         );
 
-        // Mover cursor al botón de "+ Registrar Alumno"
-        setCursorPos({ x: Math.min(window.innerWidth - 180, 850), y: 190 });
-        await wait(1000);
-        if (isCancelled || abortRef.current) return;
+        const newStudentBtn = await waitForElement('[data-tour="btn-new-student"]');
+        if (newStudentBtn) {
+          await moveCursorToElement(newStudentBtn, true);
+          await wait(600);
+        }
 
-        triggerClick({ x: Math.min(window.innerWidth - 180, 850), y: 190 });
-        await wait(400);
+        // Tipear en el Input Real del Nombre del Alumno
+        const nameInput = await waitForElement('[data-tour="input-student-name"]');
+        if (nameInput) {
+          setBubble(
+            "Tipeo Real en Vivo",
+            "Escribiendo datos del alumno con iniciales mayúsculas por respeto y gramática...",
+            "Nombre completo de la alumna."
+          );
+          await moveCursorToElement(nameInput);
+          await typeIntoRealInput(nameInput as HTMLInputElement, "Luciana Mendoza Gómez");
+          await wait(400);
+        }
 
-        // Abrir demostración visual del formulario de registro completo
-        setDemoModalOpen("student");
+        // Tipear en Input Real de Papá
+        const dadNameInput = await waitForElement('[data-tour="input-father-name"]');
+        const dadPhoneInput = await waitForElement('[data-tour="input-father-phone"]');
+        if (dadNameInput && dadPhoneInput) {
+          await moveCursorToElement(dadNameInput);
+          await typeIntoRealInput(dadNameInput as HTMLInputElement, "Carlos Mendoza");
+          await moveCursorToElement(dadPhoneInput);
+          await typeIntoRealInput(dadPhoneInput as HTMLInputElement, "987 654 321");
+          await wait(300);
+        }
+
+        // Tipear en Input Real de Mamá
+        const momNameInput = await waitForElement('[data-tour="input-mother-name"]');
+        const momPhoneInput = await waitForElement('[data-tour="input-mother-phone"]');
+        if (momNameInput && momPhoneInput) {
+          await moveCursorToElement(momNameInput);
+          await typeIntoRealInput(momNameInput as HTMLInputElement, "Rosa Huamán");
+          await moveCursorToElement(momPhoneInput);
+          await typeIntoRealInput(momPhoneInput as HTMLInputElement, "984 123 456");
+          await wait(300);
+        }
+
+        // Tipear en Input Real de Contacto de Emergencia
+        const emergNameInput = await waitForElement('[data-tour="input-emerg-name"]');
+        const emergPhoneInput = await waitForElement('[data-tour="input-emerg-phone"]');
+        if (emergNameInput && emergPhoneInput) {
+          setBubble(
+            "Contacto de Emergencia Obligatorio",
+            "Registrando a la Abuela/Tío para evitar llamadas perdidas ante imprevistos...",
+            "Vibra Music Staff garantiza contacto 100% efectivo."
+          );
+          await moveCursorToElement(emergNameInput);
+          await typeIntoRealInput(emergNameInput as HTMLInputElement, "Elena Gómez (Abuela)");
+          await moveCursorToElement(emergPhoneInput);
+          await typeIntoRealInput(emergPhoneInput as HTMLInputElement, "991 000 222");
+          await wait(600);
+        }
+
+        // Cerrar el Sheet real con el botón Cancelar para no guardar datos de prueba
+        const cancelBtn = await waitForElement('[data-tour="btn-cancel-new-student"]');
+        if (cancelBtn) {
+          await moveCursorToElement(cancelBtn, true);
+          await wait(500);
+        }
+
         setBubble(
-          "Ficha Familiar Completa",
-          "Escribiendo datos del alumno con iniciales mayúsculas por respeto y gramática...",
-          "Nombres completos y teléfonos verificados."
+          "¡Registro Familiar Completado!",
+          "Ficha demostrada en el formulario real. Ahora pasaremos a los Horarios Pareados.",
+          "Cerrando formulario de forma segura."
         );
-
-        // Simular tipeo del Alumno
-        setCursorPos({ x: window.innerWidth / 2 - 120, y: window.innerHeight / 2 - 140 });
-        await wait(500);
-        await typeText("Luciana Mendoza Gómez", setTypedStudentName);
-        await wait(400);
-
-        // Simular Papá
-        setCursorPos({ x: window.innerWidth / 2 - 120, y: window.innerHeight / 2 - 60 });
-        await typeText("Carlos Mendoza", setTypedDadName);
-        setCursorPos({ x: window.innerWidth / 2 + 100, y: window.innerHeight / 2 - 60 });
-        await typeText("987 654 321", setTypedDadPhone);
-        await wait(400);
-
-        // Simular Mamá
-        setCursorPos({ x: window.innerWidth / 2 - 120, y: window.innerHeight / 2 + 20 });
-        await typeText("Rosa Huamán", setTypedMomName);
-        setCursorPos({ x: window.innerWidth / 2 + 100, y: window.innerHeight / 2 + 20 });
-        await typeText("984 123 456", setTypedMomPhone);
-        await wait(400);
-
-        // Simular Contacto de Emergencia
-        setCursorPos({ x: window.innerWidth / 2 - 120, y: window.innerHeight / 2 + 100 });
-        await typeText("Elena Gómez (Abuela)", setTypedEmergName);
-        setCursorPos({ x: window.innerWidth / 2 + 100, y: window.innerHeight / 2 + 100 });
-        await typeText("991 000 222", setTypedEmergPhone);
-        await wait(800);
-
-        setBubble(
-          "¡Registro Familiar Impecable!",
-          "Tener el contacto de ambos padres y la abuela garantiza 0 llamadas perdidas ante emergencias o cambios.",
-          "El sistema ahora vinculará su plan y horario pareado."
-        );
-        await wait(2200);
+        await wait(1800);
       }
 
       // ─── PASO 2: HORARIOS PAREADOS Y AFORO MÁXIMO ───
       else if (currentStepIndex === 1) {
-        setDemoModalOpen(null);
         setBubble(
-          "Paso 2: Horarios de Clases Pareados",
-          "Navegando a la Agenda. Vibra Music utiliza días pareados predefinidos (Lunes jala Miércoles, Martes jala Jueves).",
-          "Aforo máximo estricto: 5 alumnos por profesor."
+          "Paso 2: Horarios Pareados y Aforo Máximo",
+          "Navegando a la Agenda semanal. En Vibra Music, el plan regular tiene 2 clases por semana.",
+          "Lunes jala Miércoles automáticamente (o Martes jala Jueves). Aforo máximo: 5 alumnos."
         );
 
-        // Mover cursor a una celda de horario
-        setCursorPos({ x: window.innerWidth / 2 - 80, y: 320 });
-        await wait(1000);
-        triggerClick();
-        await wait(500);
-
-        setCursorPos({ x: window.innerWidth / 2 + 120, y: 320 });
-        triggerClick();
-        await wait(500);
+        const slotCell = await waitForElement('[data-tour="agenda-slot-cell"]');
+        if (slotCell) {
+          await moveCursorToElement(slotCell);
+          await wait(1800);
+        }
 
         setBubble(
-          "Sincronización Automática",
-          "Al matricular a un alumno en el par Lunes+Miércoles, ambas casillas se bloquean en conjunto.",
-          "Si el cupo llega a 5/5, la casilla se tiñe de rojo indicando aforo completo."
+          "Control de Vacantes y Salas",
+          "Cada profesor tiene su sala asignada y máximo 5 alumnos por hora para garantizar la calidad pedagógica.",
+          "Pasemos al Kardex de Asistencias..."
         );
-        await wait(2400);
+        await wait(2200);
       }
 
-      // ─── PASO 3: ASISTENCIA EN KARDEX Y JUSTIFICADA (+1 CRÉDITO) ───
+      // ─── PASO 3: ASISTENCIAS Y KARDEX DEL ALUMNO (MODAL REAL) ───
       else if (currentStepIndex === 2) {
-        setDemoModalOpen("kardex");
-        setDemoAttendanceChoice("justificada");
         setBubble(
-          "Paso 3: Asistencia y Kardex del Alumno",
-          "El profesor marca desde su celular (/teacher) o Secretaría desde el Directorio. Probando Justificada...",
-          "Las faltas con aviso previo generan crédito de recuperación."
+          "Paso 3: Asistencias y Kardex del Alumno",
+          "Regresando al Directorio de Alumnos para abrir el Kardex real de la primera fila...",
+          "El profesor toma asistencia desde su celular (/teacher) y se sincroniza aquí."
         );
 
-        // Mover cursor al botón de Justificada
-        setCursorPos({ x: window.innerWidth / 2 + 110, y: window.innerHeight / 2 + 30 });
-        await wait(1000);
-        triggerClick();
-        setDemoAttendanceChoice("justificada");
+        const kardexBtn = await waitForElement('[data-tour="btn-row-kardex"]');
+        if (kardexBtn) {
+          await moveCursorToElement(kardexBtn, true);
+          await wait(800);
+        }
 
-        await wait(600);
-        setBubble(
-          "⭐ ¡+1 Crédito Otorgado!",
-          "Como la mamá avisó con anticipación por WhatsApp, el sistema le suma automáticamente 1 Crédito de Recuperación en su ficha.",
-          "Si fuera 'Ausente' no justificada, el porcentaje baja sin crédito."
-        );
-        await wait(2400);
+        // Resaltar el botón Justificada en el modal real
+        const justificadaBtn = await waitForElement('[data-tour="kardex-btn-justificada"]');
+        if (justificadaBtn) {
+          setBubble(
+            "Justificación y Crédito de Recuperación",
+            "Al marcar una falta como 'Justificada' (aviso previo por WhatsApp de la mamá), el sistema abona +1 crédito.",
+            "El alumno podrá coordinar su clase compensatoria sin perder su inversión."
+          );
+          await moveCursorToElement(justificadaBtn);
+          await wait(1800);
+        }
+
+        // Cerrar Kardex real
+        const closeKardexBtn = await waitForElement('[data-tour="kardex-close-btn"]');
+        if (closeKardexBtn) {
+          await moveCursorToElement(closeKardexBtn, true);
+          await wait(500);
+        }
+
+        await wait(1500);
       }
 
-      // ─── PASO 4: PAPELERA INTELIGENTE, FILTROS Y RESTAURACIÓN DE ALUMNOS ───
+      // ─── PASO 4: PAPELERA, FILTROS Y RESTAURAR (MODAL REAL) ───
       else if (currentStepIndex === 3) {
-        setDemoModalOpen(null);
-        setDemoCopiedMsg(false);
-        setDemoRestored(false);
-        setDemoTrashTab("reincorporacion");
-
         setBubble(
           "Paso 4: Papelera y Leads de Reincorporación",
-          "El cursor se dirige a la Papelera de Alumnos para gestionar las bajas...",
-          "Los alumnos no se borran a ciegas; se conservan por motivo."
+          "El cursor abre la auténtica Papelera del sistema para auditar los alumnos eliminados...",
+          "Los alumnos dados de baja no se pierden; se conservan clasificados por motivo."
         );
 
-        // Mover cursor al botón "Papelera" en Alumnos
-        setCursorPos({ x: Math.min(window.innerWidth - 300, 720), y: 190 });
-        await wait(1000);
-        triggerClick();
-        await wait(400);
+        const trashBtn = await waitForElement('[data-tour="btn-trash"]');
+        if (trashBtn) {
+          await moveCursorToElement(trashBtn, true);
+          await wait(800);
+        }
 
-        // Abrir modal simulado de Papelera con filtros reales
-        setDemoModalOpen("trash");
-        setBubble(
-          "Filtros de Reincorporación",
-          "Mostrando alumnos retirados por Falta de Pago o Retiro Voluntario que pueden reactivarse con promociones...",
-          "Separados quirúrgicamente de errores de digitación."
-        );
+        // Pestaña real de Leads de Reincorporación
+        const reincorpTab = await waitForElement('[data-tour="trash-tab-reincorp"]');
+        if (reincorpTab) {
+          setBubble(
+            "Filtro de Leads de Reincorporación",
+            "Muestra exclusivamente los alumnos retirados por Falta de Pago o Retiro Voluntario para campañas de reconquista.",
+            "Los errores de registro quedan separados en 'Descartables'."
+          );
+          await moveCursorToElement(reincorpTab, true);
+          await wait(1200);
+        }
 
-        // Mover al botón de copiar mensaje de WhatsApp
-        setCursorPos({ x: window.innerWidth / 2 + 130, y: window.innerHeight / 2 - 10 });
-        await wait(1200);
-        triggerClick();
-        setDemoCopiedMsg(true);
+        // Filtro por motivo
+        const filterReason = await waitForElement('[data-tour="trash-filter-reason"]');
+        if (filterReason) {
+          await moveCursorToElement(filterReason);
+          await wait(1000);
+        }
 
-        setBubble(
-          "📲 Mensaje de WhatsApp Copiado",
-          "Se genera un mensaje personalizado con el nombre del alumno para reconquistarlo con matrícula gratis.",
-          "Ahora veamos cómo restaurarlo al directorio activo si la familia decide volver..."
-        );
-        await wait(1800);
+        // Botón real de Restaurar Alumno
+        const restoreBtn = await waitForElement('[data-tour="trash-btn-restore"]');
+        if (restoreBtn) {
+          setBubble(
+            "Restauración en 1 Clic",
+            "Al pulsar 'Restaurar Alumno', el alumno vuelve inmediatamente a la lista activa con todas sus clases y pagos intactos.",
+            "Cero pérdida de historial."
+          );
+          await moveCursorToElement(restoreBtn);
+          await wait(1800);
+        }
 
-        // Mover al botón "Restaurar Alumno"
-        setCursorPos({ x: window.innerWidth / 2 + 130, y: window.innerHeight / 2 + 50 });
-        await wait(1000);
-        triggerClick();
-        setDemoRestored(true);
+        // Cerrar Papelera real
+        const closeTrashBtn = await waitForElement('[data-tour="trash-close-btn"]');
+        if (closeTrashBtn) {
+          await moveCursorToElement(closeTrashBtn, true);
+          await wait(600);
+        }
 
-        setBubble(
-          "🟢 ¡Alumno Restaurado con Éxito!",
-          "El alumno vuelve inmediatamente a la lista activa con todas sus clases, horario y pagos intactos.",
-          "Cero pérdida de datos históricos."
-        );
-        await wait(2400);
+        await wait(1500);
       }
 
-      // ─── PASO 5: COBROS Y FACTURACIÓN EN SOLES (PEN) ───
+      // ─── PASO 5: FACTURACIÓN Y COBROS EN SOLES (PÁGINA REAL) ───
       else if (currentStepIndex === 4) {
-        setDemoModalOpen(null);
-        setDemoInvoicePaid(false);
         setBubble(
           "Paso 5: Facturación y Cobros en Soles",
-          "En Cobros y Abonos se monitorea la morosidad y las cuotas mensuales...",
+          "En Cobros y Abonos se monitorea la cobranza de mensualidades y matrículas...",
           "Integración oficial con Culqi para pagos con tarjeta en Soles PEN."
         );
 
-        // Mover cursor a un pago pendiente
-        setCursorPos({ x: window.innerWidth / 2, y: 350 });
-        await wait(1100);
-        triggerClick();
-        setDemoInvoicePaid(true);
+        const invoiceRow = await waitForElement('[data-tour="facturacion-invoice-row"]');
+        if (invoiceRow) {
+          await moveCursorToElement(invoiceRow);
+          await wait(2200);
+        }
 
         setBubble(
-          "🟢 Pago Conciliado en Soles (PEN)",
-          "El estado cambia a 'Al Día' y el comprobante oficial queda registrado para la administración.",
-          "Las familias en mora se visualizan en el panel de riesgo del Dashboard."
+          "Pagos y Conciliación",
+          "Puedes registrar abonos con transferencias bancarias o cobros online, emitiendo comprobante directo para la familia.",
+          "Pasemos al último módulo..."
         );
-        await wait(2400);
+        await wait(2000);
       }
 
-      // ─── PASO 6: INVITACIONES Y ASISTENCIA DOCENTE EN SEDE ───
+      // ─── PASO 6: MONITOREO DOCENTE EN SEDE Y CIERRE ───
       else if (currentStepIndex === 5) {
-        setDemoModalOpen(null);
         setBubble(
           "Paso 6: Monitoreo Docente en Sede en Vivo",
           "En el Dashboard ves qué profesores están trabajando en sede con su reloj en vivo...",
           "Cada profesor tiene su Clave Maestra oficial inmutable en Invitaciones."
         );
 
-        // Mover cursor al widget de asistencia de profesores
-        setCursorPos({ x: window.innerWidth / 2, y: 300 });
-        await wait(1500);
+        const teacherWidget = await waitForElement('[data-tour="teacher-live-widget"]');
+        if (teacherWidget) {
+          await moveCursorToElement(teacherWidget);
+          await wait(2500);
+        }
 
+        setSpotlight(null);
         setBubble(
-          "🎉 ¡Inducción en Vivo Completada!",
-          "La secretaria o directora ahora conoce el flujo real completo de Vibra Music.",
-          "Pulsa 'Finalizar' o sal en cualquier momento para operar el sistema."
+          "🎉 ¡Tour Autopiloto en Vivo Completado!",
+          "Has recorrido los 6 módulos auténticos de Vibra Music con sus componentes reales.",
+          "Ahora estás listo(a) para operar el sistema con total confianza."
         );
       }
     };
 
-    runCurrentStep();
+    executeRealTour();
 
     return () => {
       isCancelled = true;
       abortRef.current = true;
+      setSpotlight(null);
     };
-  }, [currentStepIndex, isActive, navigate, pathname, setBubble, setCursorPos, triggerClick, wait, typeText]);
+  }, [
+    currentStepIndex,
+    isActive,
+    navigate,
+    pathname,
+    setBubble,
+    setCursorPos,
+    setSpotlight,
+    triggerClick,
+    wait,
+    waitForElement,
+    moveCursorToElement,
+    typeIntoRealInput,
+  ]);
 
   if (!isActive) return null;
 
@@ -374,33 +457,45 @@ export function AutopilotTourOverlay() {
 
   return (
     <div className="fixed inset-0 z-[999999] pointer-events-none select-none overflow-hidden">
-      {/* 🌟 SOMBRA PERIFÉRICA ELEGANTE (Permite ver el fondo sin perder foco) */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[1.5px] transition-opacity duration-300" />
+      {/* 🌟 RESPLANDOR / FOCO QUIRÚRGICO (SPOTLIGHT) SOBRE EL ELEMENTO REAL */}
+      {spotlightRect && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="absolute pointer-events-none border-2 border-[#FFB52E] rounded-2xl shadow-[0_0_25px_rgba(244,123,32,0.7)] transition-all duration-300"
+          style={{
+            top: spotlightRect.top,
+            left: spotlightRect.left,
+            width: spotlightRect.width,
+            height: spotlightRect.height,
+          }}
+        />
+      )}
 
       {/* 🖱️ CURSOR VIRTUAL AUTÓNOMO CON ESTELA LUMINOSA */}
       {cursorVisible && (
         <motion.div
           className="absolute z-50 pointer-events-none"
           animate={{ x: cursorPos.x, y: cursorPos.y }}
-          transition={{ type: "spring", damping: 28, stiffness: 180 }}
+          transition={{ type: "spring", damping: 26, stiffness: 190 }}
           style={{ willChange: "transform" }}
         >
-          {/* Estela luminosa */}
           <div className="relative">
+            {/* Halo pulsante */}
             <motion.div
-              animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0.2, 0.6] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-              className="absolute -top-3 -left-3 h-10 w-10 rounded-full bg-[#FFB52E]/30 blur-md pointer-events-none"
+              animate={{ scale: [1, 1.35, 1], opacity: [0.7, 0.2, 0.7] }}
+              transition={{ repeat: Infinity, duration: 1.4 }}
+              className="absolute -top-3 -left-3 h-10 w-10 rounded-full bg-[#FFB52E]/40 blur-md pointer-events-none"
             />
 
-            {/* Ícono de Puntero SVG Estilizado Oficial */}
+            {/* Puntero SVG Oficial Vibra Music */}
             <svg
               width="36"
               height="36"
               viewBox="0 0 24 24"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className="drop-shadow-[0_4px_12px_rgba(244,123,32,0.8)] filter"
+              className="drop-shadow-[0_4px_12px_rgba(244,123,32,0.9)] filter"
             >
               <defs>
                 <linearGradient id="cursorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -418,16 +513,16 @@ export function AutopilotTourOverlay() {
               />
             </svg>
 
-            {/* Etiqueta animada "Autopiloto" al lado del cursor */}
-            <div className="absolute top-6 left-5 px-2 py-0.5 rounded-full bg-[#0D0B0A]/90 border border-[#F47B20]/60 text-[9px] font-black text-[#FFB52E] shadow-md flex items-center gap-1 whitespace-nowrap">
+            {/* Etiqueta animada "Autopiloto" */}
+            <div className="absolute top-6 left-5 px-2 py-0.5 rounded-full bg-[#0D0B0A]/95 border border-[#F47B20]/60 text-[9px] font-black text-[#FFB52E] shadow-md flex items-center gap-1 whitespace-nowrap">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-              <span>Autopiloto Vibra</span>
+              <span>Autopiloto en Vivo</span>
             </div>
           </div>
         </motion.div>
       )}
 
-      {/* 💥 EFECTO DE ONDA EXPANSIVA DE CLIC (RIPPLE EFFECT) */}
+      {/* 💥 ONDA EXPANSIVA DE CLIC (RIPPLE EFFECT) */}
       {clickRipple && (
         <motion.div
           key={clickRipple.key}
@@ -439,8 +534,8 @@ export function AutopilotTourOverlay() {
         />
       )}
 
-      {/* 💬 CARTEL EXPLICATIVO FLOTANTE DE ACCIÓN (SPEECH BUBBLE) */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 w-[92vw] max-w-xl pointer-events-auto">
+      {/* 💬 CARTEL EXPLICATIVO FLOTANTE SUPERIOR */}
+      <div className="absolute top-5 left-1/2 -translate-x-1/2 z-50 w-[92vw] max-w-xl pointer-events-auto">
         <motion.div
           initial={{ opacity: 0, y: -20, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -479,223 +574,6 @@ export function AutopilotTourOverlay() {
         </motion.div>
       </div>
 
-      {/* ── MODAL DEMO EN VIVO: FORMULARIO DE ALUMNO (PASO 1) ── */}
-      {demoModalOpen === "student" && (
-        <div className="absolute inset-0 flex items-center justify-center z-40 p-4 pointer-events-auto">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92 }}
-            className="w-full max-w-lg rounded-3xl border-2 border-[#F47B20]/50 bg-[#0D0B0A] p-5 sm:p-6 shadow-2xl text-[#FFF8EC] space-y-4"
-          >
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🎓</span>
-                <div>
-                  <h4 className="text-sm font-black text-white">Registro Oficial de Alumno</h4>
-                  <p className="text-[11px] text-neutral-400">Demostración en vivo de campos obligatorios</p>
-                </div>
-              </div>
-              <Badge className="bg-[#FFB52E]/20 text-[#FFB52E] text-[10px]">Tipeo en Tiempo Real</Badge>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-[11px] font-bold text-[#FFB52E] block mb-1">
-                  Nombre Completo del Alumno (Iniciales Mayúsculas):
-                </label>
-                <div className="h-9 px-3 rounded-xl bg-[#1A1410] border border-[#F47B20]/40 flex items-center font-bold text-white text-sm">
-                  {typedStudentName}
-                  <span className="inline-block w-1.5 h-4 bg-[#FFB52E] ml-1 animate-pulse" />
-                </div>
-              </div>
-
-              {/* Ficha Familiar Papá y Mamá */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-neutral-300 block">👨 Papá</label>
-                  <div className="h-8 px-2.5 rounded-lg bg-white/5 border border-white/10 flex items-center text-xs text-white">
-                    {typedDadName}
-                  </div>
-                  <div className="h-7 px-2.5 rounded-lg bg-white/5 border border-white/10 flex items-center text-[11px] font-mono text-[#FF9E3D]">
-                    {typedDadPhone}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-neutral-300 block">👩 Mamá</label>
-                  <div className="h-8 px-2.5 rounded-lg bg-white/5 border border-white/10 flex items-center text-xs text-white">
-                    {typedMomName}
-                  </div>
-                  <div className="h-7 px-2.5 rounded-lg bg-white/5 border border-white/10 flex items-center text-[11px] font-mono text-[#FF9E3D]">
-                    {typedMomPhone}
-                  </div>
-                </div>
-              </div>
-
-              {/* Apoderado de Emergencia */}
-              <div className="p-3 rounded-2xl bg-[#F47B20]/10 border border-[#F47B20]/30 space-y-1.5">
-                <label className="text-[10px] font-black text-[#FFB52E] uppercase block">
-                  👵 Apoderado de Emergencia (Obligatorio)
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="h-8 px-2.5 rounded-lg bg-black/40 border border-white/10 flex items-center text-xs text-white">
-                    {typedEmergName}
-                  </div>
-                  <div className="h-8 px-2.5 rounded-lg bg-black/40 border border-white/10 flex items-center text-[11px] font-mono text-[#FFB52E]">
-                    {typedEmergPhone}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* ── MODAL DEMO EN VIVO: KARDEX Y JUSTIFICADA (PASO 3) ── */}
-      {demoModalOpen === "kardex" && (
-        <div className="absolute inset-0 flex items-center justify-center z-40 p-4 pointer-events-auto">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md rounded-3xl border-2 border-emerald-500/50 bg-[#0D0B0A] p-5 shadow-2xl text-[#FFF8EC] space-y-4"
-          >
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div>
-                <h4 className="text-sm font-black text-white">Kardex de Asistencias</h4>
-                <p className="text-[11px] text-neutral-400">Alumno: Mateo Morales (Piano)</p>
-              </div>
-              <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px]">Demostración en Vivo</Badge>
-            </div>
-
-            <div className="space-y-3">
-              <span className="text-xs font-bold text-neutral-300 block">
-                Selección de estado por parte de la secretaria o profesor:
-              </span>
-
-              <div className="grid grid-cols-4 gap-2 text-xs">
-                <div className={`p-2 rounded-xl border text-center font-bold transition-all ${demoAttendanceChoice === "presente" ? "bg-emerald-600 text-white" : "bg-white/5 border-white/10 opacity-50"}`}>
-                  🟢 Presente
-                </div>
-                <div className={`p-2 rounded-xl border text-center font-bold transition-all ${demoAttendanceChoice === "ausente" ? "bg-red-600 text-white" : "bg-white/5 border-white/10 opacity-50"}`}>
-                  🔴 Ausente
-                </div>
-                <div className={`p-2 rounded-xl border text-center font-bold transition-all ${demoAttendanceChoice === "tarde" ? "bg-amber-600 text-white" : "bg-white/5 border-white/10 opacity-50"}`}>
-                  🟡 Tarde
-                </div>
-                <div className={`p-2 rounded-xl border text-center font-black transition-all ${demoAttendanceChoice === "justificada" ? "bg-blue-600 text-white border-blue-400 shadow-lg scale-105 ring-2 ring-blue-400" : "bg-white/5 border-white/10"}`}>
-                  🔵 Justificada
-                </div>
-              </div>
-
-              {demoAttendanceChoice === "justificada" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-3 rounded-2xl bg-blue-500/15 border border-blue-400/40 text-xs text-blue-200 space-y-1"
-                >
-                  <p className="font-black flex items-center gap-1.5">
-                    ✨ Crédito Abonado Automáticamente
-                  </p>
-                  <p className="text-[11px] leading-relaxed text-blue-100/90">
-                    Al marcar <strong>Justificada</strong>, el sistema sumó +1 a los créditos de recuperación del alumno para coordinar su clase compensatoria.
-                  </p>
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* ── MODAL DEMO EN VIVO: PAPELERA, FILTROS Y RESTAURAR (PASO 4) ── */}
-      {demoModalOpen === "trash" && (
-        <div className="absolute inset-0 flex items-center justify-center z-40 p-4 pointer-events-auto">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-xl rounded-3xl border-2 border-rose-500/50 bg-[#0D0B0A] p-5 sm:p-6 shadow-2xl text-[#FFF8EC] space-y-4"
-          >
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🗑️</span>
-                <div>
-                  <h4 className="text-sm font-black text-white">Papelera y Leads de Reincorporación</h4>
-                  <p className="text-[11px] text-neutral-400">Demostración de filtros, mensajes de WhatsApp y restauración</p>
-                </div>
-              </div>
-              <Badge className="bg-rose-500/20 text-rose-300 text-[10px]">Módulo Crítico</Badge>
-            </div>
-
-            {/* Pestañas de Segmentación */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setDemoTrashTab("reincorporacion")}
-                className={`flex-1 py-1.5 px-3 rounded-xl font-black text-xs border transition-all ${
-                  demoTrashTab === "reincorporacion"
-                    ? "bg-[#F47B20] text-[#15120F] border-[#FFB52E] shadow-md"
-                    : "bg-white/5 text-neutral-400 border-white/10"
-                }`}
-              >
-                🎯 Leads Reincorporación (Falta de Pago / Retiro)
-              </button>
-              <button
-                onClick={() => setDemoTrashTab("descartables")}
-                className={`py-1.5 px-3 rounded-xl font-bold text-xs border transition-all ${
-                  demoTrashTab === "descartables"
-                    ? "bg-white/20 text-white border-white/40"
-                    : "bg-white/5 text-neutral-400 border-white/10"
-                }`}
-              >
-                🗑️ Descartables
-              </button>
-            </div>
-
-            {/* Fila de Alumno en Papelera con Acciones */}
-            <div className="p-3.5 rounded-2xl bg-[#1A1410] border border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-black text-white text-xs">Valentina Rivas (Batería)</p>
-                  <p className="text-[11px] text-neutral-400">
-                    Motivo: <strong className="text-amber-400">Falta de Pago</strong> · Retirada hace 15 días
-                  </p>
-                </div>
-
-                <Badge className={demoRestored ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}>
-                  {demoRestored ? "🟢 Restaurado" : "🔴 En Papelera"}
-                </Badge>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-white/10">
-                {/* Botón Copiar Mensaje WhatsApp */}
-                <div className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-white font-bold flex items-center gap-1.5">
-                  {demoCopiedMsg ? (
-                    <>
-                      <Check className="h-3.5 w-3.5 text-emerald-400" />
-                      <span className="text-emerald-300">¡Copiado para WhatsApp!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5 text-[#FFB52E]" />
-                      <span>Copiar Mensaje de Reincorporación</span>
-                    </>
-                  )}
-                </div>
-
-                {/* Botón Restaurar Alumno */}
-                <div className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all ${
-                  demoRestored
-                    ? "bg-emerald-500 text-[#15120F] shadow-md"
-                    : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                }`}>
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span>{demoRestored ? "¡Alumno en Lista Activa!" : "Restaurar Alumno"}</span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
       {/* 🎛️ BARRA FLOTANTE INFERIOR (HUD CONTROLLER) */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 w-[94vw] max-w-2xl pointer-events-auto">
         <motion.div
@@ -703,7 +581,6 @@ export function AutopilotTourOverlay() {
           animate={{ opacity: 1, y: 0 }}
           className="rounded-3xl border-2 border-[#F47B20]/40 bg-[#0D0B0A]/95 p-3 sm:p-4 shadow-[0_8px_32px_rgba(0,0,0,0.85)] text-[#FFF8EC] backdrop-blur-xl flex flex-wrap items-center justify-between gap-3"
         >
-          {/* Controles de Reproducción y Pasos */}
           <div className="flex items-center gap-2">
             {/* Pausar / Reanudar */}
             <Button
@@ -744,7 +621,10 @@ export function AutopilotTourOverlay() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={prevStep}
+                onClick={() => {
+                  closeAnyOpenTourModals();
+                  prevStep();
+                }}
                 disabled={currentStepIndex === 0}
                 className="h-8 w-8 p-0 rounded-lg text-white hover:bg-white/10 disabled:opacity-30"
                 title="Paso anterior"
@@ -752,12 +632,14 @@ export function AutopilotTourOverlay() {
                 <ChevronLeft className="h-4 w-4" />
               </Button>
 
-              {/* Píldoras 1..6 */}
               <div className="flex items-center gap-1 px-1">
                 {AUTOPILOT_STEPS.map((s, idx) => (
                   <button
                     key={s.id}
-                    onClick={() => setStep(idx)}
+                    onClick={() => {
+                      closeAnyOpenTourModals();
+                      setStep(idx);
+                    }}
                     className={`h-2.5 rounded-full transition-all ${
                       idx === currentStepIndex
                         ? "w-6 bg-[#FFB52E]"
@@ -773,7 +655,10 @@ export function AutopilotTourOverlay() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={nextStep}
+                onClick={() => {
+                  closeAnyOpenTourModals();
+                  nextStep();
+                }}
                 disabled={currentStepIndex === AUTOPILOT_STEPS.length - 1}
                 className="h-8 w-8 p-0 rounded-lg text-white hover:bg-white/10 disabled:opacity-30"
                 title="Siguiente paso"
@@ -788,7 +673,10 @@ export function AutopilotTourOverlay() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={stopTour}
+              onClick={() => {
+                closeAnyOpenTourModals();
+                stopTour();
+              }}
               className="h-9 px-3 rounded-xl text-neutral-400 hover:text-white hover:bg-white/10 text-xs font-bold gap-1"
               title="Detener el tour y tomar el control manual"
             >

@@ -302,6 +302,7 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
         <div className="flex items-center gap-2 border-b border-border pb-3 pt-2">
           <button
             type="button"
+            data-tour="trash-tab-reincorp"
             onClick={() => setSegmentTab("reincorporacion")}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
               segmentTab === "reincorporacion"
@@ -383,7 +384,7 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
             {/* Filtro por Motivo Específico */}
             <div>
               <Select value={selectedReason} onValueChange={setSelectedReason}>
-                <SelectTrigger className="text-xs bg-background h-8">
+                <SelectTrigger data-tour="trash-filter-reason" className="text-xs bg-background h-8">
                   <SelectValue placeholder="Filtrar por motivo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -546,6 +547,7 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
                         <Button
                           size="sm"
                           variant="outline"
+                          data-tour="trash-btn-restore"
                           onClick={() => {
                             restoreDeletedStudent(del.id);
                             toast.success(`✓ Alumno ${del.studentName} restaurado con éxito al directorio activo.`);
@@ -629,6 +631,17 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
               })}
             </div>
           )}
+        </div>
+        <div className="flex justify-end pt-3 border-t border-border">
+          <Button
+            variant="outline"
+            size="sm"
+            data-tour="trash-close-btn"
+            onClick={() => onOpenChange(false)}
+            className="text-xs rounded-xl"
+          >
+            Cerrar Papelera
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

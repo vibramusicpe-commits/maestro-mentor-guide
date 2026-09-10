@@ -575,6 +575,7 @@ export function StudentAttendanceKardex({
                       </Button>
                       <Button
                         size="sm"
+                        data-tour="kardex-btn-justificada"
                         variant={item.status === "justificada" ? "default" : "ghost"}
                         onClick={() => handleSetStatus(item, "justificada")}
                         className={`h-7 px-2 text-[11px] font-bold rounded-lg ${
@@ -634,6 +635,7 @@ export function StudentAttendanceKardex({
           <Button
             variant="outline"
             size="sm"
+            data-tour="kardex-close-btn"
             onClick={onClose}
             className="text-xs rounded-xl"
           >

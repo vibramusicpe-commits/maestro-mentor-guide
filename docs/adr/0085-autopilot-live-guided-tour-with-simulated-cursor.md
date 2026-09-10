@@ -16,29 +16,31 @@ Aceptado e Implementado
    - Creado en `src/store/autopilot-store.ts` utilizando Zustand.
    - Administra el paso actual (0..5), posición reactiva del cursor `(x, y)`, coordenadas y disparadores del efecto onda de clic (*ripple*), multiplicador de velocidad (1x / 1.8x), estado de pausa y mensajes informativos.
 
-2. **Overlay Autónomo `AutopilotTourOverlay`**:
+2. **Overlay Autónomo 100% DOM-Nativo `AutopilotTourOverlay`**:
    - Implementado en `src/components/admin/autopilot-tour-overlay.tsx` e integrado a nivel de layout global en `src/routes/admin.tsx`.
-   - **Puntero SVG con degradado oficial**: Naranja intenso `#F47B20` y dorado `#FFB52E` con estela luminosa y animación física de clic.
-   - **Tipeo Simulado en Vivo**: Funcionalidad asíncrona de escritura con temporizador dinámico adaptado a la velocidad seleccionada.
+   - **Cero Modales Ficticios**: Se eliminaron por completo las tarjetas simuladas dentro del overlay. El cursor interactúa directamente con los componentes reales (`NewStudentDialog`, `DeletedStudentsTrashModal`, `StudentAttendanceKardex`, `AgendaBoard`).
+   - **Anclaje Dinámico `data-tour`**: Posicionamiento en vivo mediante `document.querySelector(...).getBoundingClientRect()`, garantizando alineación milimétrica en cualquier resolución o nivel de zoom.
+   - **Puntero SVG con degradado oficial**: Naranja intenso `#F47B20` y dorado `#FFB52E` con estela luminosa y animación física de clic expansivo (*ripple*).
+   - **Tipeo en Vivo en Inputs Reales**: Inyección reactiva nativa mediante el descriptor de `HTMLInputElement.prototype.value`, permitiendo ver cómo los campos de React se completan carácter a carácter en tiempo real respetando mayúsculas iniciales.
    - **Barra Flotante Inferior (HUD Controller)**:
-     - ⏸️ / ▶️ Botón de Pausar / Reanudar (también accesible con la barra espaciadora).
+     - ⏸️ / ▶️ Botón de Pausar / Reanudar (también con la barra espaciadora).
      - ⏩ Conmutador de Velocidad (1x Normal / 1.8x Rápido).
-     - ⏮️ / ⏭️ Salto manual entre pasos 1 al 6.
-     - ❌ Botón "Salir / Tomar Control" (y tecla Escape) para cancelar inmediatamente la animación y devolver el control al usuario.
+     - ⏮️ / ⏭️ Salto manual entre pasos 1 al 6 con cierre automático de modales intermedios.
+     - ❌ Botón "Salir / Tomar Control" (y tecla Escape) para cancelar inmediatamente la animación y devolver el control al usuario sin dejar formularios bloqueados.
 
-3. **6 Pasos Operativos Demostrados en Vivo**:
-   - **Paso 1 (Alumnos)**: Desplazamiento a `/admin/alumnos`, clic en nuevo alumno, tipeo de Luciana Mendoza Gómez, Papá Carlos Mendoza (987 654 321), Mamá Rosa Huamán (984 123 456) y Abuela Elena Gómez (991 000 222).
-   - **Paso 2 (Horarios)**: Desplazamiento a `/admin/agenda`, selección de par Lunes + Miércoles y visualización del aforo máximo de 5 alumnos.
-   - **Paso 3 (Asistencia)**: Desplazamiento a Kardex y selección de falta "Justificada" con abono automático de +1 crédito de compensación.
-   - **Paso 4 (Papelera)**: Apertura de la Papelera, filtro de "Leads de Reincorporación", copiado de mensaje de WhatsApp y botón "Restaurar Alumno".
-   - **Paso 5 (Cobros)**: Desplazamiento a `/admin/facturacion`, conciliación en Soles PEN con Culqi y cambio de estado a Al Día.
-   - **Paso 6 (Docentes en Sede)**: Retorno a `/admin`, demostración del reloj de fichaje de profesores en sede y resumen final.
+3. **6 Pasos Operativos Demostrados sobre la Interfaz Real**:
+   - **Paso 1 (Alumnos)**: Desplazamiento a `/admin/alumnos`, clic real en `+ Registrar Nuevo Alumno` que abre el Sheet auténtico, tipeo real en los campos de Luciana Mendoza Gómez, Carlos Mendoza (987 654 321), Rosa Huamán (984 123 456) y Elena Gómez (991 000 222), y cierre seguro con el botón Cancelar.
+   - **Paso 2 (Horarios)**: Desplazamiento a `/admin/agenda`, foco sobre las celdas pareadas de la Agenda y explicación del aforo de 5 alumnos.
+   - **Paso 3 (Asistencia)**: Retorno a `/admin/alumnos`, apertura del Kardex real desde la fila de un alumno, foco sobre el botón "Justificada" (+1 crédito) y cierre limpio.
+   - **Paso 4 (Papelera)**: Clic real en el botón `Papelera` que abre el auténtico diálogo `DeletedStudentsTrashModal`, clic en la pestaña real `🎯 Leads Reincorporación`, demostración de filtros por motivo y botón verde `Restaurar Alumno`, y cierre con el botón `Cerrar Papelera`.
+   - **Paso 5 (Cobros)**: Desplazamiento a `/admin/facturacion`, foco sobre los recibos en Soles PEN y pasarela Culqi.
+   - **Paso 6 (Docentes en Sede)**: Retorno a `/admin`, foco sobre el widget en vivo de asistencia docente y conclusión.
 
 4. **Acceso Dual en la Interfaz**:
    - Botón `🎮 Tour en Vivo (Autopiloto)` incorporado en la cabecera principal de `/admin`.
    - Botón directo `Iniciar Autopiloto en Vivo` disponible en el modal de "Personalizar Perfil".
 
 ## Consecuencias y Validación
-* Ambas guías (la teórica y la interactiva con cursor) conviven armónicamente sin interferir con los datos de producción en PostgreSQL.
-* El modo autopiloto es cancelable en cualquier instante sin dejar modales bloqueados.
+* El tour opera 100% sobre la interfaz real, sin desincronizaciones de coordenadas ni ventanas duplicadas.
+* Ambas guías (la teórica y la interactiva con cursor) conviven armónicamente.
 * `npm run build` finalizado con 0 errores en compilación cliente y servidor Nitro.

@@ -1469,6 +1469,7 @@ export function AgendaBoard() {
                               return (
                                 <div
                                   key={tInfo.name}
+                                  data-tour="agenda-slot-cell"
                                   className="p-1 border-r border-border last:border-r-0 flex flex-col gap-1 justify-center"
                                 >
                                   {lessonsForTeacher.length === 0 ? (

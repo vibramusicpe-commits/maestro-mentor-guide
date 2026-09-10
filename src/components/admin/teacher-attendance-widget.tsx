@@ -29,7 +29,7 @@ export function TeacherAttendanceWidget() {
   }, []);
 
   return (
-    <Card className="border-border bg-card/75 shadow-xs backdrop-blur-sm overflow-hidden border-l-4 border-l-primary">
+    <Card data-tour="teacher-live-widget" className="border-border bg-card/75 shadow-xs backdrop-blur-sm overflow-hidden border-l-4 border-l-primary">
       <CardContent className="p-5 sm:p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
