@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -28,6 +28,7 @@ import {
   Calendar,
   RotateCcw,
   Pencil,
+  Sparkles,
 } from "lucide-react";
 import {
   useAppStore,
@@ -772,6 +773,7 @@ export function StudentsTable() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          data-tour="btn-row-delete"
                           onClick={(e) => {
                             e.stopPropagation();
                             setStudentsToDelete([st]);
@@ -2110,6 +2112,7 @@ export function StudentsTable() {
                 type="button"
                 variant="outline"
                 size="sm"
+                data-tour="btn-cancel-delete-student"
                 onClick={() => {
                   setDeleteModalOpen(false);
                   setStudentsToDelete([]);
@@ -2122,6 +2125,7 @@ export function StudentsTable() {
                 type="button"
                 size="sm"
                 variant="destructive"
+                data-tour="btn-confirm-delete-student"
                 onClick={() => {
                   if (studentsToDelete.length === 0) return;
                   const ids = studentsToDelete.map((s) => s.id);
@@ -2459,7 +2463,7 @@ function NewStudentDialog() {
   const [family, setFamily] = useState("");
   const [isAdult, setIsAdult] = useState(false);
   const [instrument, setInstrument] = useState("Piano");
-  const [teacher, setTeacher] = useState(availableTeachers[0] ?? "Prof. por Asignar");
+  const [teacher, setTeacher] = useState(availableTeachers.find((t) => t === "Jeremy") ?? availableTeachers[0] ?? "Prof. por Asignar");
   const [modality, setModality] = useState<LessonModality>("Regular (8 clases / 45 min)");
   const [age, setAge] = useState<number>(8);
   const [selectedCategory, setSelectedCategory] = useState<AgeCategory | "AUTO">("AUTO");
@@ -3760,7 +3764,7 @@ function ScheduleStudentForm({
   const [teacher, setTeacher] = useState(
     student.teacher && student.teacher !== "Prof. por Asignar"
       ? student.teacher
-      : availableTeachers[0] || "Prof. por Asignar"
+      : availableTeachers.find((t) => t === "Jeremy") ?? availableTeachers[0] ?? "Prof. por Asignar"
   );
   const [instrument, setInstrument] = useState(student.instrument || musicalInstruments[0] || "Piano");
   const [category, setCategory] = useState<AgeCategory>(
@@ -3831,34 +3835,120 @@ function ScheduleStudentForm({
   ];
 
   const schedule = useAppStore((s) => s.schedule);
+  const finalTeacher = teacher || student.teacher || availableTeachers[0] || "Prof. por Asignar";
+
+  // Helper para evaluar ocupación, aforo y posibles cruces de sala de cualquier franja
+  const getSlotDetails = useCallback(
+    (d: string, t: string, r: string) => {
+      const matching = schedule.filter(
+        (l) => l.day === d && l.time === t && l.status !== "cancelada"
+      );
+      const teacherLessons = matching.filter((l) =>
+        l.teacher.toLowerCase().includes(finalTeacher.toLowerCase())
+      );
+      const enrolled = teacherLessons.length;
+      const roomConflictLesson = matching.find(
+        (l) => l.room === r && !l.teacher.toLowerCase().includes(finalTeacher.toLowerCase())
+      );
+
+      let conflictReason: string | null = null;
+      if (enrolled >= 5) {
+        conflictReason = `Aforo completo (${enrolled}/5 alumnos) con Prof. ${finalTeacher}`;
+      } else if (roomConflictLesson) {
+        conflictReason = `Cruce de Sala: ${r} ya está ocupada por Prof. ${roomConflictLesson.teacher}`;
+      }
+
+      return {
+        enrolled,
+        vacancies: Math.max(0, 5 - enrolled),
+        isFull: enrolled >= 5,
+        hasConflict: !!conflictReason,
+        reason: conflictReason,
+      };
+    },
+    [schedule, finalTeacher]
+  );
+
+  // Diagnóstico Reactivo de Conflictos en Tiempo Real (1 Día vs 2 Días)
+  const conflictReport = useMemo(() => {
+    const s1 = getSlotDetails(day1, time1, room1);
+    const s2 = isRegular ? getSlotDetails(day2, time2, room2) : null;
+
+    const hasConflict1 = s1.hasConflict;
+    const hasConflict2 = s2 ? s2.hasConflict : false;
+    const conflictingDaysCount = (hasConflict1 ? 1 : 0) + (hasConflict2 ? 1 : 0);
+
+    return {
+      hasConflict: hasConflict1 || hasConflict2,
+      conflictingDaysCount,
+      session1: {
+        hasConflict: hasConflict1,
+        day: day1,
+        time: time1,
+        room: room1,
+        enrolled: s1.enrolled,
+        reason: s1.reason,
+      },
+      session2: s2
+        ? {
+            hasConflict: hasConflict2,
+            day: day2,
+            time: time2,
+            room: room2,
+            enrolled: s2.enrolled,
+            reason: s2.reason,
+          }
+        : null,
+    };
+  }, [getSlotDetails, day1, time1, room1, day2, time2, room2, isRegular]);
+
+  // Sugerencias Dinámicas de Franjas Horarias Disponibles con Vacantes
+  const suggestedSlots = useMemo(() => {
+    const times = day1 === "Sáb" ? saturdayTimes : weekdayTimes;
+    const suggestions: {
+      time: string;
+      vacancies1: number;
+      vacancies2?: number;
+      minVacancies: number;
+      label: string;
+    }[] = [];
+
+    times.forEach((t) => {
+      const s1 = getSlotDetails(day1, t, room1);
+      if (s1.isFull || s1.hasConflict) return;
+
+      if (isRegular) {
+        const s2 = getSlotDetails(day2, t, room2);
+        if (s2.isFull || s2.hasConflict) return;
+        const minVac = Math.min(s1.vacancies, s2.vacancies);
+        suggestions.push({
+          time: t,
+          vacancies1: s1.vacancies,
+          vacancies2: s2.vacancies,
+          minVacancies: minVac,
+          label: `${day1} + ${day2} a las ${t} (${minVac} ${minVac === 1 ? "vacante libre" : "vacantes libres"})`,
+        });
+      } else {
+        suggestions.push({
+          time: t,
+          vacancies1: s1.vacancies,
+          minVacancies: s1.vacancies,
+          label: `${day1} a las ${t} (${s1.vacancies} ${s1.vacancies === 1 ? "vacante libre" : "vacantes libres"})`,
+        });
+      }
+    });
+
+    return suggestions.slice(0, 3);
+  }, [getSlotDetails, day1, day2, room1, room2, isRegular, saturdayTimes, weekdayTimes]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalTeacher = teacher || student.teacher || availableTeachers[0] || "Prof. por Asignar";
 
-    // Validar aforo máximo de 5 alumnos por clase / profesor
-    const countSession1 = schedule.filter(
-      (l) => l.day === day1 && l.time === time1 && l.teacher.toLowerCase().includes(finalTeacher.toLowerCase()) && l.status !== "cancelada"
-    ).length;
-
-    if (countSession1 >= 5) {
-      toast.error(`Aforo completo en ${day1} ${time1} con Prof. ${finalTeacher} (5/5 alumnos)`, {
-        description: "Por favor elige otra franja horaria o consulta el Explorador de Vacantes.",
+    if (conflictReport.hasConflict) {
+      toast.error("No se puede guardar: El horario presenta conflictos de aforo o sala.", {
+        description: "Por favor selecciona una de las franjas recomendadas disponibles.",
       });
       return;
-    }
-
-    if (isRegular) {
-      const countSession2 = schedule.filter(
-        (l) => l.day === day2 && l.time === time2 && l.teacher.toLowerCase().includes(finalTeacher.toLowerCase()) && l.status !== "cancelada"
-      ).length;
-
-      if (countSession2 >= 5) {
-        toast.error(`Aforo completo en ${day2} ${time2} con Prof. ${finalTeacher} (5/5 alumnos)`, {
-          description: "Por favor elige otra franja horaria para la 2da clase semanal.",
-        });
-        return;
-      }
     }
 
     // Extraer año y mes del alumno
@@ -4091,6 +4181,87 @@ function ScheduleStudentForm({
         </div>
       ) : null}
 
+      {/* ─── DIAGNÓSTICO EN VIVO DE CONFLICTOS Y RECOMENDACIÓN DE CUPOS DISPONIBLES ─── */}
+      {conflictReport.hasConflict ? (
+        <div
+          data-tour="schedule-conflict-banner"
+          className="rounded-2xl border border-destructive/40 bg-destructive/10 p-3.5 space-y-2.5 shadow-sm"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5 animate-pulse" />
+            <div className="space-y-1 text-xs">
+              <p className="font-bold text-destructive text-sm flex items-center gap-1.5">
+                {conflictReport.conflictingDaysCount === 1
+                  ? "⚠️ Tu horario tiene conflicto en 1 día:"
+                  : "⚠️ Tu horario tiene conflictos en 2 días:"}
+              </p>
+              <ul className="space-y-1 text-xs text-foreground font-medium list-disc list-inside">
+                {conflictReport.session1.hasConflict && (
+                  <li>
+                    <strong>Día 1 ({conflictReport.session1.day} {conflictReport.session1.time} · {conflictReport.session1.room})</strong>:{" "}
+                    <span className="text-destructive font-bold">{conflictReport.session1.reason}</span>
+                  </li>
+                )}
+                {conflictReport.session2?.hasConflict && (
+                  <li>
+                    <strong>Día 2 ({conflictReport.session2.day} {conflictReport.session2.time} · {conflictReport.session2.room})</strong>:{" "}
+                    <span className="text-destructive font-bold">{conflictReport.session2.reason}</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+
+          {/* Sugerencia Automática de Fechas y Franjas Disponibles */}
+          {suggestedSlots.length > 0 && (
+            <div className="pt-2 border-t border-destructive/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-[#FFB52E]" />
+                  Franjas Disponibles Recomendadas (Prof. {finalTeacher}):
+                </span>
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold">
+                  1 Clic para corregir
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {suggestedSlots.map((sug, idx) => (
+                  <Button
+                    key={sug.time}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    data-tour={idx === 0 ? "schedule-suggestion-chip" : undefined}
+                    onClick={() => {
+                      setTime1(sug.time);
+                      if (isRegular) setTime2(sug.time);
+                      toast.success(`✓ Horario ajustado a ${sug.time}`, {
+                        description: `Franja con ${sug.minVacancies} vacantes seleccionada sin cruces.`,
+                      });
+                    }}
+                    className="h-8 px-3 text-xs font-bold bg-background hover:bg-primary/10 border-primary/40 text-primary rounded-xl gap-1.5 shadow-sm transition-all"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    {sug.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-200">
+          <span className="flex items-center gap-2 font-bold">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            Horario Disponible sin Conflictos
+          </span>
+          <span className="text-[11px] font-semibold text-muted-foreground bg-background/80 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+            {5 - conflictReport.session1.enrolled} vacantes en {day1}
+            {isRegular && conflictReport.session2 ? ` · ${5 - conflictReport.session2.enrolled} en ${day2}` : ""}
+          </span>
+        </div>
+      )}
+
       {/* Bloque Sesión 1 */}
       <div className="rounded-2xl border border-border p-3.5 space-y-2.5 bg-muted/20">
         <div className="flex items-center justify-between">
@@ -4126,9 +4297,23 @@ function ScheduleStudentForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(day1 === "Sáb" ? saturdayTimes : weekdayTimes).map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
+                {(day1 === "Sáb" ? saturdayTimes : weekdayTimes).map((t) => {
+                  const s = getSlotDetails(day1, t, room1);
+                  return (
+                    <SelectItem key={t} value={t}>
+                      <div className="flex items-center justify-between gap-2 w-full">
+                        <span>{t}</span>
+                        {s.isFull ? (
+                          <span className="text-[10px] font-bold text-destructive ml-1">🔴 Lleno (5/5)</span>
+                        ) : (
+                          <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 ml-1">
+                            🟢 {s.vacancies} vac.
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -4200,9 +4385,23 @@ function ScheduleStudentForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(day2 === "Sáb" ? saturdayTimes : weekdayTimes).map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
+                  {(day2 === "Sáb" ? saturdayTimes : weekdayTimes).map((t) => {
+                    const s = getSlotDetails(day2, t, room2);
+                    return (
+                      <SelectItem key={t} value={t}>
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <span>{t}</span>
+                          {s.isFull ? (
+                            <span className="text-[10px] font-bold text-destructive ml-1">🔴 Lleno (5/5)</span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 ml-1">
+                              🟢 {s.vacancies} vac.
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -4242,10 +4441,18 @@ function ScheduleStudentForm({
         </Button>
         <Button
           type="submit"
+          disabled={conflictReport.hasConflict}
+          data-tour="schedule-submit-btn"
           size="sm"
-          className="text-xs font-bold bg-primary text-primary-foreground"
+          className={`text-xs font-bold ${
+            conflictReport.hasConflict
+              ? "bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-75"
+              : "bg-primary text-primary-foreground hover:bg-primary/90"
+          }`}
         >
-          Guardar Horario Completo ({isRegular ? "2 Clases Semanales" : "1 Clase Semanal"})
+          {conflictReport.hasConflict
+            ? "⚠️ Resolver conflictos antes de guardar"
+            : `Guardar Horario Completo (${isRegular ? "2 Clases Semanales" : "1 Clase Semanal"})`}
         </Button>
       </div>
     </form>

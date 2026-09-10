@@ -18,10 +18,10 @@ export const AUTOPILOT_STEPS: AutopilotStepInfo[] = [
   },
   {
     id: 2,
-    title: "Asignación de Horario: Días Pareados vs Modo Personalizado",
+    title: "Asignación de Horario: Conflictos (1 o 2 Días) y Vacantes Libres",
     badge: "Paso 2 de 7 · Horario del Alumno",
     route: "/admin/alumnos",
-    summary: "En la ficha del alumno, presiona '+ Horario' para asignar: Días Pareados (Oficial) o Modo Personalizado (aforo máx 5).",
+    summary: "En '+ Horario', detecta automáticamente conflictos de aforo (5/5) en 1 o 2 días y recomienda franjas disponibles con 1 clic.",
   },
   {
     id: 3,
@@ -39,10 +39,10 @@ export const AUTOPILOT_STEPS: AutopilotStepInfo[] = [
   },
   {
     id: 5,
-    title: "Eliminación y Papelera: Filtros y Restauración",
+    title: "Eliminación Auditada y Restauración en Papelera (Prueba Fehaciente)",
     badge: "Paso 5 de 7 · Papelera",
     route: "/admin/alumnos",
-    summary: "Filtra por Leads de Reincorporación, copia mensajes de reconquista para WhatsApp o restaura alumnos con 1 clic.",
+    summary: "Prueba real en vivo: Da de baja al alumno con motivo obligatorio y lo restaura desde la Papelera en 1 solo clic.",
   },
   {
     id: 6,

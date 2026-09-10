@@ -90,6 +90,9 @@ export function AutopilotTourOverlay() {
 
     const closeKardex = document.querySelector<HTMLElement>('[data-tour="kardex-close-btn"]');
     if (closeKardex) closeKardex.click();
+
+    const cancelDelete = document.querySelector<HTMLElement>('[data-tour="btn-cancel-delete-student"]');
+    if (cancelDelete) cancelDelete.click();
   };
 
   // Función de espera reactiva a la velocidad y a la pausa
@@ -217,7 +220,15 @@ export function AutopilotTourOverlay() {
           );
           await moveCursorToElement(nameInput);
           await typeIntoRealInput(nameInput as HTMLInputElement, "Luciana Mendoza Gómez");
-          await wait(400);
+          await wait(300);
+        }
+
+        // Tipear en Input Real de Familia / Apellidos
+        const familyInput = await waitForElement('[data-tour="input-family-name"]');
+        if (familyInput) {
+          await moveCursorToElement(familyInput);
+          await typeIntoRealInput(familyInput as HTMLInputElement, "Familia Mendoza Gómez");
+          await wait(300);
         }
 
         // Tipear en Input Real de Papá
@@ -255,29 +266,34 @@ export function AutopilotTourOverlay() {
           await typeIntoRealInput(emergNameInput as HTMLInputElement, "Elena Gómez (Abuela)");
           await moveCursorToElement(emergPhoneInput);
           await typeIntoRealInput(emergPhoneInput as HTMLInputElement, "991 000 222");
-          await wait(600);
-        }
-
-        // Cerrar el Sheet real con el botón Cancelar para no guardar datos de prueba
-        const cancelBtn = await waitForElement('[data-tour="btn-cancel-new-student"]');
-        if (cancelBtn) {
-          await moveCursorToElement(cancelBtn, true);
           await wait(500);
         }
 
+        // Enviar formulario con el botón real Guardar Matrícula (Prueba fehaciente)
+        const submitBtn = await waitForElement('[data-tour="btn-submit-new-student"]');
+        if (submitBtn) {
+          setBubble(
+            "Matriculando Alumno Realmente",
+            "Pulsando 'Guardar Matrícula': Luciana ingresará de forma efectiva a la base de datos en fila 0.",
+            "Prueba fehaciente del registro institucional."
+          );
+          await moveCursorToElement(submitBtn, true);
+          await wait(900);
+        }
+
         setBubble(
-          "¡Registro Familiar Completado!",
-          "Ficha demostrada en el formulario real. Ahora pasaremos a configurar su Horario con '+ Horario'.",
-          "Cerrando formulario de forma segura."
+          "¡Alumno Registrado con Éxito!",
+          "Luciana Mendoza Gómez ya forma parte del Directorio Activo. Procederemos a configurar su Horario con '+ Horario'.",
+          "Fila 0 lista para la programación pedagógica."
         );
-        await wait(1800);
+        await wait(1500);
       }
 
-      // ─── PASO 2: ASIGNACIÓN DE HORARIO (+ HORARIO: DÍAS PAREADOS VS MODO PERSONALIZADO) ───
+      // ─── PASO 2: ASIGNACIÓN DE HORARIO (+ HORARIO: CONFLICTOS Y RECOMENDACIÓN DE VACANTES) ───
       else if (currentStepIndex === 1) {
         setBubble(
           "Paso 2: Asignación de Horario (+ Horario)",
-          "En el Directorio de Alumnos, el cursor se dirige a la ficha del alumno para presionar '+ Horario'...",
+          "En el Directorio de Alumnos, el cursor se dirige a la ficha de Luciana para presionar '+ Horario'...",
           "Se abrirá la ventana oficial de programación pedagógica."
         );
 
@@ -296,7 +312,7 @@ export function AutopilotTourOverlay() {
             "Mantiene exactamente la misma hora y sala en ambas clases para evitar cruces."
           );
           await moveCursorToElement(pairedModeBtn, true);
-          await wait(2400);
+          await wait(2200);
         }
 
         // Explicación 2: ⚙️ Modo Personalizado
@@ -304,23 +320,53 @@ export function AutopilotTourOverlay() {
         if (customModeBtn) {
           setBubble(
             "⚙️ Modo Personalizado",
-            "Si el alumno no puede asistir en días pareados (por colegio o trabajo), activamos 'Modo Personalizado' para escoger cualquier combinación libre (ej. Miércoles + Sábado).",
+            "Si el alumno no puede asistir en días pareados (por colegio o trabajo), activamos 'Modo Personalizado' para combinaciones libres.",
             "Límite estricto: máximo 5 alumnos por profesor en sala."
           );
           await moveCursorToElement(customModeBtn, true);
-          await wait(2600);
+          await wait(2200);
         }
 
-        // Cerrar modal de horario de forma limpia
-        const closeScheduleBtn = await waitForElement('[data-tour="schedule-close-btn"]');
-        if (closeScheduleBtn) {
+        // Regresar a Días Pareados para evidenciar el conflicto oficial de 2 días
+        if (pairedModeBtn) {
+          await moveCursorToElement(pairedModeBtn, true);
+          await wait(600);
+        }
+
+        // Resaltar Cartel de Conflicto en Vivo (Lun y Mié 16:00 saturados 5/5)
+        const conflictBanner = await waitForElement('[data-tour="schedule-conflict-banner"]');
+        if (conflictBanner) {
           setBubble(
-            "Horario Asignado con Éxito",
-            "La programación quedó explicada. Pasemos a la Agenda general para verificar las salas y aforos.",
-            "Cerrando modal de forma limpia."
+            "⚠️ Detección en Tiempo Real: Conflicto en 2 Días",
+            "El sistema detecta automáticamente que Lun 16:00 y Mié 16:00 tienen aforo completo (5/5 alumnos) con el Prof. Jeremy. El guardado queda bloqueado.",
+            "Diagnóstico discriminado: Explica claramente qué días y por qué ocurren los cruces."
           );
-          await moveCursorToElement(closeScheduleBtn, true);
-          await wait(800);
+          await moveCursorToElement(conflictBanner);
+          await wait(2800);
+        }
+
+        // Resaltar y hacer clic en la Franja Recomendada Disponible (16:45)
+        const suggestionChip = await waitForElement('[data-tour="schedule-suggestion-chip"]');
+        if (suggestionChip) {
+          setBubble(
+            "💡 Franjas Disponibles Recomendadas (1 Clic)",
+            "El motor analiza la agenda de Jeremy y sugiere franjas con vacantes libres. Al pulsarla, se auto-corrige de inmediato.",
+            "1 Clic para resolver el conflicto sin salir del formulario."
+          );
+          await moveCursorToElement(suggestionChip, true);
+          await wait(1800);
+        }
+
+        // Guardar el Horario con el botón oficial habilitado
+        const submitScheduleBtn = await waitForElement('[data-tour="schedule-submit-btn"]');
+        if (submitScheduleBtn) {
+          setBubble(
+            "✓ Conflicto Resuelto y Horario Asignado",
+            "El cartel pasó a verde. Ahora pulsamos 'Guardar Horario Completo' para registrar sus 2 clases semanales en la agenda.",
+            "Pedagogía protegida con aforo menor a 5."
+          );
+          await moveCursorToElement(submitScheduleBtn, true);
+          await wait(1000);
         }
 
         await wait(1200);
@@ -384,16 +430,41 @@ export function AutopilotTourOverlay() {
         await wait(1500);
       }
 
-      // ─── PASO 5: PAPELERA, FILTROS Y RESTAURAR (MODAL REAL) ───
+      // ─── PASO 5: ELIMINACIÓN AUDITADA Y RESTAURACIÓN EN PAPELERA (PRUEBA FEHACIENTE) ───
       else if (currentStepIndex === 4) {
         setBubble(
-          "Paso 5: Papelera y Leads de Reincorporación",
-          "El cursor abre la auténtica Papelera del sistema para auditar los alumnos eliminados...",
-          "Los alumnos dados de baja no se pierden; se conservan clasificados por motivo."
+          "Paso 5: Eliminación Auditada y Prueba de Papelera",
+          "Demostrando la eliminación real de la alumna creada. En Vibra Music, ninguna baja se borra a ciegas; requiere motivo obligatorio de auditoría.",
+          "Haciendo clic en el ícono de eliminar de Luciana..."
         );
 
+        // Clic en botón eliminar de la primera fila (Luciana)
+        const rowDeleteBtn = await waitForElement('[data-tour="btn-row-delete"]');
+        if (rowDeleteBtn) {
+          await moveCursorToElement(rowDeleteBtn, true);
+          await wait(800);
+        }
+
+        // Confirmar eliminación en el modal oficial con auditoría
+        const confirmDeleteBtn = await waitForElement('[data-tour="btn-confirm-delete-student"]');
+        if (confirmDeleteBtn) {
+          setBubble(
+            "Auditoría Obligatoria de Secretaría",
+            "Se clasifica el motivo formal (ej. Falta de pago) para que Dirección audite la causa de baja sin perder el expediente.",
+            "Confirmando traslado seguro hacia la Papelera..."
+          );
+          await moveCursorToElement(confirmDeleteBtn, true);
+          await wait(900);
+        }
+
+        // Abrir la Papelera para verificar y restaurar
         const trashBtn = await waitForElement('[data-tour="btn-trash"]');
         if (trashBtn) {
+          setBubble(
+            "Papelera y Leads de Reincorporación",
+            "Al abrir la Papelera, encontramos a Luciana archivada de forma segura junto con todos sus datos familiares y motivo de salida.",
+            "Acceso al historial de bajas clasificadas."
+          );
           await moveCursorToElement(trashBtn, true);
           await wait(800);
         }
@@ -403,7 +474,7 @@ export function AutopilotTourOverlay() {
         if (reincorpTab) {
           setBubble(
             "Filtro de Leads de Reincorporación",
-            "Muestra exclusivamente los alumnos retirados por Falta de Pago o Retiro Voluntario para campañas de reconquista.",
+            "Muestra exclusivamente los alumnos retirados por Falta de Pago o Retiro Voluntario para campañas de reconquista por WhatsApp.",
             "Los errores de registro quedan separados en 'Descartables'."
           );
           await moveCursorToElement(reincorpTab, true);
@@ -421,11 +492,11 @@ export function AutopilotTourOverlay() {
         const restoreBtn = await waitForElement('[data-tour="trash-btn-restore"]');
         if (restoreBtn) {
           setBubble(
-            "Restauración en 1 Clic",
-            "Al pulsar 'Restaurar Alumno', el alumno vuelve inmediatamente a la lista activa con todas sus clases y pagos intactos.",
-            "Cero pérdida de historial."
+            "Restauración en 1 Clic (Reversión Total)",
+            "Al pulsar 'Restaurar Alumno', Luciana regresa inmediatamente al Directorio Activo con su historial y contactos 100% intactos.",
+            "Prueba fehaciente: Registro -> Horario -> Eliminación -> Restauración."
           );
-          await moveCursorToElement(restoreBtn);
+          await moveCursorToElement(restoreBtn, true);
           await wait(1800);
         }
 
@@ -436,6 +507,11 @@ export function AutopilotTourOverlay() {
           await wait(600);
         }
 
+        setBubble(
+          "¡Prueba Fehaciente Completada!",
+          "Luciana fue creada, programada con resolución de conflictos, dada de baja de forma auditada y restaurada con éxito.",
+          "Cero pérdida de información."
+        );
         await wait(1500);
       }
 
