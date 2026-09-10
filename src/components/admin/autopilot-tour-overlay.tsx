@@ -82,6 +82,9 @@ export function AutopilotTourOverlay() {
     const cancelSheet = document.querySelector<HTMLElement>('[data-tour="btn-cancel-new-student"]');
     if (cancelSheet) cancelSheet.click();
 
+    const closeSchedule = document.querySelector<HTMLElement>('[data-tour="schedule-close-btn"]');
+    if (closeSchedule) closeSchedule.click();
+
     const closeTrash = document.querySelector<HTMLElement>('[data-tour="trash-close-btn"]');
     if (closeTrash) closeTrash.click();
 
@@ -264,16 +267,69 @@ export function AutopilotTourOverlay() {
 
         setBubble(
           "¡Registro Familiar Completado!",
-          "Ficha demostrada en el formulario real. Ahora pasaremos a los Horarios Pareados.",
+          "Ficha demostrada en el formulario real. Ahora pasaremos a configurar su Horario con '+ Horario'.",
           "Cerrando formulario de forma segura."
         );
         await wait(1800);
       }
 
-      // ─── PASO 2: HORARIOS PAREADOS Y AFORO MÁXIMO ───
+      // ─── PASO 2: ASIGNACIÓN DE HORARIO (+ HORARIO: DÍAS PAREADOS VS MODO PERSONALIZADO) ───
       else if (currentStepIndex === 1) {
         setBubble(
-          "Paso 2: Horarios Pareados y Aforo Máximo",
+          "Paso 2: Asignación de Horario (+ Horario)",
+          "En el Directorio de Alumnos, el cursor se dirige a la ficha del alumno para presionar '+ Horario'...",
+          "Se abrirá la ventana oficial de programación pedagógica."
+        );
+
+        const scheduleBtn = await waitForElement('[data-tour="btn-row-schedule"]');
+        if (scheduleBtn) {
+          await moveCursorToElement(scheduleBtn, true);
+          await wait(800);
+        }
+
+        // Explicación 1: Días Pareados (Oficial)
+        const pairedModeBtn = await waitForElement('[data-tour="schedule-paired-mode"]');
+        if (pairedModeBtn) {
+          setBubble(
+            "🔗 Días Pareados (Oficial)",
+            "Regla Oficial Vibra Music: El plan regular tiene 2 clases por semana. Si seleccionas Lunes jala Miércoles automáticamente, o Martes jala Jueves.",
+            "Mantiene exactamente la misma hora y sala en ambas clases para evitar cruces."
+          );
+          await moveCursorToElement(pairedModeBtn, true);
+          await wait(2400);
+        }
+
+        // Explicación 2: ⚙️ Modo Personalizado
+        const customModeBtn = await waitForElement('[data-tour="schedule-custom-mode"]');
+        if (customModeBtn) {
+          setBubble(
+            "⚙️ Modo Personalizado",
+            "Si el alumno no puede asistir en días pareados (por colegio o trabajo), activamos 'Modo Personalizado' para escoger cualquier combinación libre (ej. Miércoles + Sábado).",
+            "Límite estricto: máximo 5 alumnos por profesor en sala."
+          );
+          await moveCursorToElement(customModeBtn, true);
+          await wait(2600);
+        }
+
+        // Cerrar modal de horario de forma limpia
+        const closeScheduleBtn = await waitForElement('[data-tour="schedule-close-btn"]');
+        if (closeScheduleBtn) {
+          setBubble(
+            "Horario Asignado con Éxito",
+            "La programación quedó explicada. Pasemos a la Agenda general para verificar las salas y aforos.",
+            "Cerrando modal de forma limpia."
+          );
+          await moveCursorToElement(closeScheduleBtn, true);
+          await wait(800);
+        }
+
+        await wait(1200);
+      }
+
+      // ─── PASO 3: AGENDA GENERAL SEMANAL Y AFORO MÁXIMO ───
+      else if (currentStepIndex === 2) {
+        setBubble(
+          "Paso 3: Agenda General Semanal y Aforo Máximo",
           "Navegando a la Agenda semanal. En Vibra Music, el plan regular tiene 2 clases por semana.",
           "Lunes jala Miércoles automáticamente (o Martes jala Jueves). Aforo máximo: 5 alumnos."
         );
@@ -292,10 +348,10 @@ export function AutopilotTourOverlay() {
         await wait(2200);
       }
 
-      // ─── PASO 3: ASISTENCIAS Y KARDEX DEL ALUMNO (MODAL REAL) ───
-      else if (currentStepIndex === 2) {
+      // ─── PASO 4: ASISTENCIAS Y KARDEX DEL ALUMNO (MODAL REAL) ───
+      else if (currentStepIndex === 3) {
         setBubble(
-          "Paso 3: Asistencias y Kardex del Alumno",
+          "Paso 4: Asistencias y Kardex del Alumno",
           "Regresando al Directorio de Alumnos para abrir el Kardex real de la primera fila...",
           "El profesor toma asistencia desde su celular (/teacher) y se sincroniza aquí."
         );
@@ -328,10 +384,10 @@ export function AutopilotTourOverlay() {
         await wait(1500);
       }
 
-      // ─── PASO 4: PAPELERA, FILTROS Y RESTAURAR (MODAL REAL) ───
-      else if (currentStepIndex === 3) {
+      // ─── PASO 5: PAPELERA, FILTROS Y RESTAURAR (MODAL REAL) ───
+      else if (currentStepIndex === 4) {
         setBubble(
-          "Paso 4: Papelera y Leads de Reincorporación",
+          "Paso 5: Papelera y Leads de Reincorporación",
           "El cursor abre la auténtica Papelera del sistema para auditar los alumnos eliminados...",
           "Los alumnos dados de baja no se pierden; se conservan clasificados por motivo."
         );
@@ -383,10 +439,10 @@ export function AutopilotTourOverlay() {
         await wait(1500);
       }
 
-      // ─── PASO 5: FACTURACIÓN Y COBROS EN SOLES (PÁGINA REAL) ───
-      else if (currentStepIndex === 4) {
+      // ─── PASO 6: FACTURACIÓN Y COBROS EN SOLES (PÁGINA REAL) ───
+      else if (currentStepIndex === 5) {
         setBubble(
-          "Paso 5: Facturación y Cobros en Soles",
+          "Paso 6: Facturación y Cobros en Soles",
           "En Cobros y Abonos se monitorea la cobranza de mensualidades y matrículas...",
           "Integración oficial con Culqi para pagos con tarjeta en Soles PEN."
         );
@@ -405,10 +461,10 @@ export function AutopilotTourOverlay() {
         await wait(2000);
       }
 
-      // ─── PASO 6: MONITOREO DOCENTE EN SEDE Y CIERRE ───
-      else if (currentStepIndex === 5) {
+      // ─── PASO 7: MONITOREO DOCENTE EN SEDE Y CIERRE ───
+      else if (currentStepIndex === 6) {
         setBubble(
-          "Paso 6: Monitoreo Docente en Sede en Vivo",
+          "Paso 7: Monitoreo Docente en Sede en Vivo",
           "En el Dashboard ves qué profesores están trabajando en sede con su reloj en vivo...",
           "Cada profesor tiene su Clave Maestra oficial inmutable en Invitaciones."
         );
@@ -422,7 +478,7 @@ export function AutopilotTourOverlay() {
         setSpotlight(null);
         setBubble(
           "🎉 ¡Tour Autopiloto en Vivo Completado!",
-          "Has recorrido los 6 módulos auténticos de Vibra Music con sus componentes reales.",
+          `Has recorrido los ${AUTOPILOT_STEPS.length} módulos auténticos de Vibra Music con sus componentes reales.`,
           "Ahora estás listo(a) para operar el sistema con total confianza."
         );
       }

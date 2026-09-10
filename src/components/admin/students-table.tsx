@@ -705,6 +705,7 @@ export function StudentsTable() {
                         <Button
                           size="sm"
                           variant="secondary"
+                          data-tour="btn-row-schedule"
                           onClick={(e) => {
                             e.stopPropagation();
                             setScheduleModalStudent(st);
@@ -3762,8 +3763,9 @@ function ScheduleStudentForm({
       (student.age >= 18 ? "ADULTO" : student.age >= 13 ? "JUVENIL" : student.age >= 7 ? "JUNIOR" : "INFANTIL")
   );
 
-  const isRegular = student.modality.toLowerCase().includes("reg") || student.modality.includes("8");
-  const isIntensive = student.modality.toLowerCase().includes("inten") || student.modality.includes("4");
+  const modStr = (student.modality || "Regular").toLowerCase();
+  const isRegular = modStr.includes("reg") || modStr.includes("8") || !modStr.includes("inten");
+  const isIntensive = modStr.includes("inten") || modStr.includes("4");
 
   // Modo de asignación: "pareadas" (por defecto oficial) o "personalizado"
   const [scheduleMode, setScheduleMode] = useState<"pareadas" | "personalizado">("pareadas");
@@ -3994,6 +3996,7 @@ function ScheduleStudentForm({
             <div className="flex items-center bg-background rounded-lg p-0.5 border border-border">
               <button
                 type="button"
+                data-tour="schedule-paired-mode"
                 onClick={() => setScheduleMode("pareadas")}
                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
                   scheduleMode === "pareadas"
@@ -4005,6 +4008,7 @@ function ScheduleStudentForm({
               </button>
               <button
                 type="button"
+                data-tour="schedule-custom-mode"
                 onClick={() => setScheduleMode("personalizado")}
                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
                   scheduleMode === "personalizado"
@@ -4223,6 +4227,7 @@ function ScheduleStudentForm({
       <div className="flex justify-end gap-2 pt-3 border-t border-border">
         <Button
           type="button"
+          data-tour="schedule-close-btn"
           variant="outline"
           size="sm"
           onClick={onClose}
