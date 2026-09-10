@@ -9,6 +9,7 @@ import {
   computeTeacherMonthlySummary,
   exportDetailedAttendanceCSV,
   clockOut,
+  SHIFT_SYNC_CHANNEL,
   type PayrollReportRow,
   type DBTeacherTimeLog,
   type TeacherMonthlySummary,
@@ -109,7 +110,16 @@ export function AdminControlHorarioPage() {
   useEffect(() => {
     fetchAllData();
 
-    // Auto-polling en vivo cada 10 segundos para ver quién entra o sale
+    // 1. Canal de sincronización en vivo entre pestañas
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      bc = new BroadcastChannel(SHIFT_SYNC_CHANNEL);
+      bc.onmessage = () => {
+        fetchAllData();
+      };
+    }
+
+    // 2. Auto-polling en vivo cada 10 segundos para ver quién entra o sale
     const interval = setInterval(() => {
       fetchAllData();
     }, 10000);
@@ -117,11 +127,14 @@ export function AdminControlHorarioPage() {
     const onFocus = () => fetchAllData();
     window.addEventListener("focus", onFocus);
     window.addEventListener("storage", onFocus);
+    window.addEventListener("vibra-shift-updated", onFocus);
 
     return () => {
       clearInterval(interval);
+      bc?.close();
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("storage", onFocus);
+      window.removeEventListener("vibra-shift-updated", onFocus);
     };
   }, []);
 

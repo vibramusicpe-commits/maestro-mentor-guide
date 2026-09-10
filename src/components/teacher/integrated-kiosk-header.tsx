@@ -10,6 +10,10 @@ import {
   clockOut,
   getActiveShift,
   resolveTeacherUserId,
+  SHIFT_SYNC_CHANNEL,
+  SHIFT_STORAGE_KEY,
+  SHIFT_SYNC_EVENT_KEY,
+  MAX_SHIFT_DURATION_HOURS,
 } from "@/lib/services/time-tracking.service";
 
 interface IntegratedTeacherKioskHeaderProps {
@@ -35,14 +39,26 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
       try {
         const active = await getActiveShift(teacherUserId, teacherName);
         if (active && active.status !== "finalizado") {
-          setCurrentShiftId(active.id);
-          setShiftStatus(active.status);
-
           // Calcular segundos reales transcurridos desde clock_in
           const startTime = new Date(active.clock_in).getTime();
           const now = Date.now();
           const elapsedSec = Math.max(0, Math.floor((now - startTime) / 1000) - (active.break_minutes || 0) * 60);
+
+          // Si el turno tiene más de 14 horas, es un turno residual zombie de ayer: auto-cerrar
+          if (elapsedSec > MAX_SHIFT_DURATION_HOURS * 3600) {
+            setCurrentShiftId(null);
+            setShiftStatus("fuera");
+            setSeconds(0);
+            return;
+          }
+
+          setCurrentShiftId(active.id);
+          setShiftStatus(active.status);
           setSeconds(elapsedSec);
+        } else {
+          setCurrentShiftId(null);
+          setShiftStatus("fuera");
+          setSeconds(0);
         }
       } catch (err) {
         console.warn("Aviso al verificar turno activo del profesor:", err);
@@ -50,6 +66,33 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
     }
 
     restoreShift();
+
+    // Sincronización en vivo inmediata entre pestañas
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      bc = new BroadcastChannel(SHIFT_SYNC_CHANNEL);
+      bc.onmessage = () => {
+        restoreShift();
+      };
+    }
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === SHIFT_SYNC_EVENT_KEY || e.key === SHIFT_STORAGE_KEY) {
+        restoreShift();
+      }
+    };
+    const onCustom = () => restoreShift();
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("vibra-shift-updated", onCustom);
+    window.addEventListener("focus", restoreShift);
+
+    return () => {
+      bc?.close();
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("vibra-shift-updated", onCustom);
+      window.removeEventListener("focus", restoreShift);
+    };
   }, [currentUser]);
 
   // 2. Timer activo durante el turno

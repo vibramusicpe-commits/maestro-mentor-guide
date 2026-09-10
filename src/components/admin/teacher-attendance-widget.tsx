@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { getAllActiveShifts, type DBTeacherTimeLog } from "@/lib/services/time-tracking.service";
+import {
+  getAllActiveShifts,
+  SHIFT_SYNC_CHANNEL,
+  SHIFT_SYNC_EVENT_KEY,
+  SHIFT_STORAGE_KEY,
+  type DBTeacherTimeLog,
+} from "@/lib/services/time-tracking.service";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,8 +30,39 @@ export function TeacherAttendanceWidget() {
 
   useEffect(() => {
     loadShifts();
-    const interval = setInterval(loadShifts, 45000);
-    return () => clearInterval(interval);
+
+    // 1. Canal de sincronización en vivo entre pestañas
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      bc = new BroadcastChannel(SHIFT_SYNC_CHANNEL);
+      bc.onmessage = () => {
+        loadShifts();
+      };
+    }
+
+    // 2. Storage event nativo y CustomEvent
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === SHIFT_SYNC_EVENT_KEY || e.key === SHIFT_STORAGE_KEY) {
+        loadShifts();
+      }
+    };
+    const onCustom = () => loadShifts();
+    const onFocus = () => loadShifts();
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("vibra-shift-updated", onCustom);
+    window.addEventListener("focus", onFocus);
+
+    // 3. Polling de respaldo cada 15 segundos
+    const interval = setInterval(loadShifts, 15000);
+
+    return () => {
+      clearInterval(interval);
+      bc?.close();
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("vibra-shift-updated", onCustom);
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   return (

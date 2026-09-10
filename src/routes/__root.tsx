@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
+import { useAppStore } from "@/store/app-store";
 
 
 function NotFoundComponent() {
@@ -134,6 +135,17 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // Sincronización automática de Zustand entre pestañas abiertas
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "cadencia-app-v23") {
+        useAppStore.persist.rehydrate();
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
