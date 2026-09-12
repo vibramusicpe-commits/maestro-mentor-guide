@@ -105,6 +105,10 @@ function InvitePage() {
           isMatch = true;
         } else if (lowerEmail.includes("nayeli") && (cleanInput === "NayeliVibra2026*" || lowerInput === "nayelivibra2026*")) {
           isMatch = true;
+        } else if (lowerEmail.includes("karla") && (cleanInput === "KarlaVibra2026*" || lowerInput === "karlavibra2026*")) {
+          isMatch = true;
+        } else if (lowerEmail.includes("fabricio") && (cleanInput === "FabricioVibra2026*" || lowerInput === "fabriciovibra2026*")) {
+          isMatch = true;
         }
       }
 
@@ -142,11 +146,15 @@ function InvitePage() {
       }
 
       // Si la invitación ya fue aceptada en PostgreSQL o es staff/super_admin, ingresar directamente
-      if (
+      const isStaffUser =
         invite?.status === "aceptado" ||
         invite?.target_role === "staff" ||
-        invite?.target_role === ("super_admin" as string)
-      ) {
+        invite?.target_role === ("super_admin" as string) ||
+        invite?.target_email?.toLowerCase().includes("karla") ||
+        invite?.target_email?.toLowerCase().includes("fabricio") ||
+        invite?.target_email?.toLowerCase().includes("nayeli");
+
+      if (isStaffUser) {
         await loginUser(undefined);
       } else {
         setView("change_password");
@@ -223,16 +231,25 @@ function InvitePage() {
       // ignore
     }
 
-    // 2. Autenticar en el store de Zustand con su nombre real
-    login(invite.target_email, invite.target_role, invite.target_name ?? undefined);
+    // 2. Autenticar en el store de Zustand con su rol y nombre real
+    const isStaff =
+      invite.target_role === "staff" ||
+      invite.target_role === ("super_admin" as unknown as any) ||
+      invite.target_role === ("admin" as unknown as any) ||
+      invite.target_email.toLowerCase().includes("karla") ||
+      invite.target_email.toLowerCase().includes("fabricio") ||
+      invite.target_email.toLowerCase().includes("nayeli");
+    const effectiveRole = isStaff ? "staff" : invite.target_role;
+
+    login(invite.target_email, effectiveRole, invite.target_name ?? undefined);
     setView("success");
 
     // 3. Redirigir al portal correcto según el rol de la invitación
     setTimeout(() => {
-      if (invite.target_role === "teacher") {
-        navigate({ to: "/teacher" });
-      } else if (invite.target_role === "staff" || invite.target_role === "super_admin" || invite.target_role === "admin") {
+      if (isStaff) {
         navigate({ to: "/admin" });
+      } else if (invite.target_role === "teacher") {
+        navigate({ to: "/teacher" });
       } else {
         navigate({ to: "/family" });
       }

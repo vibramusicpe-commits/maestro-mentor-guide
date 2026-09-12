@@ -180,6 +180,8 @@ export async function createInvitation(
     if (isUuid) return input;
     const lower = input.toLowerCase();
     if (lower.includes("sergio")) return "00000000-0000-0000-0000-000000000007";
+    if (lower.includes("fabricio")) return "00000000-0000-0000-0000-000000000009";
+    if (lower.includes("karla")) return "00000000-0000-0000-0000-000000000008";
     if (lower.includes("nayeli")) return "00000000-0000-0000-0000-000000000002";
     if (lower.includes("jeremy")) return "00000000-0000-0000-0000-000000000003";
     if (lower.includes("fernando")) return "00000000-0000-0000-0000-000000000004";
@@ -298,6 +300,8 @@ export async function verifyInvitationToken(
       else if (normalizedToken.includes("jeremy")) targetEmail = "jeremy@vibramusic.pe";
       else if (normalizedToken.includes("fernando")) targetEmail = "fernando@vibramusic.pe";
       else if (normalizedToken.includes("nayeli")) targetEmail = "nayeli@vibramusic.pe";
+      else if (normalizedToken.includes("karla")) targetEmail = "karla@vibramusic.pe";
+      else if (normalizedToken.includes("fabricio")) targetEmail = "fabricio@vibramusic.pe";
 
       if (targetEmail) {
         remoteInvites = await postgrestSelect<DBInvitation & { master_password?: string }>("invitations", {
@@ -314,6 +318,12 @@ export async function verifyInvitationToken(
       const isRevoked = inv.status === "revocado";
       const isValid = !isRevoked && !isExpired;
 
+      const isStaff =
+        inv.target_email?.toLowerCase().includes("karla") ||
+        inv.target_email?.toLowerCase().includes("fabricio") ||
+        inv.target_email?.toLowerCase().includes("nayeli");
+      const effectiveRole = isStaff ? ("staff" as unknown as InviteTargetRole) : inv.target_role;
+
       // Auto-actualizar almacenamiento local de este navegador para acelerar cargas offline
       try {
         const raw = localStorage.getItem("cadencia-invitations");
@@ -328,7 +338,7 @@ export async function verifyInvitationToken(
       return {
         invitation_id: inv.id,
         target_name: inv.target_name,
-        target_role: inv.target_role,
+        target_role: effectiveRole,
         target_email: inv.target_email,
         master_password: inv.master_password || null,
         status: inv.status,
@@ -751,6 +761,10 @@ export async function resetUserToMasterPassword(
     stableMaster = "Vibra-NATHAL-2026";
   } else if (targetStr.includes("nayeli")) {
     stableMaster = "NayeliVibra2026*";
+  } else if (targetStr.includes("karla")) {
+    stableMaster = "KarlaVibra2026*";
+  } else if (targetStr.includes("fabricio")) {
+    stableMaster = "FabricioVibra2026*";
   } else {
     // Si ya existe en base de datos, conservar su master password original; si no, generar una sola vez
     stableMaster = generateMasterPassword();
@@ -844,6 +858,40 @@ export async function getInvitations(
   assertRole(userRole, ["super_admin", "staff"], "ver invitaciones");
 
   const baseSeeds: (DBInvitation & { master_password?: string })[] = [
+    {
+      id: "a79a0a0a-9d13-4020-ac68-413bd3d17842",
+      token: "karla-secretaria-vibra",
+      target_role: "staff" as unknown as InviteTargetRole,
+      target_name: "Karla (Secretaría)",
+      target_email: "karla@vibramusic.pe",
+      target_family_id: null,
+      target_teacher_id: null,
+      master_password: "KarlaVibra2026*",
+      master_password_hint: "Kar***",
+      created_by_user_id: "00000000-0000-0000-0000-000000000001",
+      created_by_role: "super_admin",
+      status: "aceptado",
+      accepted_at: "2026-09-12T14:00:00Z",
+      expires_at: "2027-09-12T14:00:00Z",
+      created_at: "2026-09-12T14:00:00Z",
+    },
+    {
+      id: "3b2df6a6-5fc5-459e-9cf5-8b3c22bf8882",
+      token: "fabricio-marketing-vibra",
+      target_role: "staff" as unknown as InviteTargetRole,
+      target_name: "Fabricio (Marketing)",
+      target_email: "fabricio@vibramusic.pe",
+      target_family_id: null,
+      target_teacher_id: null,
+      master_password: "FabricioVibra2026*",
+      master_password_hint: "Fab***",
+      created_by_user_id: "00000000-0000-0000-0000-000000000001",
+      created_by_role: "super_admin",
+      status: "aceptado",
+      accepted_at: "2026-09-12T14:00:00Z",
+      expires_at: "2027-09-12T14:00:00Z",
+      created_at: "2026-09-12T14:00:00Z",
+    },
     {
       id: "decd405b-f0b0-4211-8a72-2d00b42ce65f",
       token: "nayeli-secretaria-vibra",
@@ -975,16 +1023,30 @@ export async function getInvitations(
     }
   }
 
-  // Limpiar lista y persistir
-  const cleaned = localList.filter(
-    (inv) =>
-      !inv.target_name.toLowerCase().includes("pepito") &&
-      !inv.token.toLowerCase().includes("pepito") &&
-      inv.token !== "profe-jeremy-vibra" &&
-      inv.token !== "profe-fernando-vibra" &&
-      inv.id !== "inv-profe-jeremy" &&
-      inv.id !== "inv-profe-fernando",
-  );
+  // Limpiar lista, normalizar roles de staff y persistir
+  const cleaned = localList
+    .filter(
+      (inv) =>
+        !inv.target_name.toLowerCase().includes("pepito") &&
+        !inv.token.toLowerCase().includes("pepito") &&
+        inv.token !== "profe-jeremy-vibra" &&
+        inv.token !== "profe-fernando-vibra" &&
+        inv.id !== "inv-profe-jeremy" &&
+        inv.id !== "inv-profe-fernando",
+    )
+    .map((inv) => {
+      const isStaff =
+        inv.target_email.toLowerCase().includes("karla") ||
+        inv.target_email.toLowerCase().includes("fabricio") ||
+        inv.target_email.toLowerCase().includes("nayeli");
+      if (isStaff) {
+        return {
+          ...inv,
+          target_role: "staff" as unknown as InviteTargetRole,
+        };
+      }
+      return inv;
+    });
 
   try {
     localStorage.setItem("cadencia-invitations", JSON.stringify(cleaned));

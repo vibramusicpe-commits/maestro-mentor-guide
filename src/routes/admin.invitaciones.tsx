@@ -53,7 +53,7 @@ function AdminInvitationsPage() {
   const [targetRole, setTargetRole] = useState<InviteTargetRole>("teacher");
   const [selectedSkill, setSelectedSkill] = useState<string>("Piano");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
-  const [inviteType, setInviteType] = useState<"teacher" | "family_apoderado" | "adult_student">("teacher");
+  const [inviteType, setInviteType] = useState<"teacher" | "family_apoderado" | "adult_student" | "staff_member">("teacher");
   const [createdModalData, setCreatedModalData] = useState<{
     masterPassword: string;
     whatsappMessage: string;
@@ -232,7 +232,7 @@ function AdminInvitationsPage() {
         </h2>
 
         {/* Selector de Tipo de Invitación */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-5">
           <button
             type="button"
             onClick={() => {
@@ -289,10 +289,29 @@ function AdminInvitationsPage() {
             <span className="text-xs uppercase tracking-wider block font-black">3. Alumno Adulto (+18)</span>
             <span className="text-xs">El alumno gestiona y paga su propia clase</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setInviteType("staff_member");
+              setTargetRole("staff" as unknown as InviteTargetRole);
+              setSelectedStudentId("");
+              setTargetName("");
+              setTargetEmail("");
+            }}
+            className={`p-3 rounded-xl border text-left transition-all ${
+              inviteType === "staff_member"
+                ? "border-primary bg-primary/10 text-primary font-bold shadow-xs"
+                : "border-border bg-background hover:bg-muted/50 text-muted-foreground"
+            }`}
+          >
+            <span className="text-xs uppercase tracking-wider block font-black">4. Personal / Staff</span>
+            <span className="text-xs">Secretaría, Marketing o Coordinación</span>
+          </button>
         </div>
 
         {/* Si es Familiar o Alumno Adulto, permitir vincularlo desde la base de datos de Alumnos */}
-        {inviteType !== "teacher" && (
+        {inviteType !== "teacher" && inviteType !== "staff_member" && (
           <div className="mb-4 p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-2">
             <label className="block text-xs font-bold text-foreground">
               Vincular con Alumno de la Base de Datos:
@@ -320,13 +339,21 @@ function AdminInvitationsPage() {
             <label className="block text-xs font-semibold text-foreground mb-1">
               {inviteType === "teacher"
                 ? "Nombre del Profesor"
+                : inviteType === "staff_member"
+                ? "Nombre del Personal Staff (Secretaría / Marketing)"
                 : inviteType === "family_apoderado"
                 ? "Nombre del Apoderado / Familia"
                 : "Nombre del Alumno Adulto"}
             </label>
             <input
               type="text"
-              placeholder={inviteType === "teacher" ? "Ej. Prof. Juan Pérez" : "Ej. Sra. Carmen Rivas"}
+              placeholder={
+                inviteType === "teacher"
+                  ? "Ej. Prof. Juan Pérez"
+                  : inviteType === "staff_member"
+                  ? "Ej. Karla (Secretaría) o Fabricio (Marketing)"
+                  : "Ej. Sra. Carmen Rivas"
+              }
               value={targetName}
               onChange={(e) => setTargetName(e.target.value)}
               className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
@@ -442,8 +469,26 @@ function AdminInvitationsPage() {
                 <div>
                   <p className="font-semibold text-foreground flex items-center gap-2">
                     {inv.target_name}
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary uppercase font-bold">
-                      {inv.target_role === "teacher" ? "Profesor" : inv.target_role === "staff" ? "Secretaría" : "Familia"}
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold border ${
+                        inv.target_email.toLowerCase().includes("fabricio")
+                          ? "bg-amber-500/15 text-amber-500 border-amber-500/30"
+                          : inv.target_email.toLowerCase().includes("karla") || inv.target_email.toLowerCase().includes("nayeli")
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                          : inv.target_role === "teacher"
+                          ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                          : "bg-primary/15 text-primary border-primary/30"
+                      }`}
+                    >
+                      {inv.target_email.toLowerCase().includes("fabricio")
+                        ? "Marketing (Staff)"
+                        : inv.target_email.toLowerCase().includes("karla") || inv.target_email.toLowerCase().includes("nayeli")
+                        ? "Secretaría (Staff)"
+                        : inv.target_role === "teacher"
+                        ? "Profesor"
+                        : inv.target_role === "staff"
+                        ? "Staff"
+                        : "Familia"}
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground">{inv.target_email}</p>
@@ -522,8 +567,26 @@ function AdminInvitationsPage() {
                 <p className="text-xs font-semibold text-muted-foreground">Destinatario:</p>
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-bold text-foreground truncate">{viewModalInvite.target_name}</p>
-                  <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold shrink-0">
-                    {viewModalInvite.target_role === "teacher" ? "Profesor" : viewModalInvite.target_role === "staff" ? "Secretaría" : "Familia"}
+                  <span
+                    className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-bold border shrink-0 ${
+                      viewModalInvite.target_email.toLowerCase().includes("fabricio")
+                        ? "bg-amber-500/15 text-amber-500 border-amber-500/30"
+                        : viewModalInvite.target_email.toLowerCase().includes("karla") || viewModalInvite.target_email.toLowerCase().includes("nayeli")
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                        : viewModalInvite.target_role === "teacher"
+                        ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                        : "bg-primary/15 text-primary border-primary/30"
+                    }`}
+                  >
+                    {viewModalInvite.target_email.toLowerCase().includes("fabricio")
+                      ? "Marketing (Staff)"
+                      : viewModalInvite.target_email.toLowerCase().includes("karla") || viewModalInvite.target_email.toLowerCase().includes("nayeli")
+                      ? "Secretaría (Staff)"
+                      : viewModalInvite.target_role === "teacher"
+                      ? "Profesor"
+                      : viewModalInvite.target_role === "staff"
+                      ? "Staff"
+                      : "Familia"}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono truncate">{viewModalInvite.target_email}</p>
