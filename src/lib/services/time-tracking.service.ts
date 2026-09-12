@@ -49,8 +49,26 @@ export interface TeacherMonthlySummary {
   isCurrentlyInSede: boolean;
 }
 
+import { formatDistance, type ShiftLocationMeta } from "./geolocation.service";
+
+export interface ShiftDeviceMeta {
+  device: string;
+  in?: ShiftLocationMeta;
+  out?: ShiftLocationMeta;
+}
+
+export function parseShiftLocation(shift?: DBTeacherTimeLog | null): ShiftDeviceMeta {
+  if (!shift || !shift.origin_device) return { device: "kiosk_mobile" };
+  try {
+    if (shift.origin_device.startsWith("{")) {
+      return JSON.parse(shift.origin_device);
+    }
+  } catch {}
+  return { device: shift.origin_device };
+}
+
 // ---------------------------------------------------------------
-// MAPEO DE UUIDs DE PROFESORES EN POSTGRESQL
+// MAPEO DE UUIDs DE PROFESORES Y STAFF EN POSTGRESQL
 // ---------------------------------------------------------------
 export function resolveTeacherUserId(email?: string, name?: string): string {
   const e = (email || "").toLowerCase();
@@ -58,6 +76,10 @@ export function resolveTeacherUserId(email?: string, name?: string): string {
   if (e.includes("jeremy") || n.includes("jeremy")) return "00000000-0000-0000-0000-000000000003";
   if (e.includes("fernando") || n.includes("fernando")) return "00000000-0000-0000-0000-000000000004";
   if (e.includes("nathaly") || n.includes("nathaly")) return "00000000-0000-0000-0000-000000000005";
+  if (e.includes("karla") || n.includes("karla")) return "00000000-0000-0000-0000-000000000008"; // Karla (Staff / Secretaría)
+  if (e.includes("sergio") || n.includes("sergio")) return "00000000-0000-0000-0000-000000000007"; // Sergio (Dirección)
+  if (e.includes("dueña") || e.includes("duena") || n.includes("dueña") || n.includes("rocío") || n.includes("rocio")) return "00000000-0000-0000-0000-000000000001"; // Rocío (Dueña)
+  if (e.includes("nayeli") || n.includes("nayeli")) return "00000000-0000-0000-0000-000000000002"; // Nayeli (Secretaría)
   return "00000000-0000-0000-0000-000000000006"; // Profesor Demo / General
 }
 
@@ -142,6 +164,7 @@ export async function clockIn(
   userRole: Role,
   teacherId: string,
   teacherName: string,
+  location?: ShiftLocationMeta,
 ): Promise<DBTeacherTimeLog> {
   assertRole(userRole, ["teacher", "super_admin", "staff"], "marcar entrada");
 
@@ -150,6 +173,12 @@ export async function clockIn(
   const resolvedId = isUuid ? teacherId : resolveTeacherUserId(teacherId, teacherName);
 
   purgeStaleShiftsFromLocalCache(resolvedId);
+
+  const deviceMeta: ShiftDeviceMeta = {
+    device: "kiosk_mobile",
+    ...(location ? { in: location } : {}),
+  };
+  const originDeviceStr = JSON.stringify(deviceMeta);
 
   // 1. Verificar si ya tiene un turno activo en PostgreSQL
   try {
@@ -194,7 +223,7 @@ export async function clockIn(
       status: "trabajando",
       clock_in: new Date().toISOString(),
       break_minutes: 0,
-      origin_device: "kiosk_mobile",
+      origin_device: originDeviceStr,
     });
 
     saveShiftToLocalCache(newLog);
@@ -211,7 +240,7 @@ export async function clockIn(
       clock_out: null,
       break_minutes: 0,
       total_minutes_worked: 0,
-      origin_device: "kiosk_mobile",
+      origin_device: originDeviceStr,
       is_closed: false,
       payroll_closing_id: null,
       created_at: new Date().toISOString(),
@@ -273,10 +302,20 @@ export async function toggleBreak(
 export async function clockOut(
   userRole: Role,
   shiftId: string,
+  location?: ShiftLocationMeta,
 ): Promise<DBTeacherTimeLog> {
   assertRole(userRole, ["teacher", "super_admin", "staff"], "marcar salida");
 
   const nowIso = new Date().toISOString();
+
+  // Obtener metadatos previos de entrada para combinarlos con la salida
+  const localCached = getShiftsFromLocalCache().find((s) => s.id === shiftId);
+  const currentMeta = parseShiftLocation(localCached);
+  if (location) {
+    currentMeta.out = location;
+  }
+  const updatedOriginDevice = JSON.stringify(currentMeta);
+
   try {
     const res = await postgrestPatch<DBTeacherTimeLog>(
       "teacher_time_logs",
@@ -284,6 +323,7 @@ export async function clockOut(
       {
         status: "finalizado",
         clock_out: nowIso,
+        origin_device: updatedOriginDevice,
       },
     );
     clearShiftFromLocalCache(shiftId);
@@ -301,7 +341,7 @@ export async function clockOut(
       break_minutes: 0,
       total_minutes_worked: 0,
       status: "finalizado",
-      origin_device: "kiosk_mobile",
+      origin_device: updatedOriginDevice,
       is_closed: true,
       payroll_closing_id: null,
       created_at: nowIso,
@@ -611,6 +651,18 @@ export function computeTeacherMonthlySummary(
       specialty: "Guitarra Clásica/Eléctrica & Violín",
     },
     {
+      id: "00000000-0000-0000-0000-000000000008",
+      name: "Karla",
+      fullName: "Karla (Secretaría / Staff)",
+      specialty: "Secretaría, Cobranzas & Atención",
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000007",
+      name: "Sergio",
+      fullName: "Sergio (Dirección)",
+      specialty: "Dirección General & Supervisión",
+    },
+    {
       id: "00000000-0000-0000-0000-000000000006",
       name: "Profesor Demo",
       fullName: "Profesor Demo (General)",
@@ -671,7 +723,9 @@ export function exportDetailedAttendanceCSV(
 
   const columnHeaders = [
     '"Fecha"',
-    '"Profesor"',
+    '"Profesor / Staff"',
+    '"Geocontrol GPS Entrada"',
+    '"Geocontrol GPS Salida"',
     '"Hora Ingreso"',
     '"Hora Salida"',
     '"Pausa (Min)"',
@@ -679,7 +733,7 @@ export function exportDetailedAttendanceCSV(
     '"Horas Decimales"',
     '"Tiempo Formateado"',
     '"Estado"',
-    '"Dispositivo"',
+    '"Origen / Dispositivo"',
   ].join(",");
 
   const dataRows = shifts.map((s) => {
@@ -695,6 +749,30 @@ export function exportDetailedAttendanceCSV(
       ? new Date(s.clock_out).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
       : "En sede (Sin salida)";
 
+    const loc = parseShiftLocation(s);
+    const inLoc = loc.in;
+    const outLoc = loc.out;
+    const inGpsStr = inLoc
+      ? inLoc.status === "en_sede"
+        ? `En Sede (${formatDistance(inLoc.distanceMeters)})`
+        : inLoc.status === "fuera_de_sede"
+        ? `Fuera de Sede (${formatDistance(inLoc.distanceMeters)})`
+        : "Sin GPS"
+      : "Sede Fija / Manual";
+    const outGpsStr = outLoc
+      ? outLoc.status === "en_sede"
+        ? `En Sede (${formatDistance(outLoc.distanceMeters)})`
+        : outLoc.status === "fuera_de_sede"
+        ? `Fuera de Sede (${formatDistance(outLoc.distanceMeters)})`
+        : "Sin GPS"
+      : "-";
+    const deviceStr =
+      loc.device === "admin_header"
+        ? "Panel Admin"
+        : loc.device === "kiosk_mobile"
+        ? "Móvil Docente"
+        : loc.device || "Sede";
+
     let mins = s.total_minutes_worked || 0;
     if (mins === 0 && s.clock_out) {
       mins = Math.max(0, Math.floor((new Date(s.clock_out).getTime() - d.getTime()) / 60000) - (s.break_minutes || 0));
@@ -709,6 +787,8 @@ export function exportDetailedAttendanceCSV(
     return [
       `"${dateStr}"`,
       `"${s.teacher_name}"`,
+      `"${inGpsStr}"`,
+      `"${outGpsStr}"`,
       `"${inTime}"`,
       `"${outTime}"`,
       `"${s.break_minutes || 0}"`,
@@ -716,7 +796,7 @@ export function exportDetailedAttendanceCSV(
       `"${hrsDecimal}"`,
       `"${formattedHours}"`,
       `"${s.status === "trabajando" ? "En Sede" : s.status === "pausa" ? "En Pausa" : "Finalizado"}"`,
-      `"${s.origin_device || "Kiosco Móvil"}"`,
+      `"${deviceStr}"`,
     ].join(",");
   });
 

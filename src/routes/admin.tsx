@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useAppStore } from "@/store/app-store";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { toast } from "sonner";
+import { AdminShiftClockWidget } from "@/components/admin/admin-shift-clock-widget";
 
 import {
   BarChart3,
@@ -362,6 +363,9 @@ function AdminLayout() {
               Torre de control {activeRole === "staff" && <span className="font-normal text-muted-foreground">(Secretaría Nayeli)</span>}
             </p>
           </div>
+
+          {/* Fichaje de Horario y Turno para Karla / Dirección */}
+          <AdminShiftClockWidget />
 
           {/* Toggle Modo Noche / Modo Día */}
           <button

@@ -427,6 +427,8 @@ export const useAppStore = create<AppState>()(
               customName ||
               (email.toLowerCase().includes("sergio")
                 ? "Sergio (Dirección)"
+                : email.toLowerCase().includes("karla")
+                ? "Karla (Secretaría)"
                 : role === "super_admin"
                 ? "Rocío (Dueña)"
                 : role === "staff"

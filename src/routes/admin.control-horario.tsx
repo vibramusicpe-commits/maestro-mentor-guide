@@ -9,11 +9,13 @@ import {
   computeTeacherMonthlySummary,
   exportDetailedAttendanceCSV,
   clockOut,
+  parseShiftLocation,
   SHIFT_SYNC_CHANNEL,
   type PayrollReportRow,
   type DBTeacherTimeLog,
   type TeacherMonthlySummary,
 } from "@/lib/services/time-tracking.service";
+import { formatDistance } from "@/lib/services/geolocation.service";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -34,6 +36,8 @@ import {
   CalendarDays,
   Music4,
   ExternalLink,
+  MapPin,
+  Navigation,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/control-horario")({
@@ -152,6 +156,8 @@ export function AdminControlHorarioPage() {
           (selectedTeacherId.includes("05") && s.teacher_name?.toLowerCase().includes("nathaly")) ||
           (selectedTeacherId.includes("03") && s.teacher_name?.toLowerCase().includes("jeremy")) ||
           (selectedTeacherId.includes("04") && s.teacher_name?.toLowerCase().includes("fernando")) ||
+          (selectedTeacherId.includes("08") && s.teacher_name?.toLowerCase().includes("karla")) ||
+          (selectedTeacherId.includes("07") && s.teacher_name?.toLowerCase().includes("sergio")) ||
           (selectedTeacherId.includes("06") && s.teacher_name?.toLowerCase().includes("demo"))
         );
       }
@@ -578,7 +584,8 @@ export function AdminControlHorarioPage() {
                   <thead className="bg-muted text-muted-foreground text-[11px] uppercase font-bold tracking-wider">
                     <tr>
                       <th className="p-3.5">Fecha</th>
-                      <th className="p-3.5">Profesor</th>
+                      <th className="p-3.5">Profesor / Staff</th>
+                      <th className="p-3.5">Geocontrol GPS</th>
                       <th className="p-3.5">Hora Entrada</th>
                       <th className="p-3.5">Hora Salida</th>
                       <th className="p-3.5">Pausa</th>
@@ -609,6 +616,10 @@ export function AdminControlHorarioPage() {
                           })
                         : "En sede";
 
+                      const loc = parseShiftLocation(shift);
+                      const inLoc = loc.in;
+                      const outLoc = loc.out;
+
                       let mins = shift.total_minutes_worked || 0;
                       if (mins === 0 && shift.clock_out) {
                         mins = Math.max(
@@ -634,7 +645,69 @@ export function AdminControlHorarioPage() {
                           </td>
                           <td className="p-3.5">
                             <span className="font-bold text-foreground block">{shift.teacher_name}</span>
-                            <span className="text-[10px] text-muted-foreground">{shift.origin_device}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {loc.device === "admin_header"
+                                ? "Panel Admin"
+                                : loc.device === "kiosk_mobile"
+                                ? "Móvil Docente"
+                                : loc.device || "Sede Fija"}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="space-y-1">
+                              {inLoc ? (
+                                inLoc.status === "en_sede" ? (
+                                  <a
+                                    href={inLoc.googleMapsUrl || "#"}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/25 transition-colors"
+                                    title={`Entrada verificada a ${formatDistance(inLoc.distanceMeters)} de sede`}
+                                  >
+                                    <Navigation className="h-3 w-3" />
+                                    <span>En Sede ({formatDistance(inLoc.distanceMeters)})</span>
+                                  </a>
+                                ) : inLoc.status === "fuera_de_sede" ? (
+                                  <a
+                                    href={inLoc.googleMapsUrl || "#"}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/25 transition-colors"
+                                    title={`Marcó fuera de sede a ${formatDistance(inLoc.distanceMeters)}. Clic para abrir en Google Maps.`}
+                                  >
+                                    <MapPin className="h-3 w-3 text-rose-500" />
+                                    <span>Fuera ({formatDistance(inLoc.distanceMeters)})</span>
+                                    <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+                                  </a>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                                    ⚠️ Sin GPS
+                                  </span>
+                                )
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md">
+                                  <Building2 className="h-3 w-3" /> Sede Fija
+                                </span>
+                              )}
+
+                              {outLoc && outLoc.distanceMeters !== undefined && (
+                                <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                  <span>Salida:</span>
+                                  <a
+                                    href={outLoc.googleMapsUrl || "#"}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`hover:underline font-bold ${
+                                      outLoc.status === "en_sede"
+                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        : "text-amber-600 dark:text-amber-400"
+                                    }`}
+                                  >
+                                    {formatDistance(outLoc.distanceMeters)}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3.5">
                             <span className="font-mono bg-muted px-2 py-0.5 rounded-md font-bold text-foreground">
@@ -773,6 +846,52 @@ export function AdminControlHorarioPage() {
                         {shift.status === "trabajando" ? "● EN SEDE" : "PAUSA"}
                       </span>
                     </div>
+
+                    {/* Geocontrol GPS del turno activo */}
+                    {(() => {
+                      const loc = parseShiftLocation(shift);
+                      const inLoc = loc.in;
+                      if (!inLoc) {
+                        return (
+                          <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <Building2 className="h-3 w-3" />
+                            <span>Registrado desde sede fija</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="pt-0.5">
+                          {inLoc.status === "en_sede" ? (
+                            <a
+                              href={inLoc.googleMapsUrl || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 hover:bg-emerald-500/25 px-2 py-0.5 rounded-lg border border-emerald-500/30 transition-colors"
+                              title={`GPS verificado a ${formatDistance(inLoc.distanceMeters)} de sede`}
+                            >
+                              <Navigation className="h-3 w-3" />
+                              <span>En Sede ({formatDistance(inLoc.distanceMeters)})</span>
+                            </a>
+                          ) : inLoc.status === "fuera_de_sede" ? (
+                            <a
+                              href={inLoc.googleMapsUrl || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/15 hover:bg-amber-500/25 px-2 py-0.5 rounded-lg border border-amber-500/30 transition-colors"
+                              title={`Marcó fuera de sede a ${formatDistance(inLoc.distanceMeters)}. Clic para abrir en Google Maps.`}
+                            >
+                              <MapPin className="h-3 w-3 text-rose-500 animate-pulse" />
+                              <span>Marcó Fuera ({formatDistance(inLoc.distanceMeters)})</span>
+                              <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                              ⚠️ Marcado sin GPS
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
                       <span className="text-xs text-muted-foreground">

@@ -2,15 +2,17 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   getAllActiveShifts,
+  parseShiftLocation,
   SHIFT_SYNC_CHANNEL,
   SHIFT_SYNC_EVENT_KEY,
   SHIFT_STORAGE_KEY,
   type DBTeacherTimeLog,
 } from "@/lib/services/time-tracking.service";
+import { formatDistance } from "@/lib/services/geolocation.service";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserCheck, ArrowRight, RefreshCw, Building2 } from "lucide-react";
+import { UserCheck, ArrowRight, RefreshCw, Building2, MapPin, Navigation } from "lucide-react";
 
 export function TeacherAttendanceWidget() {
   const [activeShifts, setActiveShifts] = useState<DBTeacherTimeLog[]>([]);
@@ -102,24 +104,46 @@ export function TeacherAttendanceWidget() {
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
                   Actualmente presentes:
                 </span>
-                {activeShifts.map((shift) => (
-                  <span
-                    key={shift.id}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300"
-                  >
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    {shift.teacher_name}
-                    <span className="text-[10px] font-mono text-muted-foreground font-normal">
-                      (desde{" "}
-                      {new Date(shift.clock_in).toLocaleTimeString("es-PE", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: true,
-                      })}
-                      )
+                {activeShifts.map((shift) => {
+                  const loc = parseShiftLocation(shift);
+                  const inLoc = loc.in;
+
+                  return (
+                    <span
+                      key={shift.id}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      {shift.teacher_name}
+                      <span className="text-[10px] font-mono text-muted-foreground font-normal">
+                        (desde{" "}
+                        {new Date(shift.clock_in).toLocaleTimeString("es-PE", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        })}
+                        )
+                      </span>
+                      {inLoc && inLoc.status === "en_sede" ? (
+                        <span
+                          className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded border border-emerald-500/30 cursor-pointer"
+                          onClick={() => inLoc.googleMapsUrl && window.open(inLoc.googleMapsUrl, "_blank")}
+                          title={`GPS verificado a ${formatDistance(inLoc.distanceMeters)} de sede`}
+                        >
+                          <Navigation className="h-2.5 w-2.5" /> Sede ({formatDistance(inLoc.distanceMeters)})
+                        </span>
+                      ) : inLoc && inLoc.status === "fuera_de_sede" ? (
+                        <span
+                          className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-amber-600 dark:text-amber-400 bg-amber-500/15 px-1.5 py-0.2 rounded border border-amber-500/30 cursor-pointer"
+                          onClick={() => inLoc.googleMapsUrl && window.open(inLoc.googleMapsUrl, "_blank")}
+                          title={`Marcado fuera de sede a ${formatDistance(inLoc.distanceMeters)}. Clic para ver en Google Maps.`}
+                        >
+                          <MapPin className="h-2.5 w-2.5" /> {formatDistance(inLoc.distanceMeters)}
+                        </span>
+                      ) : null}
                     </span>
-                  </span>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

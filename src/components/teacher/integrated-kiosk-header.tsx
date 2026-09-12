@@ -10,11 +10,17 @@ import {
   clockOut,
   getActiveShift,
   resolveTeacherUserId,
+  parseShiftLocation,
   SHIFT_SYNC_CHANNEL,
   SHIFT_STORAGE_KEY,
   SHIFT_SYNC_EVENT_KEY,
   MAX_SHIFT_DURATION_HOURS,
+  type DBTeacherTimeLog,
 } from "@/lib/services/time-tracking.service";
+import {
+  getCurrentGPSPosition,
+  formatDistance,
+} from "@/lib/services/geolocation.service";
 
 interface IntegratedTeacherKioskHeaderProps {
   totalDayStudents?: number;
@@ -27,6 +33,7 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
   const [shiftStatus, setShiftStatus] = useState<"fuera" | "trabajando" | "pausa">("fuera");
   const [seconds, setSeconds] = useState(0);
   const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
+  const [currentShift, setCurrentShift] = useState<DBTeacherTimeLog | null>(null);
   const [loading, setLoading] = useState(false);
 
   // 1. Restaurar turno activo al cargar desde PostgreSQL / Insforge
@@ -53,10 +60,12 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
           }
 
           setCurrentShiftId(active.id);
+          setCurrentShift(active);
           setShiftStatus(active.status);
           setSeconds(elapsedSec);
         } else {
           setCurrentShiftId(null);
+          setCurrentShift(null);
           setShiftStatus("fuera");
           setSeconds(0);
         }
@@ -119,15 +128,35 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
     const teacherUserId = resolveTeacherUserId(teacherEmail, teacherName);
 
     setLoading(true);
+    const toastId = toast.loading("Verificando ubicación GPS en sede...", {
+      description: "Capturando coordenadas una única vez...",
+    });
+
     try {
-      const shift = await clockIn(activeRole, teacherUserId, teacherName);
+      const geo = await getCurrentGPSPosition();
+      toast.dismiss(toastId);
+
+      const shift = await clockIn(activeRole, teacherUserId, teacherName, geo);
       setCurrentShiftId(shift.id);
+      setCurrentShift(shift);
       setShiftStatus("trabajando");
       setSeconds(0);
-      toast.success("Turno iniciado en sede (Conectado en Vivo)", {
-        description: `Ingreso: ${new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })} — Ya visible para secretaría y dirección.`,
-      });
+
+      if (geo.status === "en_sede") {
+        toast.success("Turno iniciado en Sede Miraflores 🟢", {
+          description: `GPS verificado a ${formatDistance(geo.distanceMeters)} de sede (Precisión ±${geo.accuracy}m). Visible en dirección.`,
+        });
+      } else if (geo.status === "fuera_de_sede") {
+        toast.warning("Turno iniciado (Fuera de Sede) 📍", {
+          description: `Ubicación registrada a ${formatDistance(geo.distanceMeters)} de sede para supervisión de dirección.`,
+        });
+      } else {
+        toast.info("Turno iniciado sin GPS ⚠️", {
+          description: "Marcado registrado sin permiso de geolocalización.",
+        });
+      }
     } catch (err: any) {
+      toast.dismiss(toastId);
       toast.error("Error al registrar entrada: " + (err.message || "Intenta nuevamente"));
     } finally {
       setLoading(false);
@@ -140,6 +169,7 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
     try {
       const updated = await toggleBreak(activeRole, currentShiftId, shiftStatus);
       setShiftStatus(updated.status);
+      setCurrentShift(updated);
       if (updated.status === "pausa") {
         toast.info("Jornada en pausa (Registrado en Insforge)");
       } else {
@@ -159,20 +189,32 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
       return;
     }
     setLoading(true);
+    const toastId = toast.loading("Registrando salida y ubicación final...", {
+      description: "Sincronizando horas trabajadas en PostgreSQL...",
+    });
+
     try {
-      await clockOut(activeRole, currentShiftId);
+      const geo = await getCurrentGPSPosition();
+      toast.dismiss(toastId);
+
+      await clockOut(activeRole, currentShiftId, geo);
       toast.success("Turno finalizado y sincronizado en PostgreSQL", {
         description: `Tiempo total en sede: ${formatTimer(seconds)}`,
       });
       setShiftStatus("fuera");
       setCurrentShiftId(null);
+      setCurrentShift(null);
       setSeconds(0);
     } catch (err: any) {
+      toast.dismiss(toastId);
       toast.error("Error al finalizar turno: " + err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const parsedLocation = parseShiftLocation(currentShift);
+  const inLoc = parsedLocation.in;
 
   return (
     <motion.div
@@ -200,7 +242,8 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
             <Button
               size="sm"
               onClick={handleClockIn}
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs h-8 shadow-xs"
+              disabled={loading}
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs h-8 shadow-xs cursor-pointer"
             >
               <Play className="h-3.5 w-3.5 fill-current" /> Fichar Entrada
             </Button>
@@ -210,6 +253,7 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
                 size="sm"
                 variant="outline"
                 onClick={handleToggleBreak}
+                disabled={loading}
                 className="h-8 px-2 text-[11px] font-bold rounded-xl border-sidebar-border text-sidebar-foreground"
               >
                 <Pause className="h-3 w-3" /> {shiftStatus === "pausa" ? "Reanudar" : "Pausa"}
@@ -218,6 +262,7 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
                 size="sm"
                 variant="destructive"
                 onClick={handleClockOut}
+                disabled={loading}
                 className="h-8 px-2 text-[11px] font-bold rounded-xl"
               >
                 <Square className="h-3 w-3 fill-current" /> Salir
@@ -227,11 +272,33 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
         </div>
       </div>
 
-      {/* 2. BARRA DE ESTADO DE LA JORNADA */}
+      {/* 2. BARRA DE ESTADO DE LA JORNADA Y GEOCONTROL */}
       <div className="flex items-center justify-between pt-2 border-t border-sidebar-border/50 text-[11px] text-sidebar-foreground/80">
-        <span className="flex items-center gap-1">
-          <MapPin className="h-3 w-3 text-sidebar-primary" /> Sede Miraflores
-        </span>
+        <div className="flex items-center gap-1.5">
+          <MapPin className="h-3 w-3 text-sidebar-primary" />
+          <span>Sede Miraflores</span>
+          {inLoc && inLoc.status === "en_sede" ? (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md border border-emerald-500/20 cursor-pointer"
+              onClick={() => inLoc.googleMapsUrl && window.open(inLoc.googleMapsUrl, "_blank")}
+              title="GPS verificado en sede"
+            >
+              🟢 Sede ({formatDistance(inLoc.distanceMeters)})
+            </span>
+          ) : inLoc && inLoc.status === "fuera_de_sede" ? (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md border border-amber-500/20 cursor-pointer"
+              onClick={() => inLoc.googleMapsUrl && window.open(inLoc.googleMapsUrl, "_blank")}
+              title="Marcado fuera de sede"
+            >
+              📍 Fuera ({formatDistance(inLoc.distanceMeters)})
+            </span>
+          ) : inLoc && inLoc.status === "sin_gps" ? (
+            <span className="text-[10px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded-md">
+              ⚠️ Sin GPS
+            </span>
+          ) : null}
+        </div>
         <span className="font-medium">
           {shiftStatus === "trabajando" ? (
             <strong className="text-emerald-400">● En Jornada Activa</strong>

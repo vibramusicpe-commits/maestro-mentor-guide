@@ -24,7 +24,7 @@ export const Route = createFileRoute("/")({
 // Profesores y Familias acceden por su link de invitación.
 // ────────────────────────────────────────────────────────────
 
-type AdminProfileKey = "duena" | "sergio" | "staff";
+type AdminProfileKey = "duena" | "sergio" | "karla" | "staff";
 
 const adminProfiles: {
   key: AdminProfileKey;
@@ -58,6 +58,17 @@ const adminProfiles: {
     email: "sergio@vibramusic.pe",
     name: "Sergio (Dirección)",
     passwords: ["VibraSergio2026!", "SergioVibra2026!", "VibraDuena2026!"],
+  },
+  {
+    key: "karla",
+    role: "staff",
+    icon: UserCheck,
+    label: "Karla (Staff / Secretaría)",
+    tag: "Gestión Operativa",
+    accent: "text-emerald-500",
+    email: "karla@vibramusic.pe",
+    name: "Karla (Secretaría)",
+    passwords: ["KarlaVibra2026*", "VibraKarla2026!", "NayeliVibra2026*"],
   },
   {
     key: "staff",
@@ -95,6 +106,8 @@ function AdminLoginPage() {
       ? "Familia / Alumno"
       : currentUser.email?.includes("sergio")
       ? "Sergio (Dirección)"
+      : currentUser.email?.includes("karla")
+      ? "Karla (Secretaría)"
       : activeRole === "super_admin"
       ? "Dueña (Dirección)"
       : "Secretaria (Staff)";
