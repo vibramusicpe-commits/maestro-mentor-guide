@@ -68,6 +68,9 @@ import { money } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/facturacion")({
   beforeLoad: () => {
+    if (typeof window === "undefined") {
+      return;
+    }
     const { activeRole } = useAppStore.getState();
     if (activeRole !== "super_admin" && activeRole !== "staff") {
       throw redirect({ to: "/admin", replace: true });

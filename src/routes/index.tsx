@@ -125,6 +125,16 @@ function AdminLoginPage() {
       ? "Dueña (Dirección)"
       : "Secretaria (Staff)";
 
+    const handleLogout = () => {
+      logout();
+      setSelectedKey(null);
+      setPassword("");
+      setErrorMsg("");
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+    };
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm text-center">
@@ -150,8 +160,8 @@ function AdminLoginPage() {
               Ir a tu Portal ({isTeacher ? "Kiosco" : isFamily ? "Mi Cuenta" : "Administración"}) →
             </Link>
             <button
-              onClick={() => logout()}
-              className="text-xs text-muted-foreground hover:text-destructive underline-offset-4 hover:underline"
+              onClick={handleLogout}
+              className="text-xs text-muted-foreground hover:text-destructive underline-offset-4 hover:underline cursor-pointer py-1"
             >
               Cerrar sesión
             </button>

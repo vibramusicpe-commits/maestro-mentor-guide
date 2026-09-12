@@ -10,6 +10,9 @@ export const Route = createFileRoute("/family")({
   // Roles permitidos: family
   // ──────────────────────────────────────────────
   beforeLoad: () => {
+    if (typeof window === "undefined") {
+      return;
+    }
     const { activeRole, isAuthenticated } = useAppStore.getState();
 
     // 🔒 GUARD DE AUTENTICACIÓN: Sin iniciar sesión → Redirige al Login (Landing)

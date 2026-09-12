@@ -11,6 +11,9 @@ export const Route = createFileRoute("/teacher")({
   // Admins pueden entrar para soporte, redirigidos igual a su ruta.
   // ─────────────────────────────────────────────────
   beforeLoad: () => {
+    if (typeof window === "undefined") {
+      return;
+    }
     const { activeRole, isAuthenticated } = useAppStore.getState();
 
     // 🔒 GUARD DE AUTENTICACIÓN: Sin iniciar sesión → Redirige al Login (Landing)

@@ -45,6 +45,11 @@ import { AutopilotTourOverlay } from "@/components/admin/autopilot-tour-overlay"
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: () => {
+    // En SSR (Cloudflare Worker), Zustand no tiene localStorage; diferir validación al cliente
+    if (typeof window === "undefined") {
+      return;
+    }
+
     const { activeRole, isAuthenticated } = useAppStore.getState();
 
     if (!isAuthenticated) {

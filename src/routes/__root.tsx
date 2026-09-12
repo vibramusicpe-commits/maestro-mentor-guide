@@ -40,31 +40,54 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
 
+  const handleResetSession = () => {
+    try {
+      useAppStore.getState().logout();
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+    } catch {
+      window.location.href = "/";
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+      <div className="max-w-md text-center space-y-4">
+        <div className="h-14 w-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-2xl">
+          🎵
+        </div>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            No se pudo cargar la vista solicitada
+          </h1>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Ocurrió una inconsistencia temporal de sesión o conexión. Puedes reintentar o reiniciar tu acceso.
+          </p>
+        </div>
+
+        {error?.message && (
+          <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-[11px] font-mono text-left overflow-auto max-h-24">
+            {error.message}
+          </div>
+        )}
+
+        <div className="pt-2 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90 cursor-pointer"
           >
-            Try again
+            Reintentar cargar
           </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          <button
+            onClick={handleResetSession}
+            className="inline-flex items-center justify-center rounded-xl border border-input bg-card px-4 py-2 text-xs font-bold text-foreground transition-colors hover:bg-muted cursor-pointer"
           >
-            Go home
-          </a>
+            Reiniciar sesión e ir al Inicio
+          </button>
         </div>
       </div>
     </div>
