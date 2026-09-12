@@ -607,7 +607,7 @@ export function StaffOnboardingTutorial({ isOpen, onClose }: StaffOnboardingTuto
                     ⏱️ Asistencia Docente en Sede y Cómputo de Nómina
                   </h2>
                   <p className="text-xs sm:text-sm text-neutral-300">
-                    Al llegar a la sede de Miraflores, los profesores pulsan <strong>"Marcar Entrada"</strong>. Secretaría y Dirección ven en tiempo real quiénes están presentes.
+                    Al llegar a la sede de San Juan de Lurigancho (Av. Las Flores 1284), los profesores pulsan <strong>"Marcar Entrada"</strong>. Secretaría y Dirección ven en tiempo real quiénes están presentes.
                   </p>
                 </div>
 

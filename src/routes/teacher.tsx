@@ -60,7 +60,7 @@ function TeacherLayout() {
         <header className="sticky top-0 z-20 flex items-center gap-3 rounded-t-3xl border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{currentUser?.name ?? "Profesor/a Vibra"}</p>
-            <p className="truncate text-xs text-muted-foreground">Sede Miraflores · Hoy</p>
+            <p className="truncate text-xs text-muted-foreground">Sede SJL (Las Flores) · Hoy</p>
           </div>
           <span
             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${

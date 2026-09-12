@@ -1,10 +1,10 @@
 /**
  * geolocation.service.ts — Control de Geolocalización y Geocontrol de Sede
- * Vibra Music Staff — ADR-001
+ * Vibra Music Staff — ADR-001 / ADR-0089
  *
  * Permite capturar la posición GPS del dispositivo de forma puntual (1 única vez al marcar)
- * y calcular la distancia respecto a la Sede Miraflores para verificar si el personal
- * o docente está físicamente en sede o marcando remotamente.
+ * y calcular la distancia respecto a la Sede SJL (Av. Las Flores de Primavera 1284) para verificar
+ * si el personal o docente está físicamente en sede o marcando remotamente.
  */
 
 export interface ShiftLocationMeta {
@@ -20,21 +20,29 @@ export interface ShiftLocationMeta {
 
 export interface SedeCoords {
   name: string;
+  address?: string;
   lat: number;
   lng: number;
   radiusMeters: number;
 }
 
 // ─────────────────────────────────────────────────────────────
-// Coordenadas oficiales de Sede Miraflores (Lima, Perú)
-// Radio de tolerancia: 250 metros (para compensar señal en interiores)
+// Coordenadas oficiales de Sede Vibra Music: San Juan de Lurigancho
+// Dirección: Av. Las Flores de Primavera 1284, SJL 15404
+// Coordenadas GPS verificadas en terreno con Google Maps:
+// Lat: -12.008976, Lng: -77.010846
+// Radio de tolerancia: 300 metros (para compensar señal en interiores de concreto)
 // ─────────────────────────────────────────────────────────────
-export const DEFAULT_SEDE_MIRAFLORES: SedeCoords = {
-  name: "Sede Miraflores",
-  lat: -12.1215,
-  lng: -77.0295,
-  radiusMeters: 250,
+export const DEFAULT_SEDE_SJL: SedeCoords = {
+  name: "Sede SJL (Las Flores 1284)",
+  address: "Av. Las Flores de Primavera 1284, San Juan de Lurigancho 15404",
+  lat: -12.008976,
+  lng: -77.010846,
+  radiusMeters: 300,
 };
+
+// Mantenemos alias para compatibilidad retroactiva
+export const DEFAULT_SEDE_MIRAFLORES: SedeCoords = DEFAULT_SEDE_SJL;
 
 const STORAGE_SEDE_KEY = "vibra-sede-coords";
 
@@ -43,17 +51,28 @@ export function getOfficialSedeCoords(): SedeCoords {
     if (typeof window !== "undefined") {
       const saved = window.localStorage.getItem(STORAGE_SEDE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed: SedeCoords = JSON.parse(saved);
+        // Si el dispositivo tenía en caché la referencia obsoleta de Miraflores, migrar a SJL
+        if (
+          parsed.lat === -12.1215 ||
+          parsed.name?.toLowerCase().includes("miraflores") ||
+          !parsed.lat
+        ) {
+          saveOfficialSedeCoords(DEFAULT_SEDE_SJL);
+          return DEFAULT_SEDE_SJL;
+        }
+        return parsed;
       }
     }
   } catch {}
-  return DEFAULT_SEDE_MIRAFLORES;
+  return DEFAULT_SEDE_SJL;
 }
 
 export function saveOfficialSedeCoords(coords: SedeCoords): void {
   try {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(STORAGE_SEDE_KEY, JSON.stringify(coords));
+      window.dispatchEvent(new CustomEvent("vibra-sede-coords-updated", { detail: coords }));
     }
   } catch {}
 }
@@ -103,11 +122,12 @@ export async function getCurrentGPSPosition(): Promise<ShiftLocationMeta> {
   }
 
   return new Promise<ShiftLocationMeta>((resolve) => {
-    // Opciones de alta precisión con timeout prudente para no congelar la app
+    // Opciones de alta precisión con timeout prudente y caché reciente de 30s
+    // Esto evita bloqueos en interiores y acelera la respuesta del navegador móvil
     const options: PositionOptions = {
       enableHighAccuracy: true,
-      timeout: 8000,
-      maximumAge: 0,
+      timeout: 10000,
+      maximumAge: 30000,
     };
 
     navigator.geolocation.getCurrentPosition(

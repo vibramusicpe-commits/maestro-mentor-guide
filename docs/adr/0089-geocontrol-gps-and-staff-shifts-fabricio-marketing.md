@@ -18,10 +18,12 @@ Aceptado
 
 1. **Captura GPS Puntual y Fórmula Haversine (`src/lib/services/geolocation.service.ts`)**:
    - **Una única llamada puntual**: Se utiliza `navigator.geolocation.getCurrentPosition(...)` solo cuando el usuario pulsa *"Fichar Entrada"*, *"Iniciar Jornada"*, *"Salir"* o *"Finalizar Turno"*. No se ejecutan `watchPosition` ni procesos en segundo plano.
-   - **Coordenadas Oficiales de Sede**: Sede Miraflores (`-12.1215`, `-77.0295`) con un radio de tolerancia de 250 metros para absorción de señal en interiores.
+   - **Coordenadas Oficiales de Sede**: Sede San Juan de Lurigancho (`-12.008976`, `-77.010846`), ubicada en **Av. Las Flores de Primavera 1284, SJL 15404**, con un radio de tolerancia de 300 metros para absorción de señal en interiores de concreto.
+   - **Resolución de la Discrepancia de 12.7 km**:
+     El marcador original contenía un placeholder geográfico inicial en Miraflores (`-12.1215, -77.0295`). Al probar el fichaje desde la sede real de Vibra Music en SJL, el GPS móvil reportó con alta exactitud (±17m a 29m) las coordenadas `-12.008976, -77.010846`, cuya distancia ortodrómica contra el placeholder de Miraflores era exactamente 12,675 metros (~12.7 km). Al actualizar la sede a Av. Las Flores de Primavera 1284, la distancia se calibró a 0 - 5 metros (`🟢 En Sede`).
    - **Clasificación Automática**:
-     - `🟢 En Sede`: Si la distancia calculada es <= 250 metros.
-     - `📍 Fuera de Sede`: Si la distancia supera los 250 metros (ej. 4.2 km). Genera automáticamente enlace a Google Maps (`https://www.google.com/maps?q={lat},{lng}`) para auditoría de Dirección.
+     - `🟢 En Sede`: Si la distancia calculada es <= 300 metros.
+     - `📍 Fuera de Sede`: Si la distancia supera los 300 metros (ej. 4.2 km). Genera automáticamente enlace a Google Maps (`https://www.google.com/maps?q={lat},{lng}`) para auditoría de Dirección.
      - `⚠️ Sin GPS`: Si el dispositivo no tiene GPS o se deniegan los permisos, el turno no se bloquea pero queda registrado como no verificado.
 
 2. **Persistencia Estructurada en PostgreSQL (`public.teacher_time_logs`)**:

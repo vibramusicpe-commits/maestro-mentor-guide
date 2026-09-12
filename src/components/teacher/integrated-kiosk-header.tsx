@@ -143,12 +143,12 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
       setSeconds(0);
 
       if (geo.status === "en_sede") {
-        toast.success("Turno iniciado en Sede Miraflores 🟢", {
+        toast.success(`Turno iniciado en ${geo.sedeName || "Sede SJL"} 🟢`, {
           description: `GPS verificado a ${formatDistance(geo.distanceMeters)} de sede (Precisión ±${geo.accuracy}m). Visible en dirección.`,
         });
       } else if (geo.status === "fuera_de_sede") {
         toast.warning("Turno iniciado (Fuera de Sede) 📍", {
-          description: `Ubicación registrada a ${formatDistance(geo.distanceMeters)} de sede para supervisión de dirección.`,
+          description: `Ubicación registrada a ${formatDistance(geo.distanceMeters)} de ${geo.sedeName || "sede"} para supervisión de dirección.`,
         });
       } else {
         toast.info("Turno iniciado sin GPS ⚠️", {
@@ -276,7 +276,7 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
       <div className="flex items-center justify-between pt-2 border-t border-sidebar-border/50 text-[11px] text-sidebar-foreground/80">
         <div className="flex items-center gap-1.5">
           <MapPin className="h-3 w-3 text-sidebar-primary" />
-          <span>Sede Miraflores</span>
+          <span>Sede SJL (Las Flores)</span>
           {inLoc && inLoc.status === "en_sede" ? (
             <span
               className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md border border-emerald-500/20 cursor-pointer"

@@ -263,10 +263,21 @@ export function AdminControlHorarioPage() {
       {/* Cabecera Principal del Dashboard */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-6 rounded-3xl shadow-xs">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span className="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5">
               <Sparkles className="h-3 w-3" /> Módulo Oficial de Recursos Humanos y Sedes
             </span>
+            <a
+              href="https://share.google/vHHGSPLoduhzzPeZA"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 flex items-center gap-1 hover:bg-emerald-500/20 transition-colors"
+              title="Av. Las Flores de Primavera 1284, San Juan de Lurigancho (Tolerancia: 300m)"
+            >
+              <MapPin className="h-3 w-3 text-emerald-500" />
+              <span>Sede SJL: Av. Las Flores de Primavera 1284</span>
+              <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+            </a>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-foreground flex items-center gap-2.5">
             <UserCheck className="h-7 w-7 text-primary" /> Asistencia Docente & Control Horario

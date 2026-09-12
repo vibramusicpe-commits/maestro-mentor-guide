@@ -306,7 +306,7 @@ function AdminLayout() {
 
         {!isCollapsed ? (
           <div className="border-t border-sidebar-border p-3.5 text-[11px] text-sidebar-foreground/60">
-            Sede Miraflores · {activeRole === "staff" ? "Secretaría (Nayeli)" : "Super Admin"}
+            Sede SJL (Las Flores) · {activeRole === "staff" ? (currentUser?.name || "Staff") : "Super Admin"}
           </div>
         ) : (
           <div className="border-t border-sidebar-border py-3 flex justify-center text-[10px] font-bold text-primary">

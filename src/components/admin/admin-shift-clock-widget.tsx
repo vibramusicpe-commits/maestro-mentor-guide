@@ -149,11 +149,11 @@ export function AdminShiftClockWidget() {
 
       if (geo.status === "en_sede") {
         toast.success(`Jornada iniciada: ${firstName} en Sede 🟢`, {
-          description: `GPS verificado a ${formatDistance(geo.distanceMeters)} de Sede Miraflores (Precisión ±${geo.accuracy}m).`,
+          description: `GPS verificado a ${formatDistance(geo.distanceMeters)} de ${geo.sedeName} (Precisión ±${geo.accuracy}m).`,
         });
       } else if (geo.status === "fuera_de_sede") {
         toast.warning(`Jornada iniciada: ${firstName} (Remoto / Fuera de Sede) 📍`, {
-          description: `Ubicación registrada a ${formatDistance(geo.distanceMeters)} de sede para supervisión de horas.`,
+          description: `Ubicación registrada a ${formatDistance(geo.distanceMeters)} de ${geo.sedeName} para supervisión de horas.`,
         });
       } else {
         toast.info(`Jornada iniciada: ${firstName} (Sin GPS) ⚠️`, {
@@ -262,7 +262,7 @@ export function AdminShiftClockWidget() {
             <Badge
               variant="outline"
               className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] font-bold px-1.5 py-0 h-5 gap-1 hidden md:inline-flex cursor-pointer"
-              title={`Verificado en Sede Miraflores (a ${formatDistance(inLoc.distanceMeters)})`}
+              title={`Verificado en ${inLoc.sedeName || "Sede SJL"} (a ${formatDistance(inLoc.distanceMeters)})`}
               onClick={() => inLoc.googleMapsUrl && window.open(inLoc.googleMapsUrl, "_blank")}
             >
               <Navigation className="h-2.5 w-2.5" />
@@ -272,7 +272,7 @@ export function AdminShiftClockWidget() {
             <Badge
               variant="outline"
               className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[10px] font-bold px-1.5 py-0 h-5 gap-1 hidden md:inline-flex cursor-pointer"
-              title={`Marcado fuera de sede: a ${formatDistance(inLoc.distanceMeters)} de Sede Miraflores`}
+              title={`Marcado fuera de sede: a ${formatDistance(inLoc.distanceMeters)} de ${inLoc.sedeName || "Sede SJL"}`}
               onClick={() => inLoc.googleMapsUrl && window.open(inLoc.googleMapsUrl, "_blank")}
             >
               <MapPin className="h-2.5 w-2.5" />
