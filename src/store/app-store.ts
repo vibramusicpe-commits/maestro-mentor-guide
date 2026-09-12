@@ -378,6 +378,10 @@ function backgroundSyncPaymentToDB(
     let userId = "00000000-0000-0000-0000-000000000001";
     if (email.includes("sergio")) {
       userId = "00000000-0000-0000-0000-000000000007";
+    } else if (email.includes("fabricio")) {
+      userId = "00000000-0000-0000-0000-000000000009";
+    } else if (email.includes("karla")) {
+      userId = "00000000-0000-0000-0000-000000000008";
     } else if (role === "staff" || email.includes("nayeli")) {
       userId = "00000000-0000-0000-0000-000000000002";
     }
@@ -427,6 +431,8 @@ export const useAppStore = create<AppState>()(
               customName ||
               (email.toLowerCase().includes("sergio")
                 ? "Sergio (Dirección)"
+                : email.toLowerCase().includes("fabricio")
+                ? "Fabricio (Marketing)"
                 : email.toLowerCase().includes("karla")
                 ? "Karla (Secretaría)"
                 : role === "super_admin"

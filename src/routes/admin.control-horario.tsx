@@ -158,6 +158,7 @@ export function AdminControlHorarioPage() {
           (selectedTeacherId.includes("04") && s.teacher_name?.toLowerCase().includes("fernando")) ||
           (selectedTeacherId.includes("08") && s.teacher_name?.toLowerCase().includes("karla")) ||
           (selectedTeacherId.includes("07") && s.teacher_name?.toLowerCase().includes("sergio")) ||
+          (selectedTeacherId.includes("09") && s.teacher_name?.toLowerCase().includes("fabricio")) ||
           (selectedTeacherId.includes("06") && s.teacher_name?.toLowerCase().includes("demo"))
         );
       }

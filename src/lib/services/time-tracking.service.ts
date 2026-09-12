@@ -78,6 +78,7 @@ export function resolveTeacherUserId(email?: string, name?: string): string {
   if (e.includes("nathaly") || n.includes("nathaly")) return "00000000-0000-0000-0000-000000000005";
   if (e.includes("karla") || n.includes("karla")) return "00000000-0000-0000-0000-000000000008"; // Karla (Staff / Secretaría)
   if (e.includes("sergio") || n.includes("sergio")) return "00000000-0000-0000-0000-000000000007"; // Sergio (Dirección)
+  if (e.includes("fabricio") || n.includes("fabricio")) return "00000000-0000-0000-0000-000000000009"; // Fabricio (Marketing)
   if (e.includes("dueña") || e.includes("duena") || n.includes("dueña") || n.includes("rocío") || n.includes("rocio")) return "00000000-0000-0000-0000-000000000001"; // Rocío (Dueña)
   if (e.includes("nayeli") || n.includes("nayeli")) return "00000000-0000-0000-0000-000000000002"; // Nayeli (Secretaría)
   return "00000000-0000-0000-0000-000000000006"; // Profesor Demo / General
@@ -661,6 +662,12 @@ export function computeTeacherMonthlySummary(
       name: "Sergio",
       fullName: "Sergio (Dirección)",
       specialty: "Dirección General & Supervisión",
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000009",
+      name: "Fabricio",
+      fullName: "Fabricio (Marketing)",
+      specialty: "Marketing, Growth & Contenidos",
     },
     {
       id: "00000000-0000-0000-0000-000000000006",

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAppStore, type Role } from "@/store/app-store";
 import { motion } from "motion/react";
-import { Music4, ShieldCheck, UserCheck, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Music4, ShieldCheck, UserCheck, Lock, Eye, EyeOff, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 export const Route = createFileRoute("/")({
@@ -20,11 +20,11 @@ export const Route = createFileRoute("/")({
 });
 
 // ────────────────────────────────────────────────────────────
-// Esta página es SOLO para la Dueña y la Secretaria.
+// Esta página es SOLO para la Dueña, Dirección, Marketing y Secretaría.
 // Profesores y Familias acceden por su link de invitación.
 // ────────────────────────────────────────────────────────────
 
-type AdminProfileKey = "duena" | "sergio" | "karla" | "staff";
+type AdminProfileKey = "duena" | "sergio" | "karla" | "staff" | "fabricio";
 
 const adminProfiles: {
   key: AdminProfileKey;
@@ -58,6 +58,17 @@ const adminProfiles: {
     email: "sergio@vibramusic.pe",
     name: "Sergio (Dirección)",
     passwords: ["VibraSergio2026!", "SergioVibra2026!", "VibraDuena2026!"],
+  },
+  {
+    key: "fabricio",
+    role: "staff",
+    icon: Sparkles,
+    label: "Fabricio (Marketing / Staff)",
+    tag: "Marketing & Growth",
+    accent: "text-[#FF9E3D]",
+    email: "fabricio@vibramusic.pe",
+    name: "Fabricio (Marketing)",
+    passwords: ["FabricioVibra2026*", "VibraFabricio2026!", "VibraDuena2026!"],
   },
   {
     key: "karla",
@@ -106,6 +117,8 @@ function AdminLoginPage() {
       ? "Familia / Alumno"
       : currentUser.email?.includes("sergio")
       ? "Sergio (Dirección)"
+      : currentUser.email?.includes("fabricio")
+      ? "Fabricio (Marketing)"
       : currentUser.email?.includes("karla")
       ? "Karla (Secretaría)"
       : activeRole === "super_admin"
