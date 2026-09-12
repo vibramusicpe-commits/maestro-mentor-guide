@@ -99,6 +99,7 @@ function AdminLayout() {
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const activeRole = useAppStore((s) => s.activeRole);
+  const currentUser = useAppStore((s) => s.currentUser);
   const adminStudents = useAppStore((s) => s.adminStudents);
   const invoices = useAppStore((s) => s.invoices);
   const chimeSettings = useAppStore((s) => s.chimeSettings);
