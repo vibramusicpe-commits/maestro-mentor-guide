@@ -134,6 +134,7 @@ function riskBadge(risk: number) {
 export function StudentsTable() {
   const activeRole = useAppStore((s) => s.activeRole);
   const students = useAppStore((s) => s.adminStudents);
+  const adminStudents = students;
   const setStudentStatus = useAppStore((s) => s.setStudentStatus);
   const assignTeacher = useAppStore((s) => s.assignTeacher);
   const setStudentModality = useAppStore((s) => s.setStudentModality);
@@ -202,8 +203,8 @@ export function StudentsTable() {
   const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
   const liveKardexStudent = useMemo(() => {
     if (!kardexStudent) return null;
-    return adminStudents.find((st) => st.id === kardexStudent.id) || kardexStudent;
-  }, [adminStudents, kardexStudent]);
+    return students.find((st) => st.id === kardexStudent.id) || kardexStudent;
+  }, [students, kardexStudent]);
   const [isReentryFormOpen, setIsReentryFormOpen] = useState(false);
   const [reentryDate, setReentryDate] = useState("2026-08-18");
   const [reentryReason, setReentryReason] = useState("");
