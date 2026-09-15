@@ -1608,30 +1608,32 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v23",
+      name: "cadencia-app-v24",
       storage: createJSONStorage(() => localStorage),
-      version: 23,
+      version: 24,
       migrate: (persistedState: any, version: number) => {
         try {
           if (typeof window !== "undefined") {
-            for (let i = 1; i <= 22; i++) {
+            for (let i = 1; i <= 23; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }
         } catch {}
 
-        if (version < 23 || !persistedState?.adminStudents?.length) {
-          return {
-            ...persistedState,
-            adminStudents: adminStudents,
-            invoices: initialInvoices,
-            schedule: initialSchedule,
-            deletedStudents: [],
-            teacherNotes: [],
-          };
-        }
+        // Depuración 2026: Todos los alumnos históricos pasan a estado "pausa"
+        const migratedStudents = (persistedState?.adminStudents || adminStudents).map((st: any) => ({
+          ...st,
+          status: st.status === "baja" ? "baja" : "pausa",
+        }));
 
-        return persistedState;
+        return {
+          ...persistedState,
+          adminStudents: migratedStudents,
+          invoices: persistedState?.invoices || initialInvoices,
+          schedule: persistedState?.schedule || initialSchedule,
+          deletedStudents: persistedState?.deletedStudents || [],
+          teacherNotes: persistedState?.teacherNotes || [],
+        };
       },
       partialize: (s) =>
         ({

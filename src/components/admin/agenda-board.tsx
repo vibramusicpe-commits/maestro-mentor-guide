@@ -351,12 +351,11 @@ export function AgendaBoard() {
   // Filtrado reactivo estricto para eliminar cruces o datos no solicitados (Bugfix Crítico)
   const visible = useMemo(
     () =>
-      schedule.filter(
-        (l) => {
-          // 1. Filtrado por estado de alumno (si el alumno está dado de baja, no mostrar en agenda)
-          const studentProfile = adminStudents.find(
-            (st) => st.name.toLowerCase() === l.student.toLowerCase(),
-          );
+      schedule.filter((l) => {
+        // 1. Filtrado por estado de alumno (solo alumnos activos se muestran en el horario)
+        const studentProfile = adminStudents.find(
+          (st) => isMatchingStudentName(st.name, l.student) || st.name.toLowerCase() === l.student.toLowerCase(),
+        );
 
           if (l.isMakeup) {
             // Clases de recuperación son puntuales para su semana, mes y año específico
@@ -365,8 +364,8 @@ export function AgendaBoard() {
             if (l.month !== undefined && l.month !== selectedMonth) return false;
             if (l.weekIndex !== undefined && l.weekIndex !== safeWeekIndex) return false;
           } else {
-            // 1. Alumnos dados de baja nunca se muestran en la agenda
-            if (studentProfile && studentProfile.status === "baja") return false;
+            // 1. Alumnos en pausa o de baja nunca se muestran en la agenda lectiva activa
+            if (studentProfile && studentProfile.status !== "activo") return false;
 
             // 2. Control del Ciclo Escolar y Vigencia de Planes:
             // - En 2028 o posterior: No existen alumnos matriculados en este ciclo

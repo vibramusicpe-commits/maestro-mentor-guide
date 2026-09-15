@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.3] - 2026-09-15
+
+### Saneado en Base de Datos & Cero Mock Data
+- **Pausa Masiva en PostgreSQL Insforge (`students`)**:
+  - Ejecutada la actualización directa en PostgreSQL pasando los 68 alumnos activos antiguos a estado `status = 'pausa'`.
+  - Los historiales, notas, cobros y familias se preservan intactos para que el equipo pueda activarlos 1 a 1 y regularizar asistencias y cobros.
+- **Limpieza del Horario de Clases (`AgendaBoard`)**:
+  - Se condicionó la cuadrícula didáctica semanal (`visible`) para que **únicamente los alumnos con `status === 'activo'`** ocupen celdas de horario.
+  - Al estar todos en pausa, el horario queda limpio y despejado; a medida que Dirección o Secretaría activen a cada alumno, su horario reaparecerá de inmediato.
+- **Eliminación Total de Mock Data en Clases Demo (`/admin/demos`)**:
+  - Purgada la semilla ficticia `INITIAL_DEMOS`. La vista ahora consulta exclusivamente la tabla `demo_requests` de PostgreSQL en tiempo real.
+  - Estado vacío informativo cuando no hay registros y persistencia directa de nuevos prospectos en PostgreSQL vía `createLeadInDB`.
+- **Migración de Caché Local a v24**:
+  - Se incrementó el storage a `cadencia-app-v24` para purgar cualquier estado activo residual en navegadores antiguos y sincronizar con los datos en pausa.
+
 ## [1.8.2] - 2026-09-15
 
 ### Añadido & Saneado

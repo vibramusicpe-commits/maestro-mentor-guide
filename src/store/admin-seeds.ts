@@ -231,10 +231,11 @@ export const initialSchedule: ScheduledLesson[] = officialSchedule.map((l) => ({
 }));
 
 // Lista oficial de alumnos extraída del Control de Pagos y Horario de Vibra Music
-// Purgado de mock data: Las asistencias inician limpias (0% y sin registros ficticios)
-// para que el récord se construya en producción real desde la agenda y Kardex.
+// Depuración 2026: Todos los alumnos históricos inician en "pausa" para permitir
+// su reactivación y regularización de asistencia 1 a 1 de forma segura y controlada.
 const baseControlStudents: AdminStudent[] = officialControlPagosStudents.map((st) => ({
   ...st,
+  status: "pausa",
   recentAttendance: [],
   attendanceRate: 0,
 }));
@@ -244,6 +245,7 @@ const missingAdminStudents = officialAdminStudents
   .filter((oSt) => !baseControlStudents.some((bSt) => isMatchingStudentName(bSt.name, oSt.name)))
   .map((st) => ({
     ...st,
+    status: "pausa",
     recentAttendance: [],
     attendanceRate: 0,
   }));
@@ -265,7 +267,7 @@ officialSchedule.forEach((sch) => {
       level: "Nivel 1",
       teacher: sch.teacher,
       modality: "Regular (8 clases / 45 min)",
-      status: "activo",
+      status: "pausa",
       ageCategory: sch.category || "JUNIOR",
       age: 10,
       attendanceRate: 0,

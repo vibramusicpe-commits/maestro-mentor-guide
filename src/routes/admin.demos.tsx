@@ -71,66 +71,6 @@ export const Route = createFileRoute("/admin/demos")({
   component: AdminDemosPage,
 });
 
-// Semilla inicial referencial de prospectos demo
-const INITIAL_DEMOS: DBDemoRequest[] = [
-  {
-    id: "demo-001",
-    student_name: "Luciana Morales (7 años)",
-    parent_name: "Patricia Vega",
-    parent_phone: "51987321654",
-    instrument: "Piano",
-    preferred_date: new Date().toISOString().split("T")[0],
-    preferred_time: "16:00",
-    status: "confirmada",
-    notes: "Interesada en estimulación musical de piano. Primera experiencia.",
-    handled_by: "Claudia (Directora)",
-    created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "demo-002",
-    student_name: "Thiago Ramos (10 años)",
-    parent_name: "Gonzalo Ramos",
-    parent_phone: "51912876543",
-    instrument: "Violín",
-    preferred_date: new Date().toISOString().split("T")[0],
-    preferred_time: "17:30",
-    status: "pendiente",
-    notes: "Viene de campaña en Instagram. Consulta disponibilidad para horario tarde.",
-    handled_by: "Claudia (Directora)",
-    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "demo-003",
-    student_name: "Camila Salcedo (14 años)",
-    parent_name: "Lorena Paredes",
-    parent_phone: "51955112233",
-    instrument: "Canto",
-    preferred_date: new Date(Date.now() - 3600000 * 24 * 2).toISOString().split("T")[0],
-    preferred_time: "16:45",
-    status: "asistio",
-    notes: "Asistió a la clase con Claudia. Excelente técnica vocal, lista para inscribirse en plan mensual.",
-    handled_by: "Claudia (Directora)",
-    created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "demo-004",
-    student_name: "Joaquín Navarro (12 años)",
-    parent_name: "Eduardo Navarro",
-    parent_phone: "51944887766",
-    instrument: "Guitarra",
-    preferred_date: new Date(Date.now() - 3600000 * 24 * 3).toISOString().split("T")[0],
-    preferred_time: "18:15",
-    status: "matriculado",
-    notes: "Matriculado con el Prof. Jeremy. Pagó cuota completa de septiembre.",
-    handled_by: "Claudia (Directora)",
-    created_at: new Date(Date.now() - 3600000 * 72).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
 // Horarios demo disponibles dictados por Claudia (a partir de las 16:00)
 const DEMO_TIME_SLOTS = [
   "16:00",
@@ -154,7 +94,8 @@ export function AdminDemosPage() {
   const addNewStudent = useAppStore((s) => s.addNewStudent);
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
 
-  const [demos, setDemos] = useState<DBDemoRequest[]>(INITIAL_DEMOS);
+  // Datos 100% reales desde PostgreSQL (demo_requests)
+  const [demos, setDemos] = useState<DBDemoRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filtros
@@ -186,17 +127,17 @@ export function AdminDemosPage() {
   const [enrollRoom, setEnrollRoom] = useState("Sala A");
   const [enrollPrice, setEnrollPrice] = useState(297);
 
-  // Cargar prospectos desde PostgreSQL
+  // Cargar prospectos exclusivamente desde PostgreSQL Insforge
   useEffect(() => {
     setMounted(true);
     async function fetchLeads() {
+      setLoading(true);
       try {
         const dbRecords = await getLeadsFromDB(activeRole);
-        if (dbRecords && dbRecords.length > 0) {
-          setDemos(dbRecords);
-        }
+        setDemos(dbRecords || []);
       } catch (err) {
-        console.warn("Utilizando catálogo local referencial de clases demo:", err);
+        console.warn("Error consultando demo_requests en PostgreSQL:", err);
+        setDemos([]);
       } finally {
         setLoading(false);
       }
@@ -591,7 +532,25 @@ export function AdminDemosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {filteredDemos.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-muted-foreground text-xs">
+                      Consultando registros de clases demo en PostgreSQL...
+                    </td>
+                  </tr>
+                ) : demos.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                      <div className="max-w-md mx-auto space-y-2">
+                        <Sparkles className="h-8 w-8 text-[#FFB52E] mx-auto opacity-80" />
+                        <p className="font-bold text-foreground text-sm">No hay clases demo registradas en PostgreSQL</p>
+                        <p className="text-xs text-muted-foreground">
+                          Base de datos conectada en vivo. Haz clic en <strong>"+ Agendar Clase Demo"</strong> para registrar a un nuevo prospecto interesado en su clase demostrativa con la Directora Claudia (a partir de las 16:00 h).
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredDemos.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-muted-foreground">
                       No se encontraron clases demo con los filtros actuales.
