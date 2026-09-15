@@ -1608,13 +1608,13 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v24",
+      name: "cadencia-app-v25",
       storage: createJSONStorage(() => localStorage),
-      version: 24,
+      version: 25,
       migrate: (persistedState: any, version: number) => {
         try {
           if (typeof window !== "undefined") {
-            for (let i = 1; i <= 23; i++) {
+            for (let i = 1; i <= 24; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }
@@ -1630,7 +1630,7 @@ export const useAppStore = create<AppState>()(
           ...persistedState,
           adminStudents: migratedStudents,
           invoices: persistedState?.invoices || initialInvoices,
-          schedule: persistedState?.schedule || initialSchedule,
+          schedule: initialSchedule,
           deletedStudents: persistedState?.deletedStudents || [],
           teacherNotes: persistedState?.teacherNotes || [],
         };

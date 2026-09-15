@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { musicalInstruments, availableTeachers, rooms } from "@/store/admin-seeds";
+import { isMatchingStudentName } from "@/lib/student-matching";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +63,7 @@ export function VacancyAvailabilityPanel({
   onSelectSlot?: (slot: { day: WeekDay; time: string; teacher: string; room: string }) => void;
 }) {
   const schedule = useAppStore((s) => s.schedule);
+  const adminStudents = useAppStore((s) => s.adminStudents);
 
   // Filtros de búsqueda
   const [filterTeacher, setFilterTeacher] = useState<string>("all");
@@ -79,7 +81,7 @@ export function VacancyAvailabilityPanel({
   const [consecutiveDay2, setConsecutiveDay2] = useState<WeekDay>("Mar");
   const [consecutiveTeacher, setConsecutiveTeacher] = useState<string>(availableTeachers[0] || "");
 
-  // Calcular la matriz de todas las combinaciones de horarios y ocupación real
+  // Calcular la matriz de todas las combinaciones de horarios y ocupación real (solo alumnos activos)
   const allSlots: VacancySlot[] = useMemo(() => {
     const slots: VacancySlot[] = [];
 
@@ -91,14 +93,16 @@ export function VacancyAvailabilityPanel({
 
       times.forEach((time) => {
         teachersList.forEach((t) => {
-          // Filtrar clases activas en este horario, día y profesor
-          const matchingLessons = schedule.filter(
-            (l) =>
-              l.day === day &&
-              l.time === time &&
-              l.teacher.toLowerCase().includes(t.toLowerCase()) &&
-              l.status !== "cancelada",
-          );
+          // Filtrar clases activas en este horario, día y profesor de alumnos estrictamente activos
+          const matchingLessons = schedule.filter((l) => {
+            if (l.day !== day || l.time !== time) return false;
+            if (!l.teacher.toLowerCase().includes(t.toLowerCase())) return false;
+            if (l.status === "cancelada") return false;
+            const studentProfile = adminStudents.find(
+              (st) => isMatchingStudentName(st.name, l.student) || st.name.toLowerCase() === l.student.toLowerCase(),
+            );
+            return !!(studentProfile && studentProfile.status === "activo");
+          });
 
           const enrolledCount = matchingLessons.length;
           const availableVacancies = Math.max(0, MAX_CAPACITY - enrolledCount);
@@ -130,7 +134,7 @@ export function VacancyAvailabilityPanel({
     });
 
     return slots;
-  }, [schedule]);
+  }, [schedule, adminStudents]);
 
   // Filtrado reactivo de cupos
   const filteredSlots = useMemo(() => {

@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { ArrowDownRight, ArrowUpRight, CalendarCheck, DollarSign, UserCheck, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAppStore } from "@/store/app-store";
+import { isMatchingStudentName } from "@/lib/student-matching";
 
 export function MetricCards() {
   const activeRole = useAppStore((s) => s.activeRole);
@@ -11,7 +12,13 @@ export function MetricCards() {
 
   // Cálculos dinámicos reales
   const activeStudentsCount = students.filter((s) => s.status === "activo").length;
-  const activeLessonsCount = schedule.filter((l) => l.status !== "cancelada").length;
+  const activeLessonsCount = schedule.filter((l) => {
+    if (l.status === "cancelada") return false;
+    const stProfile = students.find(
+      (st) => isMatchingStudentName(st.name, l.student) || st.name.toLowerCase() === l.student.toLowerCase(),
+    );
+    return !!(stProfile && stProfile.status === "activo");
+  }).length;
   
   // Tasa de asistencia promedio real (solo sobre alumnos con asistencias evaluadas)
   const evaluatedStudents = students.filter(

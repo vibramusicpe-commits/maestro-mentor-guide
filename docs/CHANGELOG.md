@@ -4,6 +4,19 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.4] - 2026-09-15
+
+### Blindaje Estricto de Horario & Cero Mock Seeds (ADR 0095)
+- **Blindaje Excluyente en Horario de Clases (`AgendaBoard`)**:
+  - Corrección de la condición lógica en el filtrado de lecciones visibles: ahora exige obligatoriamente que el alumno exista en la base de datos oficial Y tenga estado estrictamente `"activo"`.
+  - Si una clase no tiene perfil en PostgreSQL o su estado es `"pausa"` o `"baja"`, se excluye de forma absoluta.
+- **Purgado de 10 Semillas Ficticias en `officialSchedule` (`official-seeds.ts`)**:
+  - Se eliminaron las 10 lecciones mock residuales (`sch-1-b` a `sch-1-e`, `sch-mie-2` a `sch-mie-5`, "Piano" y "Piano Juvenil") que provocaban que aparecieran alumnos en la cuadrícula al no poseer perfil en PostgreSQL.
+- **Sincronización en `VacancyAvailabilityPanel` y `MetricCards`**:
+  - El explorador de vacantes por franja horaria y el contador de clases programadas del Dashboard ahora evalúan únicamente a alumnos activos reales.
+- **Migración de Storage a `cadencia-app-v25`**:
+  - Salto de versión para purgar `schedule` y estados cacheados previos en navegadores de los administradores.
+
 ## [1.8.3] - 2026-09-15
 
 ### Saneado en Base de Datos & Cero Mock Data (ADR 0094)

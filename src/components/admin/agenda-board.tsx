@@ -352,20 +352,23 @@ export function AgendaBoard() {
   const visible = useMemo(
     () =>
       schedule.filter((l) => {
-        // 1. Filtrado por estado de alumno (solo alumnos activos se muestran en el horario)
+        // 1. Filtrado por estado de alumno (solo alumnos existentes en base de datos y con estado 'activo' se muestran en el horario)
         const studentProfile = adminStudents.find(
           (st) => isMatchingStudentName(st.name, l.student) || st.name.toLowerCase() === l.student.toLowerCase(),
         );
 
-          if (l.isMakeup) {
-            // Clases de recuperación son puntuales para su semana, mes y año específico
-            const lYear = l.year ?? 2026;
-            if (lYear !== selectedYear) return false;
-            if (l.month !== undefined && l.month !== selectedMonth) return false;
-            if (l.weekIndex !== undefined && l.weekIndex !== safeWeekIndex) return false;
-          } else {
-            // 1. Alumnos en pausa o de baja nunca se muestran en la agenda lectiva activa
-            if (studentProfile && studentProfile.status !== "activo") return false;
+        // REGLA CRÍTICA DE VIBRA MUSIC:
+        // Si el alumno no existe en la base de datos oficial O su estado no es estrictamente "activo"
+        // (es decir: está en 'pausa', 'baja', o no está registrado), NUNCA debe figurar en el horario activo.
+        if (!studentProfile || studentProfile.status !== "activo") return false;
+
+        if (l.isMakeup) {
+          // Clases de recuperación son puntuales para su semana, mes y año específico
+          const lYear = l.year ?? 2026;
+          if (lYear !== selectedYear) return false;
+          if (l.month !== undefined && l.month !== selectedMonth) return false;
+          if (l.weekIndex !== undefined && l.weekIndex !== safeWeekIndex) return false;
+        } else {
 
             // 2. Control del Ciclo Escolar y Vigencia de Planes:
             // - En 2028 o posterior: No existen alumnos matriculados en este ciclo
@@ -492,11 +495,15 @@ export function AgendaBoard() {
     (targetWeekIndex: number, d: string, t: string, r: string, teacherName: string) => {
       const cleanTeacher = teacherName.toLowerCase().replace(/\s*\(.*?\)/, "").trim();
       const matching = schedule.filter(
-        (l) =>
-          l.day === d &&
-          l.time === t &&
-          l.status !== "cancelada" &&
-          (l.weekIndex === undefined || l.weekIndex === targetWeekIndex)
+        (l) => {
+          if (l.day !== d || l.time !== t) return false;
+          if (l.status === "cancelada") return false;
+          if (l.weekIndex !== undefined && l.weekIndex !== targetWeekIndex) return false;
+          const stProfile = adminStudents.find(
+            (st) => isMatchingStudentName(st.name, l.student) || st.name.toLowerCase() === l.student.toLowerCase(),
+          );
+          return !!(stProfile && stProfile.status === "activo");
+        }
       );
       const teacherLessons = matching.filter((l) => {
         const teach = l.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").trim();
@@ -523,7 +530,7 @@ export function AgendaBoard() {
         reason: conflictReason,
       };
     },
-    [schedule]
+    [schedule, adminStudents]
   );
 
   // Detección de clases habituales del alumno para determinar si proviene de un Jueves
@@ -760,7 +767,7 @@ export function AgendaBoard() {
     timeSlotsWeekday,
   ]);
 
-  const active = schedule.filter((l) => l.status !== "cancelada");
+  const active = visible.filter((l) => l.status !== "cancelada");
   const capacity = weekDays.length * timeSlots.length * rooms.length;
   const occupancy = Math.round((active.length / capacity) * 100);
   const selected = schedule.find((l) => l.id === selectedId) ?? null;
@@ -2488,7 +2495,7 @@ export function AgendaBoard() {
 
                 {/* GESTIÓN DE EVENTOS Y VACANTES EN ESTE HORARIO (ZONA DE CONFORT DE NAYELI) */}
                 {(() => {
-                  const slotLessons = schedule.filter(
+                  const slotLessons = visible.filter(
                     (l) =>
                       l.day === selected.day &&
                       l.time === selected.time &&
