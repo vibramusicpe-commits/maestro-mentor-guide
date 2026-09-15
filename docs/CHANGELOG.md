@@ -6,7 +6,7 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 
 ## [1.8.3] - 2026-09-15
 
-### Saneado en Base de Datos & Cero Mock Data
+### Saneado en Base de Datos & Cero Mock Data (ADR 0094)
 - **Pausa Masiva en PostgreSQL Insforge (`students`)**:
   - Ejecutada la actualización directa en PostgreSQL pasando los 68 alumnos activos antiguos a estado `status = 'pausa'`.
   - Los historiales, notas, cobros y familias se preservan intactos para que el equipo pueda activarlos 1 a 1 y regularizar asistencias y cobros.
