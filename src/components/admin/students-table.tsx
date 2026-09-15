@@ -132,6 +132,11 @@ function riskBadge(risk: number) {
 }
 
 export function StudentsTable() {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const activeRole = useAppStore((s) => s.activeRole);
   const students = useAppStore((s) => s.adminStudents);
   const adminStudents = students;
@@ -536,7 +541,7 @@ export function StudentsTable() {
           title="Ver historial de alumnos eliminados con motivo y opción de restaurar"
         >
           <Trash2 className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-          Papelera ({deletedStudents.length})
+          Papelera ({isMounted ? deletedStudents.length : 0})
         </Button>
 
         <Button
@@ -2441,27 +2446,30 @@ function NewStudentDialog() {
   const addNewStudent = useAppStore((s) => s.addNewStudent);
   const students = useAppStore((s) => s.adminStudents);
   const schedule = useAppStore((s) => s.schedule);
+  const [inviteTeachers, setInviteTeachers] = useState<string[]>([]);
 
-  // Obtener todos los profesores reales (de invitaciones creadas, horario y alumnos)
-  const availableTeachers = useMemo(() => {
-    let fromInvites: string[] = [];
+  useEffect(() => {
     try {
       const raw = localStorage.getItem("cadencia-invitations");
       if (raw) {
         const parsed = JSON.parse(raw);
-        fromInvites = parsed
+        const fromInvites = parsed
           .filter((inv: { target_role: string; target_name?: string }) => inv.target_role === "teacher" && inv.target_name)
           .map((inv: { target_name: string }) => inv.target_name.trim());
+        setInviteTeachers(fromInvites);
       }
     } catch {
       // ignore
     }
+  }, []);
 
+  // Obtener todos los profesores reales (de invitaciones creadas, horario y alumnos)
+  const availableTeachers = useMemo(() => {
     const fromStudents = students.map((s) => s.teacher).filter(Boolean);
     const fromSchedule = schedule.map((l) => l.teacher).filter(Boolean);
-    const all = Array.from(new Set([...fromInvites, ...fromStudents, ...fromSchedule, "Prof. por Asignar"])).filter(Boolean);
+    const all = Array.from(new Set([...inviteTeachers, ...fromStudents, ...fromSchedule, "Prof. por Asignar"])).filter(Boolean);
     return all.sort();
-  }, [students, schedule]);
+  }, [students, schedule, inviteTeachers]);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");

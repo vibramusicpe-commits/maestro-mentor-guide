@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { GraduationCap, ShieldCheck, DoorOpen, Clock } from "lucide-react";
 import { StudentsTable } from "@/components/admin/students-table";
@@ -28,8 +28,13 @@ export const Route = createFileRoute("/admin/alumnos")({
 
 function AdminAlumnosPage() {
   const [activeTab, setActiveTab] = useState<"directorio" | "notas" | "vacantes">("directorio");
+  const [mounted, setMounted] = useState(false);
   const teacherNotes = useAppStore((s) => s.teacherNotes);
   const pendingCount = teacherNotes.filter((n) => n.status === "pendiente").length;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -67,7 +72,7 @@ function AdminAlumnosPage() {
           >
             <ShieldCheck className="h-3.5 w-3.5 text-amber-500" />
             <span>Notas a Familias</span>
-            {pendingCount > 0 && (
+            {mounted && pendingCount > 0 && (
               <Badge
                 variant="secondary"
                 className="ml-1 text-[10px] px-1.5 py-0 h-4 font-black bg-amber-500 text-black animate-pulse"

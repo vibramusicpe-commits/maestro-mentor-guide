@@ -89,13 +89,7 @@ function AdminLayout() {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
 
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("cadencia-sidebar-collapsed") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const activeRole = useAppStore((s) => s.activeRole);
@@ -107,15 +101,22 @@ function AdminLayout() {
   const lastChimedMinuteRef = useRef<string>("");
 
   // Estado y Toggle Global de Modo Noche / Modo Día
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
+
+  // Hidratar preferencias del cliente después del primer render para evitar React Error #418 (SSR Mismatch)
+  useEffect(() => {
     try {
+      if (localStorage.getItem("cadencia-sidebar-collapsed") === "true") {
+        setIsCollapsed(true);
+      }
       const saved = localStorage.getItem("vibra-theme");
-      if (saved) return saved === "dark";
-      return typeof document !== "undefined" && document.documentElement.classList.contains("dark");
-    } catch {
-      return true;
-    }
-  });
+      if (saved) {
+        setIsDarkMode(saved === "dark");
+      } else if (typeof document !== "undefined" && !document.documentElement.classList.contains("dark")) {
+        setIsDarkMode(false);
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     try {
