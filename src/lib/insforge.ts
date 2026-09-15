@@ -225,7 +225,7 @@ export async function postgrestPatch<T>(
       headers: { Prefer: "return=representation" },
       body: JSON.stringify(payload),
     });
-    return result[0]!;
+    return (Array.isArray(result) && result[0]) ? result[0] : (payload as unknown as T);
   }
 
   const qs = new URLSearchParams(filter);
@@ -234,7 +234,7 @@ export async function postgrestPatch<T>(
     headers: { Prefer: "return=representation" },
     body: JSON.stringify(payload),
   });
-  return result[0]!;
+  return (Array.isArray(result) && result[0]) ? result[0] : (payload as unknown as T);
 }
 
 // ---------------------------------------------------------------

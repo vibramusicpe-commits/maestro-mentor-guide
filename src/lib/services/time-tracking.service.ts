@@ -186,30 +186,39 @@ export async function clockIn(
     const activeLogs = await postgrestSelect<DBTeacherTimeLog>("teacher_time_logs", {
       teacher_id: `eq.${resolvedId}`,
       status: "neq.finalizado",
+      order: "clock_in.desc",
     });
 
     if (activeLogs.length > 0) {
-      const activeLog = activeLogs[0];
-      const elapsedHours = (Date.now() - new Date(activeLog.clock_in).getTime()) / (1000 * 3600);
-      if (elapsedHours > MAX_SHIFT_DURATION_HOURS) {
-        // Auto-finalizar turno zombie abandonado de días anteriores en la BD
-        const autoOutTime = new Date(new Date(activeLog.clock_in).getTime() + 4 * 3600 * 1000).toISOString();
-        await postgrestPatch<DBTeacherTimeLog>(
-          "teacher_time_logs",
-          { id: `eq.${activeLog.id}` },
-          {
-            status: "finalizado",
-            clock_out: autoOutTime,
-            total_minutes_worked: 240,
-            is_closed: true,
-          }
-        ).catch(() => {});
-        clearShiftFromLocalCache(activeLog.id);
-        // Continuar para abrir el turno fresco de hoy
-      } else {
-        saveShiftToLocalCache(activeLog);
+      const now = Date.now();
+      const validActiveLogs: DBTeacherTimeLog[] = [];
+
+      for (const log of activeLogs) {
+        const elapsedHours = (now - new Date(log.clock_in).getTime()) / (1000 * 3600);
+        if (elapsedHours > MAX_SHIFT_DURATION_HOURS) {
+          // Auto-finalizar turno zombie abandonado de días anteriores en la BD (sin total_minutes_worked)
+          const autoOutTime = new Date(new Date(log.clock_in).getTime() + 4 * 3600 * 1000).toISOString();
+          postgrestPatch<DBTeacherTimeLog>(
+            "teacher_time_logs",
+            { id: `eq.${log.id}` },
+            {
+              status: "finalizado",
+              clock_out: autoOutTime,
+              is_closed: true,
+            }
+          ).catch(() => {});
+          clearShiftFromLocalCache(log.id);
+        } else {
+          validActiveLogs.push(log);
+        }
+      }
+
+      // Si ya tiene un turno activo legítimo (< 14h), reutilizarlo y EVITAR duplicados
+      if (validActiveLogs.length > 0) {
+        const existingShift = validActiveLogs[0];
+        saveShiftToLocalCache(existingShift);
         notifyShiftUpdated(resolvedId);
-        return activeLog;
+        return existingShift;
       }
     }
   } catch {
@@ -309,9 +318,24 @@ export async function clockOut(
 
   const nowIso = new Date().toISOString();
 
-  // Obtener metadatos previos de entrada para combinarlos con la salida
-  const localCached = getShiftsFromLocalCache().find((s) => s.id === shiftId);
-  const currentMeta = parseShiftLocation(localCached);
+  // Obtener metadatos previos de entrada para combinarlos con la salida sin perder GPS
+  let currentMeta: ShiftDeviceMeta = { device: "kiosk_mobile" };
+  try {
+    const existing = await postgrestSelect<DBTeacherTimeLog>("teacher_time_logs", {
+      id: `eq.${shiftId}`,
+      limit: "1",
+    });
+    if (existing && existing.length > 0) {
+      currentMeta = parseShiftLocation(existing[0]);
+    } else {
+      const localCached = getShiftsFromLocalCache().find((s) => s.id === shiftId);
+      currentMeta = parseShiftLocation(localCached);
+    }
+  } catch {
+    const localCached = getShiftsFromLocalCache().find((s) => s.id === shiftId);
+    currentMeta = parseShiftLocation(localCached);
+  }
+
   if (location) {
     currentMeta.out = location;
   }
@@ -325,10 +349,15 @@ export async function clockOut(
         status: "finalizado",
         clock_out: nowIso,
         origin_device: updatedOriginDevice,
+        is_closed: true,
       },
     );
     clearShiftFromLocalCache(shiftId);
-    notifyShiftUpdated(res.teacher_id);
+    if (res?.teacher_id) {
+      notifyShiftUpdated(res.teacher_id);
+    } else {
+      notifyShiftUpdated();
+    }
     return res;
   } catch {
     clearShiftFromLocalCache(shiftId);
@@ -368,32 +397,41 @@ export async function getActiveShift(
     const active = await postgrestSelect<DBTeacherTimeLog>("teacher_time_logs", {
       teacher_id: `eq.${resolvedId}`,
       status: "neq.finalizado",
-      limit: "1",
+      order: "clock_in.desc",
     });
     pgQueriedSuccessfully = true;
 
     if (active && active.length > 0) {
-      const shift = active[0];
-      const elapsedHours = (Date.now() - new Date(shift.clock_in).getTime()) / (1000 * 3600);
-      if (elapsedHours > MAX_SHIFT_DURATION_HOURS) {
-        // Auto-cerrar turno zombie abandonado de días anteriores en la BD
-        const autoOutTime = new Date(new Date(shift.clock_in).getTime() + 4 * 3600 * 1000).toISOString();
-        await postgrestPatch<DBTeacherTimeLog>(
-          "teacher_time_logs",
-          { id: `eq.${shift.id}` },
-          {
-            status: "finalizado",
-            clock_out: autoOutTime,
-            total_minutes_worked: 240,
-            is_closed: true,
-          }
-        ).catch(() => {});
-        clearShiftFromLocalCache(shift.id);
-        notifyShiftUpdated(resolvedId);
-        return null;
+      const now = Date.now();
+      const validShifts: DBTeacherTimeLog[] = [];
+
+      for (const shift of active) {
+        const elapsedHours = (now - new Date(shift.clock_in).getTime()) / (1000 * 3600);
+        if (elapsedHours > MAX_SHIFT_DURATION_HOURS) {
+          // Auto-cerrar turno zombie abandonado de días anteriores en la BD (sin total_minutes_worked)
+          const autoOutTime = new Date(new Date(shift.clock_in).getTime() + 4 * 3600 * 1000).toISOString();
+          postgrestPatch<DBTeacherTimeLog>(
+            "teacher_time_logs",
+            { id: `eq.${shift.id}` },
+            {
+              status: "finalizado",
+              clock_out: autoOutTime,
+              is_closed: true,
+            }
+          ).catch(() => {});
+          clearShiftFromLocalCache(shift.id);
+        } else {
+          validShifts.push(shift);
+        }
       }
-      saveShiftToLocalCache(shift);
-      return shift;
+
+      if (validShifts.length > 0) {
+        const shift = validShifts[0];
+        saveShiftToLocalCache(shift);
+        return shift;
+      }
+      notifyShiftUpdated(resolvedId);
+      return null;
     } else {
       // PostgreSQL respondió con éxito y NO HAY TURNO ACTIVO para este docente.
       // Erradicar de inmediato cualquier turno residual de este profesor en la caché local
@@ -468,7 +506,7 @@ export async function getAllActiveShifts(): Promise<DBTeacherTimeLog[]> {
     for (const r of remote) {
       const elapsedHours = (now - new Date(r.clock_in).getTime()) / (1000 * 3600);
       if (elapsedHours > MAX_SHIFT_DURATION_HOURS) {
-        // Zombie shift: auto-cerrar en background
+        // Zombie shift: auto-cerrar en background (sin total_minutes_worked)
         const autoOutTime = new Date(new Date(r.clock_in).getTime() + 4 * 3600 * 1000).toISOString();
         postgrestPatch<DBTeacherTimeLog>(
           "teacher_time_logs",
@@ -476,7 +514,6 @@ export async function getAllActiveShifts(): Promise<DBTeacherTimeLog[]> {
           {
             status: "finalizado",
             clock_out: autoOutTime,
-            total_minutes_worked: 240,
             is_closed: true,
           }
         ).catch(() => {});
@@ -485,6 +522,16 @@ export async function getAllActiveShifts(): Promise<DBTeacherTimeLog[]> {
         validRemote.push(r);
       }
     }
+
+    // Deduplicar turnos por profesor para que en la vista en vivo solo aparezca 1 ficha por profesor
+    const teacherMap = new Map<string, DBTeacherTimeLog>();
+    validRemote.forEach((r) => {
+      // Al venir ordenados por clock_in DESC, el primer turno de cada teacher_id es el más reciente
+      if (!teacherMap.has(r.teacher_id)) {
+        teacherMap.set(r.teacher_id, r);
+      }
+    });
+    const uniqueRemote = Array.from(teacherMap.values());
 
     // Solo conservar del local turnos offline recientes (< 2 horas) con prefijo local-shift-
     const local = getShiftsFromLocalCache().filter(
@@ -495,9 +542,11 @@ export async function getAllActiveShifts(): Promise<DBTeacherTimeLog[]> {
     );
 
     const combinedMap = new Map<string, DBTeacherTimeLog>();
-    validRemote.forEach((r) => combinedMap.set(r.id, r));
+    uniqueRemote.forEach((r) => combinedMap.set(r.id, r));
     local.forEach((l) => {
-      if (!combinedMap.has(l.id)) combinedMap.set(l.id, l);
+      if (!teacherMap.has(l.teacher_id) && !combinedMap.has(l.id)) {
+        combinedMap.set(l.id, l);
+      }
     });
 
     return Array.from(combinedMap.values());

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { CalendarClock, Clock, GraduationCap, Ticket, CheckCircle2, BookOpen } from "lucide-react";
+import { CalendarClock, Clock, GraduationCap, Ticket, CheckCircle2, BookOpen, Sparkles } from "lucide-react";
 import type { Kid, AdminStudent } from "@/store/app-store";
 import { useAppStore } from "@/store/app-store";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { StudentAttendanceKardex } from "@/components/admin/student-attendance-k
 
 export function KidSummary({ kid }: { kid: Kid }) {
   const adminStudents = useAppStore((s) => s.adminStudents);
+  const teacherNotes = useAppStore((s) => s.teacherNotes);
   const [isKardexOpen, setIsKardexOpen] = useState(false);
 
   const resolvedStudent: AdminStudent = useMemo(() => {
@@ -47,6 +48,29 @@ export function KidSummary({ kid }: { kid: Kid }) {
       level: 1,
     };
   }, [adminStudents, kid]);
+
+  // Nota pedagógica oficial autorizada por la administración
+  const approvedNote = useMemo(() => {
+    // 1. Buscar en teacherNotes una nota aprobada por administración
+    const fromModeration = teacherNotes.find(
+      (n) =>
+        n.status === "aprobado" &&
+        (n.studentId === resolvedStudent?.id ||
+          n.studentName.toLowerCase() === kid.name.toLowerCase() ||
+          kid.name.toLowerCase().includes(n.studentName.toLowerCase()))
+    );
+    if (fromModeration) return fromModeration.content;
+
+    // 2. Si resolvedStudent tiene teacherNote aprobada previa
+    if (
+      resolvedStudent?.teacherNote &&
+      resolvedStudent.teacherNote !== "Alumno importado del registro oficial." &&
+      !resolvedStudent.teacherNote.toLowerCase().includes("importado")
+    ) {
+      return resolvedStudent.teacherNote;
+    }
+    return null;
+  }, [teacherNotes, resolvedStudent, kid.name]);
 
   return (
     <motion.section
@@ -116,6 +140,24 @@ export function KidSummary({ kid }: { kid: Kid }) {
           <span className="text-sidebar-foreground">{kid.makeupCredits} créditos de recuperación disponibles</span>
         </p>
       </div>
+
+      {/* Reporte Pedagógico Oficial Aprobado por Dirección */}
+      {approvedNote && (
+        <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-3.5 space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-bold text-foreground">
+            <span className="flex items-center gap-1.5 text-primary">
+              <Sparkles className="h-3.5 w-3.5 text-[#FFB52E]" />
+              Reporte y Recomendaciones del Docente
+            </span>
+            <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 text-emerald-500" /> Aprobado por Dirección
+            </span>
+          </div>
+          <p className="text-xs text-sidebar-foreground/90 font-serif italic leading-relaxed whitespace-pre-wrap">
+            &ldquo;{approvedNote}&rdquo;
+          </p>
+        </div>
+      )}
 
       <div className="mt-5 border-t border-sidebar-border pt-4">
         <MinimalAgendaCalendar

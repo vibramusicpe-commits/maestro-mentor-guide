@@ -92,6 +92,7 @@ export function AdminControlHorarioPage() {
   const [endDate, setEndDate] = useState("2026-09-30");
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportData, setReportData] = useState<PayrollReportRow[] | null>(null);
+  const [closingShiftId, setClosingShiftId] = useState<string | null>(null);
 
   // Consulta combinada de datos de Insforge PostgreSQL
   const fetchAllData = async () => {
@@ -214,12 +215,15 @@ export function AdminControlHorarioPage() {
 
   // Acciones de administración
   const handleAdminClockOut = async (shiftId: string, teacherName: string) => {
+    setClosingShiftId(shiftId);
     try {
       await clockOut(activeRole, shiftId);
       toast.success(`✓ Turno de ${teacherName} finalizado y guardado en PostgreSQL.`);
-      fetchAllData();
+      await fetchAllData();
     } catch (err: any) {
       toast.error("Error al finalizar turno: " + (err.message || "Error de servidor"));
+    } finally {
+      setClosingShiftId(null);
     }
   };
 
@@ -913,10 +917,18 @@ export function AdminControlHorarioPage() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        disabled={closingShiftId === shift.id}
                         onClick={() => handleAdminClockOut(shift.id, shift.teacher_name)}
-                        className="h-7 text-xs font-bold text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 px-2 rounded-lg"
+                        className="h-7 text-xs font-bold text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 px-2 rounded-lg disabled:opacity-50"
                       >
-                        Finalizar Turno
+                        {closingShiftId === shift.id ? (
+                          <span className="flex items-center gap-1">
+                            <span className="h-3 w-3 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
+                            Finalizando...
+                          </span>
+                        ) : (
+                          "Finalizar Turno"
+                        )}
                       </Button>
                     </div>
                   </div>

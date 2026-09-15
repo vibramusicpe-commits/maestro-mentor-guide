@@ -36,8 +36,9 @@ import {
 } from "./admin-seeds";
 import { getCurrentWeekIndex } from "@/lib/calendar-utils";
 import { isMatchingStudentName, resolveStudentUUID } from "@/lib/student-matching";
+import type { TeacherParentNote } from "@/lib/services/teacher-notes.service";
 
-export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow };
+export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow, TeacherParentNote };
 export type {
   AdminStudent,
   AgeCategory,
@@ -284,6 +285,11 @@ type AppState = {
     students?: AdminStudent[];
     invoices?: Invoice[];
   }) => void;
+
+  // Moderación de Notas Pedagógicas de Profesores para Familias
+  teacherNotes: TeacherParentNote[];
+  addOrUpdateTeacherNote: (note: TeacherParentNote) => void;
+  setTeacherNotes: (notes: TeacherParentNote[]) => void;
 };
 
 // Crea un item de cola optimista que se vacía solo (simula la escritura en backend).
@@ -1591,6 +1597,14 @@ export const useAppStore = create<AppState>()(
             syncQueue: [...s.syncQueue, queueItem(`Solicitud de eliminación rechazada · ${requestId}`)],
           };
         }),
+
+      // Moderación de Notas Pedagógicas Docentes
+      teacherNotes: [],
+      addOrUpdateTeacherNote: (note) =>
+        set((s) => ({
+          teacherNotes: [note, ...s.teacherNotes.filter((n) => n.id !== note.id)],
+        })),
+      setTeacherNotes: (notes) => set({ teacherNotes: notes }),
     }),
 
     {
@@ -1613,6 +1627,7 @@ export const useAppStore = create<AppState>()(
             invoices: initialInvoices,
             schedule: initialSchedule,
             deletedStudents: [],
+            teacherNotes: [],
           };
         }
 
@@ -1631,6 +1646,7 @@ export const useAppStore = create<AppState>()(
           chimeSettings: s.chimeSettings,
           studentAlerts: s.studentAlerts,
           deletionRequests: s.deletionRequests,
+          teacherNotes: s.teacherNotes,
         }) as unknown as AppState,
     },
   ),

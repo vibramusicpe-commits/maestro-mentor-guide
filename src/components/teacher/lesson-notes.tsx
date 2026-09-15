@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Lock,
   Send,
@@ -12,6 +12,10 @@ import {
   User,
   Phone,
   BookOpen,
+  Clock,
+  AlertCircle,
+  ShieldCheck,
+  RotateCcw,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +23,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAppStore, type AdminStudent } from "@/store/app-store";
+import {
+  submitTeacherNote,
+  fetchAllTeacherNotes,
+  NOTES_SYNC_CHANNEL,
+  type TeacherParentNote,
+} from "@/lib/services/teacher-notes.service";
 import { toast } from "sonner";
 
 export function LessonNotes() {
@@ -69,6 +79,32 @@ export function LessonNotes() {
   const [searchQuery, setSearchQuery] = useState("");
   const [studentNote, setStudentNote] = useState("");
   const [generalNote, setGeneralNote] = useState(publicNote || "");
+  const [submittingNote, setSubmittingNote] = useState(false);
+
+  const teacherNotes = useAppStore((s) => s.teacherNotes);
+  const addOrUpdateTeacherNote = useAppStore((s) => s.addOrUpdateTeacherNote);
+  const setTeacherNotes = useAppStore((s) => s.setTeacherNotes);
+
+  // Sincronización en vivo de notas docentes
+  useEffect(() => {
+    fetchAllTeacherNotes().then(setTeacherNotes);
+
+    const onUpdate = () => {
+      fetchAllTeacherNotes().then(setTeacherNotes);
+    };
+    window.addEventListener("vibra-notes-updated", onUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      bc = new BroadcastChannel(NOTES_SYNC_CHANNEL);
+      bc.onmessage = () => onUpdate();
+    }
+
+    return () => {
+      window.removeEventListener("vibra-notes-updated", onUpdate);
+      bc?.close();
+    };
+  }, [setTeacherNotes]);
 
   // Alumno actualmente seleccionado
   const selectedStudent = useMemo<AdminStudent | null>(() => {
@@ -76,10 +112,21 @@ export function LessonNotes() {
     return teacherStudents.find((s) => s.id === selectedRecipient) || null;
   }, [teacherStudents, selectedRecipient]);
 
-  // Al cambiar de alumno, pre-cargar su nota actual si tiene una
+  // Nota más reciente para el alumno seleccionado
+  const latestStudentNote = useMemo(() => {
+    if (!selectedStudent) return null;
+    return teacherNotes.find((n) => n.studentId === selectedStudent.id) || null;
+  }, [teacherNotes, selectedStudent]);
+
+  // Al cambiar de alumno, pre-cargar su última nota redactada
   const handleSelectStudent = (st: AdminStudent) => {
     setSelectedRecipient(st.id);
-    setStudentNote(st.teacherNote || "");
+    const existing = teacherNotes.find((n) => n.studentId === st.id);
+    if (existing) {
+      setStudentNote(existing.content);
+    } else {
+      setStudentNote(st.teacherNote || "");
+    }
   };
 
   // Alumnos filtrados en el buscador
@@ -94,13 +141,46 @@ export function LessonNotes() {
     );
   }, [teacherStudents, searchQuery]);
 
-  // Guardar nota pedagógica en la ficha del alumno
-  const handleSaveStudentNote = () => {
+  // Enviar nota pedagógica a moderación de administración
+  const handleSubmitStudentNote = async () => {
     if (!selectedStudent) return;
-    updateStudentDetails(selectedStudent.id, { teacherNote: studentNote });
-    toast.success(`✓ Nota guardada para ${selectedStudent.name}`, {
-      description: "La familia podrá revisarla desde su Portal Familiar de Vibra Music.",
-    });
+    if (!studentNote.trim()) {
+      toast.error("Por favor redacta la nota antes de enviarla.");
+      return;
+    }
+
+    setSubmittingNote(true);
+    try {
+      const activeRole = useAppStore.getState().activeRole;
+      const email = currentUser?.email?.toLowerCase() || "";
+      const teacherId = email.includes("jeremy")
+        ? "00000000-0000-0000-0000-000000000003"
+        : email.includes("fernando")
+        ? "00000000-0000-0000-0000-000000000004"
+        : email.includes("nathaly")
+        ? "00000000-0000-0000-0000-000000000005"
+        : "00000000-0000-0000-0000-000000000006";
+
+      const created = await submitTeacherNote(activeRole, {
+        teacherId,
+        teacherName: currentUser?.name || "Profesor Vibra",
+        studentId: selectedStudent.id,
+        studentName: selectedStudent.name,
+        familyName: selectedStudent.family,
+        parentPhone: selectedStudent.phone || selectedStudent.emergencyContact?.phone,
+        instrument: selectedStudent.instrument,
+        content: studentNote,
+      });
+
+      addOrUpdateTeacherNote(created);
+      toast.success(`✓ Nota enviada a revisión de administración para ${selectedStudent.name}`, {
+        description: "Dirección o Secretaría evaluará el contenido antes de publicarlo a los padres.",
+      });
+    } catch (err: any) {
+      toast.error("Error al enviar nota: " + (err.message || "Error de conexión"));
+    } finally {
+      setSubmittingNote(false);
+    }
   };
 
   // Guardar comunicado general para todas las familias
@@ -111,9 +191,16 @@ export function LessonNotes() {
     });
   };
 
-  // Generar enlace WhatsApp con mensaje pre-rellenado para los padres
+  // Generar enlace WhatsApp con mensaje pre-rellenado para los padres (solo habilitado si está aprobada)
   const handleSendWhatsApp = () => {
     if (!selectedStudent) return;
+    if (latestStudentNote?.status !== "aprobado") {
+      toast.warning("La nota debe ser aprobada por administración antes de enviarla a los padres.", {
+        description: "Estado actual: " + (latestStudentNote?.status === "pendiente" ? "⏳ En Revisión" : "❌ Requiere Ajustes"),
+      });
+      return;
+    }
+
     const phone =
       selectedStudent.phone?.replace(/[^0-9]/g, "") ||
       selectedStudent.emergencyContact?.phone?.replace(/[^0-9]/g, "") ||
@@ -287,6 +374,47 @@ export function LessonNotes() {
               </div>
             </div>
 
+            {/* Banner de Estado de Moderación de la Nota */}
+            {latestStudentNote && (
+              <div className="pt-1">
+                {latestStudentNote.status === "pendiente" ? (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500 dark:text-amber-400 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <Clock className="h-4 w-4" />
+                      <span>⏳ Nota en Revisión por Administración</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Esta nota fue enviada a Dirección / Secretaría y está en cola de moderación. Se publicará automáticamente en el Portal de la Familia en cuanto sea aprobada.
+                    </p>
+                  </div>
+                ) : latestStudentNote.status === "aprobado" ? (
+                  <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>✅ Nota Aprobada y Publicada</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      {latestStudentNote.moderatedBy ? `Autorizada por ${latestStudentNote.moderatedBy}. ` : ""}
+                      Ya se encuentra disponible en el Portal Familiar del alumno y lista para enviarse por WhatsApp.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>❌ Nota Devuelta con Observaciones</span>
+                    </div>
+                    <p className="text-[11px] text-foreground font-medium">
+                      Motivo de administración: &ldquo;{latestStudentNote.moderationComment || "Ajustar redacción antes de enviar a la familia"}&rdquo;
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Corrige el texto a continuación y presiona &ldquo;Reenviar a Revisión&rdquo;.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Plantillas de texto rápido */}
             <div className="space-y-1">
               <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
@@ -310,8 +438,9 @@ export function LessonNotes() {
 
             {/* Editor de la Nota Personalizada */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                Reporte Pedagógico / Mensaje para los Padres
+              <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                <span>Reporte Pedagógico / Mensaje para los Padres</span>
+                <span className="text-[10px] text-muted-foreground">Filtro Administrativo Requerido</span>
               </label>
               <Textarea
                 value={studentNote}
@@ -321,28 +450,61 @@ export function LessonNotes() {
               />
             </div>
 
-            {/* Botones de Acción */}
+            {/* Botones de Acción con Filtro de Moderación */}
             <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
-                onClick={handleSaveStudentNote}
-                className="h-8 text-xs font-bold gap-1.5 border-border bg-background hover:bg-muted"
+                disabled={submittingNote}
+                onClick={handleSubmitStudentNote}
+                className="h-8 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl"
               >
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                Guardar en Portal Familiar
+                {submittingNote ? (
+                  <span className="flex items-center gap-1">
+                    <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                    Enviando a Revisión...
+                  </span>
+                ) : latestStudentNote?.status === "pendiente" ? (
+                  <>
+                    <Send className="h-3.5 w-3.5" />
+                    Actualizar Nota en Revisión
+                  </>
+                ) : latestStudentNote?.status === "rechazado" ? (
+                  <>
+                    <Send className="h-3.5 w-3.5" />
+                    Corregir y Reenviar a Revisión
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-3.5 w-3.5" />
+                    Enviar a Revisión de Administración
+                  </>
+                )}
               </Button>
 
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleSendWhatsApp}
-                className="h-8 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs"
-              >
-                <MessageCircle className="h-3.5 w-3.5 fill-current" />
-                📲 Enviar WhatsApp a la Familia
-              </Button>
+              {latestStudentNote?.status === "aprobado" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSendWhatsApp}
+                  className="h-8 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs rounded-xl"
+                >
+                  <MessageCircle className="h-3.5 w-3.5 fill-current" />
+                  📲 Enviar WhatsApp a la Familia (Aprobada)
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled
+                  title="La nota debe ser revisada y aprobada por administración antes de enviarla a los padres"
+                  className="h-8 text-xs font-semibold gap-1.5 opacity-60 cursor-not-allowed rounded-xl"
+                >
+                  <Lock className="h-3 w-3" />
+                  WhatsApp Bloqueado (Requiere Aprobación)
+                </Button>
+              )}
             </div>
           </div>
         ) : (
@@ -402,6 +564,56 @@ export function LessonNotes() {
           </Button>
         </div>
       </TabsContent>
+
+      {/* ─── HISTORIAL DE NOTAS DEL DOCENTE (ESTADOS EN VIVO) ─── */}
+      {teacherNotes.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-border/40 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <BookOpen className="h-3.5 w-3.5 text-primary" /> Historial de Notas Enviadas ({teacherNotes.length})
+            </span>
+          </div>
+
+          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+            {teacherNotes.slice(0, 5).map((n) => (
+              <div
+                key={n.id}
+                className="rounded-xl border border-border/50 bg-background/50 p-2.5 flex items-start justify-between gap-2 text-xs"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-foreground">{n.studentName}</span>
+                    <span className="text-[10px] text-muted-foreground">· {n.instrument}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      · {new Date(n.createdAt).toLocaleDateString("es-PE", { day: "2-digit", month: "short" })}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1 italic">
+                    &ldquo;{n.content}&rdquo;
+                  </p>
+                  {n.status === "rechazado" && n.moderationComment && (
+                    <p className="text-[10px] text-rose-500 font-semibold">
+                      Motivo: {n.moderationComment}
+                    </p>
+                  )}
+                </div>
+
+                <span
+                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 border ${
+                    n.status === "aprobado"
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                      : n.status === "rechazado"
+                      ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                      : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 animate-pulse"
+                  }`}
+                >
+                  {n.status === "aprobado" ? "APROBADA" : n.status === "rechazado" ? "OBSERVADA" : "EN REVISIÓN"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </Tabs>
   );
 }
