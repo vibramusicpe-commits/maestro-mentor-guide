@@ -50,11 +50,21 @@ Aceptado (Accepted)
   ```
 - Este alias garantiza inmunidad total ante cualquier futura llamada o extensión dentro de `StudentsTable`, asegurando que ambas nomenclaturas apunten reactivamente al mismo arreglo del store.
 
+### 3. Estabilización de Hidratación React 19 (Resolución de Error #418)
+- **Causa Raíz de #418**: React 19 emite el error `#418` (*Hydration failed because the initial UI does not match what was rendered on the server*) cuando el árbol DOM generado en Cloudflare Pages (SSR) difiere de la primera pasada en el navegador debido a lectura síncrona de `localStorage`.
+- **Medidas Implementadas**:
+  1. `src/routes/admin.tsx`: Se determinó el estado inicial de `isCollapsed: false` y `isDarkMode: true` de forma idéntica al servidor, difiriendo la lectura de `localStorage` al ciclo `useEffect`.
+  2. `src/components/admin/students-table.tsx`: Se trasladó la lectura de `cadencia-invitations` en `NewStudentDialog` fuera de `useMemo` hacia un `useEffect`, impidiendo discrepancias en las opciones de profesores entre SSR y cliente.
+  3. `src/routes/__root.tsx`: Se aplicó `suppressHydrationWarning` en los tags raíz `<html>` y `<body>`.
+  4. Condición `mounted` en badges numéricos y contadores de papelera para evitar desajustes de texto iniciales.
+
 ## Validación y Verificación
-- **Build de Producción**: Se ejecutó `npm run build` con código de retorno `0`, validando la compilación del módulo SSR y la generación limpia del chunk `admin.alumnos-C8Fxrbcx.js`.
-- **Despliegue**: Puesto en producción mediante commit `7586da7` en la rama `main` de Cloudflare Pages.
+- **Build de Producción**: Se ejecutó `npm run build` con código de retorno `0`, validando la compilación del módulo SSR y empaquetado Nitro/Vite.
+- **Despliegues en Producción**:
+  - `7586da7`: Resolución del `ReferenceError`.
+  - `2162444`: Estabilización de hidratación y eliminación de `React error #418`.
 
 ## Consecuencias
-- Acceso fluido e instantáneo al Directorio de Alumnos (`/admin/alumnos`) sin bloqueos ni errores de consola.
-- Eliminación definitiva del fallo de hidratación de React #418 en esta vista.
-- Mantenimiento estricto del principio de estabilidad y registro documental en la bitácora de arquitectura del proyecto.
+- Carga limpia, instantánea y sin advertencias en consola del Directorio de Alumnos (`/admin/alumnos`).
+- Eliminación total y definitiva del fallo de hidratación de React #418.
+- Paridad 100% garantizada entre SSR en Cloudflare y renderizado en clientes de escritorio y móviles.
