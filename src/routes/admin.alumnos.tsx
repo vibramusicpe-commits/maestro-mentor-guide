@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { GraduationCap, ShieldCheck, DoorOpen, Clock } from "lucide-react";
+import { GraduationCap, ShieldCheck, DoorOpen, Clock, Sparkles } from "lucide-react";
 import { StudentsTable } from "@/components/admin/students-table";
 import { VacancyAvailabilityPanel } from "@/components/admin/vacancy-availability-panel";
 import { TeacherNotesModeration } from "@/components/admin/teacher-notes-moderation";
+import { StudentCleanupPanel } from "@/components/admin/student-cleanup-panel";
 import { useAppStore } from "@/store/app-store";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/admin/alumnos")({
   head: () => ({
@@ -29,6 +31,7 @@ export const Route = createFileRoute("/admin/alumnos")({
 function AdminAlumnosPage() {
   const [activeTab, setActiveTab] = useState<"directorio" | "notas" | "vacantes">("directorio");
   const [mounted, setMounted] = useState(false);
+  const [isCleanupOpen, setIsCleanupOpen] = useState(false);
   const teacherNotes = useAppStore((s) => s.teacherNotes);
   const pendingCount = teacherNotes.filter((n) => n.status === "pendiente").length;
 
@@ -55,54 +58,66 @@ function AdminAlumnosPage() {
           </p>
         </div>
 
-        {/* Navegación por pestañas */}
-        <div className="flex items-center gap-1.5 p-1 bg-muted/60 rounded-2xl border border-border self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab("directorio")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
-              activeTab === "directorio"
-                ? "bg-card text-foreground shadow-xs border border-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {/* Botón Depuración & Reactivación 2026 */}
+          <Button
+            variant="outline"
+            onClick={() => setIsCleanupOpen(true)}
+            className="h-8 gap-1.5 rounded-xl border-[#F47B20]/40 bg-[#F47B20]/10 text-[#F47B20] hover:bg-[#F47B20]/20 text-xs font-bold shadow-xs transition-all"
           >
-            <GraduationCap className="h-3.5 w-3.5 text-primary" />
-            <span>Alumnos</span>
-          </button>
+            <Sparkles className="h-3.5 w-3.5" />
+            Depuración & Reactivación 2026
+          </Button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("notas")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
-              activeTab === "notas"
-                ? "bg-card text-foreground shadow-xs border border-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <ShieldCheck className="h-3.5 w-3.5 text-amber-500" />
-            <span>Notas a Familias</span>
-            {mounted && pendingCount > 0 && (
-              <Badge
-                variant="secondary"
-                className="ml-1 text-[10px] px-1.5 py-0 h-4 font-black bg-amber-500 text-black animate-pulse"
-              >
-                {pendingCount}
-              </Badge>
-            )}
-          </button>
+          {/* Navegación por pestañas */}
+          <div className="flex items-center gap-1.5 p-1 bg-muted/60 rounded-2xl border border-border">
+            <button
+              type="button"
+              onClick={() => setActiveTab("directorio")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
+                activeTab === "directorio"
+                  ? "bg-card text-foreground shadow-xs border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <GraduationCap className="h-3.5 w-3.5 text-primary" />
+              <span>Alumnos</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("vacantes")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
-              activeTab === "vacantes"
-                ? "bg-card text-foreground shadow-xs border border-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <DoorOpen className="h-3.5 w-3.5 text-emerald-500" />
-            <span>Vacantes</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("notas")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
+                activeTab === "notas"
+                  ? "bg-card text-foreground shadow-xs border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5 text-amber-500" />
+              <span>Notas a Familias</span>
+              {mounted && pendingCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="ml-1 text-[10px] px-1.5 py-0 h-4 font-black bg-amber-500 text-black animate-pulse"
+                >
+                  {pendingCount}
+                </Badge>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("vacantes")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
+                activeTab === "vacantes"
+                  ? "bg-card text-foreground shadow-xs border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <DoorOpen className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Vacantes</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -116,6 +131,9 @@ function AdminAlumnosPage() {
       {activeTab === "notas" && <TeacherNotesModeration />}
 
       {activeTab === "vacantes" && <VacancyAvailabilityPanel />}
+
+      {/* Modal de Depuración y Activación 1 a 1 */}
+      <StudentCleanupPanel isOpen={isCleanupOpen} onClose={() => setIsCleanupOpen(false)} />
     </div>
   );
 }

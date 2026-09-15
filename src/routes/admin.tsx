@@ -28,6 +28,8 @@ import {
   Megaphone,
   Sun,
   Moon,
+  FileSpreadsheet,
+  Sparkles,
 } from "lucide-react";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { Button } from "@/components/ui/button";
@@ -77,6 +79,8 @@ const nav = [
   { label: "WhatsApp Bot", to: "/admin/whatsapp" as const, icon: Bot },
   { label: "Horario de Clases", to: "/admin/agenda" as const, icon: CalendarDays },
   { label: "Alumnos", to: "/admin/alumnos" as const, icon: GraduationCap },
+  { label: "Reportes", to: "/admin/reportes" as const, icon: FileSpreadsheet },
+  { label: "Clases Demo", to: "/admin/demos" as const, icon: Sparkles },
   { label: "Cobros y Abonos", to: "/admin/facturacion" as const, icon: CreditCard },
   { label: "Invitaciones", to: "/admin/invitaciones" as const, icon: UserPlus },
   { label: "Asistencia Docente", to: "/admin/control-horario" as const, icon: UserCheck },

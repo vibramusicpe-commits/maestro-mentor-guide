@@ -19,8 +19,10 @@ import { Route as AdminAgendaRouteImport } from './routes/admin.agenda'
 import { Route as AdminAlumnosRouteImport } from './routes/admin.alumnos'
 import { Route as AdminCampanasRouteImport } from './routes/admin.campanas'
 import { Route as AdminControlHorarioRouteImport } from './routes/admin.control-horario'
+import { Route as AdminDemosRouteImport } from './routes/admin.demos'
 import { Route as AdminFacturacionRouteImport } from './routes/admin.facturacion'
 import { Route as AdminInvitacionesRouteImport } from './routes/admin.invitaciones'
+import { Route as AdminReportesRouteImport } from './routes/admin.reportes'
 import { Route as AdminWhatsappRouteImport } from './routes/admin.whatsapp'
 import { Route as FamilyIndexRouteImport } from './routes/family.index'
 import { Route as FamilyAgendaRouteImport } from './routes/family.agenda'
@@ -80,6 +82,11 @@ const AdminControlHorarioRoute = AdminControlHorarioRouteImport.update({
   path: '/control-horario',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminDemosRoute = AdminDemosRouteImport.update({
+  id: '/demos',
+  path: '/demos',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminFacturacionRoute = AdminFacturacionRouteImport.update({
   id: '/facturacion',
   path: '/facturacion',
@@ -88,6 +95,11 @@ const AdminFacturacionRoute = AdminFacturacionRouteImport.update({
 const AdminInvitacionesRoute = AdminInvitacionesRouteImport.update({
   id: '/invitaciones',
   path: '/invitaciones',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReportesRoute = AdminReportesRouteImport.update({
+  id: '/reportes',
+  path: '/reportes',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminWhatsappRoute = AdminWhatsappRouteImport.update({
@@ -141,8 +153,10 @@ export interface FileRoutesByFullPath {
   '/admin/alumnos': typeof AdminAlumnosRoute
   '/admin/campanas': typeof AdminCampanasRoute
   '/admin/control-horario': typeof AdminControlHorarioRoute
+  '/admin/demos': typeof AdminDemosRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
   '/admin/invitaciones': typeof AdminInvitacionesRoute
+  '/admin/reportes': typeof AdminReportesRoute
   '/admin/whatsapp': typeof AdminWhatsappRoute
   '/family/agenda': typeof FamilyAgendaRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -160,8 +174,10 @@ export interface FileRoutesByTo {
   '/admin/alumnos': typeof AdminAlumnosRoute
   '/admin/campanas': typeof AdminCampanasRoute
   '/admin/control-horario': typeof AdminControlHorarioRoute
+  '/admin/demos': typeof AdminDemosRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
   '/admin/invitaciones': typeof AdminInvitacionesRoute
+  '/admin/reportes': typeof AdminReportesRoute
   '/admin/whatsapp': typeof AdminWhatsappRoute
   '/family/agenda': typeof FamilyAgendaRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -183,8 +199,10 @@ export interface FileRoutesById {
   '/admin/alumnos': typeof AdminAlumnosRoute
   '/admin/campanas': typeof AdminCampanasRoute
   '/admin/control-horario': typeof AdminControlHorarioRoute
+  '/admin/demos': typeof AdminDemosRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
   '/admin/invitaciones': typeof AdminInvitacionesRoute
+  '/admin/reportes': typeof AdminReportesRoute
   '/admin/whatsapp': typeof AdminWhatsappRoute
   '/family/agenda': typeof FamilyAgendaRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -207,8 +225,10 @@ export interface FileRouteTypes {
     | '/admin/alumnos'
     | '/admin/campanas'
     | '/admin/control-horario'
+    | '/admin/demos'
     | '/admin/facturacion'
     | '/admin/invitaciones'
+    | '/admin/reportes'
     | '/admin/whatsapp'
     | '/family/agenda'
     | '/invite/$token'
@@ -226,8 +246,10 @@ export interface FileRouteTypes {
     | '/admin/alumnos'
     | '/admin/campanas'
     | '/admin/control-horario'
+    | '/admin/demos'
     | '/admin/facturacion'
     | '/admin/invitaciones'
+    | '/admin/reportes'
     | '/admin/whatsapp'
     | '/family/agenda'
     | '/invite/$token'
@@ -248,8 +270,10 @@ export interface FileRouteTypes {
     | '/admin/alumnos'
     | '/admin/campanas'
     | '/admin/control-horario'
+    | '/admin/demos'
     | '/admin/facturacion'
     | '/admin/invitaciones'
+    | '/admin/reportes'
     | '/admin/whatsapp'
     | '/family/agenda'
     | '/invite/$token'
@@ -342,6 +366,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminControlHorarioRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/demos': {
+      id: '/admin/demos'
+      path: '/demos'
+      fullPath: '/admin/demos'
+      preLoaderRoute: typeof AdminDemosRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/facturacion': {
       id: '/admin/facturacion'
       path: '/facturacion'
@@ -354,6 +385,13 @@ declare module '@tanstack/react-router' {
       path: '/invitaciones'
       fullPath: '/admin/invitaciones'
       preLoaderRoute: typeof AdminInvitacionesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reportes': {
+      id: '/admin/reportes'
+      path: '/reportes'
+      fullPath: '/admin/reportes'
+      preLoaderRoute: typeof AdminReportesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/whatsapp': {
@@ -420,8 +458,10 @@ interface AdminRouteChildren {
   AdminAlumnosRoute: typeof AdminAlumnosRoute
   AdminCampanasRoute: typeof AdminCampanasRoute
   AdminControlHorarioRoute: typeof AdminControlHorarioRoute
+  AdminDemosRoute: typeof AdminDemosRoute
   AdminFacturacionRoute: typeof AdminFacturacionRoute
   AdminInvitacionesRoute: typeof AdminInvitacionesRoute
+  AdminReportesRoute: typeof AdminReportesRoute
   AdminWhatsappRoute: typeof AdminWhatsappRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -431,8 +471,10 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAlumnosRoute: AdminAlumnosRoute,
   AdminCampanasRoute: AdminCampanasRoute,
   AdminControlHorarioRoute: AdminControlHorarioRoute,
+  AdminDemosRoute: AdminDemosRoute,
   AdminFacturacionRoute: AdminFacturacionRoute,
   AdminInvitacionesRoute: AdminInvitacionesRoute,
+  AdminReportesRoute: AdminReportesRoute,
   AdminWhatsappRoute: AdminWhatsappRoute,
   AdminIndexRoute: AdminIndexRoute,
 }

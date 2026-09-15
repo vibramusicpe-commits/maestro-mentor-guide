@@ -532,15 +532,49 @@ export function AutopilotTourOverlay() {
         setBubble(
           "Pagos y Conciliación",
           "Puedes registrar abonos con transferencias bancarias o cobros online, emitiendo comprobante directo para la familia.",
-          "Pasemos al último módulo..."
+          "Pasemos al nuevo Reporte Maestro..."
         );
         await wait(2000);
       }
 
-      // ─── PASO 7: MONITOREO DOCENTE EN SEDE Y CIERRE ───
+      // ─── PASO 7: REPORTE MAESTRO DE ALUMNOS Y CLIENTES ───
       else if (currentStepIndex === 6) {
         setBubble(
-          "Paso 7: Monitoreo Docente en Sede en Vivo",
+          "Paso 7: Reporte Maestro de Alumnos y Clientes",
+          "Lista consolidada enumerada 1 a N con estados, saldo deudor en PEN y asistencia...",
+          "Exclusivo para Dirección General, Secretaría y Marketing."
+        );
+        await wait(2000);
+
+        setBubble(
+          "KPIs y Exportación Oficial",
+          "Indicadores superiores de alumnos activos, morosidad y botón de descarga directa a Excel CSV compatible.",
+          "Pasemos al módulo de Clases Demo..."
+        );
+        await wait(2200);
+      }
+
+      // ─── PASO 8: CLASES DEMO DE CLAUDIA Y MATRÍCULA OFICIAL ───
+      else if (currentStepIndex === 7) {
+        setBubble(
+          "Paso 8: Clases Demo con Directora Claudia",
+          "Dictadas exclusivamente por Claudia a partir de las 16:00 h...",
+          "Permite agendar prospectos y contactarlos directamente vía WhatsApp."
+        );
+        await wait(2000);
+
+        setBubble(
+          "Matrícula Oficial en 1 Clic",
+          "Al finalizar la demo exitosa, con 1 clic se inscribe al alumno asignando a su profesor definitivo (Jeremy, Fernando o Nathaly).",
+          "Pasemos al último módulo..."
+        );
+        await wait(2200);
+      }
+
+      // ─── PASO 9: MONITOREO DOCENTE EN SEDE Y CIERRE ───
+      else if (currentStepIndex === 8) {
+        setBubble(
+          "Paso 9: Monitoreo Docente en Sede en Vivo",
           "En el Dashboard ves qué profesores están trabajando en sede con su reloj en vivo...",
           "Cada profesor tiene su Clave Maestra oficial inmutable en Invitaciones."
         );

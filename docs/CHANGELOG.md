@@ -4,6 +4,27 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.2] - 2026-09-15
+
+### Añadido & Saneado
+- **Reporte Maestro de Alumnos y Clientes (`/admin/reportes` — ADR 0093)**:
+  - Vista centralizada y enumerada de 1 a N de alumnos matriculados, activos y en mora, con acceso restringido para Dirección, Secretaría y Marketing.
+  - Cálculo reactivo de deuda en Soles (PEN) consolidado desde facturas de PostgreSQL (`invoices`).
+  - 5 tarjetas KPI superiores: Alumnos Activos, En Pausa/Baja, Asistencia Promedio, Deuda Total Acumulada y Alumnos al Día.
+  - Exportación oficial a Microsoft Excel en formato `.CSV` con codificación UTF-8 BOM (`\uFEFF`).
+- **Panel de Saneamiento y Reactivación 2026 (`src/components/admin/student-cleanup-panel.tsx`)**:
+  - Función de seguridad para pasar masivamente la base histórica a estado `pausa` (sin borrar ningún registro de PostgreSQL) mediante frase de confirmación `"PAUSAR BASE 2026"`.
+  - Herramienta de activación 1 a 1 con edición ágil de porcentaje de asistencia inicial mapeada (pills rápidos: 100%, 90%, 85%, 80%, 75%), horario pareado semanal y profesor de planta.
+  - Importador de Excel limpio con cruce automático (auto-match) y descarga de plantilla oficial de ejemplo (`Plantilla_Limpia_Alumnos_VibraMusic_2026.csv`).
+  - Conectado en `/admin/alumnos` con el botón `"🧹 Depuración & Reactivación 2026"`.
+- **Módulo de Clases Demo dictadas por Claudia (`/admin/demos`)**:
+  - Registro y seguimiento de prospectos para clases demostrativas dictadas exclusivamente por la Directora Claudia a partir de las 16:00 h.
+  - Pipeline de estados: `pendiente`, `confirmada`, `asistio`, `matriculado` y `cancelada`.
+  - Integración con WhatsApp Web mediante enlaces directos con mensaje personalizado pre-cargado.
+  - Botón de conversión en 1 clic: `"✓ Inscribir Oficialmente como Alumno Activo"`, que pre-carga los datos del lead, permite asignar al profesor regular (**Jeremy**, **Fernando**, **Nathaly**), horario y plan, insertando en `students` y actualizando el lead en `demo_requests`.
+- **Expansión del Tour Autopiloto en Vivo (`src/store/autopilot-store.ts` y `src/components/admin/autopilot-tour-overlay.tsx`)**:
+  - Ampliación de 7 a 9 pasos integrando demostración en vivo de Reportes Maestros (Paso 7), Clases Demo de Claudia (Paso 8) y Monitoreo Docente en Sede (Paso 9).
+
 ## [1.8.1] - 2026-09-15
 
 ### Añadido & Optimizado
