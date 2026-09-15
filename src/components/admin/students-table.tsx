@@ -3148,6 +3148,7 @@ function EditStudentSheetInner({
   updateStudentDetails: (id: string, updates: Partial<AdminStudent>) => void;
 }) {
   const [name, setName] = useState(student.name);
+  const [status, setStatus] = useState<StudentStatus>(student.status || "activo");
   const [family, setFamily] = useState(student.family.replace(/^Familia\s+/i, ""));
   const [isAdult, setIsAdult] = useState(
     student.ageCategory === "ADULTO" || (student.age || 0) >= 18 || student.family.toLowerCase().includes("titular")
@@ -3218,6 +3219,7 @@ function EditStudentSheetInner({
     updateStudentDetails(student.id, {
       name: name.trim(),
       family: resolvedFamily,
+      status,
       instrument,
       level,
       teacher,
@@ -3293,6 +3295,21 @@ function EditStudentSheetInner({
               }}
               className="h-4 w-4 rounded border-border text-primary cursor-pointer"
             />
+          </div>
+
+          {/* Estado de Matrícula del Alumno */}
+          <div>
+            <label className="block text-xs font-semibold mb-1">Estado de Matrícula</label>
+            <Select value={status} onValueChange={(v) => setStatus(v as StudentStatus)}>
+              <SelectTrigger className="bg-background text-xs font-bold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="activo">🟢 Activo (Asiste regularmente)</SelectItem>
+                <SelectItem value="pausa">🟡 En pausa (Temporalmente inactivo)</SelectItem>
+                <SelectItem value="baja">🔴 Baja (Retirado)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

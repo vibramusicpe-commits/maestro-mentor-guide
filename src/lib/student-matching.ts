@@ -74,3 +74,19 @@ export function resolveStudentUUID(id: string | number | null | undefined): stri
 
   return null;
 }
+
+/**
+ * Compara dos identificadores de alumno determinando si representan a la misma persona:
+ * - Si son idénticos como string: true.
+ * - Si sus UUIDs resueltos coinciden (ej. "as-cp-69" y "00000000-0000-0000-0002-000000000045"): true.
+ */
+export function isSameStudentId(
+  idA: string | number | null | undefined,
+  idB: string | number | null | undefined,
+): boolean {
+  if (!idA || !idB) return false;
+  if (idA === idB) return true;
+  const uuidA = resolveStudentUUID(idA);
+  const uuidB = resolveStudentUUID(idB);
+  return Boolean(uuidA && uuidB && uuidA === uuidB);
+}

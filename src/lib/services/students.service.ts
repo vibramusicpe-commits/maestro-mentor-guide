@@ -71,13 +71,18 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     "00000000-0000-0000-0000-000000000006": "Demo",
   };
 
+  const ec = (db.emergency_contact as Record<string, any>) || {};
+  const ecPhone = ec.phone || db.families?.primary_guardian_phone || "987654321";
+  const ecEmail = ec.email || db.families?.email || `alumno_${db.id.slice(0, 4)}@vibramusic.pe`;
+  const ecFamily = ec.family || db.families?.family_name || `Familia ${db.full_name}`;
+
   return {
     id: db.id,
     name: db.full_name,
-    family: db.families?.family_name || `Familia ${db.full_name}`,
+    family: ecFamily,
     instrument: db.instrument || "Piano",
     level: db.level || "Nivel 1",
-    teacher: (db.assigned_teacher_id && teacherNames[db.assigned_teacher_id]) || "Fernando",
+    teacher: (db.assigned_teacher_id && teacherNames[db.assigned_teacher_id]) || ec.teacher || "Fernando",
     modality: db.modality || "Regular (8 clases / 45 min)",
     status: db.status || "activo",
     attendanceRate: Number(db.attendance_rate) || 100,
@@ -88,22 +93,28 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     balance: 0,
     recentAttendance: ["presente", "presente", "presente"],
     teacherNote: db.notes || "",
-    email: db.families?.email || `alumno_${db.id.slice(0, 4)}@vibramusic.pe`,
-    phone: db.families?.primary_guardian_phone || db.emergency_contact?.phone || "987654321",
+    email: ecEmail,
+    phone: ecPhone,
+    age: typeof ec.age === "number" ? ec.age : undefined,
+    ageCategory: ec.ageCategory || undefined,
+    fatherName: ec.fatherName || undefined,
+    fatherPhone: ec.fatherPhone || undefined,
+    motherName: ec.motherName || undefined,
+    motherPhone: ec.motherPhone || undefined,
     emergencyContact: {
-      name: db.emergency_contact?.name || db.families?.primary_guardian_name || `Familia ${db.full_name}`,
-      phone: db.emergency_contact?.phone || db.families?.primary_guardian_phone || "987654321",
-      relation: db.emergency_contact?.relation || "Apoderado",
+      name: ec.name || db.families?.primary_guardian_name || ecFamily,
+      phone: ecPhone,
+      relation: ec.relation || "Apoderado",
     },
-    birthdate: db.birthdate || "15 de Agosto",
-    planType: "Mensual",
-    planPrice: 297,
-    matriculaType: "Promo Demo (S/ 30)",
-    packUtilesPaid: true,
-    planStartDate: "2026-08-01",
-    planEndDate: "2026-12-31",
-    planStartMonth: "2026-08",
-    planEndMonth: "2026-12",
+    birthdate: db.birthdate || ec.birthdate || "15 de Agosto",
+    planType: ec.planType || "Mensual",
+    planPrice: typeof ec.planPrice === "number" ? ec.planPrice : 297,
+    matriculaType: ec.matriculaType || "Promo Demo (S/ 30)",
+    packUtilesPaid: typeof ec.packUtilesPaid === "boolean" ? ec.packUtilesPaid : true,
+    planStartDate: ec.planStartDate || "2026-08-01",
+    planEndDate: ec.planEndDate || "2026-12-31",
+    planStartMonth: ec.planStartMonth || (ec.planStartDate ? ec.planStartDate.slice(0, 7) : "2026-08"),
+    planEndMonth: ec.planEndMonth || (ec.planEndDate ? ec.planEndDate.slice(0, 7) : "2026-12"),
   };
 }
 
@@ -258,6 +269,23 @@ export async function updateStudent(
   return postgrestPatch<DBStudent>(
     "students",
     { id: `eq.${studentId}` },
+    { ...payload, updated_at: new Date().toISOString() },
+  );
+}
+
+// ---------------------------------------------------------------
+// EDGE: updateFamily (Super Admin y Staff / Secretaría Nayeli)
+// Permite actualizar apellidos/nombre de familia y contacto en BD.
+// ---------------------------------------------------------------
+export async function updateFamily(
+  userRole: Role,
+  familyId: string,
+  payload: { family_name?: string; email?: string; primary_guardian_phone?: string; primary_guardian_name?: string },
+): Promise<void> {
+  assertRole(userRole, ["super_admin", "staff"], "editar datos de familia");
+  await postgrestPatch(
+    "families",
+    { id: `eq.${familyId}` },
     { ...payload, updated_at: new Date().toISOString() },
   );
 }

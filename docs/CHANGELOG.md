@@ -4,6 +4,23 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.5] - 2026-09-15
+
+### Reactividad en Fichas de Alumnos & Persistencia Postgres (ADR 0096)
+- **Resolución Universal de IDs Canónicos vs Legacy (`isSameStudentId`)**:
+  - Implementación de `isSameStudentId` en `src/lib/student-matching.ts` para equiparar UUIDs canónicos (`00000000-0000-0000-0002-000000000045`) e identificadores legacy (`as-cp-69`).
+  - Aplicado a todas las mutaciones de alumnos en `src/store/app-store.ts` (`updateStudentDetails`, `setStudentStatus`, `assignTeacher`, `deleteStudent`, etc.), corrigiendo la falla donde `updateStudentDetails` no actualizaba el estado reactivo en memoria.
+- **Persistencia y Recuperación de Metadatos Extendidos en PostgreSQL**:
+  - `backgroundSyncStudentToDB` ahora sincroniza `assigned_teacher_id`, y serializa metadatos ricos (`age`, `ageCategory`, `planType`, `planStartDate`, `customPrice`, `fatherName`, `phone`, `emergencyContact`) dentro del campo `emergency_contact` JSONB de `students`.
+  - Sincronización en tiempo real con la tabla `families` para actualizar teléfonos y nombres de apoderados.
+  - `mapDBStudentToAdminStudent` recupera y mapea todos estos campos al hidratar desde PostgreSQL, evitando pérdidas de datos tras recargar con F5.
+- **Selector de Estado de Matrícula en Ficha de Alumno (`EditStudentSheetInner`)**:
+  - Incorporación del selector interactivo "Estado de Matrícula" (`activo`, `pausa`, `baja`) directamente dentro de la ficha de edición en `/admin/alumnos`.
+- **Propagación Robusta al Horario de Clases**:
+  - Reemplazo de `.includes()` por `isMatchingStudentName` para sincronizar lecciones en `schedule` sin importar variaciones en nombres de pila o compuestos.
+- **Actualización de Storage a `cadencia-app-v26`**:
+  - Salto de versión de persistencia en Zustand para asegurar hidratación limpia y preservar alumnos reactivados por la administración.
+
 ## [1.8.4] - 2026-09-15
 
 ### Blindaje Estricto de Horario & Cero Mock Seeds (ADR 0095)

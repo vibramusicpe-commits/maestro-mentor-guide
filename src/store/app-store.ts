@@ -35,7 +35,7 @@ import {
   VIBRA_PRICING,
 } from "./admin-seeds";
 import { getCurrentWeekIndex } from "@/lib/calendar-utils";
-import { isMatchingStudentName, resolveStudentUUID } from "@/lib/student-matching";
+import { isMatchingStudentName, resolveStudentUUID, isSameStudentId } from "@/lib/student-matching";
 import type { TeacherParentNote } from "@/lib/services/teacher-notes.service";
 
 export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow, TeacherParentNote };
@@ -308,7 +308,7 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
     const resolvedStudentId = resolveStudentUUID(studentId);
     if (!resolvedStudentId) return;
 
-    import("@/lib/services/students.service").then(({ updateStudent }) => {
+    import("@/lib/services/students.service").then(({ updateStudent, updateFamily }) => {
       const payload: Record<string, unknown> = {};
       if (updates.name) payload.full_name = updates.name;
       if (updates.instrument) payload.instrument = updates.instrument;
@@ -316,13 +316,71 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       if (updates.status) payload.status = updates.status;
       if (updates.modality) payload.modality = updates.modality;
       if (updates.teacherNote !== undefined) payload.notes = updates.teacherNote;
-      if (updates.birthdate) payload.birthdate = updates.birthdate;
       if (updates.attendanceRate !== undefined) payload.attendance_rate = updates.attendanceRate;
       if (updates.makeupCredits !== undefined) payload.makeup_credits = updates.makeupCredits;
+
+      // Mapear profesor oficial a assigned_teacher_id
+      const teacherIdMap: Record<string, string> = {
+        Jeremy: "00000000-0000-0000-0000-000000000003",
+        Fernando: "00000000-0000-0000-0000-000000000004",
+        Nathaly: "00000000-0000-0000-0000-000000000005",
+        Demo: "00000000-0000-0000-0000-000000000006",
+        "Profesor Demo": "00000000-0000-0000-0000-000000000006",
+      };
+      if (updates.teacher && teacherIdMap[updates.teacher]) {
+        payload.assigned_teacher_id = teacherIdMap[updates.teacher];
+      }
+
+      // Validar formato de fecha de nacimiento (YYYY-MM-DD) para columna SQL date
+      if (updates.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(updates.birthdate)) {
+        payload.birthdate = updates.birthdate;
+      }
+
+      // Persistir metadatos extendidos en columna JSONB emergency_contact
+      const currentStudent = useAppStore.getState().adminStudents.find((st) => isSameStudentId(st.id, studentId));
+      const ecData: Record<string, any> = {
+        ...(typeof currentStudent?.emergencyContact === "object" ? currentStudent.emergencyContact : {}),
+        ...(typeof updates.emergencyContact === "object" ? updates.emergencyContact : {}),
+      };
+
+      if (updates.phone) ecData.phone = updates.phone;
+      if (updates.email) ecData.email = updates.email;
+      if (updates.family) ecData.family = updates.family;
+      if (updates.teacher) ecData.teacher = updates.teacher;
+      if (updates.birthdate) ecData.birthdate = updates.birthdate;
+      if (updates.age !== undefined) ecData.age = updates.age;
+      if (updates.ageCategory) ecData.ageCategory = updates.ageCategory;
+      if (updates.fatherName !== undefined) ecData.fatherName = updates.fatherName;
+      if (updates.fatherPhone !== undefined) ecData.fatherPhone = updates.fatherPhone;
+      if (updates.motherName !== undefined) ecData.motherName = updates.motherName;
+      if (updates.motherPhone !== undefined) ecData.motherPhone = updates.motherPhone;
+      if (updates.planType) ecData.planType = updates.planType;
+      if (updates.planPrice !== undefined) ecData.planPrice = updates.planPrice;
+      if (updates.matriculaType) ecData.matriculaType = updates.matriculaType;
+      if (updates.packUtilesPaid !== undefined) ecData.packUtilesPaid = updates.packUtilesPaid;
+      if (updates.planStartDate) ecData.planStartDate = updates.planStartDate;
+      if (updates.planEndDate) ecData.planEndDate = updates.planEndDate;
+
+      payload.emergency_contact = ecData;
 
       updateStudent(role, resolvedStudentId, payload)
         .then(() => console.log(`[Insforge Sync] Alumno ${resolvedStudentId} sincronizado en PostgreSQL`))
         .catch((err) => console.warn(`[Insforge Sync] Error sincronizando alumno ${resolvedStudentId}:`, err));
+
+      // Sincronizar familia asociada en tabla families de PostgreSQL
+      const familyId = resolvedStudentId.replace(
+        /^00000000-0000-0000-0002-/,
+        "00000000-0000-0000-0001-",
+      );
+      if (familyId !== resolvedStudentId) {
+        const famPayload: Record<string, string> = {};
+        if (updates.family) famPayload.family_name = updates.family;
+        if (updates.email) famPayload.email = updates.email;
+        if (updates.phone) famPayload.primary_guardian_phone = updates.phone;
+        if (Object.keys(famPayload).length > 0) {
+          updateFamily(role, familyId, famPayload).catch(() => {});
+        }
+      }
     }).catch(() => {});
   } catch {}
 }
@@ -673,7 +731,7 @@ export const useAppStore = create<AppState>()(
       },
       deleteStudent: (id, reasonCategory = "otro", reasonText = "", deletedBy = "Nayeli (Secretaría)") =>
         set((s) => {
-          const studentToDelete = s.adminStudents.find((st) => st.id === id);
+          const studentToDelete = s.adminStudents.find((st) => isSameStudentId(st.id, id));
           if (!studentToDelete) return s;
           const studentName = studentToDelete.name;
 
@@ -692,16 +750,16 @@ export const useAppStore = create<AppState>()(
           };
 
           return {
-            adminStudents: s.adminStudents.filter((st) => st.id !== id),
-            schedule: s.schedule.filter((l) => l.student.toLowerCase() !== studentName.toLowerCase()),
+            adminStudents: s.adminStudents.filter((st) => !isSameStudentId(st.id, id)),
+            schedule: s.schedule.filter((l) => !isMatchingStudentName(l.student, studentName)),
             deletedStudents: [logEntry, ...(s.deletedStudents || [])],
             syncQueue: [...s.syncQueue, queueItem(`Alumno ${studentName} movido a papelera [${reasonCategory}]`)],
           };
         }),
       deleteStudents: (ids, reasonCategory = "otro", reasonText = "", deletedBy = "Nayeli (Secretaría)") =>
         set((s) => {
-          const studentsToDelete = s.adminStudents.filter((st) => ids.includes(st.id));
-          const namesToDelete = studentsToDelete.map((st) => st.name.toLowerCase());
+          const studentsToDelete = s.adminStudents.filter((st) => ids.some((id) => isSameStudentId(st.id, id)));
+          const namesToDelete = studentsToDelete.map((st) => st.name);
           const now = new Date().toISOString();
 
           const newLogs: DeletedStudentLog[] = studentsToDelete.map((st, idx) => ({
@@ -719,9 +777,9 @@ export const useAppStore = create<AppState>()(
           }));
 
           return {
-            adminStudents: s.adminStudents.filter((st) => !ids.includes(st.id)),
+            adminStudents: s.adminStudents.filter((st) => !ids.some((id) => isSameStudentId(st.id, id))),
             schedule: s.schedule.filter(
-              (l) => !namesToDelete.includes(l.student.toLowerCase()),
+              (l) => !namesToDelete.some((n) => isMatchingStudentName(n, l.student)),
             ),
             deletedStudents: [...newLogs, ...(s.deletedStudents || [])],
             syncQueue: [...s.syncQueue, queueItem(`${ids.length} alumnos movidos a papelera [${reasonCategory}]`)],
@@ -732,7 +790,7 @@ export const useAppStore = create<AppState>()(
           const log = (s.deletedStudents || []).find((l) => l.id === logId);
           if (!log) return s;
 
-          const alreadyExists = s.adminStudents.some((st) => st.id === log.studentSnapshot.id);
+          const alreadyExists = s.adminStudents.some((st) => isSameStudentId(st.id, log.studentSnapshot.id));
           const restoredStudent: AdminStudent = alreadyExists
             ? { ...log.studentSnapshot, id: `st-${Date.now()}` }
             : { ...log.studentSnapshot };
@@ -746,13 +804,12 @@ export const useAppStore = create<AppState>()(
       updateStudentDetails: (id, updates) =>
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, updates);
-          const targetStudent = s.adminStudents.find((st) => st.id === id);
-          const updatedStudents = s.adminStudents.map((st) => (st.id === id ? { ...st, ...updates } : st));
+          const targetStudent = s.adminStudents.find((st) => isSameStudentId(st.id, id));
+          const updatedStudents = s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, ...updates } : st));
           let updatedSchedule = s.schedule;
 
           // Propagar cambios clave al horario (nombre, instrumento, profesor, categoría)
           if (targetStudent) {
-            const oldName = targetStudent.name.toLowerCase();
             const hasNameChange = updates.name && updates.name !== targetStudent.name;
             const hasCatChange = updates.ageCategory && updates.ageCategory !== targetStudent.ageCategory;
             const hasTeacherChange = updates.teacher && updates.teacher !== targetStudent.teacher;
@@ -761,9 +818,8 @@ export const useAppStore = create<AppState>()(
             if (hasNameChange || hasCatChange || hasTeacherChange || hasInstrumentChange) {
               updatedSchedule = s.schedule.map((l) => {
                 const isMatch =
-                  l.student.toLowerCase() === oldName ||
-                  l.student.toLowerCase().includes(oldName) ||
-                  oldName.includes(l.student.toLowerCase());
+                  isMatchingStudentName(targetStudent.name, l.student) ||
+                  (updates.name ? isMatchingStudentName(updates.name, l.student) : false);
 
                 if (isMatch) {
                   return {
@@ -796,34 +852,34 @@ export const useAppStore = create<AppState>()(
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, { status });
           return {
-            adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, status } : st)),
+            adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, status } : st)),
             syncQueue: [...s.syncQueue, queueItem(`Estado actualizado · ${status}`)],
           };
         }),
       assignTeacher: (id, teacher) =>
         set((s) => ({
-          adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, teacher } : st)),
+          adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, teacher } : st)),
           syncQueue: [...s.syncQueue, queueItem(`Profesor asignado · ${teacher}`)],
         })),
       setStudentModality: (id, modality) =>
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, { modality });
           return {
-            adminStudents: s.adminStudents.map((st) => (st.id === id ? { ...st, modality } : st)),
+            adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, modality } : st)),
             syncQueue: [...s.syncQueue, queueItem(`Modalidad actualizada · ${modality}`)],
           };
         }),
       addStudentCredit: (id) =>
         set((s) => ({
           adminStudents: s.adminStudents.map((st) =>
-            st.id === id ? { ...st, makeupCredits: st.makeupCredits + 1 } : st,
+            isSameStudentId(st.id, id) ? { ...st, makeupCredits: st.makeupCredits + 1 } : st,
           ),
           syncQueue: [...s.syncQueue, queueItem("Crédito de falta añadido")],
         })),
       consumeStudentCredit: (id) =>
         set((s) => ({
           adminStudents: s.adminStudents.map((st) =>
-            st.id === id ? { ...st, makeupCredits: Math.max(0, st.makeupCredits - 1) } : st,
+            isSameStudentId(st.id, id) ? { ...st, makeupCredits: Math.max(0, st.makeupCredits - 1) } : st,
           ),
           syncQueue: [...s.syncQueue, queueItem("Crédito de recuperación utilizado")],
         })),
@@ -1163,7 +1219,7 @@ export const useAppStore = create<AppState>()(
       addStudentReentryRecord: (studentId, record) =>
         set((s) => ({
           adminStudents: s.adminStudents.map((st) => {
-            if (st.id === studentId) {
+            if (isSameStudentId(st.id, studentId)) {
               const currentHistory = st.reentryHistory || [];
               return {
                 ...st,
@@ -1525,7 +1581,7 @@ export const useAppStore = create<AppState>()(
           let newDeletedLog: DeletedStudentLog | null = null;
 
           if (req.entityType === "student") {
-            const studentToDelete = s.adminStudents.find((st) => st.id === req.entityId || st.name.toLowerCase() === req.entityName.toLowerCase());
+            const studentToDelete = s.adminStudents.find((st) => isSameStudentId(st.id, req.entityId) || isMatchingStudentName(st.name, req.entityName));
             const studentName = studentToDelete?.name || req.entityName;
             if (studentToDelete) {
               newDeletedLog = {
@@ -1542,8 +1598,8 @@ export const useAppStore = create<AppState>()(
                 studentSnapshot: { ...studentToDelete },
               };
             }
-            updatedStudents = s.adminStudents.filter((st) => st.id !== req.entityId && st.name.toLowerCase() !== studentName.toLowerCase());
-            updatedSchedule = s.schedule.filter((l) => l.student.toLowerCase() !== studentName.toLowerCase());
+            updatedStudents = s.adminStudents.filter((st) => !isSameStudentId(st.id, req.entityId) && !isMatchingStudentName(st.name, studentName));
+            updatedSchedule = s.schedule.filter((l) => !isMatchingStudentName(l.student, studentName));
           } else if (req.entityType === "lesson") {
             updatedSchedule = s.schedule.filter((l) => l.id !== req.entityId);
           } else if (req.entityType === "invoice") {
@@ -1608,22 +1664,22 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v25",
+      name: "cadencia-app-v26",
       storage: createJSONStorage(() => localStorage),
-      version: 25,
+      version: 26,
       migrate: (persistedState: any, version: number) => {
         try {
           if (typeof window !== "undefined") {
-            for (let i = 1; i <= 24; i++) {
+            for (let i = 1; i <= 25; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }
         } catch {}
 
-        // Depuración 2026: Todos los alumnos históricos pasan a estado "pausa"
+        // Migración limpia: Preservar estado activo/pausa/baja sin forzar sobreescrituras
         const migratedStudents = (persistedState?.adminStudents || adminStudents).map((st: any) => ({
           ...st,
-          status: st.status === "baja" ? "baja" : "pausa",
+          status: st.status || "pausa",
         }));
 
         return {
