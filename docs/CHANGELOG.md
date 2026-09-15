@@ -4,6 +4,15 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.1] - 2026-09-15
+
+### Añadido & Optimizado
+- **Bandeja de Aprobación de Notas Docentes en Dashboard Principal (ADR 0092)**:
+  - **Widget `TeacherNotesApprovalWidget` en `/admin`**: Módulo interactivo en la pantalla principal de administración que lista en tiempo real las notas redactadas por los 3 profesores oficiales (**Jeremy**, **Fernando**, **Nathaly**), con previsualización del alumno, familia, instrumento y mensaje.
+  - **Acciones Directas en 1 Clic**: Botones de *Aprobar y Publicar*, *Editar y Aprobar*, y *Observar / Devolver al Docente* con modal para ingresar la retroalimentación.
+  - **Navegación Profunda**: Soporte para parámetro `?tab=notas` en `/admin/alumnos`, enlazando el Dashboard con la vista académica detallada.
+  - **Claridad de Roles**: Delimitación de funciones para Karla (Secretaría), Fabricio (Marketing) y Directora (Clases Demo a partir de las 4:00 p.m.).
+
 ## [1.8.0] - 2026-09-15
 
 ### Corregido & Estabilizado

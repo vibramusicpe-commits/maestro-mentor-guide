@@ -34,6 +34,15 @@ function AdminAlumnosPage() {
 
   useEffect(() => {
     setMounted(true);
+    try {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get("tab");
+        if (tab === "notas" || tab === "vacantes" || tab === "directorio") {
+          setActiveTab(tab);
+        }
+      }
+    } catch {}
   }, []);
 
   return (

@@ -6,6 +6,7 @@ import { RiskFamiliesTable } from "@/components/admin/risk-families-table";
 import { AlertsPanel } from "@/components/admin/alerts-panel";
 import { BirthdayWidget } from "@/components/admin/birthday-widget";
 import { TeacherAttendanceWidget } from "@/components/admin/teacher-attendance-widget";
+import { TeacherNotesApprovalWidget } from "@/components/admin/teacher-notes-approval-widget";
 import { StaffOnboardingTutorial } from "@/components/admin/staff-onboarding-tutorial";
 import { useAppStore } from "@/store/app-store";
 import { useAutopilotStore } from "@/store/autopilot-store";
@@ -143,6 +144,9 @@ function AdminDashboard() {
       </div>
 
       <MetricCards />
+
+      {/* Bandeja de Aprobación de Notas Docentes a Familias */}
+      <TeacherNotesApprovalWidget />
 
       {/* Widget de Asistencia Docente y Monitoreo en Vivo */}
       <TeacherAttendanceWidget />
