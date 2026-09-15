@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.0] - 2026-09-15
+
+### Corregido & Estabilizado
+- **Resolución de ReferenceError en Directorio de Alumnos (ADR 0091)**:
+  - **Corrección en `StudentsTable` (`src/components/admin/students-table.tsx`)**: Se corrigió el hook `liveKardexStudent` reemplazando la referencia no declarada `adminStudents` por `students` tanto en la búsqueda como en el arreglo de dependencias reactivas.
+  - **Blindaje Léxico**: Incorporación de `const adminStudents = students;` como alias seguro garantizando compatibilidad absoluta y evitando fallos de hidratación (`Minified React error #418`).
+
+## [1.7.9] - 2026-09-14
+
+### Añadido & Corregido
+- **Filtro de Moderación Administrativa para Notas Docentes y Deduplicación de Turnos (ADR 0090)**:
+  - **Deduplicación y Limpieza de Turnos en PostgreSQL**: Eliminación de mutaciones a la columna generada `total_minutes_worked` (causante del error 428C9 que mantenía turnos zombies en estado trabajando). Ordenamiento cronológico estricto `clock_in.desc` y prevención de duplicados en `clockIn`.
+  - **Flujo de Moderación Pedagógica**: Implementación del ciclo de vida de notas (`pendiente`, `aprobado`, `rechazado`). Bloqueo de envíos por WhatsApp al docente hasta contar con aprobación oficial de secretaría o dirección.
+  - **Pestaña Administrativa "Notas a Familias"**: Módulo interactivo en `/admin/alumnos` con revisión, edición previa y aprobación o devolución fundamentada al docente.
+
 ## [1.7.8] - 2026-09-09
 
 ### Añadido & Corregido
