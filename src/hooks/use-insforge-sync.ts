@@ -12,9 +12,9 @@ export function useInsforgeSync() {
 
     async function syncBackendData() {
       try {
-        if (activeRole === "super_admin" || activeRole === "staff") {
+        if (activeRole === "super_admin" || activeRole === "staff" || activeRole === "teacher") {
           const dbStudents = await getStudents(activeRole);
-          const dbInvoices = await getInvoices(activeRole);
+          const dbInvoices = activeRole === "teacher" ? [] : await getInvoices(activeRole);
 
           if (isMounted) {
             const mappedStudents =
@@ -33,6 +33,7 @@ export function useInsforgeSync() {
                 invoices: mappedInvoices,
               });
               console.log("[Insforge Sync] Hidratación exitosa desde backend PostgreSQL:", {
+                role: activeRole,
                 students: mappedStudents?.length || 0,
                 invoices: mappedInvoices?.length || 0,
               });

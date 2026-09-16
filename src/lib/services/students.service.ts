@@ -87,7 +87,7 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     status: db.status || "activo",
     attendanceRate: typeof ec.attendanceRate === "number"
       ? ec.attendanceRate
-      : (db.attendance_rate !== undefined && db.attendance_rate !== null ? Number(db.attendance_rate) : 100),
+      : (db.attendance_rate !== undefined && db.attendance_rate !== null ? Number(db.attendance_rate) : 0),
     payment: "al-dia",
     risk: 20,
     joinedAt: "Ago 2026",
@@ -95,7 +95,7 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     balance: 0,
     recentAttendance: Array.isArray(ec.recentAttendance)
       ? ec.recentAttendance
-      : ["presente", "presente", "presente"],
+      : [],
     teacherNote: db.notes || "",
     email: ecEmail,
     phone: ecPhone,
@@ -125,14 +125,14 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
 // ---------------------------------------------------------------
 // EDGE: getStudents
 // Carga alumnos con datos de familia embebidos.
-// Roles permitidos: super_admin, staff
+// Roles permitidos: super_admin, staff, teacher
 // ---------------------------------------------------------------
 export async function getStudents(
   userRole: Role,
   filterStatus?: "activo" | "pausa" | "baja",
 ): Promise<DBStudent[]> {
   // [RBAC Gate]
-  assertRole(userRole, ["super_admin", "staff"], "ver alumnos");
+  assertRole(userRole, ["super_admin", "staff", "teacher"], "ver alumnos");
 
   // [Payload: solo campos necesarios + join de familia]
   const params: Record<string, string> = {

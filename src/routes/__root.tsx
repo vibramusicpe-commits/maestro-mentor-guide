@@ -162,7 +162,7 @@ function RootComponent() {
   // Sincronización automática de Zustand entre pestañas abiertas
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "cadencia-app-v23") {
+      if (e.key === "cadencia-app-v28") {
         useAppStore.persist.rehydrate();
       }
     };

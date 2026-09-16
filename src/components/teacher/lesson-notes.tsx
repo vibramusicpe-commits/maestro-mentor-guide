@@ -48,30 +48,35 @@ export function LessonNotes() {
     .replace(/^prof\.\s*/i, "")
     .trim();
 
-  // Filtrar alumnos vinculados al profesor (por asignación directa o por horario)
+  // Filtrar alumnos vinculados al profesor (por asignación directa o por horario) — ÚNICAMENTE ACTIVOS
   const teacherStudents = useMemo(() => {
-    const studentsByTeacher = adminStudents.filter((st) => {
+    // 🛡️ REGLA DE ORO ADR 0098 & ADR 0099: Solo alumnos con status === 'activo'
+    const activeStudents = adminStudents.filter((st) => st.status === "activo");
+
+    const studentsByTeacher = activeStudents.filter((st) => {
       const stTeacher = (st.teacher || "").toLowerCase();
       return stTeacher.includes(teacherClean) || teacherClean.includes(stTeacher);
     });
 
-    // Si por algún motivo la lista es corta, incluir alumnos con clases programadas con este profesor
+    // Alumnos activos con clases programadas con este profesor
     const studentNamesInSchedule = new Set(
       schedule
         .filter((sch) => {
+          if (sch.status === "cancelada") return false;
           const schT = sch.teacher.toLowerCase();
           return schT.includes(teacherClean) || teacherClean.includes(schT);
         })
         .map((l) => l.student.toLowerCase())
     );
 
-    const merged = adminStudents.filter(
+    const merged = activeStudents.filter(
       (st) =>
         studentsByTeacher.some((s) => s.id === st.id) ||
         studentNamesInSchedule.has(st.name.toLowerCase())
     );
 
-    return merged.length > 0 ? merged : adminStudents;
+    // Si el profesor no tiene alumnos activos aún, retorna array vacío (cero mock data o vuelco de alumnos históricos)
+    return merged;
   }, [adminStudents, schedule, teacherClean]);
 
   // Modo de destinatario: "general" o id del alumno seleccionado

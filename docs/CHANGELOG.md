@@ -4,6 +4,26 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.8] - 2026-09-16
+
+### Sincronización Real del Kiosco Docente y Kardex de Asistencias Aislado por Fechas (ADR 0099)
+- **Sincronización en Vivo para Docentes (`use-insforge-sync.ts` y `teacher.tsx`)**:
+  - Se habilitó la hidratación directa desde PostgreSQL para el rol `teacher`, permitiendo que el portal docente refleje con exactitud la base de datos limpia de la escuela en tiempo real.
+  - Se autorizó el rol `teacher` para lectura de alumnos en `getStudents()` de `students.service.ts`.
+- **Eliminación Total de Fallbacks a Alumnos Históricos (`lesson-notes.tsx`)**:
+  - Se suprimió el retorno indiscriminado de `adminStudents` completo cuando el profesor no tiene alumnos activos asignados. Profesores sin alumnos activos muestran estrictamente 0 alumnos asignados.
+- **Aislamiento de Asistencias por Fecha Única (`dateStr: YYYY-MM-DD`) en el Kardex**:
+  - Se añadió `attendanceByDate` a `ScheduledLesson` y se refactorizó `setStudentSessionAttendance` y `bulkRegularizeStudentAttendance` para almacenar el estado por fecha ISO exacta.
+  - Se erradicaron las colisiones y fugas entre meses (marcar en septiembre ya no afecta a agosto).
+  - Se eliminó el auto-marcado involuntario de sesiones futuras en la semana activa (`lesson.attendanceStatus`).
+- **Respeto Estricto de Fechas de Vigencia Contratadas (`planStartDate` y `planEndDate`)**:
+  - El Kardex ya no genera sesiones previas al inicio de clases del alumno (para Camila Pastor con inicio 10/09/2026, Septiembre muestra exclusivamente sus 6 clases reales, omitiendo el 1, 3 y 8).
+- **Erradicación de Mocks de Asistencia en Fichas**:
+  - `mapDBStudentToAdminStudent` ahora inicializa `recentAttendance: []` y `attendanceRate: 0` por defecto.
+  - La tarjeta de alumno muestra únicamente las asistencias reales marcadas en el Kardex y las sincroniza con PostgreSQL.
+- **Migración de Storage a `cadencia-app-v28`**:
+  - Purgado de estados residuales de lecciones y sincronización de eventos de storage en `__root.tsx`.
+
 ## [1.8.7] - 2026-09-16
 
 ### Acceso a Kiosco Docente y Blindaje de Alumnos Activos para Profesores (ADR 0098)

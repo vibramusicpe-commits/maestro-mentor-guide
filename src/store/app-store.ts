@@ -168,7 +168,8 @@ type AppState = {
     lessonId: string,
     weekIndex: number,
     status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente",
-    notes?: string
+    notes?: string,
+    dateStr?: string
   ) => void;
   bulkRegularizeStudentAttendance: (
     studentName: string,
@@ -176,6 +177,7 @@ type AppState = {
       lessonId: string;
       weekIndex: number;
       status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente";
+      dateStr?: string;
     }>
   ) => void;
   scheduleMakeupLesson: (data: {
@@ -1002,21 +1004,27 @@ export const useAppStore = create<AppState>()(
             ],
           };
         }),
-      setStudentSessionAttendance: (studentName, lessonId, weekIndex, status, notes = "") =>
+      setStudentSessionAttendance: (studentName, lessonId, weekIndex, status, notes = "", dateStr?: string) =>
         set((s) => {
           const isJustificada = status === "justificada";
           const newSchedule = s.schedule.map((l) => {
             if (l.id === lessonId) {
               const prevByWeek = { ...(l.attendanceByWeek || {}) };
+              const prevByDate = { ...(l.attendanceByDate || {}) };
+
               if (status === "pendiente") {
                 delete prevByWeek[weekIndex];
+                if (dateStr) delete prevByDate[dateStr];
               } else {
                 prevByWeek[weekIndex] = status;
+                if (dateStr) prevByDate[dateStr] = status;
               }
+
               return {
                 ...l,
-                attendanceStatus: status === "pendiente" ? undefined : status,
+                // 🛡️ REGLA DE ORO ADR 0099: NO sobreescribir attendanceStatus global en la lección recurrente
                 attendanceByWeek: prevByWeek,
+                attendanceByDate: prevByDate,
               };
             }
             return l;
@@ -1034,7 +1042,25 @@ export const useAppStore = create<AppState>()(
           const allMarked: ("presente" | "ausente" | "tarde")[] = [];
 
           studentLessons.forEach((l) => {
-            if (l.attendanceByWeek) {
+            if (l.attendanceByDate && Object.keys(l.attendanceByDate).length > 0) {
+              // Ordenar fechas para que recentAttendance refleje las sesiones más recientes
+              const sortedDates = Object.keys(l.attendanceByDate).sort();
+              sortedDates.forEach((dKey) => {
+                const st = l.attendanceByDate![dKey];
+                if (st === "presente") {
+                  totalPresentes++;
+                  allMarked.push("presente");
+                } else if (st === "tarde") {
+                  totalTardes++;
+                  allMarked.push("tarde");
+                } else if (st === "ausente") {
+                  totalAusentes++;
+                  allMarked.push("ausente");
+                } else if (st === "justificada") {
+                  totalJustificadas++;
+                }
+              });
+            } else if (l.attendanceByWeek) {
               Object.entries(l.attendanceByWeek).forEach(([_, st]) => {
                 if (st === "presente") {
                   totalPresentes++;
@@ -1057,12 +1083,14 @@ export const useAppStore = create<AppState>()(
             ? Math.round(((totalPresentes + totalTardes) / totalEvaluated) * 100)
             : 0;
 
+          const recentList = allMarked.length > 0 ? allMarked.slice(-5) : [];
+
           const newStudents = s.adminStudents.map((st) => {
             if (isMatchingStudentName(st.name, studentName)) {
               return {
                 ...st,
                 attendanceRate: newRate,
-                recentAttendance: allMarked.length > 0 ? allMarked.slice(0, 5) : [],
+                recentAttendance: recentList,
                 makeupCredits: isJustificada ? st.makeupCredits + 1 : st.makeupCredits,
               };
             }
@@ -1073,13 +1101,14 @@ export const useAppStore = create<AppState>()(
           if (updatedStudent) {
             backgroundSyncStudentToDB(s.activeRole, updatedStudent.id, {
               attendanceRate: newRate,
+              recentAttendance: recentList,
               makeupCredits: updatedStudent.makeupCredits,
             });
             backgroundSyncAttendanceLogToDB(
               s.activeRole,
               updatedStudent.id,
               status,
-              `Semana ${weekIndex + 1} - Regularización Kardex`
+              dateStr ? `Fecha ${dateStr} - Regularización Kardex` : `Semana ${weekIndex + 1} - Regularización Kardex`
             );
           }
 
@@ -1088,35 +1117,51 @@ export const useAppStore = create<AppState>()(
             adminStudents: newStudents,
             syncQueue: [
               ...s.syncQueue,
-              queueItem(`Asistencia regularizada: ${studentName} (Semana ${weekIndex + 1}: ${status.toUpperCase()})`),
+              queueItem(`Asistencia regularizada: ${studentName} (${dateStr || `Semana ${weekIndex + 1}`}: ${status.toUpperCase()})`),
             ],
           };
         }),
       bulkRegularizeStudentAttendance: (studentName, attendances) =>
         set((s) => {
           let extraCredits = 0;
-          const updatesMap = new Map<string, Record<number, "presente" | "ausente" | "tarde" | "justificada">>();
+          const updatesMapWeek = new Map<string, Record<number, "presente" | "ausente" | "tarde" | "justificada">>();
+          const updatesMapDate = new Map<string, Record<string, "presente" | "ausente" | "tarde" | "justificada">>();
 
-          attendances.forEach(({ lessonId, weekIndex, status }) => {
+          attendances.forEach(({ lessonId, weekIndex, status, dateStr }) => {
             if (status === "justificada") extraCredits++;
-            if (!updatesMap.has(lessonId)) {
-              updatesMap.set(lessonId, {});
+            if (!updatesMapWeek.has(lessonId)) {
+              updatesMapWeek.set(lessonId, {});
+            }
+            if (!updatesMapDate.has(lessonId)) {
+              updatesMapDate.set(lessonId, {});
             }
             if (status !== "pendiente") {
-              updatesMap.get(lessonId)![weekIndex] = status;
+              updatesMapWeek.get(lessonId)![weekIndex] = status;
+              if (dateStr) {
+                updatesMapDate.get(lessonId)![dateStr] = status;
+              }
             }
           });
 
           const newSchedule = s.schedule.map((l) => {
-            if (updatesMap.has(l.id)) {
+            if (updatesMapWeek.has(l.id) || updatesMapDate.has(l.id)) {
               const prevByWeek = { ...(l.attendanceByWeek || {}) };
-              const currentUpdates = updatesMap.get(l.id)!;
-              Object.entries(currentUpdates).forEach(([wStr, st]) => {
+              const prevByDate = { ...(l.attendanceByDate || {}) };
+
+              const currentUpdatesW = updatesMapWeek.get(l.id) || {};
+              Object.entries(currentUpdatesW).forEach(([wStr, st]) => {
                 prevByWeek[Number(wStr)] = st;
               });
+
+              const currentUpdatesD = updatesMapDate.get(l.id) || {};
+              Object.entries(currentUpdatesD).forEach(([dKey, st]) => {
+                prevByDate[dKey] = st;
+              });
+
               return {
                 ...l,
                 attendanceByWeek: prevByWeek,
+                attendanceByDate: prevByDate,
               };
             }
             return l;
@@ -1134,7 +1179,24 @@ export const useAppStore = create<AppState>()(
           const allMarked: ("presente" | "ausente" | "tarde")[] = [];
 
           studentLessons.forEach((l) => {
-            if (l.attendanceByWeek) {
+            if (l.attendanceByDate && Object.keys(l.attendanceByDate).length > 0) {
+              const sortedDates = Object.keys(l.attendanceByDate).sort();
+              sortedDates.forEach((dKey) => {
+                const st = l.attendanceByDate![dKey];
+                if (st === "presente") {
+                  totalPresentes++;
+                  allMarked.push("presente");
+                } else if (st === "tarde") {
+                  totalTardes++;
+                  allMarked.push("tarde");
+                } else if (st === "ausente") {
+                  totalAusentes++;
+                  allMarked.push("ausente");
+                } else if (st === "justificada") {
+                  totalJustificadas++;
+                }
+              });
+            } else if (l.attendanceByWeek) {
               Object.entries(l.attendanceByWeek).forEach(([_, st]) => {
                 if (st === "presente") {
                   totalPresentes++;
@@ -1157,12 +1219,14 @@ export const useAppStore = create<AppState>()(
             ? Math.round(((totalPresentes + totalTardes) / totalEvaluated) * 100)
             : 0;
 
+          const recentList = allMarked.length > 0 ? allMarked.slice(-5) : [];
+
           const newStudents = s.adminStudents.map((st) => {
             if (isMatchingStudentName(st.name, studentName)) {
               return {
                 ...st,
                 attendanceRate: newRate,
-                recentAttendance: allMarked.length > 0 ? allMarked.slice(0, 5) : [],
+                recentAttendance: recentList,
                 makeupCredits: st.makeupCredits + extraCredits,
               };
             }
@@ -1173,15 +1237,16 @@ export const useAppStore = create<AppState>()(
           if (updatedStudent) {
             backgroundSyncStudentToDB(s.activeRole, updatedStudent.id, {
               attendanceRate: newRate,
+              recentAttendance: recentList,
               makeupCredits: updatedStudent.makeupCredits,
             });
-            attendances.forEach(({ weekIndex, status: attStatus }) => {
+            attendances.forEach(({ weekIndex, status: attStatus, dateStr }) => {
               if (attStatus !== "pendiente") {
                 backgroundSyncAttendanceLogToDB(
                   s.activeRole,
                   updatedStudent.id,
                   attStatus,
-                  `Semana ${weekIndex + 1} - Regularización Masiva Kardex`
+                  dateStr ? `Fecha ${dateStr} - Regularización Masiva Kardex` : `Semana ${weekIndex + 1} - Regularización Masiva Kardex`
                 );
               }
             });
@@ -1684,29 +1749,36 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v27",
+      name: "cadencia-app-v28",
       storage: createJSONStorage(() => localStorage),
-      version: 27,
+      version: 28,
       migrate: (persistedState: any, version: number) => {
         try {
           if (typeof window !== "undefined") {
-            for (let i = 1; i <= 26; i++) {
+            for (let i = 1; i <= 27; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }
         } catch {}
 
+        // 🛡️ REGLA DE ORO ADR 0099: Purgar attendanceStatus global residual en las lecciones recurrentes
+        const cleanSchedule = (persistedState?.schedule || initialSchedule).map((l: any) => ({
+          ...l,
+          attendanceStatus: undefined,
+        }));
+
         // Migración limpia: Preservar estado activo/pausa/baja sin forzar sobreescrituras
         const migratedStudents = (persistedState?.adminStudents || adminStudents).map((st: any) => ({
           ...st,
           status: st.status || "pausa",
+          recentAttendance: Array.isArray(st.recentAttendance) ? st.recentAttendance : [],
         }));
 
         return {
           ...persistedState,
           adminStudents: migratedStudents,
           invoices: persistedState?.invoices || initialInvoices,
-          schedule: initialSchedule,
+          schedule: cleanSchedule,
           deletedStudents: persistedState?.deletedStudents || [],
           teacherNotes: persistedState?.teacherNotes || [],
         };

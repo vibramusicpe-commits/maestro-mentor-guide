@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, Link, redirect } from "@tanstack/react-router"
 import { useEffect } from "react";
 import { Cloud, CloudOff, ClipboardList, Users2, Wallet, CalendarDays } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
+import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { RoleSwitcher } from "@/components/role-switcher";
 
 export const Route = createFileRoute("/teacher")({
@@ -48,6 +49,9 @@ function TeacherLayout() {
   const activeRole = useAppStore((s) => s.activeRole);
   const setActiveRole = useAppStore((s) => s.setActiveRole);
   const currentUser = useAppStore((s) => s.currentUser);
+
+  // Sincronizar alumnos en vivo desde PostgreSQL para que el portal docente refleje datos limpios
+  useInsforgeSync();
 
   useEffect(() => {
     if (activeRole !== "super_admin" && activeRole !== "staff") {

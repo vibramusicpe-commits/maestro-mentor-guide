@@ -89,7 +89,7 @@ export function TeacherKiosk() {
         const normSt = st.name.toLowerCase().trim();
         return normSt === normL || normSt.includes(normL) || normL.includes(normSt);
       });
-      if (studentProfile && studentProfile.status !== "activo") {
+      if (!studentProfile || studentProfile.status !== "activo") {
         return false;
       }
 

@@ -127,6 +127,11 @@ export function StudentAttendanceKardex({
         // Ignorar días desbordados que no pertenecen al mes actual del ciclo
         if (!dayInfo.isCurrentMonth) return;
 
+        // 🛡️ REGLA DE ORO (ADR 0099): Respetar vigencia del plan del alumno
+        // No generar sesiones previas a su fecha de inicio ni posteriores a su vencimiento
+        if (student.planStartDate && dayInfo.dateStr < student.planStartDate) return;
+        if (student.planEndDate && dayInfo.dateStr > student.planEndDate) return;
+
         // Buscar si el alumno tiene lección este día de la semana
         studentLessons.forEach((lesson) => {
           // Si la lección es para un día específico
@@ -145,21 +150,25 @@ export function StudentAttendanceKardex({
           const endM = String(endMinuteTotal % 60).padStart(2, "0");
           const timeEnd = `${endH}:${endM}`;
 
-          // Determinar estado de asistencia para esta semana
-          const currentStatus: StudentSessionItem["status"] =
-            (lesson.attendanceByWeek && lesson.attendanceByWeek[week.weekIndex])
-              ? lesson.attendanceByWeek[week.weekIndex]!
-              : (lesson.weekIndex === week.weekIndex && lesson.attendanceStatus)
-              ? lesson.attendanceStatus
-              : (selectedMonth === currentRealMonth && week.weekIndex === currentActiveWeek && lesson.attendanceStatus)
-              ? lesson.attendanceStatus
-              : "pendiente";
+          // Determinar estado de asistencia aislado por fecha exacta (dateStr: YYYY-MM-DD)
+          // 🛡️ REGLA DE ORO (ADR 0099): Cero fallbacks a lección global para evitar auto-marcados fantasma
+          let currentStatus: StudentSessionItem["status"] = "pendiente";
+          if (lesson.attendanceByDate && lesson.attendanceByDate[dayInfo.dateStr]) {
+            currentStatus = lesson.attendanceByDate[dayInfo.dateStr]!;
+          } else if (
+            // Compatibilidad legacy: solo si el mes de la lección coincide exactamente
+            lesson.month === selectedMonth &&
+            lesson.attendanceByWeek &&
+            lesson.attendanceByWeek[week.weekIndex]
+          ) {
+            currentStatus = lesson.attendanceByWeek[week.weekIndex]!;
+          }
 
           const monthName = MONTHS_NAME[dayInfo.monthIndex] || "Agosto";
           const fullDayName = WEEKDAY_FULL_NAMES[dayInfo.dayKey] || dayInfo.dayKey;
 
           result.push({
-            id: `${lesson.id}-w${week.weekIndex}`,
+            id: `${lesson.id}-${dayInfo.dateStr}`,
             lessonId: lesson.id,
             sessionIndex: 0, // Se numera al ordenar
             weekIndex: week.weekIndex,
@@ -226,7 +235,7 @@ export function StudentAttendanceKardex({
     item: StudentSessionItem,
     newStatus: "presente" | "ausente" | "tarde" | "justificada" | "pendiente"
   ) => {
-    setStudentSessionAttendance(student.name, item.lessonId, item.weekIndex, newStatus);
+    setStudentSessionAttendance(student.name, item.lessonId, item.weekIndex, newStatus, "", item.dateStr);
     const labels = {
       presente: "🟢 Presente",
       ausente: "🔴 Falta / Ausente",
@@ -251,6 +260,7 @@ export function StudentAttendanceKardex({
       lessonId: s.lessonId,
       weekIndex: s.weekIndex,
       status: "presente" as const,
+      dateStr: s.dateStr,
     }));
 
     bulkRegularizeStudentAttendance(student.name, updates);
