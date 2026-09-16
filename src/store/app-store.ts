@@ -33,6 +33,7 @@ import {
   type DeletedStudentLog,
   type DeletionReasonCategory,
   VIBRA_PRICING,
+  HISTORICAL_BASE_METADATA,
 } from "./admin-seeds";
 import { getCurrentWeekIndex } from "@/lib/calendar-utils";
 import { isMatchingStudentName, resolveStudentUUID, isSameStudentId } from "@/lib/student-matching";
@@ -135,6 +136,8 @@ type AppState = {
   // Dirección (admin)
   schedule: ScheduledLesson[];
   adminStudents: AdminStudent[];
+  historicalStudents: AdminStudent[];
+  historicalMetadata: typeof HISTORICAL_BASE_METADATA;
   rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number, teacher?: string, room?: string) => void;
   removeLessonFromSchedule: (id: string) => void;
   deleteLessonFromSchedule: (id: string) => void;
@@ -563,6 +566,8 @@ export const useAppStore = create<AppState>()(
       // ===== Dirección =====
       schedule: initialSchedule,
       adminStudents: adminStudents,
+      historicalStudents: adminStudents,
+      historicalMetadata: HISTORICAL_BASE_METADATA,
       deletedStudents: [],
       invoices: initialInvoices,
       rescheduleLesson: (id, day, time, scope = "only-this-week", targetWeekIndex, teacher, room) =>
@@ -873,8 +878,17 @@ export const useAppStore = create<AppState>()(
       setStudentStatus: (id, status) =>
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, { status });
+          const target = s.adminStudents.find((st) => isSameStudentId(st.id, id));
+          let updatedSchedule = s.schedule;
+          // 🛡️ REGLA DE ORO (ADR 0100): Al pasar a 'activo' desde pausa/baja, iniciar con horario en limpio (0 clases)
+          if (status === "activo" && target && target.status !== "activo") {
+            updatedSchedule = s.schedule.filter(
+              (l) => !isMatchingStudentName(l.student, target.name) && l.student.toLowerCase().trim() !== target.name.toLowerCase().trim()
+            );
+          }
           return {
             adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, status } : st)),
+            schedule: updatedSchedule,
             syncQueue: [...s.syncQueue, queueItem(`Estado actualizado · ${status}`)],
           };
         }),
@@ -1749,34 +1763,43 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v28",
+      name: "cadencia-app-v29",
       storage: createJSONStorage(() => localStorage),
-      version: 28,
+      version: 29,
       migrate: (persistedState: any, version: number) => {
         try {
           if (typeof window !== "undefined") {
-            for (let i = 1; i <= 27; i++) {
+            for (let i = 1; i <= 28; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }
         } catch {}
 
-        // 🛡️ REGLA DE ORO ADR 0099: Purgar attendanceStatus global residual en las lecciones recurrentes
+        // 🛡️ REGLA DE ORO ADR 0099 & ADR 0100: Purgar attendanceStatus global residual en las lecciones recurrentes
         const cleanSchedule = (persistedState?.schedule || initialSchedule).map((l: any) => ({
           ...l,
           attendanceStatus: undefined,
         }));
 
         // Migración limpia: Preservar estado activo/pausa/baja sin forzar sobreescrituras
-        const migratedStudents = (persistedState?.adminStudents || adminStudents).map((st: any) => ({
-          ...st,
-          status: st.status || "pausa",
-          recentAttendance: Array.isArray(st.recentAttendance) ? st.recentAttendance : [],
-        }));
+        const migratedStudents = (persistedState?.adminStudents || adminStudents).map((st: any) => {
+          const isCamila = isMatchingStudentName(st.name, "Camila Valentina Pastor Conco");
+          return {
+            ...st,
+            status: st.status || "pausa",
+            recentAttendance: Array.isArray(st.recentAttendance) ? st.recentAttendance : [],
+            planStartDate: isCamila ? "2026-09-10" : (st.planStartDate || "2026-08-01"),
+            planEndDate: isCamila ? "2026-10-09" : (st.planEndDate || "2026-08-31"),
+            planStartMonth: isCamila ? "2026-09" : (st.planStartMonth || "2026-08"),
+            planEndMonth: isCamila ? "2026-10" : (st.planEndMonth || "2026-08"),
+          };
+        });
 
         return {
           ...persistedState,
           adminStudents: migratedStudents,
+          historicalStudents: persistedState?.historicalStudents || adminStudents,
+          historicalMetadata: HISTORICAL_BASE_METADATA,
           invoices: persistedState?.invoices || initialInvoices,
           schedule: cleanSchedule,
           deletedStudents: persistedState?.deletedStudents || [],

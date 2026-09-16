@@ -4,6 +4,27 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.9] - 2026-09-16
+
+### Separación de Base Histórica vs Base Activa 2026, Ojito de Consulta, Horario en Blanco y Corrección de Fechas en Kardex (ADR 0100)
+- **Separación de Bases y Exportación Excel/CSV (`student-cleanup-panel.tsx` y `admin-seeds.ts`)**:
+  - Definición inmutable de la `Base Histórica Inicial Vibra Music` (83 alumnos al 15/08/2026) y aislamiento respecto a la `Base Activa 2026`.
+  - Botones de descarga directa en formato Excel/CSV (`Base_Historica_Vibra_Music_2026-08-15.csv` y `Base_Activa_Vibra_Music_2026.csv`) con codificación UTF-8 BOM para apertura nativa sin errores de caracteres.
+- **Ojito 👁️ ("Ver Ficha Antigua") para Apoyo a Secretaría con TDAH**:
+  - Incorporación del botón de inspección histórica en la pestaña "Activar 1 a 1" del modal de depuración. Permite revisar apoderado, parentesco, teléfono, instrumento, nivel, profesor anterior, modalidad, fecha de registro y notas sin alterar la base original.
+- **Activación con Horario Limpio (0 Clases Programadas)**:
+  - Al pasar a un alumno de "Pausa" a "Activo" (`setStudentStatus` y `handleConfirmActivate`), se purgan de forma garantizada las clases residuales de `schedule`. Cada alumno reactivado inicia en blanco para que secretaría asigne sus horarios manualmente desde `+ Horario`.
+- **Nueva Modalidad `Regular 1x/sem (8 clases / 45 min)`**:
+  - Incorporación de la modalidad regular de 1 sesión semanal (8 clases extendidas en 2 meses o periodos) con soporte completo en tipos, badges azul cian y selectores de formulario.
+- **Alineación de Fechas en Semillas y Filtro Estricto en Kardex**:
+  - Actualización de fechas oficiales de matrícula de Camila Pastor Conco al `10/09/2026` en `official-control-pagos-seeds.ts`.
+  - Filtro estricto por `effectivePlanStartDate` en `student-attendance-kardex.tsx` para omitir clases generadas antes de la matrícula, suprimiendo las fechas erróneas del 1, 3 y 8 de septiembre.
+- **Fidelidad Reactiva de Asistencias en Fichas y Erradicación del Mock Overwrite**:
+  - Eliminación de la sobreescritura mock de `["presente", "presente", "presente"]` en `EditStudentDialog.handleSubmit`, preservando las asistencias reales registradas en el Kardex.
+  - Actualización reactiva de las pastillas de asistencia en "Ver Ficha" directamente desde `attendanceByDate` con etiquetas de fecha (`10 Set`, `15 Set`), y remoción del botón de regularización en el drawer de solo lectura.
+- **Migración de Storage a `cadencia-app-v29`**:
+  - Purgado de versiones obsoletas de localStorage e inicialización íntegra de la base histórica de alumnos.
+
 ## [1.8.8] - 2026-09-16
 
 ### Sincronización Real del Kiosco Docente y Kardex de Asistencias Aislado por Fechas (ADR 0099)

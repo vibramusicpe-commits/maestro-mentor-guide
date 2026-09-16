@@ -98,7 +98,16 @@ export type ScheduledLesson = {
 
 export type StudentStatus = "activo" | "pausa" | "baja";
 export type PaymentStatus = "al-dia" | "pendiente" | "vencido";
-export type LessonModality = "Regular (8 clases / 45 min)" | "Intensivo (4 clases / 90 min)";
+export type LessonModality =
+  | "Regular (8 clases / 45 min)"
+  | "Regular 1x/sem (8 clases / 45 min)"
+  | "Intensivo (4 clases / 90 min)";
+
+export const HISTORICAL_BASE_METADATA = {
+  name: "Base Histórica Inicial Vibra Music",
+  createdAt: "2026-08-15",
+  totalRecords: 83,
+};
 
 export type EmergencyContact = {
   name: string;

@@ -101,6 +101,14 @@ function modalityBadge(modality: LessonModality) {
       </Badge>
     );
   }
+  if (modality.includes("1x/sem")) {
+    return (
+      <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[11px]">
+        <Clock className="mr-1 h-3 w-3" />
+        Regular 1x/sem (45m)
+      </Badge>
+    );
+  }
   return (
     <Badge variant="outline" className="border-border bg-muted/60 text-foreground text-[11px]">
       <Clock className="mr-1 h-3 w-3" />
@@ -141,6 +149,7 @@ export function StudentsTable() {
   const activeRole = useAppStore((s) => s.activeRole);
   const students = useAppStore((s) => s.adminStudents);
   const adminStudents = students;
+  const schedule = useAppStore((s) => s.schedule);
   const setStudentStatus = useAppStore((s) => s.setStudentStatus);
   const assignTeacher = useAppStore((s) => s.assignTeacher);
   const setStudentModality = useAppStore((s) => s.setStudentModality);
@@ -404,6 +413,40 @@ export function StudentsTable() {
   const inactiveCount = students.filter((s) => s.status !== "activo").length;
 
   const selectedStudent = students.find((s) => isSameStudentId(s.id, selectedStudentId)) ?? null;
+
+  // Píldoras de asistencia reactivas para el panel "Ver Ficha" (recolectadas desde schedule.attendanceByDate)
+  const selectedStudentAttendancePills = useMemo(() => {
+    if (!selectedStudent) return [];
+    const lessons = schedule.filter(
+      (l) => isMatchingStudentName(l.student, selectedStudent.name) && l.status !== "cancelada"
+    );
+    const datesMap = new Map<string, { status: "presente" | "ausente" | "tarde" | "justificada"; label: string }>();
+    lessons.forEach((l) => {
+      if (l.attendanceByDate) {
+        Object.entries(l.attendanceByDate).forEach(([dStr, st]) => {
+          if (st && st !== "pendiente") {
+            const parts = dStr.split("-");
+            if (parts.length === 3) {
+              const mNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Set", "Oct", "Nov", "Dic"];
+              const shortDate = `${parts[2]} ${mNames[parseInt(parts[1], 10) - 1] || parts[1]}`;
+              datesMap.set(dStr, { status: st, label: shortDate });
+            }
+          }
+        });
+      }
+    });
+
+    const sorted = Array.from(datesMap.entries()).sort(([a], [b]) => a.localeCompare(b));
+    if (sorted.length > 0) {
+      return sorted.map(([_, item]) => item);
+    }
+
+    // Si no hay marcas en fecha, mostrar recentAttendance real si existe
+    return (selectedStudent.recentAttendance || []).map((st) => ({
+      status: st,
+      label: "",
+    }));
+  }, [selectedStudent, schedule]);
 
   return (
     <div className="space-y-6">
@@ -1096,6 +1139,9 @@ export function StudentsTable() {
                           <SelectItem value="Regular (8 clases / 45 min)">
                             Regular: 8 clases/mes (2x semana, 45 min)
                           </SelectItem>
+                          <SelectItem value="Regular 1x/sem (8 clases / 45 min)">
+                            Regular: 8 clases (1x semana, 45 min · 2 meses)
+                          </SelectItem>
                           <SelectItem value="Intensivo (4 clases / 90 min)">
                             Intensivo: 4 clases/mes (1x semana, 90 min)
                           </SelectItem>
@@ -1687,43 +1733,29 @@ export function StudentsTable() {
                     </Button>
                   </div>
 
-                  {selectedStudent.recentAttendance && selectedStudent.recentAttendance.length > 0 ? (
+                  {selectedStudentAttendancePills && selectedStudentAttendancePills.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                      {selectedStudent.recentAttendance.map((att, idx) => (
+                      {selectedStudentAttendancePills.map((att, idx) => (
                         <Badge
                           key={idx}
                           className={`capitalize border-0 text-xs px-2.5 py-0.5 ${
-                            att === "presente"
+                            att.status === "presente"
                               ? "bg-success/20 text-success font-bold"
-                              : att === "tarde"
+                              : att.status === "tarde"
                                 ? "bg-warning/25 text-warning-foreground font-bold"
                                 : "bg-destructive/20 text-destructive font-bold"
                           }`}
                         >
-                          {att === "presente" ? "✓ Presente" : att === "tarde" ? "⏰ Tarde" : "✗ Ausente"}
+                          {att.status === "presente" ? "✓ Presente" : att.status === "tarde" ? "⏰ Tarde" : "✗ Ausente"}
+                          {att.label ? ` (${att.label})` : ""}
                         </Badge>
                       ))}
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground italic">
-                      Sin asistencias marcadas aún. Haz clic en "Ver Fechas y Horas" para consultar el cronograma o regularizar.
+                      Sin asistencias registradas aún. Abre "Ver Fechas y Horas" para consultar el cronograma o registrar asistencia en el Kardex.
                     </p>
                   )}
-
-                  {/* Acciones de marcado rápido y regularización de asistencia por Secretaría */}
-                  <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[11px] font-semibold text-muted-foreground">Regularización:</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setKardexStudent(selectedStudent)}
-                        className="h-7 text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 border-primary/30 rounded-lg gap-1"
-                      >
-                        ⚡ Regularizar por Fechas (1 Clic)
-                      </Button>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Reportes de Avance del Profesor */}
@@ -2889,6 +2921,9 @@ function NewStudentDialog() {
                 <SelectItem value="Regular (8 clases / 45 min)">
                   Regular: 8 clases/mes (2x semana, 45 min)
                 </SelectItem>
+                <SelectItem value="Regular 1x/sem (8 clases / 45 min)">
+                  Regular: 8 clases (1x semana, 45 min · 2 meses)
+                </SelectItem>
                 <SelectItem value="Intensivo (4 clases / 90 min)">
                   Intensivo: 4 clases/mes (1x semana, 90 min)
                 </SelectItem>
@@ -3229,12 +3264,7 @@ function EditStudentSheetInner({
       family: resolvedFamily,
       status,
       attendanceRate,
-      recentAttendance:
-        attendanceRate >= 85
-          ? ["presente", "presente", "presente"]
-          : attendanceRate >= 70
-          ? ["presente", "tarde", "presente"]
-          : ["presente", "ausente", "ausente"],
+      recentAttendance: student.recentAttendance || [],
       instrument,
       level,
       teacher,
@@ -3651,10 +3681,13 @@ function EditStudentSheetInner({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Regular (8 clases / 45 min)">
-                    Regular (8 clases)
+                    Regular (8 clases / 2x sem)
+                  </SelectItem>
+                  <SelectItem value="Regular 1x/sem (8 clases / 45 min)">
+                    Regular 1x/sem (8 clases / 45 min · 2 meses)
                   </SelectItem>
                   <SelectItem value="Intensivo (4 clases / 90 min)">
-                    Intensivo (4 clases)
+                    Intensivo (4 clases / 90 min)
                   </SelectItem>
                 </SelectContent>
               </Select>

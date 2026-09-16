@@ -8403,10 +8403,10 @@ export const officialControlPagosStudents: ControlPagosStudentWithAnnual[] = [
     "planPrice": 297,
     "matriculaType": "Promo Demo (S/ 30)",
     "packUtilesPaid": true,
-    "planStartDate": "2026-08-01",
-    "planEndDate": "2026-08-31",
-    "planStartMonth": "2026-08",
-    "planEndMonth": "2026-08",
+    "planStartDate": "2026-09-10",
+    "planEndDate": "2026-10-09",
+    "planStartMonth": "2026-09",
+    "planEndMonth": "2026-10",
     "rawMontoText": "297",
     "annualRecords": {
       "Enero": {
