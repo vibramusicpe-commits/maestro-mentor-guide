@@ -64,12 +64,17 @@ function TeacherStudents() {
     const result: Array<any> = [];
     const seenNames = new Set<string>();
 
-    for (const s of adminStudents) {
+    // 🛡️ REGLA DE ORO DE PROTECCIÓN (ADR 0098): El profesor SOLO ve alumnos con status === 'activo'.
+    // Los alumnos en 'pausa' o 'baja' quedan excluidos de la vista docente hasta ser activados por administración.
+    const activeAdminStudents = adminStudents.filter((s) => s.status === "activo");
+
+    for (const s of activeAdminStudents) {
       const normS = normalize(s.name);
       const words = normS.split(" ").filter((w) => w.length > 2);
 
       // Buscar si tiene clases en el horario activo (schedule)
       const matchingLessons = schedule.filter((l) => {
+        if (l.status === "cancelada") return false;
         const normL = normalize(l.student);
         const schedWords = normL.split(" ").filter((w) => w.length > 2);
         const common = words.filter((w) => schedWords.includes(w));
@@ -109,10 +114,23 @@ function TeacherStudents() {
       seenNames.add(normS);
     }
 
-    // Agregar alumnos adicionales presentes en el horario de clases
+    // Agregar alumnos adicionales presentes en el horario de clases solo si corresponden a un alumno activo
     for (const l of schedule) {
+      if (l.status === "cancelada") continue;
+
       const normL = normalize(l.student);
       const words = normL.split(" ").filter((w) => w.length > 2);
+
+      // Verificar si el alumno existe en adminStudents y no está activo
+      const studentProfile = adminStudents.find((st) => {
+        const normSt = normalize(st.name);
+        return normSt === normL || normSt.includes(normL) || normL.includes(normSt);
+      });
+
+      if (studentProfile && studentProfile.status !== "activo") {
+        continue;
+      }
+
       let exists = false;
       for (const seen of seenNames) {
         const seenWords = seen.split(" ").filter((w) => w.length > 2);

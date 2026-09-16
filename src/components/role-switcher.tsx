@@ -6,7 +6,9 @@ const roles: { to: "/admin" | "/teacher" | "/family"; label: string; role: Role;
   { to: "/admin", label: "Dueña (Super Admin)", role: "super_admin", email: "duena@vibramusic.pe", name: "Rocío (Dueña)", icon: ShieldCheck },
   { to: "/admin", label: "Sergio (Super Admin)", role: "super_admin", email: "sergio@vibramusic.pe", name: "Sergio (Dirección)", icon: ShieldCheck },
   { to: "/admin", label: "Nayeli (Secretaría)", role: "staff", email: "nayeli@vibramusic.pe", name: "Nayeli (Secretaría)", icon: UserCheck },
-  { to: "/teacher", label: "Profesor", role: "teacher", email: "jeremy@vibramusic.pe", name: "Prof. Jeremy", icon: Guitar },
+  { to: "/teacher", label: "Prof. Nathaly", role: "teacher", email: "nathaly@vibramusic.pe", name: "Nathaly (Canto y Piano Infantil)", icon: Guitar },
+  { to: "/teacher", label: "Prof. Jeremy", role: "teacher", email: "jeremy@vibramusic.pe", name: "Jeremy (Guitarra y Batería)", icon: Guitar },
+  { to: "/teacher", label: "Prof. Fernando", role: "teacher", email: "fernando@vibramusic.pe", name: "Fernando (Violín y Piano)", icon: Guitar },
   { to: "/family", label: "Familia", role: "family", email: "familia@vibramusic.pe", name: "Familia García", icon: Users },
 ];
 
@@ -24,7 +26,7 @@ export function RoleSwitcher({ className = "" }: { className?: string }) {
         const active =
           r.to === "/admin"
             ? isCurrentPath && (currentUser?.email ? currentUser.email === r.email : isSuperAdmin)
-            : isCurrentPath && activeRole === r.role;
+            : isCurrentPath && (currentUser?.email ? currentUser.email === r.email : activeRole === r.role);
 
         return (
           <Link

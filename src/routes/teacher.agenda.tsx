@@ -18,17 +18,28 @@ export const Route = createFileRoute("/teacher/agenda")({
 
 function TeacherAgendaPage() {
   const schedule = useAppStore((s) => s.schedule);
-  const allLessons = useAppStore((s) => s.lessons);
+  const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
 
   // Extraer nombre del profesor logueado (ej. "Jeremy (Guitarra y Batería)" -> "jeremy")
   const teacherRawName = currentUser?.name ?? "Jeremy";
   const teacherClean = teacherRawName.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
 
-  // Filtrar las clases reales de este profesor
+  // Filtrar las clases reales de este profesor (únicamente de alumnos ACTIVOS)
   const teacherLessons = useMemo(() => {
-    const matched = schedule.filter((sch) => {
+    return schedule.filter((sch) => {
       if (sch.status === "cancelada") return false;
+
+      // 🛡️ REGLA DE ORO (ADR 0095 & 0098): El profesor solo ve clases de alumnos con status === 'activo'
+      const normL = sch.student.toLowerCase().trim();
+      const studentProfile = adminStudents.find((st) => {
+        const normSt = st.name.toLowerCase().trim();
+        return normSt === normL || normSt.includes(normL) || normL.includes(normSt);
+      });
+      if (studentProfile && studentProfile.status !== "activo") {
+        return false;
+      }
+
       const schTeacher = sch.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
       return (
         schTeacher.includes(teacherClean) ||
@@ -36,12 +47,7 @@ function TeacherAgendaPage() {
         sch.teacher.toLowerCase().includes(teacherClean)
       );
     });
-
-    if (matched.length > 0) return matched;
-
-    // Fallback a schedule completo si es admin probando
-    return schedule;
-  }, [schedule, teacherClean]);
+  }, [schedule, adminStudents, teacherClean]);
 
   return (
     <div className="space-y-4">

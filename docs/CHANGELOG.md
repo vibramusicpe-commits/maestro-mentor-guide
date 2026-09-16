@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.7] - 2026-09-16
+
+### Acceso a Kiosco Docente y Blindaje de Alumnos Activos para Profesores (ADR 0098)
+- **Acceso Flexibilizado para Administradores y Staff (`src/routes/teacher.tsx`)**:
+  - Se eliminó la redirección forzosa `throw redirect({ to: "/admin" })` para roles `super_admin` y `staff`. Ahora los administradores y coordinadores pueden ingresar e auditar las vistas del portal docente sin ser expulsados a `/admin`.
+  - Se previno la sobreescritura accidental del rol de administración al navegar en la sección docente.
+- **Filtro Estricto de Alumnos Activos (`status === 'activo'`) en el Portal Docente**:
+  - `teacher.alumnos.tsx`: Se filtró la lista unificada de alumnos para mostrar únicamente a aquellos con estado activo. Los alumnos pausados quedan totalmente ocultos hasta ser reactivados 1 por 1 desde administración.
+  - `teacher.agenda.tsx`: Se cruzó el horario con `adminStudents` para ocultar clases pertenecientes a alumnos pausados o inactivos y se retiró el fallback que mostraba la base completa.
+  - `teacher.index.tsx`: El kiosco de asistencia diaria ahora filtra únicamente a los alumnos activos en los turnos del profesor.
+- **Soporte Completo de Accesos Directos en `RoleSwitcher`**:
+  - Se integraron opciones para `Prof. Nathaly` (`nathaly@vibramusic.pe`) y `Prof. Fernando` (`fernando@vibramusic.pe`) junto a `Prof. Jeremy`, permitiendo probar la experiencia de cualquier profesor en 1 clic.
+- **Ajuste Responsivo del Menú Inferior Docente**:
+  - Se actualizó la grilla de navegación del kiosco a `grid-cols-4` para encajar los 4 botones (Kiosco, Agenda, Alumnos, Nómina) limpiamente en una sola fila.
+
 ## [1.8.6] - 2026-09-15
 
 ### Corrección de Horarios, UI Scrollable con Sticky Footer & Kardex en Ficha (ADR 0097)

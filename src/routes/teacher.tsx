@@ -31,12 +31,7 @@ export const Route = createFileRoute("/teacher")({
       throw redirect({ to: "/family", replace: true });
     }
 
-    // Admin/Staff intentando entrar al kiosco → redirige a admin
-    if (activeRole === "super_admin" || activeRole === "staff") {
-      throw redirect({ to: "/admin", replace: true });
-    }
-
-    // activeRole === 'teacher' → pasa
+    // super_admin, staff y teacher pueden ver el portal docente sin ser expulsados
   },
   component: TeacherLayout,
 });
@@ -50,12 +45,15 @@ const nav = [
 
 function TeacherLayout() {
   const syncing = useAppStore((s) => s.syncQueue.length > 0);
+  const activeRole = useAppStore((s) => s.activeRole);
   const setActiveRole = useAppStore((s) => s.setActiveRole);
   const currentUser = useAppStore((s) => s.currentUser);
 
   useEffect(() => {
-    setActiveRole("teacher");
-  }, [setActiveRole]);
+    if (activeRole !== "super_admin" && activeRole !== "staff") {
+      setActiveRole("teacher");
+    }
+  }, [activeRole, setActiveRole]);
 
   return (
     <div className="min-h-screen bg-secondary/60 py-0 sm:py-8">
@@ -83,7 +81,7 @@ function TeacherLayout() {
           <Outlet />
         </main>
 
-        <nav className="sticky bottom-0 z-20 grid grid-cols-3 gap-1 rounded-b-3xl border-t border-border bg-background/95 px-2 py-2 backdrop-blur">
+        <nav className="sticky bottom-0 z-20 grid grid-cols-4 gap-1 rounded-b-3xl border-t border-border bg-background/95 px-2 py-2 backdrop-blur">
           {nav.map((item) => (
             <Link
               key={item.label}

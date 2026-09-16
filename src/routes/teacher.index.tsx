@@ -59,6 +59,7 @@ const statusStyles: Record<string, string> = {
 
 export function TeacherKiosk() {
   const schedule = useAppStore((s) => s.schedule);
+  const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
   const markLessonAttendance = useAppStore((s) => s.markLessonAttendance);
 
@@ -77,10 +78,21 @@ export function TeacherKiosk() {
   const teacherRawName = currentUser?.name ?? "Jeremy (Guitarra y Batería)";
   const teacherClean = teacherRawName.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
 
-  // Filtrar todas las clases de este profesor desde el horario central
+  // Filtrar todas las clases de este profesor desde el horario central (únicamente alumnos ACTIVOS)
   const teacherScheduleLessons = useMemo(() => {
     return schedule.filter((sch) => {
       if (sch.status === "cancelada") return false;
+
+      // 🛡️ REGLA DE ORO (ADR 0098): El kiosco solo muestra clases de alumnos con status === 'activo'
+      const normL = sch.student.toLowerCase().trim();
+      const studentProfile = adminStudents.find((st) => {
+        const normSt = st.name.toLowerCase().trim();
+        return normSt === normL || normSt.includes(normL) || normL.includes(normSt);
+      });
+      if (studentProfile && studentProfile.status !== "activo") {
+        return false;
+      }
+
       const schTeacher = sch.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
       return (
         schTeacher.includes(teacherClean) ||
@@ -88,7 +100,7 @@ export function TeacherKiosk() {
         sch.teacher.toLowerCase().includes(teacherClean)
       );
     });
-  }, [schedule, teacherClean]);
+  }, [schedule, adminStudents, teacherClean]);
 
   // Contadores por día de la semana para los tabs
   const countsByDay = useMemo(() => {
