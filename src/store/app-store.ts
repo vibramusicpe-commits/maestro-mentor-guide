@@ -139,6 +139,7 @@ type AppState = {
   removeLessonFromSchedule: (id: string) => void;
   deleteLessonFromSchedule: (id: string) => void;
   addLessonToSchedule: (lesson: Omit<ScheduledLesson, "id">) => void;
+  setStudentSchedule: (studentName: string, lessons: Omit<ScheduledLesson, "id">[]) => void;
   importScheduleFromCSV: (newLessons: ScheduledLesson[]) => void;
   clearSchedule: () => void;
   importStudentsFromCSV: (newStudents: AdminStudent[]) => void;
@@ -360,6 +361,8 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       if (updates.packUtilesPaid !== undefined) ecData.packUtilesPaid = updates.packUtilesPaid;
       if (updates.planStartDate) ecData.planStartDate = updates.planStartDate;
       if (updates.planEndDate) ecData.planEndDate = updates.planEndDate;
+      if (updates.attendanceRate !== undefined) ecData.attendanceRate = updates.attendanceRate;
+      if (updates.recentAttendance !== undefined) ecData.recentAttendance = updates.recentAttendance;
 
       payload.emergency_contact = ecData;
 
@@ -686,6 +689,23 @@ export const useAppStore = create<AppState>()(
           return {
             schedule: [...s.schedule, newLesson],
             syncQueue: [...s.syncQueue, queueItem(`Clase programada: ${lesson.student} (${lesson.day} ${lesson.time})`)],
+          };
+        }),
+      setStudentSchedule: (studentName, lessons) =>
+        set((s) => {
+          const filtered = s.schedule.filter(
+            (l) => !isMatchingStudentName(l.student, studentName) && l.student.toLowerCase() !== studentName.toLowerCase()
+          );
+          const newLessons: ScheduledLesson[] = lessons.map((lesson) => ({
+            ...lesson,
+            id: `sch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          }));
+          return {
+            schedule: [...filtered, ...newLessons],
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(`Horario actualizado para ${studentName}: ${newLessons.length} clases programadas`),
+            ],
           };
         }),
       importScheduleFromCSV: (newLessons) =>
@@ -1664,13 +1684,13 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v26",
+      name: "cadencia-app-v27",
       storage: createJSONStorage(() => localStorage),
-      version: 26,
+      version: 27,
       migrate: (persistedState: any, version: number) => {
         try {
           if (typeof window !== "undefined") {
-            for (let i = 1; i <= 25; i++) {
+            for (let i = 1; i <= 26; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }

@@ -4,6 +4,26 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.8.6] - 2026-09-15
+
+### Corrección de Horarios, UI Scrollable con Sticky Footer & Kardex en Ficha (ADR 0097)
+- **Purgado de Lección Errónea Viernes 19:00 (`sch-113`)**:
+  - Se eliminó la entrada `sch-113` residual del Excel de Nayeli en `official-seeds.ts`.
+  - Camila Pastor Conco queda agendada únicamente en su modalidad Regular oficial (Martes y Jueves 17:30 Sala B con Prof. Fernando).
+- **Acción Atómica de Reemplazo de Horario (`setStudentSchedule`)**:
+  - Incorporación en `src/store/app-store.ts` para borrar cualquier clase previa del alumno y registrar atómicamente el nuevo par de sesiones sin dejar lecciones huérfanas.
+- **Pre-poblado Inteligente y Cero Falsos Conflictos en `ScheduleStudentForm`**:
+  - Al abrir el diálogo `+ Horario`, el formulario pre-carga automáticamente las sesiones existentes del alumno en lugar de resetearse a valores por defecto.
+  - `getSlotDetails` ahora ignora al alumno en edición y descarta clases de alumnos pausados/inactivos, eliminando los falsos avisos de "cruce de sala" y bloqueos de botón.
+- **Diseño Responsivo con Scroll y Sticky Footer en Modal de Horario**:
+  - `DialogContent` optimizado a `max-h-[92vh] flex flex-col overflow-hidden`.
+  - Encabezado fijo, área de inputs con scroll independiente y pie de botones adhesivo (`shrink-0`) siempre visible en pantalla.
+- **Control de Asistencia y Acceso a Kardex en "Editar Ficha"**:
+  - Nuevo bloque interactivo en `EditStudentSheetInner` con input numérico de asistencia, selector de pills rápidos (100%, 90%, 85%, 80%, 75%), regularización en 1 clic y botón directo para abrir el Kardex detallado de fechas y horas.
+  - Persistencia bidireccional de `attendanceRate` y `recentAttendance` en PostgreSQL vía `emergency_contact` JSONB.
+- **Migración de Storage a `cadencia-app-v27`**:
+  - Incremento de versión de Zustand persist para recargar el horario limpio sin la clase residual del viernes.
+
 ## [1.8.5] - 2026-09-15
 
 ### Reactividad en Fichas de Alumnos & Persistencia Postgres (ADR 0096)

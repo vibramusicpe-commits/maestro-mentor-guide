@@ -85,13 +85,17 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     teacher: (db.assigned_teacher_id && teacherNames[db.assigned_teacher_id]) || ec.teacher || "Fernando",
     modality: db.modality || "Regular (8 clases / 45 min)",
     status: db.status || "activo",
-    attendanceRate: Number(db.attendance_rate) || 100,
+    attendanceRate: typeof ec.attendanceRate === "number"
+      ? ec.attendanceRate
+      : (db.attendance_rate !== undefined && db.attendance_rate !== null ? Number(db.attendance_rate) : 100),
     payment: "al-dia",
     risk: 20,
     joinedAt: "Ago 2026",
     makeupCredits: db.makeup_credits || 0,
     balance: 0,
-    recentAttendance: ["presente", "presente", "presente"],
+    recentAttendance: Array.isArray(ec.recentAttendance)
+      ? ec.recentAttendance
+      : ["presente", "presente", "presente"],
     teacherNote: db.notes || "",
     email: ecEmail,
     phone: ecPhone,

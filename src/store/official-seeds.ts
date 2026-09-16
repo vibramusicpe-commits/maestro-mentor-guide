@@ -3361,17 +3361,6 @@ export const officialSchedule: ScheduledLesson[] = [
     "status": "programada"
   },
   {
-    "id": "sch-113",
-    "day": "Vie",
-    "time": "19:00",
-    "room": "Sala B",
-    "student": "Camila Pastor Conco",
-    "teacher": "Fernando",
-    "instrument": "Violín",
-    "category": "JUVENIL",
-    "status": "programada"
-  },
-  {
     "id": "sch-114",
     "day": "Vie",
     "time": "19:00",

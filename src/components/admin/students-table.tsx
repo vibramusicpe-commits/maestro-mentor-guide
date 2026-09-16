@@ -77,6 +77,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { money } from "@/lib/format";
+import { isSameStudentId, isMatchingStudentName } from "@/lib/student-matching";
 
 const ALL = "todos";
 
@@ -208,7 +209,7 @@ export function StudentsTable() {
   const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
   const liveKardexStudent = useMemo(() => {
     if (!kardexStudent) return null;
-    return students.find((st) => st.id === kardexStudent.id) || kardexStudent;
+    return students.find((st) => isSameStudentId(st.id, kardexStudent.id)) || kardexStudent;
   }, [students, kardexStudent]);
   const [isReentryFormOpen, setIsReentryFormOpen] = useState(false);
   const [reentryDate, setReentryDate] = useState("2026-08-18");
@@ -402,7 +403,7 @@ export function StudentsTable() {
   const activeCount = students.filter((s) => s.status === "activo").length;
   const inactiveCount = students.filter((s) => s.status !== "activo").length;
 
-  const selectedStudent = students.find((s) => s.id === selectedStudentId) ?? null;
+  const selectedStudent = students.find((s) => isSameStudentId(s.id, selectedStudentId)) ?? null;
 
   return (
     <div className="space-y-6">
@@ -2173,8 +2174,8 @@ export function StudentsTable() {
 
       {/* Modal para Organizar / Programar Horario del Alumno */}
       <Dialog open={!!scheduleModalStudent} onOpenChange={(o) => !o && setScheduleModalStudent(null)}>
-        <DialogContent className="sm:max-w-lg p-6 rounded-3xl border-primary/30 bg-card">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-xl max-h-[92vh] flex flex-col p-0 rounded-3xl border-primary/30 bg-card overflow-hidden shadow-2xl">
+          <DialogHeader className="p-6 pb-3 shrink-0 border-b border-border/50">
             <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
               <Calendar className="h-5 w-5 text-primary" />
               Organizar Horario según Plan Oficial
@@ -2410,6 +2411,7 @@ export function StudentsTable() {
         availableTeachers={availableTeachers}
         open={!!editingStudent}
         onOpenChange={(o) => !o && setEditingStudent(null)}
+        onOpenKardex={(st) => setKardexStudent(st)}
       />
     </div>
   );
@@ -3112,11 +3114,13 @@ function EditStudentSheet({
   availableTeachers,
   open,
   onOpenChange,
+  onOpenKardex,
 }: {
   student: AdminStudent | null;
   availableTeachers: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenKardex?: (st: AdminStudent) => void;
 }) {
   const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
 
@@ -3129,6 +3133,7 @@ function EditStudentSheet({
       availableTeachers={availableTeachers}
       open={open}
       onOpenChange={onOpenChange}
+      onOpenKardex={onOpenKardex}
       updateStudentDetails={updateStudentDetails}
     />
   );
@@ -3139,16 +3144,19 @@ function EditStudentSheetInner({
   availableTeachers,
   open,
   onOpenChange,
+  onOpenKardex,
   updateStudentDetails,
 }: {
   student: AdminStudent;
   availableTeachers: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenKardex?: (st: AdminStudent) => void;
   updateStudentDetails: (id: string, updates: Partial<AdminStudent>) => void;
 }) {
   const [name, setName] = useState(student.name);
   const [status, setStatus] = useState<StudentStatus>(student.status || "activo");
+  const [attendanceRate, setAttendanceRate] = useState<number>(student.attendanceRate ?? 100);
   const [family, setFamily] = useState(student.family.replace(/^Familia\s+/i, ""));
   const [isAdult, setIsAdult] = useState(
     student.ageCategory === "ADULTO" || (student.age || 0) >= 18 || student.family.toLowerCase().includes("titular")
@@ -3220,6 +3228,13 @@ function EditStudentSheetInner({
       name: name.trim(),
       family: resolvedFamily,
       status,
+      attendanceRate,
+      recentAttendance:
+        attendanceRate >= 85
+          ? ["presente", "presente", "presente"]
+          : attendanceRate >= 70
+          ? ["presente", "tarde", "presente"]
+          : ["presente", "ausente", "ausente"],
       instrument,
       level,
       teacher,
@@ -3310,6 +3325,93 @@ function EditStudentSheetInner({
                 <SelectItem value="baja">🔴 Baja (Retirado)</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Bloque de Asistencia & Kardex de Secretaría */}
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                <CalendarCheck className="h-4 w-4 text-primary" />
+                Control de Asistencia & Kardex
+              </span>
+              <Badge
+                className={`text-[10px] font-black border-0 ${
+                  attendanceRate >= 85
+                    ? "bg-success/20 text-success"
+                    : attendanceRate >= 70
+                    ? "bg-warning/25 text-warning-foreground"
+                    : "bg-destructive/20 text-destructive"
+                }`}
+              >
+                {attendanceRate}% Asistencia
+              </Badge>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <div className="w-24 shrink-0">
+                  <label className="block text-[10px] text-muted-foreground font-semibold mb-0.5">% Asistencia</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={attendanceRate}
+                    onChange={(e) => setAttendanceRate(Math.min(100, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+                    className="h-8 text-xs font-bold bg-background"
+                  />
+                </div>
+                <div className="flex-1 space-y-0.5">
+                  <span className="block text-[10px] text-muted-foreground font-semibold">Pills Rápidos:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {[100, 90, 85, 80, 75].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setAttendanceRate(pct)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                          attendanceRate === pct
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-primary/20 flex flex-wrap items-center justify-between gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setAttendanceRate(100);
+                  toast.success(`Asistencia de ${student.name} configurada al 100%`);
+                }}
+                className="h-7 text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 gap-1"
+              >
+                <Sparkles className="h-3 w-3" />
+                Regularizar 100%
+              </Button>
+              {onOpenKardex && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onOpenKardex(student);
+                  }}
+                  className="h-7 text-xs font-bold gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  Ver Fechas en Kardex
+                </Button>
+              )}
+            </div>
           </div>
 
           <div>
@@ -3787,17 +3889,33 @@ function ScheduleStudentForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
+  const setStudentSchedule = useAppStore((s) => s.setStudentSchedule);
   const assignTeacher = useAppStore((s) => s.assignTeacher);
+  const schedule = useAppStore((s) => s.schedule);
+  const adminStudents = useAppStore((s) => s.adminStudents);
 
-  // Estados de profesor, instrumento y categoría
+  // Clases existentes en el horario para pre-cargar su configuración real
+  const existingLessons = useMemo(() => {
+    return schedule.filter(
+      (l) => (isMatchingStudentName(l.student, student.name) || l.student.toLowerCase() === student.name.toLowerCase()) && l.status !== "cancelada"
+    );
+  }, [schedule, student.name]);
+
+  const existingL1 = existingLessons[0];
+  const existingL2 = existingLessons.length > 1 ? existingLessons[1] : null;
+
+  // Estados de profesor, instrumento y categoría pre-poblados
   const [teacher, setTeacher] = useState(
-    student.teacher && student.teacher !== "Prof. por Asignar"
+    existingL1?.teacher ||
+    (student.teacher && student.teacher !== "Prof. por Asignar"
       ? student.teacher
-      : availableTeachers.find((t) => t === "Jeremy") ?? availableTeachers[0] ?? "Prof. por Asignar"
+      : availableTeachers.find((t) => t === "Jeremy") ?? availableTeachers[0] ?? "Prof. por Asignar")
   );
-  const [instrument, setInstrument] = useState(student.instrument || musicalInstruments[0] || "Piano");
+  const [instrument, setInstrument] = useState(
+    existingL1?.instrument || student.instrument || musicalInstruments[0] || "Piano"
+  );
   const [category, setCategory] = useState<AgeCategory>(
+    (existingL1?.category as AgeCategory) ||
     (student.category as AgeCategory) ||
       (student.age >= 18 ? "ADULTO" : student.age >= 13 ? "JUVENIL" : student.age >= 7 ? "JUNIOR" : "INFANTIL")
   );
@@ -3807,17 +3925,27 @@ function ScheduleStudentForm({
   const isIntensive = modStr.includes("inten") || modStr.includes("4");
 
   // Modo de asignación: "pareadas" (por defecto oficial) o "personalizado"
-  const [scheduleMode, setScheduleMode] = useState<"pareadas" | "personalizado">("pareadas");
+  const isPairedMatch = existingL1 && existingL2 && (
+    (existingL1.day === "Lun" && existingL2.day === "Mié") ||
+    (existingL1.day === "Mar" && existingL2.day === "Jue")
+  );
+  const [scheduleMode, setScheduleMode] = useState<"pareadas" | "personalizado">(
+    existingLessons.length > 1 && !isPairedMatch ? "personalizado" : "pareadas"
+  );
 
-  // Sesión 1 (obligatoria para todos los planes; si es intensivo sugiere Viernes o Sábado)
-  const [day1, setDay1] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">(isIntensive ? "Vie" : "Lun");
-  const [time1, setTime1] = useState("16:00");
-  const [room1, setRoom1] = useState("Sala A");
+  // Sesión 1 pre-poblada con horario existente
+  const [day1, setDay1] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">(
+    (existingL1?.day as any) || (isIntensive ? "Vie" : "Lun")
+  );
+  const [time1, setTime1] = useState(existingL1?.time || "16:00");
+  const [room1, setRoom1] = useState(existingL1?.room || "Sala A");
 
-  // Sesión 2 (para modalidad Regular: 2 veces por semana)
-  const [day2, setDay2] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">("Mié");
-  const [time2, setTime2] = useState("16:00");
-  const [room2, setRoom2] = useState("Sala A");
+  // Sesión 2 pre-poblada con horario existente
+  const [day2, setDay2] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">(
+    (existingL2?.day as any) || (day1 === "Mar" ? "Jue" : "Mié")
+  );
+  const [time2, setTime2] = useState(existingL2?.time || time1 || "16:00");
+  const [room2, setRoom2] = useState(existingL2?.room || room1 || "Sala A");
 
   // Helpers de sincronización para Modo Días Pareados Oficiales
   const handleDay1Change = (newDay: "Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb") => {
@@ -3864,15 +3992,23 @@ function ScheduleStudentForm({
     "14:15", "15:00", "15:45", "16:30", "17:15", "18:00",
   ];
 
-  const schedule = useAppStore((s) => s.schedule);
   const finalTeacher = teacher || student.teacher || availableTeachers[0] || "Prof. por Asignar";
 
   // Helper para evaluar ocupación, aforo y posibles cruces de sala de cualquier franja
   const getSlotDetails = useCallback(
     (d: string, t: string, r: string) => {
-      const matching = schedule.filter(
-        (l) => l.day === d && l.time === t && l.status !== "cancelada"
-      );
+      // Ignorar al propio alumno y a alumnos inactivos/pausados para prevenir falsos cruces
+      const matching = schedule.filter((l) => {
+        if (l.day !== d || l.time !== t || l.status === "cancelada") return false;
+        if (isMatchingStudentName(l.student, student.name) || l.student.toLowerCase() === student.name.toLowerCase()) {
+          return false;
+        }
+        const stProfile = adminStudents.find(
+          (st) => isMatchingStudentName(st.name, l.student) || st.name.toLowerCase() === l.student.toLowerCase()
+        );
+        return stProfile ? stProfile.status === "activo" : false;
+      });
+
       const teacherLessons = matching.filter((l) =>
         l.teacher.toLowerCase().includes(finalTeacher.toLowerCase())
       );
@@ -3896,7 +4032,7 @@ function ScheduleStudentForm({
         reason: conflictReason,
       };
     },
-    [schedule, finalTeacher]
+    [schedule, finalTeacher, student.name, adminStudents]
   );
 
   // Diagnóstico Reactivo de Conflictos en Tiempo Real (1 Día vs 2 Días)
@@ -3987,24 +4123,25 @@ function ScheduleStudentForm({
     const lessonYear = parseInt(yStr || "2026", 10);
     const lessonMonth = parseInt(mStr || "8", 10) - 1; // 0-indexed (7 para Agosto)
 
-    // 1. Agendar Primera Sesión Semanal (1ra Clase)
-    addLessonToSchedule({
-      student: student.name,
-      teacher: finalTeacher,
-      instrument: instrument,
-      day: day1,
-      time: time1,
-      room: room1,
-      category: category,
-      sessionNumber: 1,
-      status: "programada",
-      year: lessonYear,
-      month: lessonMonth,
-    });
+    // Agendar clases semanales reemplazando atómicamente cualquier horario previo
+    const lessonsToSet: Omit<ScheduledLesson, "id">[] = [
+      {
+        student: student.name,
+        teacher: finalTeacher,
+        instrument: instrument,
+        day: day1,
+        time: time1,
+        room: room1,
+        category: category,
+        sessionNumber: 1,
+        status: "programada",
+        year: lessonYear,
+        month: lessonMonth,
+      },
+    ];
 
-    // 2. Si es plan Regular (2x semana), agendar Segunda Sesión Semanal (2da Clase)
     if (isRegular) {
-      addLessonToSchedule({
+      lessonsToSet.push({
         student: student.name,
         teacher: finalTeacher,
         instrument: instrument,
@@ -4019,8 +4156,10 @@ function ScheduleStudentForm({
       });
     }
 
-    // Actualizar profesor en la ficha si no tenía
-    if (!student.teacher || student.teacher === "Prof. por Asignar") {
+    setStudentSchedule(student.name, lessonsToSet);
+
+    // Actualizar profesor en la ficha si no tenía o cambió
+    if (!student.teacher || student.teacher === "Prof. por Asignar" || student.teacher !== finalTeacher) {
       assignTeacher(student.id, finalTeacher);
     }
 
@@ -4034,7 +4173,8 @@ function ScheduleStudentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 py-2 text-xs">
+    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden text-xs">
+      <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
       {/* Resumen del Plan del Alumno */}
       <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 space-y-2">
         <div className="flex items-center justify-between">
@@ -4457,15 +4597,16 @@ function ScheduleStudentForm({
           )}
         </div>
       )}
+      </div>
 
-      <div className="flex justify-end gap-2 pt-3 border-t border-border">
+      <div className="p-4 px-6 border-t border-border bg-card/95 backdrop-blur-xs flex justify-end gap-2 shrink-0">
         <Button
           type="button"
           data-tour="schedule-close-btn"
           variant="outline"
           size="sm"
           onClick={onClose}
-          className="text-xs"
+          className="text-xs font-semibold"
         >
           Cancelar
         </Button>
