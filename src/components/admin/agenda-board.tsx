@@ -402,6 +402,23 @@ export function AgendaBoard() {
             return false;
           }
 
+          // 🛡️ REGLA CRÍTICA DE VIGENCIA DE MATRÍCULA (ADR 0100):
+          // Verificar si el día lectivo de la clase en esta semana es anterior al inicio oficial de clases del alumno.
+          // Ej: Camila Pastor inició el 10/09/2026; clases en Semana 1 (1 y 3 Set) y Semana 2 (8 Set) quedan excluidas.
+          const lessonDayInfo = currentWeekObj.days.find((d) => d.dayKey === l.day);
+          if (lessonDayInfo) {
+            const planStartDate =
+              studentProfile?.planStartDate ||
+              (studentProfile?.planStartMonth ? `${studentProfile.planStartMonth}-01` : null);
+            if (planStartDate && lessonDayInfo.dateStr < planStartDate) {
+              return false;
+            }
+            const planEndDate = studentProfile?.planEndDate;
+            if (planEndDate && lessonDayInfo.dateStr > planEndDate) {
+              return false;
+            }
+          }
+
           // 3. Filtro por Profesor
           if (teacher !== ALL) {
             const teacherMatch = l.teacher.toLowerCase().includes(teacher.toLowerCase());
@@ -437,7 +454,7 @@ export function AgendaBoard() {
           return true;
         },
       ),
-    [schedule, adminStudents, teacher, room, instrument, category, dayGroup, safeWeekIndex, selectedYear, selectedMonth, selectedYearMonthStr],
+    [schedule, adminStudents, teacher, room, instrument, category, dayGroup, safeWeekIndex, selectedYear, selectedMonth, selectedYearMonthStr, currentWeekObj],
   );
 
   // Clases del día seleccionado para la vista diaria (swipe)

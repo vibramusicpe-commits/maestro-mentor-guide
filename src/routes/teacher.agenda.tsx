@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { MinimalAgendaCalendar } from "@/components/agenda/minimal-agenda-calendar";
 import { useAppStore } from "@/store/app-store";
+import { isMatchingStudentName } from "@/lib/student-matching";
 
 export const Route = createFileRoute("/teacher/agenda")({
   head: () => ({
@@ -30,12 +31,10 @@ function TeacherAgendaPage() {
     return schedule.filter((sch) => {
       if (sch.status === "cancelada") return false;
 
-      // 🛡️ REGLA DE ORO (ADR 0095 & 0098): El profesor solo ve clases de alumnos con status === 'activo'
-      const normL = sch.student.toLowerCase().trim();
-      const studentProfile = adminStudents.find((st) => {
-        const normSt = st.name.toLowerCase().trim();
-        return normSt === normL || normSt.includes(normL) || normL.includes(normSt);
-      });
+      // 🛡️ REGLA DE ORO (ADR 0095, 0098 & 0100): El profesor solo ve clases de alumnos con status === 'activo'
+      const studentProfile = adminStudents.find(
+        (st) => isMatchingStudentName(st.name, sch.student) || st.name.toLowerCase().trim() === sch.student.toLowerCase().trim()
+      );
       if (!studentProfile || studentProfile.status !== "activo") {
         return false;
       }
@@ -56,6 +55,8 @@ function TeacherAgendaPage() {
         title={`Mi Horario Semanal (${teacherRawName.split(" ")[0]})`}
         subtitle="Clases asignadas y salas de la sede"
         userType="teacher"
+        defaultYear={2026}
+        defaultMonth={8}
       />
     </div>
   );

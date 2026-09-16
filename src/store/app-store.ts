@@ -1763,37 +1763,53 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v29",
+      name: "cadencia-app-v30",
       storage: createJSONStorage(() => localStorage),
-      version: 29,
+      version: 30,
       migrate: (persistedState: any, version: number) => {
         try {
           if (typeof window !== "undefined") {
-            for (let i = 1; i <= 28; i++) {
+            for (let i = 1; i <= 29; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }
         } catch {}
 
-        // 🛡️ REGLA DE ORO ADR 0099 & ADR 0100: Purgar attendanceStatus global residual en las lecciones recurrentes
-        const cleanSchedule = (persistedState?.schedule || initialSchedule).map((l: any) => ({
-          ...l,
-          attendanceStatus: undefined,
-        }));
-
-        // Migración limpia: Preservar estado activo/pausa/baja sin forzar sobreescrituras
+        // Migración limpia alineada estrictamente con la base de datos PostgreSQL:
+        // Solo alumnos formalmente activos confirmados (Camila Pastor) quedan en 'activo'.
+        // Todos los demás alumnos históricos inician en 'pausa' (o 'baja').
         const migratedStudents = (persistedState?.adminStudents || adminStudents).map((st: any) => {
           const isCamila = isMatchingStudentName(st.name, "Camila Valentina Pastor Conco");
           return {
             ...st,
-            status: st.status || "pausa",
-            recentAttendance: Array.isArray(st.recentAttendance) ? st.recentAttendance : [],
+            status: isCamila ? "activo" : (st.status === "baja" ? "baja" : "pausa"),
+            recentAttendance: isCamila ? [] : (Array.isArray(st.recentAttendance) ? st.recentAttendance : []),
+            attendanceRate: isCamila ? 0 : (typeof st.attendanceRate === "number" ? st.attendanceRate : 0),
+            teacher: isCamila ? "Fernando" : (st.teacher || "Prof. por Asignar"),
             planStartDate: isCamila ? "2026-09-10" : (st.planStartDate || "2026-08-01"),
             planEndDate: isCamila ? "2026-10-09" : (st.planEndDate || "2026-08-31"),
             planStartMonth: isCamila ? "2026-09" : (st.planStartMonth || "2026-08"),
             planEndMonth: isCamila ? "2026-10" : (st.planEndMonth || "2026-08"),
           };
         });
+
+        // 🛡️ REGLA DE ORO ADR 0098, 0099 & 0100:
+        // En el horario de clases (schedule), solo deben figurar clases de alumnos ACTIVOS.
+        // Alumnos en pausa no deben tener clases en el horario, garantizando que profesores
+        // sin alumnos activos (Jeremy, Nathaly) vean su horario 100% limpio.
+        const activeStudentNames = migratedStudents
+          .filter((st: any) => st.status === "activo")
+          .map((st: any) => st.name);
+
+        const cleanSchedule = (persistedState?.schedule || initialSchedule)
+          .filter((l: any) => {
+            if (l.status === "cancelada") return false;
+            return activeStudentNames.some((actName: string) => isMatchingStudentName(actName, l.student));
+          })
+          .map((l: any) => ({
+            ...l,
+            attendanceStatus: undefined,
+          }));
 
         return {
           ...persistedState,

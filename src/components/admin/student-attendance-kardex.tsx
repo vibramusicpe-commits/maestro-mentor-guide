@@ -18,6 +18,7 @@ import {
   CalendarCheck,
   Send,
   CalendarDays,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -79,6 +80,7 @@ interface StudentAttendanceKardexProps {
   defaultMonth?: number; // 0 a 11 (7 para Agosto)
   defaultYear?: number;
   isDialog?: boolean;
+  isEditable?: boolean; // 🔒 Si es false, los botones de marcar quedan bloqueados en modo solo lectura
 }
 
 export function StudentAttendanceKardex({
@@ -88,6 +90,7 @@ export function StudentAttendanceKardex({
   defaultMonth,
   defaultYear,
   isDialog = true,
+  isEditable = false,
 }: StudentAttendanceKardexProps) {
   const schedule = useAppStore((s) => s.schedule);
   const adminStudents = useAppStore((s) => s.adminStudents);
@@ -471,7 +474,7 @@ export function StudentAttendanceKardex({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {stats.pendientes > 0 && (
+          {isEditable && stats.pendientes > 0 && (
             <Button
               size="sm"
               onClick={handleRegularizeAllPending}
@@ -480,6 +483,13 @@ export function StudentAttendanceKardex({
               <Sparkles className="h-3.5 w-3.5" />
               ⚡ Regularizar todo como Presente ({stats.pendientes})
             </Button>
+          )}
+
+          {!isEditable && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-bold shadow-xs">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              <span>Modo Consulta (Botones bloqueados · Para editar asistencias, ingresa a "Editar Ficha")</span>
+            </div>
           )}
 
           <Button
@@ -590,73 +600,79 @@ export function StudentAttendanceKardex({
                       {item.status === "pendiente" && "⚪ Sin marcar"}
                     </Badge>
 
-                    {/* Botones de Actualización Inmediata en 1 Clic */}
-                    <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
-                      <Button
-                        size="sm"
-                        variant={item.status === "presente" ? "default" : "ghost"}
-                        onClick={() => handleSetStatus(item, "presente")}
-                        className={`h-7 px-2 text-[11px] font-bold rounded-lg ${
-                          item.status === "presente"
-                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                            : "text-emerald-600 hover:bg-emerald-500/15"
-                        }`}
-                        title="Marcar como Presente"
-                      >
-                        ✓ Pres
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={item.status === "ausente" ? "default" : "ghost"}
-                        onClick={() => handleSetStatus(item, "ausente")}
-                        className={`h-7 px-2 text-[11px] font-bold rounded-lg ${
-                          item.status === "ausente"
-                            ? "bg-red-600 hover:bg-red-700 text-white"
-                            : "text-red-600 hover:bg-red-500/15"
-                        }`}
-                        title="Marcar como Falta / Ausente"
-                      >
-                        ✗ Falta
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={item.status === "tarde" ? "default" : "ghost"}
-                        onClick={() => handleSetStatus(item, "tarde")}
-                        className={`h-7 px-2 text-[11px] font-bold rounded-lg ${
-                          item.status === "tarde"
-                            ? "bg-amber-500 hover:bg-amber-600 text-white"
-                            : "text-amber-600 hover:bg-amber-500/15"
-                        }`}
-                        title="Marcar como Tardanza"
-                      >
-                        ⏰ Tar
-                      </Button>
-                      <Button
-                        size="sm"
-                        data-tour="kardex-btn-justificada"
-                        variant={item.status === "justificada" ? "default" : "ghost"}
-                        onClick={() => handleSetStatus(item, "justificada")}
-                        className={`h-7 px-2 text-[11px] font-bold rounded-lg ${
-                          item.status === "justificada"
-                            ? "bg-blue-600 hover:bg-blue-700 text-white"
-                            : "text-blue-600 hover:bg-blue-500/15"
-                        }`}
-                        title="Marcar como Justificada (Genera +1 Crédito)"
-                      >
-                        🔵 Just
-                      </Button>
-                      {item.status !== "pendiente" && (
+                    {/* Botones de Actualización Inmediata en 1 Clic (Solo en modo edición) */}
+                    {isEditable ? (
+                      <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
                         <Button
                           size="sm"
-                          variant="ghost"
-                          onClick={() => handleSetStatus(item, "pendiente")}
-                          className="h-7 px-1.5 text-[11px] text-muted-foreground hover:text-foreground rounded-lg"
-                          title="Restablecer a Pendiente / Sin marcar"
+                          variant={item.status === "presente" ? "default" : "ghost"}
+                          onClick={() => handleSetStatus(item, "presente")}
+                          className={`h-7 px-2 text-[11px] font-bold rounded-lg ${
+                            item.status === "presente"
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              : "text-emerald-600 hover:bg-emerald-500/15"
+                          }`}
+                          title="Marcar como Presente"
                         >
-                          <RotateCcw className="h-3 w-3" />
+                          ✓ Pres
                         </Button>
-                      )}
-                    </div>
+                        <Button
+                          size="sm"
+                          variant={item.status === "ausente" ? "default" : "ghost"}
+                          onClick={() => handleSetStatus(item, "ausente")}
+                          className={`h-7 px-2 text-[11px] font-bold rounded-lg ${
+                            item.status === "ausente"
+                              ? "bg-red-600 hover:bg-red-700 text-white"
+                              : "text-red-600 hover:bg-red-500/15"
+                          }`}
+                          title="Marcar como Falta / Ausente"
+                        >
+                          ✗ Falta
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={item.status === "tarde" ? "default" : "ghost"}
+                          onClick={() => handleSetStatus(item, "tarde")}
+                          className={`h-7 px-2 text-[11px] font-bold rounded-lg ${
+                            item.status === "tarde"
+                              ? "bg-amber-500 hover:bg-amber-600 text-white"
+                              : "text-amber-600 hover:bg-amber-500/15"
+                          }`}
+                          title="Marcar como Tardanza"
+                        >
+                          ⏰ Tar
+                        </Button>
+                        <Button
+                          size="sm"
+                          data-tour="kardex-btn-justificada"
+                          variant={item.status === "justificada" ? "default" : "ghost"}
+                          onClick={() => handleSetStatus(item, "justificada")}
+                          className={`h-7 px-2 text-[11px] font-bold rounded-lg ${
+                            item.status === "justificada"
+                              ? "bg-blue-600 hover:bg-blue-700 text-white"
+                              : "text-blue-600 hover:bg-blue-500/15"
+                          }`}
+                          title="Marcar como Justificada (Genera +1 Crédito)"
+                        >
+                          🔵 Just
+                        </Button>
+                        {item.status !== "pendiente" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleSetStatus(item, "pendiente")}
+                            className="h-7 px-1.5 text-[11px] text-muted-foreground hover:text-foreground rounded-lg"
+                            title="Restablecer a Pendiente / Sin marcar"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground italic flex items-center gap-1 font-medium bg-muted/40 px-2 py-1 rounded-lg border border-border/50">
+                        <Lock className="h-3 w-3 text-muted-foreground/60" /> Bloqueado en consulta
+                      </span>
+                    )}
                   </div>
                 </div>
               );

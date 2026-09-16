@@ -4,6 +4,27 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.9.0] - 2026-09-16
+
+### Blindaje de Portal Docente, Kardex en Modo Consulta y Vigencia de Matrícula en Horario (ADR 0101)
+- **Normalización de Nombres en Portal Docente (`teacher.agenda.tsx`, `teacher.index.tsx`, `teacher.alumnos.tsx`)**:
+  - Reemplazo de comparaciones rígidas por `isMatchingStudentName`, permitiendo que el portal del Prof. Fernando reconozca a "Camila Valentina Pastor Conco" en sus clases de Martes y Jueves 17:30.
+- **Soporte Dinámico de Meses en Horario Docente (`minimal-agenda-calendar.tsx`)**:
+  - Adición de selector de mes (Agosto / Setiembre) y valor por defecto en Setiembre 2026.
+  - Filtrado estricto por día respecto a la fecha de inicio del alumno (`dayInfo.dateStr >= student.planStartDate`).
+- **Filtrado Diario Estricto en Agenda de Administración (`agenda-board.tsx`)**:
+  - Exclusión automática de sesiones en días previos a la matrícula del alumno (`dayInfo.dateStr < studentProfile.planStartDate`). Omitidas las clases de Camila en Semana 1 (1 y 3 de Setiembre) y Semana 2 (8 de Setiembre).
+- **Selector de Fecha Oficial de Inicio al Programar Horario (`students-table.tsx` - `ScheduleStudentForm`)**:
+  - Incorporación del campo `📅 Fecha Oficial de Inicio de Clases (Matrícula)` con `<Input type="date" />`.
+  - Cálculo automático de vigencia (`planEndDate`) y sincronización bidireccional con Zustand y PostgreSQL (`emergency_contact`).
+- **Bloqueo del Kardex en Modo Consulta (`student-attendance-kardex.tsx`)**:
+  - Nueva prop `isEditable?: boolean` (por defecto `false`).
+  - En modo consulta, los botones de asistencia quedan bloqueados con aviso visual explicativo y el botón de regularización masiva se deshabilita.
+  - La edición de asistencias se habilita exclusivamente desde *"Editar Ficha"*.
+- **Alineación de Base de Datos y Migración a `cadencia-app-v30`**:
+  - Saneamiento en PostgreSQL de las asistencias de Camila a `recentAttendance: []` y `attendance_rate: 0`.
+  - Incremento a `cadencia-app-v30` con purga de versiones anteriores y filtrado del horario exclusivo para alumnos con estado activo (0 clases para profesores sin alumnos activos).
+
 ## [1.8.9] - 2026-09-16
 
 ### Separación de Base Histórica vs Base Activa 2026, Ojito de Consulta, Horario en Blanco y Corrección de Fechas en Kardex (ADR 0100)

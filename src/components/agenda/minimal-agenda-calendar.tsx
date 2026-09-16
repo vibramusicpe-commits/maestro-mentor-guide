@@ -4,6 +4,7 @@ import { Calendar as CalendarIcon, Clock, MapPin, User, MessageCircle, CheckCirc
 import type { Lesson, ScheduledLesson, AttendanceStatus, WeekDay } from "@/store/app-store";
 import { useAppStore } from "@/store/app-store";
 import { getMonthWeeks } from "@/lib/calendar-utils";
+import { isMatchingStudentName } from "@/lib/student-matching";
 import { toast } from "sonner";
 
 type CalendarLessonItem = (Lesson | ScheduledLesson) & {
@@ -16,6 +17,8 @@ interface MinimalAgendaCalendarProps {
   title?: string;
   subtitle?: string;
   userType: "teacher" | "family";
+  defaultYear?: number;
+  defaultMonth?: number; // 0-indexed (8 = Setiembre)
 }
 
 const DAYS_OF_WEEK: { short: WeekDay; full: string }[] = [
@@ -42,6 +45,8 @@ export function MinimalAgendaCalendar({
   title = "Agenda Semanal",
   subtitle = "Horarios y clases programadas",
   userType,
+  defaultYear = 2026,
+  defaultMonth = 8,
 }: MinimalAgendaCalendarProps) {
   // Determinar el día de hoy por defecto (0=Dom, 1=Lun... 6=Sáb)
   const todayDayIndex = useMemo(() => {
@@ -51,12 +56,15 @@ export function MinimalAgendaCalendar({
   }, []);
 
   const [selectedDayIndex, setSelectedDayIndex] = useState(todayDayIndex);
-  const [selectedWeek, setSelectedWeek] = useState<number>(2); // Semana 2 (Agosto 2026 activa)
+  const [selectedYear, setSelectedYear] = useState<number>(defaultYear);
+  const [selectedMonth, setSelectedMonth] = useState<number>(defaultMonth); // 8 = Setiembre por defecto
+  const [selectedWeek, setSelectedWeek] = useState<number>(3); // Semana 3 por defecto
 
   const markLessonAttendance = useAppStore((s) => s.markLessonAttendance);
   const setAttendance = useAppStore((s) => s.setAttendance);
+  const adminStudents = useAppStore((s) => s.adminStudents);
 
-  const monthWeeks = useMemo(() => getMonthWeeks(2026, 7), []);
+  const monthWeeks = useMemo(() => getMonthWeeks(selectedYear, selectedMonth), [selectedYear, selectedMonth]);
   const safeWeekIndex = Math.min(Math.max(0, selectedWeek - 1), monthWeeks.length - 1);
   const currentWeekObj = monthWeeks[safeWeekIndex] || monthWeeks[0]!;
 
@@ -64,7 +72,7 @@ export function MinimalAgendaCalendar({
   const selectedDayShort = selectedDayObj.short;
   const selectedDayName = selectedDayObj.full;
 
-  // Mapa de clases por día (contadores reales)
+  // Mapa de clases por día (contadores reales filtrados por vigencia de matrícula del alumno)
   const lessonsByDay = useMemo(() => {
     const map = new Map<WeekDay, CalendarLessonItem[]>();
     DAYS_OF_WEEK.forEach((d) => map.set(d.short, []));
@@ -72,6 +80,19 @@ export function MinimalAgendaCalendar({
     lessons.forEach((l) => {
       if (l.status === "cancelada") return;
       const d = (l as ScheduledLesson).day || (userType === "family" ? "Mar" : "Lun");
+
+      // 🛡️ REGLA CRÍTICA (ADR 0100): Verificar vigencia en la fecha exacta de esta semana
+      const dayInfo = currentWeekObj.days.find((day) => day.dayKey === d);
+      if (dayInfo) {
+        const studentProfile = adminStudents.find((st) => isMatchingStudentName(st.name, l.student));
+        if (studentProfile?.planStartDate && dayInfo.dateStr < studentProfile.planStartDate) {
+          return;
+        }
+        if (studentProfile?.planEndDate && dayInfo.dateStr > studentProfile.planEndDate) {
+          return;
+        }
+      }
+
       const list = map.get(d) || [];
       list.push(l);
       map.set(d, list);
@@ -83,13 +104,13 @@ export function MinimalAgendaCalendar({
     });
 
     return map;
-  }, [lessons, userType]);
+  }, [lessons, userType, currentWeekObj, adminStudents]);
 
   const currentDayLessons = lessonsByDay.get(selectedDayShort) || [];
 
   return (
     <div className="space-y-4">
-      {/* Header con Selector de Semana */}
+      {/* Header con Selector de Mes y Semana */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
@@ -98,21 +119,36 @@ export function MinimalAgendaCalendar({
           <p className="text-xs font-medium text-muted-foreground">{subtitle}</p>
         </div>
 
-        {/* Selector de Semanas del Mes Dinámico */}
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-xl border border-border text-xs">
-          {monthWeeks.map((w) => (
-            <button
-              key={w.weekIndex}
-              onClick={() => setSelectedWeek(w.weekIndex + 1)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                selectedWeek === w.weekIndex + 1
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-foreground/80 hover:text-foreground hover:bg-background"
-              }`}
-            >
-              Sem {w.weekIndex + 1}
-            </button>
-          ))}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Selector de Mes */}
+          <select
+            value={selectedMonth}
+            onChange={(e) => {
+              setSelectedMonth(Number(e.target.value));
+              setSelectedWeek(1);
+            }}
+            className="bg-card px-2.5 py-1 rounded-xl border border-border text-xs font-bold text-foreground cursor-pointer shadow-xs focus:ring-1 focus:ring-primary outline-none"
+          >
+            <option value={7}>Agosto 2026</option>
+            <option value={8}>Setiembre 2026</option>
+          </select>
+
+          {/* Selector de Semanas del Mes Dinámico */}
+          <div className="flex items-center gap-1 bg-muted p-1 rounded-xl border border-border text-xs">
+            {monthWeeks.map((w) => (
+              <button
+                key={w.weekIndex}
+                onClick={() => setSelectedWeek(w.weekIndex + 1)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                  selectedWeek === w.weekIndex + 1
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-foreground/80 hover:text-foreground hover:bg-background"
+                }`}
+              >
+                Sem {w.weekIndex + 1}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

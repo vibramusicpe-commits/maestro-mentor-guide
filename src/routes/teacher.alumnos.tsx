@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, UserCheck, Phone, Clock, AlertCircle, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { useAppStore } from "@/store/app-store";
 import { categoryStyles } from "@/components/admin/agenda-board";
 import { teachers, type AdminStudent } from "@/store/admin-seeds";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
+import { isMatchingStudentName } from "@/lib/student-matching";
 
 export const Route = createFileRoute("/teacher/alumnos")({
   head: () => ({
@@ -59,26 +60,29 @@ function TeacherStudents() {
   const [selectedTeacher, setSelectedTeacher] = useState<string>(initialTeacher);
   const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
 
+  // Sincronizar reactivamente el filtro de profesor con el usuario logueado en RoleSwitcher
+  useEffect(() => {
+    if (initialTeacher && initialTeacher !== "todos") {
+      setSelectedTeacher(initialTeacher);
+    }
+  }, [initialTeacher]);
+
   // Lista unificada y enriquecida de alumnos cruzando datos con el horario oficial (schedule)
   const unifiedStudents = useMemo(() => {
     const result: Array<any> = [];
     const seenNames = new Set<string>();
 
-    // 🛡️ REGLA DE ORO DE PROTECCIÓN (ADR 0098): El profesor SOLO ve alumnos con status === 'activo'.
+    // 🛡️ REGLA DE ORO DE PROTECCIÓN (ADR 0098 & 0100): El profesor SOLO ve alumnos con status === 'activo'.
     // Los alumnos en 'pausa' o 'baja' quedan excluidos de la vista docente hasta ser activados por administración.
     const activeAdminStudents = adminStudents.filter((s) => s.status === "activo");
 
     for (const s of activeAdminStudents) {
       const normS = normalize(s.name);
-      const words = normS.split(" ").filter((w) => w.length > 2);
 
       // Buscar si tiene clases en el horario activo (schedule)
       const matchingLessons = schedule.filter((l) => {
         if (l.status === "cancelada") return false;
-        const normL = normalize(l.student);
-        const schedWords = normL.split(" ").filter((w) => w.length > 2);
-        const common = words.filter((w) => schedWords.includes(w));
-        return common.length >= 2 || normL.includes(normS) || normS.includes(normL);
+        return isMatchingStudentName(s.name, l.student) || normalize(l.student) === normS;
       });
 
       let resolvedTeacher = s.teacher || "Fernando";
@@ -121,11 +125,10 @@ function TeacherStudents() {
       const normL = normalize(l.student);
       const words = normL.split(" ").filter((w) => w.length > 2);
 
-      // Verificar si el alumno existe en adminStudents y no está activo
-      const studentProfile = adminStudents.find((st) => {
-        const normSt = normalize(st.name);
-        return normSt === normL || normSt.includes(normL) || normL.includes(normSt);
-      });
+      // Verificar si el alumno existe en adminStudents y está activo
+      const studentProfile = adminStudents.find((st) =>
+        isMatchingStudentName(st.name, l.student)
+      );
 
       if (!studentProfile || studentProfile.status !== "activo") {
         continue;
@@ -133,9 +136,7 @@ function TeacherStudents() {
 
       let exists = false;
       for (const seen of seenNames) {
-        const seenWords = seen.split(" ").filter((w) => w.length > 2);
-        const common = words.filter((w) => seenWords.includes(w));
-        if (common.length >= 2 || seen.includes(normL) || normL.includes(seen)) {
+        if (isMatchingStudentName(seen, l.student)) {
           exists = true;
           break;
         }

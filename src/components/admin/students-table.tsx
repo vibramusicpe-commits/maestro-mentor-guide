@@ -216,6 +216,7 @@ export function StudentsTable() {
 
   // Estado para Registrar Reingreso de Alumno
   const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
+  const [isKardexEditable, setIsKardexEditable] = useState<boolean>(false);
   const liveKardexStudent = useMemo(() => {
     if (!kardexStudent) return null;
     return students.find((st) => isSameStudentId(st.id, kardexStudent.id)) || kardexStudent;
@@ -1826,7 +1827,11 @@ export function StudentsTable() {
         <StudentAttendanceKardex
           student={liveKardexStudent}
           isOpen={!!liveKardexStudent}
-          onClose={() => setKardexStudent(null)}
+          onClose={() => {
+            setKardexStudent(null);
+            setIsKardexEditable(false);
+          }}
+          isEditable={isKardexEditable}
         />
       )}
 
@@ -2443,7 +2448,10 @@ export function StudentsTable() {
         availableTeachers={availableTeachers}
         open={!!editingStudent}
         onOpenChange={(o) => !o && setEditingStudent(null)}
-        onOpenKardex={(st) => setKardexStudent(st)}
+        onOpenKardex={(st) => {
+          setKardexStudent(st);
+          setIsKardexEditable(true);
+        }}
       />
     </div>
   );
@@ -3924,8 +3932,14 @@ function ScheduleStudentForm({
 }) {
   const setStudentSchedule = useAppStore((s) => s.setStudentSchedule);
   const assignTeacher = useAppStore((s) => s.assignTeacher);
+  const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
   const schedule = useAppStore((s) => s.schedule);
   const adminStudents = useAppStore((s) => s.adminStudents);
+
+  // Fecha de inicio oficial de clases (por defecto fecha registrada o 10/09/2026 para Camila)
+  const [startDate, setStartDate] = useState<string>(
+    student.planStartDate || (isMatchingStudentName(student.name, "Camila Valentina Pastor Conco") ? "2026-09-10" : "2026-09-01")
+  );
 
   // Clases existentes en el horario para pre-cargar su configuración real
   const existingLessons = useMemo(() => {
@@ -4150,11 +4164,31 @@ function ScheduleStudentForm({
       return;
     }
 
-    // Extraer año y mes del alumno
-    const startStr = student.planStartDate || student.planStartMonth || "2026-08";
+    // Extraer año y mes del alumno a partir de su fecha oficial de inicio elegida
+    const startStr = startDate || student.planStartDate || "2026-09-10";
     const [yStr, mStr] = startStr.split("-");
     const lessonYear = parseInt(yStr || "2026", 10);
-    const lessonMonth = parseInt(mStr || "8", 10) - 1; // 0-indexed (7 para Agosto)
+    const lessonMonth = parseInt(mStr || "9", 10) - 1; // 0-indexed (8 para Setiembre)
+
+    // Calcular fecha de vencimiento según modalidad
+    let calculatedEndDate = student.planEndDate;
+    try {
+      const d = new Date(startStr);
+      if (!isNaN(d.getTime())) {
+        const monthsToAdd = (student.modality || "").includes("1x/sem") ? 2 : 1;
+        d.setMonth(d.getMonth() + monthsToAdd);
+        d.setDate(d.getDate() - 1);
+        calculatedEndDate = d.toISOString().slice(0, 10);
+      }
+    } catch {}
+
+    // Sincronizar fecha de inicio y vencimiento con la ficha del alumno y PostgreSQL
+    updateStudentDetails(student.id, {
+      planStartDate: startStr,
+      planEndDate: calculatedEndDate || undefined,
+      planStartMonth: startStr.slice(0, 7),
+      planEndMonth: calculatedEndDate ? calculatedEndDate.slice(0, 7) : undefined,
+    });
 
     // Agendar clases semanales reemplazando atómicamente cualquier horario previo
     const lessonsToSet: Omit<ScheduledLesson, "id">[] = [
@@ -4219,6 +4253,30 @@ function ScheduleStudentForm({
             {isRegular ? "Plan Regular (2x semana · 8 clases)" : "Plan Intensivo (1x semana · 4 clases)"}
           </Badge>
         </div>
+      </div>
+
+      {/* Selector de Fecha Oficial de Inicio de Clases (Matrícula) */}
+      <div className="space-y-1.5 p-3.5 rounded-2xl border border-primary/20 bg-primary/5">
+        <div className="flex items-center justify-between">
+          <label className="font-bold text-foreground flex items-center gap-1.5 text-xs">
+            <Calendar className="h-4 w-4 text-primary" />
+            <span>Fecha Oficial de Inicio de Clases</span>
+          </label>
+          <Badge variant="outline" className="text-[10px] font-bold border-primary/40 text-primary">
+            Vigencia de Horario
+          </Badge>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          El alumno figurará en la agenda central y en el Kardex únicamente a partir de este día.
+          Las semanas anteriores quedarán en blanco para evitar falsas asistencias o cruces indebidos.
+        </p>
+        <Input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="text-xs bg-background max-w-xs font-semibold"
+          required
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
