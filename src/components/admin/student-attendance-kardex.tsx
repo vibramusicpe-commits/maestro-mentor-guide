@@ -201,9 +201,10 @@ export function StudentAttendanceKardex({
         if (!dayInfo.isCurrentMonth) return;
 
         // 🛡️ REGLA DE ORO (ADR 0099 & ADR 0100): Respetar vigencia del plan del alumno
-        // No generar sesiones previas a su fecha de inicio ni posteriores a su vencimiento
+        // No generar sesiones previas a su fecha de inicio; para alumnos activos en plan regular mensual,
+        // generar la totalidad de sus 8 clases del mes lectivo seleccionado.
         if (effectivePlanStartDate && dayInfo.dateStr < effectivePlanStartDate) return;
-        if (!isFlexiblePackage && effectivePlanEndDate && dayInfo.dateStr > effectivePlanEndDate) return;
+        if (!isFlexiblePackage && effectivePlanEndDate && liveStudent.status !== "activo" && dayInfo.dateStr > effectivePlanEndDate) return;
 
         // Buscar si el alumno tiene lección este día de la semana
         studentLessons.forEach((lesson) => {

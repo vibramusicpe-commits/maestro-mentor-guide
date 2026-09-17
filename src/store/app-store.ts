@@ -788,12 +788,15 @@ export const useAppStore = create<AppState>()(
             if (Array.isArray(st.scheduleLessons) && st.scheduleLessons.length > 0) {
               st.scheduleLessons.forEach((l) => {
                 const lessonId = l.id || `db-sch-${st.id}-${l.day}-${l.time}`;
+                // Las clases semanales recurrentes regulares no deben estar bloqueadas a un solo mes
+                const isRecurringTemplate = l.weekIndex === undefined;
                 scheduleMap.set(lessonId, {
                   ...l,
                   id: lessonId,
                   student: st.name,
                   teacher: l.teacher || st.teacher,
                   instrument: l.instrument || st.instrument,
+                  month: isRecurringTemplate ? undefined : l.month,
                 });
               });
             }
@@ -807,9 +810,12 @@ export const useAppStore = create<AppState>()(
               if (matchedActive) {
                 const alreadyScheduled = Array.from(scheduleMap.values()).some(
                   (existing) =>
-                    isMatchingStudentName(existing.student, matchedActive.name) &&
-                    existing.day === l.day &&
-                    existing.time === l.time
+                    existing.id === l.id ||
+                    (isMatchingStudentName(existing.student, matchedActive.name) &&
+                     existing.day === l.day &&
+                     existing.time === l.time &&
+                     existing.weekIndex === l.weekIndex &&
+                     existing.month === l.month)
                 );
                 if (!alreadyScheduled) {
                   scheduleMap.set(l.id, {

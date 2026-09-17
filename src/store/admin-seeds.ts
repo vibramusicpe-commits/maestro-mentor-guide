@@ -267,7 +267,7 @@ import { isMatchingStudentName } from "@/lib/student-matching";
 export const initialSchedule: ScheduledLesson[] = officialSchedule.map((l) => ({
   ...l,
   year: l.year ?? 2026,
-  month: l.month !== undefined ? l.month : 7, // Agosto (0-indexed) por defecto
+  month: l.month, // Preservar undefined si es clase recurrente semanal para que aplique a todos los meses
 }));
 
 // Lista oficial de alumnos extraída del Control de Pagos y Horario de Vibra Music

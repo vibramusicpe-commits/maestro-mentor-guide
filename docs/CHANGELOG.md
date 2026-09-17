@@ -4,6 +4,19 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.9.4] - 2026-09-17
+
+### Restauración de 8 Clases Completas del Mes en Kardex de Asistencias para Planes Regulares
+- **Desbloqueo de Clases Recurrentes Semanales (`src/components/admin/students-table.tsx`)**:
+  - Removida la asignación rígida de `month: lessonMonth` al programar horarios desde la ficha del alumno. Las clases regulares semanales se configuran como plantillas recurrentes sin mes fijo, asegurando que se repliquen a lo largo de todas las semanas del mes en el Kardex y en la agenda.
+- **Preservación de Clases Semanales en Semillas e Hidratación (`src/store/admin-seeds.ts` y `src/store/app-store.ts`)**:
+  - En `initialSchedule`, se mantiene `month: l.month` sin forzar `month = 7` (Agosto) por defecto, evitando que las clases regulares desaparezcan al cambiar a Setiembre.
+  - En `hydrateFromBackend`, se limpian automáticamente los atributos `month` rígidos heredados de clases semanales persistidas en PostgreSQL (`l.weekIndex === undefined`).
+  - Corrección de la condición `alreadyScheduled` para no descartar sesiones multi-semana con mismo día y hora pero diferente semana lectiva.
+- **Generación Completa de Sesiones en Kardex (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - Para alumnos con estado `"activo"`, el Kardex genera la totalidad de las 8 clases del mes de su plan regular (2 clases por semana x 4 semanas lectivas: Sesiones 1 a 8), sin cortes prematuros de vigencia a mitad de mes.
+  - Saneamiento en base de datos PostgreSQL de las clases asignadas a Emma Micaela Sevilla Perez (`00000000-0000-0000-0002-000000000048`), habilitando sus 8 clases completas en Setiembre (Jueves y Viernes a las 16:00).
+
 ## [1.9.3] - 2026-09-17
 
 ### Sincronización en Vivo Insforge PostgreSQL, Blindaje del Dossier y Control Documental (ADR 0102, ADR 0103, ADR 0104)

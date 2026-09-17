@@ -5230,6 +5230,8 @@ function ScheduleStudentForm({
     });
 
     // Agendar clases semanales reemplazando atómicamente cualquier horario previo
+    // Las clases regulares son recurrentes semanales (sin fijar un mes único) para que generen
+    // automáticamente todas las 8 clases del mes en el Kardex y en la agenda semanal.
     const lessonsToSet: Omit<ScheduledLesson, "id">[] = [
       {
         student: student.name,
@@ -5242,7 +5244,6 @@ function ScheduleStudentForm({
         sessionNumber: 1,
         status: "programada",
         year: lessonYear,
-        month: lessonMonth,
       },
     ];
 
@@ -5258,7 +5259,6 @@ function ScheduleStudentForm({
         sessionNumber: 2,
         status: "programada",
         year: lessonYear,
-        month: lessonMonth,
       });
     }
 
