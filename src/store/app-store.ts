@@ -523,6 +523,7 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       if (updates.planEndDate) ecData.planEndDate = updates.planEndDate;
       if (updates.attendanceRate !== undefined) ecData.attendanceRate = updates.attendanceRate;
       if (updates.recentAttendance !== undefined) ecData.recentAttendance = updates.recentAttendance;
+      if (updates.scheduleLessons !== undefined) ecData.scheduleLessons = updates.scheduleLessons;
 
       payload.emergency_contact = ecData;
 
@@ -731,8 +732,64 @@ export const useAppStore = create<AppState>()(
             }
           });
 
+          // Rehidratar y sincronizar el horario (schedule) con los alumnos activos
+          const activeStudents = mergedStudents.filter((st) => st.status === "activo");
+          const activeNames = activeStudents.map((st) => st.name);
+
+          const scheduleMap = new Map<string, ScheduledLesson>();
+
+          // 1. Conservar clases existentes en memoria local si corresponden a alumnos activos
+          (s.schedule || []).forEach((l) => {
+            if (l.status !== "cancelada" && activeNames.some((actName) => isMatchingStudentName(actName, l.student))) {
+              scheduleMap.set(l.id, l);
+            }
+          });
+
+          // 2. Fusionar clases persistidas en PostgreSQL (emergency_contact.scheduleLessons)
+          activeStudents.forEach((st) => {
+            if (Array.isArray(st.scheduleLessons) && st.scheduleLessons.length > 0) {
+              st.scheduleLessons.forEach((l) => {
+                const lessonId = l.id || `db-sch-${st.id}-${l.day}-${l.time}`;
+                scheduleMap.set(lessonId, {
+                  ...l,
+                  id: lessonId,
+                  student: st.name,
+                  teacher: l.teacher || st.teacher,
+                  instrument: l.instrument || st.instrument,
+                });
+              });
+            }
+          });
+
+          // 3. Garantizar que alumnos activos oficiales de planta (Camila Pastor, Emma Sevilla, etc.)
+          // tengan sus clases oficiales desde initialSchedule si aún no estuvieran en el horario
+          (initialSchedule || []).forEach((l) => {
+            if (l.status !== "cancelada") {
+              const matchedActive = activeStudents.find((actSt) => isMatchingStudentName(actSt.name, l.student));
+              if (matchedActive) {
+                const alreadyScheduled = Array.from(scheduleMap.values()).some(
+                  (existing) =>
+                    isMatchingStudentName(existing.student, matchedActive.name) &&
+                    existing.day === l.day &&
+                    existing.time === l.time
+                );
+                if (!alreadyScheduled) {
+                  scheduleMap.set(l.id, {
+                    ...l,
+                    student: matchedActive.name,
+                    teacher: l.teacher || matchedActive.teacher,
+                    instrument: l.instrument || matchedActive.instrument,
+                  });
+                }
+              }
+            }
+          });
+
+          const cleanSchedule = Array.from(scheduleMap.values());
+
           return {
             adminStudents: mergedStudents,
+            schedule: cleanSchedule,
             invoices: data.invoices && data.invoices.length > 0 ? data.invoices : s.invoices,
           };
         }),
@@ -754,12 +811,18 @@ export const useAppStore = create<AppState>()(
                 ? "Fabricio (Marketing)"
                 : email.toLowerCase().includes("karla")
                 ? "Karla (Secretaría)"
+                : email.toLowerCase().includes("fernando")
+                ? "Fernando (Violín y Piano)"
+                : email.toLowerCase().includes("nathaly")
+                ? "Nathaly (Canto y Piano Infantil)"
+                : email.toLowerCase().includes("jeremy")
+                ? "Jeremy (Guitarra y Batería)"
                 : role === "super_admin"
                 ? "Rocío (Dueña)"
                 : role === "staff"
                 ? "Nayeli (Secretaría)"
                 : role === "teacher"
-                ? "Prof. Jeremy"
+                ? (email.toLowerCase().includes("fernando") ? "Fernando (Violín y Piano)" : email.toLowerCase().includes("nathaly") ? "Nathaly (Canto y Piano Infantil)" : "Jeremy (Guitarra y Batería)")
                 : "Familia García"),
           },
         }),
@@ -953,8 +1016,20 @@ export const useAppStore = create<AppState>()(
             ...lesson,
             id: `sch-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
           };
+          const updatedSchedule = [...s.schedule, newLesson];
+          const targetSt = s.adminStudents.find(
+            (st) => isMatchingStudentName(st.name, lesson.student) || st.name.toLowerCase() === lesson.student.toLowerCase()
+          );
+          if (targetSt) {
+            const studentLessons = updatedSchedule.filter(
+              (l) => (isMatchingStudentName(l.student, targetSt.name) || l.student.toLowerCase() === targetSt.name.toLowerCase()) && l.status !== "cancelada"
+            );
+            backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
+              scheduleLessons: studentLessons,
+            });
+          }
           return {
-            schedule: [...s.schedule, newLesson],
+            schedule: updatedSchedule,
             syncQueue: [...s.syncQueue, queueItem(`Clase programada: ${lesson.student} (${lesson.day} ${lesson.time})`)],
           };
         }),
@@ -967,8 +1042,17 @@ export const useAppStore = create<AppState>()(
             ...lesson,
             id: `sch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           }));
+          const finalSchedule = [...filtered, ...newLessons];
+          const targetSt = s.adminStudents.find(
+            (st) => isMatchingStudentName(st.name, studentName) || st.name.toLowerCase() === studentName.toLowerCase()
+          );
+          if (targetSt) {
+            backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
+              scheduleLessons: newLessons,
+            });
+          }
           return {
-            schedule: [...filtered, ...newLessons],
+            schedule: finalSchedule,
             syncQueue: [
               ...s.syncQueue,
               queueItem(`Horario actualizado para ${studentName}: ${newLessons.length} clases programadas`),
@@ -1215,11 +1299,28 @@ export const useAppStore = create<AppState>()(
           backgroundSyncStudentToDB(s.activeRole, id, { status });
           const target = s.adminStudents.find((st) => isSameStudentId(st.id, id));
           let updatedSchedule = s.schedule;
-          // 🛡️ REGLA DE ORO (ADR 0100): Al pasar a 'activo' desde pausa/baja, iniciar con horario en limpio (0 clases)
-          if (status === "activo" && target && target.status !== "activo") {
-            updatedSchedule = s.schedule.filter(
-              (l) => !isMatchingStudentName(l.student, target.name) && l.student.toLowerCase().trim() !== target.name.toLowerCase().trim()
+          // Si pasa a activo, asegurar que sus clases oficiales (initialSchedule o scheduleLessons) estén presentes
+          if (status === "activo" && target) {
+            const hasExistingLessons = updatedSchedule.some(
+              (l) => isMatchingStudentName(l.student, target.name) && l.status !== "cancelada"
             );
+            if (!hasExistingLessons) {
+              const seedLessons = (initialSchedule || []).filter(
+                (l) => isMatchingStudentName(l.student, target.name) && l.status !== "cancelada"
+              );
+              const persistedLessons = (target.scheduleLessons || []).filter(
+                (l) => isMatchingStudentName(l.student, target.name) && l.status !== "cancelada"
+              );
+              const lessonsToAdd = persistedLessons.length > 0 ? persistedLessons : seedLessons;
+              if (lessonsToAdd.length > 0) {
+                updatedSchedule = [...updatedSchedule, ...lessonsToAdd.map((l) => ({
+                  ...l,
+                  student: target.name,
+                  teacher: l.teacher || target.teacher,
+                  instrument: l.instrument || target.instrument,
+                }))];
+              }
+            }
           }
           return {
             adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, status } : st)),
@@ -2093,13 +2194,13 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v30",
+      name: "cadencia-app-v31",
       storage: createJSONStorage(() => localStorage),
-      version: 30,
+      version: 31,
       migrate: (persistedState: any, version: number) => {
         try {
           if (typeof window !== "undefined") {
-            for (let i = 1; i <= 29; i++) {
+            for (let i = 1; i <= 30; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }

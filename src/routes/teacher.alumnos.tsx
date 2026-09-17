@@ -50,10 +50,11 @@ function TeacherStudents() {
 
   // Detectar profesor logueado para preselección inteligente
   const initialTeacher = useMemo(() => {
+    const email = currentUser?.email?.toLowerCase() || "";
     const name = currentUser?.name?.toLowerCase() || "";
-    if (name.includes("jeremy")) return "Jeremy";
-    if (name.includes("fernando")) return "Fernando";
-    if (name.includes("nathaly")) return "Nathaly";
+    if (email.includes("fernando") || name.includes("fernando")) return "Fernando";
+    if (email.includes("nathaly") || name.includes("nathaly")) return "Nathaly";
+    if (email.includes("jeremy") || name.includes("jeremy")) return "Jeremy";
     return "todos";
   }, [currentUser]);
 
@@ -88,8 +89,15 @@ function TeacherStudents() {
       let resolvedTeacher = s.teacher;
       let resolvedInstrument = s.instrument || "Piano";
 
-      // 1. Si el alumno tiene clases agendadas, respetar el profesor e instrumento del horario
-      if (matchingLessons.length > 0) {
+      const isCamila = isMatchingStudentName(s.name, "Camila Valentina Pastor Conco");
+      const isEmma = isMatchingStudentName(s.name, "Emma Micaela") || isMatchingStudentName(s.name, "Emma Sevilla");
+
+      if (isCamila || isEmma) {
+        resolvedTeacher = "Fernando";
+        if (isCamila) resolvedInstrument = "Violín";
+        if (isEmma) resolvedInstrument = "Piano";
+      } else if (matchingLessons.length > 0) {
+        // 1. Si el alumno tiene clases agendadas, respetar el profesor e instrumento del horario
         resolvedTeacher = matchingLessons[0].teacher;
         resolvedInstrument = matchingLessons[0].instrument;
       } else if (!resolvedTeacher || resolvedTeacher === "Prof. por Asignar") {

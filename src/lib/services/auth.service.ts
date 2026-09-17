@@ -67,6 +67,16 @@ export async function loginWithCredentials(
     full_name:
       email.toLowerCase().includes("sergio")
         ? "Sergio (Dirección)"
+        : email.toLowerCase().includes("fabricio")
+        ? "Fabricio (Marketing)"
+        : email.toLowerCase().includes("karla")
+        ? "Karla (Secretaría)"
+        : email.toLowerCase().includes("fernando")
+        ? "Fernando (Violín y Piano)"
+        : email.toLowerCase().includes("nathaly")
+        ? "Nathaly (Canto y Piano Infantil)"
+        : email.toLowerCase().includes("jeremy")
+        ? "Jeremy (Guitarra y Batería)"
         : role === "super_admin"
         ? "Rocío (Dueña)"
         : role === "staff"

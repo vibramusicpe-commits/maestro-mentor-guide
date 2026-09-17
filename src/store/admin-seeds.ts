@@ -194,6 +194,8 @@ export type AdminStudent = {
   // Historial de Reingreso y Seguimiento
   isReentry?: boolean;
   reentryHistory?: Array<{ date: string; reason: string; notes?: string }>;
+  // Horario persistido desde PostgreSQL (emergency_contact.scheduleLessons)
+  scheduleLessons?: ScheduledLesson[];
 };
 
 export type DeletionReasonCategory =

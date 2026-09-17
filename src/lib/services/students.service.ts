@@ -77,10 +77,18 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
   const ecPhone = ec.phone || db.families?.primary_guardian_phone || "987654321";
   const ecEmail = ec.email || db.families?.email || `alumno_${db.id.slice(0, 4)}@vibramusic.pe`;
   const ecFamily = ec.family || db.families?.family_name || `Familia ${db.full_name}`;
+  const isCamilaDB = isMatchingStudentName(db.full_name, "Camila Valentina Pastor Conco");
   const isEmmaDB = isMatchingStudentName(db.full_name, "Emma Micaela") || isMatchingStudentName(db.full_name, "Emma Sevilla");
   const isJonathanDB =
     isMatchingStudentName(db.full_name, "Jonathan Ticona Cachay") ||
     isMatchingStudentName(db.full_name, "Ticona Cachay, Jonathan");
+
+  let resolvedTeacher = (db.assigned_teacher_id && teacherNames[db.assigned_teacher_id]) || ec.teacher;
+  if (!resolvedTeacher || resolvedTeacher === "Prof. por Asignar") {
+    if (isCamilaDB || isEmmaDB) resolvedTeacher = "Fernando";
+    else if (isJonathanDB) resolvedTeacher = "Nathaly";
+    else resolvedTeacher = "Prof. por Asignar";
+  }
 
   const planPrice = typeof ec.planPrice === "number" ? ec.planPrice : (isJonathanDB ? 500 : 297);
   const amountPaid = typeof ec.amountPaid === "number" ? ec.amountPaid : (isJonathanDB ? 500 : undefined);
@@ -92,9 +100,9 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     id: db.id,
     name: db.full_name,
     family: ecFamily,
-    instrument: db.instrument || (isJonathanDB ? "Canto" : "Piano"),
+    instrument: db.instrument || (isCamilaDB ? "Violín" : (isJonathanDB ? "Canto" : "Piano")),
     level: db.level || "Nivel 1",
-    teacher: (db.assigned_teacher_id && teacherNames[db.assigned_teacher_id]) || ec.teacher || (isJonathanDB ? "Nathaly" : "Prof. por Asignar"),
+    teacher: resolvedTeacher,
     modality: (ec.modality as any) || (db.modality as any) || (isJonathanDB ? "Paquete Flexible (A demanda)" : "Regular (8 clases / 45 min)"),
     status: db.status || "activo",
     attendanceRate: typeof ec.attendanceRate === "number"
@@ -140,10 +148,11 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
       ? ec.packUtilesDelivered
       : (ec.packUtilesPaid !== false),
     packUtilesNotes: ec.packUtilesNotes || "",
-    planStartDate: ec.planStartDate || (isJonathanDB ? "2026-08-18" : (isEmmaDB ? "2026-08-28" : "2026-08-01")),
-    planEndDate: ec.planEndDate || (isJonathanDB ? "2026-12-31" : (isEmmaDB ? "2026-09-27" : "2026-12-31")),
-    planStartMonth: ec.planStartMonth || (ec.planStartDate ? ec.planStartDate.slice(0, 7) : (isJonathanDB ? "2026-08" : (isEmmaDB ? "2026-08" : "2026-08"))),
-    planEndMonth: ec.planEndMonth || (ec.planEndDate ? ec.planEndDate.slice(0, 7) : (isJonathanDB ? "2026-12" : (isEmmaDB ? "2026-09" : "2026-12"))),
+    planStartDate: ec.planStartDate || (isCamilaDB ? "2026-09-10" : (isJonathanDB ? "2026-08-18" : (isEmmaDB ? "2026-08-28" : "2026-08-01"))),
+    planEndDate: ec.planEndDate || (isCamilaDB ? "2026-10-09" : (isJonathanDB ? "2026-12-31" : (isEmmaDB ? "2026-09-27" : "2026-12-31"))),
+    planStartMonth: ec.planStartMonth || (ec.planStartDate ? ec.planStartDate.slice(0, 7) : (isCamilaDB ? "2026-09" : (isJonathanDB ? "2026-08" : (isEmmaDB ? "2026-08" : "2026-08")))),
+    planEndMonth: ec.planEndMonth || (ec.planEndDate ? ec.planEndDate.slice(0, 7) : (isCamilaDB ? "2026-10" : (isJonathanDB ? "2026-12" : (isEmmaDB ? "2026-09" : "2026-12")))),
+    scheduleLessons: Array.isArray(ec.scheduleLessons) ? ec.scheduleLessons : undefined,
   };
 }
 

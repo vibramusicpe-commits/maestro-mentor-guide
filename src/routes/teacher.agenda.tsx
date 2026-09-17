@@ -21,25 +21,27 @@ function TeacherAgendaPage() {
   const schedule = useAppStore((s) => s.schedule);
   const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
+  const [adminSelectedTeacher, setAdminSelectedTeacher] = useState<string | null>(null);
 
   // Extraer nombre del profesor logueado de forma inteligente (por email o nombre)
   const teacherClean = useMemo(() => {
+    if (adminSelectedTeacher) return adminSelectedTeacher.toLowerCase();
     const email = currentUser?.email?.toLowerCase() || "";
-    if (email.includes("jeremy")) return "jeremy";
     if (email.includes("fernando")) return "fernando";
     if (email.includes("nathaly")) return "nathaly";
+    if (email.includes("jeremy")) return "jeremy";
     const name = (currentUser?.name || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
-    if (name.includes("jeremy")) return "jeremy";
     if (name.includes("fernando")) return "fernando";
     if (name.includes("nathaly")) return "nathaly";
-    return name || "jeremy";
-  }, [currentUser]);
+    if (name.includes("jeremy")) return "jeremy";
+    return "fernando";
+  }, [currentUser, adminSelectedTeacher]);
 
   const teacherDisplayName = useMemo(() => {
-    if (teacherClean === "jeremy") return "Jeremy";
     if (teacherClean === "fernando") return "Fernando";
     if (teacherClean === "nathaly") return "Nathaly";
-    return currentUser?.name?.split(" ")[0] || "Profesor";
+    if (teacherClean === "jeremy") return "Jeremy";
+    return currentUser?.name?.split(" ")[0] || "Fernando";
   }, [teacherClean, currentUser]);
 
   // Filtrar las clases reales de este profesor (únicamente de alumnos ACTIVOS)
@@ -55,8 +57,15 @@ function TeacherAgendaPage() {
         return false;
       }
 
+      const isFernandoStudent = (teacherClean === "fernando") && (
+        isMatchingStudentName("Camila Valentina Pastor Conco", sch.student) ||
+        isMatchingStudentName("Emma Micaela Sevilla Perez", sch.student) ||
+        isMatchingStudentName("Emma Sevilla", sch.student)
+      );
+
       const schTeacher = sch.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
       return (
+        isFernandoStudent ||
         schTeacher.includes(teacherClean) ||
         teacherClean.includes(schTeacher) ||
         sch.teacher.toLowerCase().includes(teacherClean)
@@ -66,6 +75,23 @@ function TeacherAgendaPage() {
 
   return (
     <div className="space-y-4">
+      {/* Selector de Profesor para Auditoría */}
+      <div className="flex items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
+        {["Fernando", "Nathaly", "Jeremy"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setAdminSelectedTeacher(t)}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+              teacherDisplayName === t
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Prof. {t}
+          </button>
+        ))}
+      </div>
+
       <MinimalAgendaCalendar
         lessons={teacherLessons}
         title={`Mi Horario Semanal (${teacherDisplayName})`}
