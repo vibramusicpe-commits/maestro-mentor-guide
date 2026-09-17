@@ -128,7 +128,18 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     amountPaid,
     packageTotalSessions: typeof ec.packageTotalSessions === "number" ? ec.packageTotalSessions : (isJonathanDB ? 24 : 8),
     matriculaType: ec.matriculaType || "Promo Demo (S/ 30)",
+    enrollmentDate: ec.enrollmentDate || (db.created_at ? db.created_at.slice(0, 10) : "2026-08-01"),
+    paymentMethod: ec.paymentMethod || "Yape / Plin",
     packUtilesPaid: typeof ec.packUtilesPaid === "boolean" ? ec.packUtilesPaid : true,
+    packUtilesCost: typeof ec.packUtilesCost === "number" ? ec.packUtilesCost : 67,
+    packUtilesAmountPaid: typeof ec.packUtilesAmountPaid === "number"
+      ? ec.packUtilesAmountPaid
+      : (ec.packUtilesPaid === false ? 0 : 67),
+    packUtilesStatus: ec.packUtilesStatus || (ec.packUtilesPaid === false ? "pendiente" : "cancelado"),
+    packUtilesDelivered: typeof ec.packUtilesDelivered === "boolean"
+      ? ec.packUtilesDelivered
+      : (ec.packUtilesPaid !== false),
+    packUtilesNotes: ec.packUtilesNotes || "",
     planStartDate: ec.planStartDate || (isJonathanDB ? "2026-08-18" : (isEmmaDB ? "2026-08-28" : "2026-08-01")),
     planEndDate: ec.planEndDate || (isJonathanDB ? "2026-12-31" : (isEmmaDB ? "2026-09-27" : "2026-12-31")),
     planStartMonth: ec.planStartMonth || (ec.planStartDate ? ec.planStartDate.slice(0, 7) : (isJonathanDB ? "2026-08" : (isEmmaDB ? "2026-08" : "2026-08"))),

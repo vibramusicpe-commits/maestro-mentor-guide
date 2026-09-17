@@ -804,9 +804,62 @@ export function StudentsTable() {
                                 </Badge>
                               )}
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {st.family} · {st.level}
+                            <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                              <span>{st.family} · {st.level}</span>
+                              {st.paymentMethod && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-muted/80 text-muted-foreground border border-border/60">
+                                  💳 {st.paymentMethod}
+                                </span>
+                              )}
                             </div>
+
+                            {/* Badge Dinámico de Pack de Útiles (Libro) y Entrega Física */}
+                            {(() => {
+                              const bookCost = st.packUtilesCost ?? 67;
+                              const isLegacyPaid = st.packUtilesPaid ?? true;
+                              const status = st.packUtilesStatus || (isLegacyPaid ? "CANCELADO" : "PENDIENTE");
+                              const bookPaid = st.packUtilesAmountPaid !== undefined
+                                ? st.packUtilesAmountPaid
+                                : (status === "CANCELADO" ? bookCost : 0);
+                              const bookDebt = Math.max(0, bookCost - bookPaid);
+                              const isDelivered = st.packUtilesDelivered ?? isLegacyPaid;
+
+                              return (
+                                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                  {status === "CANCELADO" && (
+                                    <Badge className="bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-bold">
+                                      📙 Libro: Cancelado (S/ {bookCost})
+                                    </Badge>
+                                  )}
+                                  {status === "PARCIAL" && (
+                                    <Badge className="bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/40 text-[10px] font-bold">
+                                      📙 Libro: Debe S/ {bookDebt} (Abonó S/ {bookPaid})
+                                    </Badge>
+                                  )}
+                                  {status === "PENDIENTE" && (
+                                    <Badge className="bg-rose-500/15 text-rose-800 dark:text-rose-300 border-rose-500/30 text-[10px] font-bold">
+                                      📙 Libro: Debe S/ {bookCost} (Pendiente)
+                                    </Badge>
+                                  )}
+                                  {status === "EXONERADO" && (
+                                    <Badge variant="outline" className="text-muted-foreground text-[10px]">
+                                      📙 Libro: Exonerado
+                                    </Badge>
+                                  )}
+
+                                  {/* Estado de entrega física */}
+                                  {isDelivered ? (
+                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                                      📦 Entregado
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                                      ⏳ Por entregar
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })()}
@@ -1267,32 +1320,172 @@ export function StudentsTable() {
                       </Select>
                     </div>
 
-                    <div className="space-y-1 flex flex-col justify-end">
-                      <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
-                        Pack de Útiles Anual (S/ 67.00)
+                    {/* Fecha de Matrícula / Registro de Pago */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                        📝 Fecha de Matrícula (Pago)
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const current = selectedStudent.packUtilesPaid ?? true;
-                          updateStudentDetails(selectedStudent.id, { packUtilesPaid: !current });
-                          toast.success(`Pack de útiles ${!current ? "Entregado y Pagado" : "Pendiente"}`);
+                      <Input
+                        type="date"
+                        value={selectedStudent.enrollmentDate || new Date().toISOString().split("T")[0]}
+                        onChange={(e) => {
+                          updateStudentDetails(selectedStudent.id, { enrollmentDate: e.target.value });
+                          toast.success(`Fecha de matrícula actualizada al ${e.target.value}`);
                         }}
-                        className={`h-8 px-3 rounded-lg border text-xs font-bold transition-all flex items-center justify-between ${
-                          (selectedStudent.packUtilesPaid ?? true)
-                            ? "bg-success/15 border-success/30 text-success"
-                            : "bg-destructive/10 border-destructive/30 text-destructive"
-                        }`}
-                      >
-                        <span>{(selectedStudent.packUtilesPaid ?? true) ? "✓ Pack Entregado (S/ 67)" : "⚠️ Pendiente de entrega"}</span>
-                        <span className="text-[10px] underline">Cambiar</span>
-                      </button>
+                        className="text-xs h-8 bg-background"
+                      />
                     </div>
 
-                    {/* Vigencia Temporal: Día Exacto de Inicio y Día Exacto de Vencimiento */}
+                    {/* Método de Pago */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                        💳 Método de Pago
+                      </label>
+                      <Select
+                        value={selectedStudent.paymentMethod || "Yape / Plin"}
+                        onValueChange={(v) => {
+                          updateStudentDetails(selectedStudent.id, { paymentMethod: v });
+                          toast.success(`Método de pago: ${v}`);
+                        }}
+                      >
+                        <SelectTrigger className="bg-background text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Yape / Plin">📱 Yape / Plin</SelectItem>
+                          <SelectItem value="Tarjeta de Débito">💳 Tarjeta de Débito</SelectItem>
+                          <SelectItem value="Tarjeta de Crédito">💳 Tarjeta de Crédito</SelectItem>
+                          <SelectItem value="Efectivo">💵 Efectivo</SelectItem>
+                          <SelectItem value="Transferencia Bancaria">🏦 Transferencia Bancaria</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Pack de Útiles Anual (Libro Personalizado y Prorrateo) */}
+                    <div className="sm:col-span-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                          📙 Pack de Útiles Anual (Libro Físico)
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground">Entrega física:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = selectedStudent.packUtilesDelivered ?? selectedStudent.packUtilesPaid ?? true;
+                              updateStudentDetails(selectedStudent.id, { packUtilesDelivered: !curr });
+                              toast.success(`Material físico ${!curr ? "Entregado" : "Pendiente de entrega"}`);
+                            }}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold border transition-colors ${
+                              (selectedStudent.packUtilesDelivered ?? selectedStudent.packUtilesPaid ?? true)
+                                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-800 dark:text-emerald-300"
+                                : "bg-amber-500/20 border-amber-500/40 text-amber-900 dark:text-amber-200"
+                            }`}
+                          >
+                            {(selectedStudent.packUtilesDelivered ?? selectedStudent.packUtilesPaid ?? true) ? "✓ Entregado" : "⏳ Por entregar"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                            Estado de Pago del Libro
+                          </label>
+                          <Select
+                            value={selectedStudent.packUtilesStatus || (selectedStudent.packUtilesPaid ? "CANCELADO" : "PENDIENTE")}
+                            onValueChange={(v: "CANCELADO" | "PARCIAL" | "PENDIENTE" | "EXONERADO") => {
+                              const cost = selectedStudent.packUtilesCost ?? 67;
+                              const isPaid = v === "CANCELADO";
+                              const paidAmount = v === "CANCELADO" ? cost : v === "EXONERADO" ? 0 : (selectedStudent.packUtilesAmountPaid || 0);
+                              updateStudentDetails(selectedStudent.id, {
+                                packUtilesStatus: v,
+                                packUtilesPaid: isPaid,
+                                packUtilesAmountPaid: paidAmount,
+                              });
+                              toast.success(`Estado del libro: ${v}`);
+                            }}
+                          >
+                            <SelectTrigger className="bg-background text-xs h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="CANCELADO">✓ Cancelado Total</SelectItem>
+                              <SelectItem value="PARCIAL">⏳ Prorrateado / Abono Parcial</SelectItem>
+                              <SelectItem value="PENDIENTE">⚠️ Pendiente (Debe Total)</SelectItem>
+                              <SelectItem value="EXONERADO">🎁 Exonerado (S/ 0)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                            Costo del Libro (S/)
+                          </label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={selectedStudent.packUtilesCost ?? 67}
+                            onChange={(e) => {
+                              const cost = parseFloat(e.target.value) || 0;
+                              updateStudentDetails(selectedStudent.id, { packUtilesCost: cost });
+                            }}
+                            className="text-xs h-8 bg-background"
+                          />
+                        </div>
+
+                        {(selectedStudent.packUtilesStatus === "PARCIAL" || (!selectedStudent.packUtilesStatus && !selectedStudent.packUtilesPaid)) && (
+                          <div>
+                            <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                              Monto Abonado Hoy (S/)
+                            </label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max={selectedStudent.packUtilesCost ?? 67}
+                              step="1"
+                              value={selectedStudent.packUtilesAmountPaid ?? 0}
+                              onChange={(e) => {
+                                const paid = parseFloat(e.target.value) || 0;
+                                updateStudentDetails(selectedStudent.id, { packUtilesAmountPaid: paid });
+                              }}
+                              className="text-xs h-8 bg-background"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Cálculo en vivo de Saldo Pendiente del Libro */}
+                      {(selectedStudent.packUtilesStatus === "PARCIAL" || (!selectedStudent.packUtilesStatus && !selectedStudent.packUtilesPaid)) && (
+                        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-xs">
+                          <span className="font-semibold text-amber-900 dark:text-amber-200">
+                            Saldo restante por cobrar del Libro:
+                          </span>
+                          <span className="font-black text-amber-950 dark:text-amber-100">
+                            S/ {Math.max(0, (selectedStudent.packUtilesCost ?? 67) - (selectedStudent.packUtilesAmountPaid ?? 0)).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-[10px] font-semibold text-muted-foreground block mb-0.5">
+                          Notas de Prorrateo / Seguimiento
+                        </label>
+                        <Input
+                          type="text"
+                          placeholder="Ej: Abonó S/ 30 hoy con Yape, saldo restante S/ 37 la próxima clase"
+                          value={selectedStudent.packUtilesNotes || ""}
+                          onChange={(e) => updateStudentDetails(selectedStudent.id, { packUtilesNotes: e.target.value })}
+                          className="text-xs h-8 bg-background"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Vigencia Temporal: Día Exacto de Inicio de Clases y Día Exacto de Vencimiento */}
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-primary flex items-center gap-1">
-                        🗓️ Fecha Exacta de Inicio
+                        🗓️ Fecha de Inicio de Clases (Sala)
                       </label>
                       <Input
                         type="date"
@@ -2636,7 +2829,15 @@ function NewStudentDialog() {
   const [packageTotalSessions, setPackageTotalSessions] = useState<number>(24);
   const [customPriceReason, setCustomPriceReason] = useState<string>("");
   const [matriculaType, setMatriculaType] = useState<"Promo Demo (S/ 30)" | "Regular (S/ 120)" | "Exonerada">("Promo Demo (S/ 30)");
-  const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(true);
+  const [paymentMethod, setPaymentMethod] = useState<string>("Yape / Plin");
+
+  // Pack de Útiles / Libro (Control de Pago Personalizado + Entrega Física)
+  const [packUtilesStatus, setPackUtilesStatus] = useState<"cancelado" | "parcial" | "pendiente" | "exonerado">("cancelado");
+  const [packUtilesCost, setPackUtilesCost] = useState<number>(67);
+  const [packUtilesAmountPaid, setPackUtilesAmountPaid] = useState<number>(67);
+  const [packUtilesDelivered, setPackUtilesDelivered] = useState<boolean>(true);
+  const [packUtilesNotes, setPackUtilesNotes] = useState<string>("");
+
   // Fecha actual formateada YYYY-MM-DD
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -2646,6 +2847,7 @@ function NewStudentDialog() {
     return `${y}-${m}-${day}`;
   }, []);
 
+  const [enrollmentDate, setEnrollmentDate] = useState<string>(todayStr);
   const [planStartDate, setPlanStartDate] = useState<string>(todayStr);
 
   const isFlexiblePlan =
@@ -2654,8 +2856,29 @@ function NewStudentDialog() {
     modality.includes("Flexible") ||
     modality.includes("Irregular");
 
-  const liveBalance = Math.max(0, planPrice - amountPaid);
-  const livePaymentStatus = liveBalance === 0 ? "al-dia" : "pendiente";
+  const matriculaAmount =
+    matriculaType === "Promo Demo (S/ 30)"
+      ? 30
+      : matriculaType === "Regular (S/ 120)"
+      ? 120
+      : 0;
+
+  const effectiveBookCost = packUtilesStatus === "exonerado" ? 0 : packUtilesCost;
+  const effectiveBookPaid =
+    packUtilesStatus === "cancelado"
+      ? effectiveBookCost
+      : packUtilesStatus === "parcial"
+      ? Math.min(effectiveBookCost, Math.max(0, packUtilesAmountPaid))
+      : 0;
+  const liveBookBalance =
+    packUtilesStatus === "exonerado"
+      ? 0
+      : Math.max(0, effectiveBookCost - effectiveBookPaid);
+
+  const livePlanBalance = Math.max(0, planPrice - amountPaid);
+  const liveTotalBalance = livePlanBalance + liveBookBalance;
+  const liveTotalPaidToday = amountPaid + matriculaAmount + effectiveBookPaid;
+  const livePaymentStatus = liveTotalBalance === 0 ? "al-dia" : "pendiente";
 
   // Mantener profesor seleccionado sincronizado si cambia la lista
   useEffect(() => {
@@ -2738,6 +2961,7 @@ function NewStudentDialog() {
       age: isAdultStudent ? Math.max(18, age) : age,
       status: "activo",
       payment: livePaymentStatus,
+      balance: liveTotalBalance,
       email: email || `${name.toLowerCase().replace(/\s+/g, ".")}@gmail.com`,
       phone: isAdultStudent ? (phone || "987 654 321") : (motherPhone || fatherPhone || phone || "987 654 321"),
       birthdate,
@@ -2747,7 +2971,14 @@ function NewStudentDialog() {
       packageTotalSessions: isFlexiblePlan ? packageTotalSessions : undefined,
       teacherNote: customPriceReason.trim() || undefined,
       matriculaType,
-      packUtilesPaid,
+      enrollmentDate: enrollmentDate || todayStr,
+      paymentMethod,
+      packUtilesPaid: packUtilesStatus === "cancelado",
+      packUtilesCost: effectiveBookCost,
+      packUtilesAmountPaid: effectiveBookPaid,
+      packUtilesStatus,
+      packUtilesDelivered,
+      packUtilesNotes: packUtilesNotes.trim() || undefined,
       planStartDate: planStartDate || "2026-08-03",
       planEndDate: calculatedEndDate,
       planStartMonth: startMonthStr,
@@ -2765,8 +2996,8 @@ function NewStudentDialog() {
 
     toast.success(`Alumno ${name} matriculado en plan ${planType} (${effectiveCategory}).`, {
       description: isAdultStudent
-        ? `Alumno Adulto registrado sin apoderado requerido. Período: ${planStartDate || "03/08/2026"} al ${calculatedEndDate}.`
-        : `Padres y apoderados vinculados. Período activo: ${planStartDate || "03/08/2026"} al ${calculatedEndDate}.`,
+        ? `Alumno Adulto registrado sin apoderado requerido. Matrícula: ${enrollmentDate || todayStr} | Inicio: ${planStartDate || "03/08/2026"}.`
+        : `Padres y apoderados vinculados. Matrícula: ${enrollmentDate || todayStr} | Inicio: ${planStartDate || "03/08/2026"}.`,
     });
     setOpen(false);
     setName("");
@@ -2780,8 +3011,14 @@ function NewStudentDialog() {
     setEmergencyPhone("");
     setEmergencyRelation("Abuela");
     setSelectedCategory("AUTO");
+    setEnrollmentDate(todayStr);
     setPlanStartDate(todayStr);
-    setPackUtilesPaid(true);
+    setPaymentMethod("Yape / Plin");
+    setPackUtilesStatus("cancelado");
+    setPackUtilesCost(67);
+    setPackUtilesAmountPaid(67);
+    setPackUtilesDelivered(true);
+    setPackUtilesNotes("");
     setPlanPrice(297);
     setAmountPaid(297);
     setPackageTotalSessions(24);
@@ -2908,7 +3145,7 @@ function NewStudentDialog() {
           </div>
 
           {/* Plan de Inversión del Dossier */}
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2.5">
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5" /> Plan Oficial del Dossier
@@ -2957,9 +3194,9 @@ function NewStudentDialog() {
                   onChange={(e) => setMatriculaType(e.target.value as any)}
                   className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
                 >
-                  <option value="Promo Demo (S/ 30)">Promo Demo — S/ 30</option>
-                  <option value="Regular (S/ 120)">Regular — S/ 120</option>
-                  <option value="Exonerada">Exonerada — S/ 0</option>
+                  <option value="Promo Demo (S/ 30)">Promo Demo — S/ 30.00</option>
+                  <option value="Regular (S/ 120)">Regular — S/ 120.00</option>
+                  <option value="Exonerada">Exonerada — S/ 0.00</option>
                 </select>
               </div>
             </div>
@@ -2994,10 +3231,10 @@ function NewStudentDialog() {
               </div>
             )}
 
-            {/* Tarifa Personalizada y Control de Abono Inicial */}
+            {/* Tarifa Personalizada y Control de Abono de Mensualidad */}
             <div className="rounded-lg border border-border bg-background/80 p-2.5 space-y-2">
               <span className="text-[11px] font-bold text-foreground block">
-                💰 Tarifa Personalizada y Estado de Pago
+                💰 Cobro del Plan / Mensualidad
               </span>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -3016,7 +3253,7 @@ function NewStudentDialog() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
-                    Monto Abonado (S/ PEN) *
+                    Monto Abonado Plan (S/ PEN) *
                   </label>
                   <Input
                     type="number"
@@ -3030,16 +3267,16 @@ function NewStudentDialog() {
                 </div>
               </div>
 
-              {/* Indicador reactivo de saldo y estado */}
+              {/* Indicador reactivo de saldo del plan */}
               <div className="flex items-center justify-between pt-1 text-xs">
-                <span className="text-muted-foreground font-medium text-[11px]">Estado de Cuenta:</span>
-                {liveBalance === 0 ? (
+                <span className="text-muted-foreground font-medium text-[11px]">Saldo Mensualidad:</span>
+                {livePlanBalance === 0 ? (
                   <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-black">
-                    ✓ Al Día (Cancelado S/ {planPrice.toFixed(2)})
+                    ✓ Cancelado (S/ {planPrice.toFixed(2)})
                   </Badge>
                 ) : (
                   <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-black">
-                    ⚠️ Saldo Pendiente: S/ {liveBalance.toFixed(2)}
+                    ⚠️ Debe Mensualidad: S/ {livePlanBalance.toFixed(2)}
                   </Badge>
                 )}
               </div>
@@ -3047,10 +3284,10 @@ function NewStudentDialog() {
               {/* Motivo o Justificación de Tarifa / Paquete */}
               <div className="pt-1">
                 <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
-                  📝 Motivo / Justificación de Tarifa o Paquete Especial
+                  📝 Motivo / Justificación de Tarifa Especial
                 </label>
                 <Input
-                  placeholder="Ej. Ex-alumno de Alex / Convenio especial / Tarifa preferencial / Descuento hermanos"
+                  placeholder="Ej. Ex-alumno de Alex / Descuento hermanos / Tarifa convenida"
                   value={customPriceReason}
                   onChange={(e) => setCustomPriceReason(e.target.value)}
                   className="h-8 text-xs bg-background"
@@ -3058,32 +3295,225 @@ function NewStudentDialog() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            {/* SEPARACIÓN DE FECHAS Y MÉTODO DE PAGO */}
+            <div className="rounded-lg border border-border bg-background/80 p-2.5 space-y-2">
+              <span className="text-[11px] font-bold text-foreground block">
+                🗓️ Fechas Oficiales y Método de Pago
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-foreground mb-1">
+                    📝 Fecha de Matrícula (Pago) *
+                  </label>
+                  <Input
+                    type="date"
+                    value={enrollmentDate}
+                    onChange={(e) => setEnrollmentDate(e.target.value)}
+                    className="h-8 text-xs bg-background font-semibold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-primary mb-1">
+                    🗓️ Inicio de Clases en Sala *
+                  </label>
+                  <Input
+                    type="date"
+                    value={planStartDate}
+                    onChange={(e) => setPlanStartDate(e.target.value)}
+                    className="h-8 text-xs bg-background font-semibold"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Método de Pago Dropdown */}
               <div>
-                <label className="block text-[10px] text-primary font-bold mb-1">🗓️ Fecha de Inicio de Clases</label>
-                <Input
-                  type="date"
-                  value={planStartDate}
-                  onChange={(e) => setPlanStartDate(e.target.value)}
-                  className="h-8 text-xs bg-background"
-                  required
+                <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                  💳 Método de Pago Utilizado
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-semibold"
+                >
+                  <option value="Yape / Plin">📱 Yape / Plin</option>
+                  <option value="Tarjeta de Débito">💳 Tarjeta de Débito (POS / Culqi)</option>
+                  <option value="Tarjeta de Crédito">💳 Tarjeta de Crédito (POS / Culqi)</option>
+                  <option value="Efectivo">💵 Efectivo</option>
+                  <option value="Transferencia Bancaria">🏦 Transferencia Bancaria (BCP/BBVA/Interbank)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* CONTROL DEL PACK DE ÚTILES / LIBRO (S/ 67 BASE O PERSONALIZADO) */}
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                  📙 Pack de Útiles Anual (Libro Oficial Vibra)
+                </span>
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                  Base: S/ {packUtilesCost.toFixed(2)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Estado de Pago del Libro
+                  </label>
+                  <select
+                    value={packUtilesStatus}
+                    onChange={(e) => {
+                      const val = e.target.value as "cancelado" | "parcial" | "pendiente" | "exonerado";
+                      setPackUtilesStatus(val);
+                      if (val === "cancelado") {
+                        setPackUtilesAmountPaid(packUtilesCost);
+                        setPackUtilesDelivered(true);
+                      } else if (val === "pendiente" || val === "exonerado") {
+                        setPackUtilesAmountPaid(0);
+                      } else if (val === "parcial") {
+                        if (packUtilesAmountPaid === packUtilesCost || packUtilesAmountPaid === 0) {
+                          setPackUtilesAmountPaid(30);
+                        }
+                      }
+                    }}
+                    className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-bold"
+                  >
+                    <option value="cancelado">🟢 Cancelado Completo (S/ {packUtilesCost.toFixed(2)})</option>
+                    <option value="parcial">🟡 Prorrateado / Abono Parcial</option>
+                    <option value="pendiente">🔴 Pendiente de Pago (Debe S/ {packUtilesCost.toFixed(2)})</option>
+                    <option value="exonerado">⚪ Exonerado / Sin Libro (S/ 0.00)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Costo Total del Libro (S/)
+                  </label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min={0}
+                    value={packUtilesCost}
+                    onChange={(e) => {
+                      const newCost = parseFloat(e.target.value) || 0;
+                      setPackUtilesCost(newCost);
+                      if (packUtilesStatus === "cancelado") setPackUtilesAmountPaid(newCost);
+                    }}
+                    className="h-8 text-xs bg-background font-bold"
+                    placeholder="67.00"
+                  />
+                </div>
+              </div>
+
+              {/* Si es Prorrateado / Abono Parcial: Input de Abono y Saldo Dinámico Personalizado */}
+              {packUtilesStatus === "parcial" && (
+                <div className="rounded-lg border border-amber-500/30 bg-background/90 p-2 space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-amber-700 dark:text-amber-400 mb-0.5">
+                        Monto Abonado Hoy (S/) *
+                      </label>
+                      <Input
+                        type="number"
+                        step="1"
+                        min={0}
+                        max={packUtilesCost}
+                        value={packUtilesAmountPaid}
+                        onChange={(e) => setPackUtilesAmountPaid(parseFloat(e.target.value) || 0)}
+                        className="h-8 text-xs font-black bg-background border-amber-500/50"
+                        placeholder="Ej. 30"
+                      />
+                    </div>
+                    <div className="flex flex-col justify-end">
+                      <span className="text-[10px] text-muted-foreground font-semibold mb-0.5">Saldo Libro Pendiente:</span>
+                      <Badge className="h-8 flex items-center justify-center bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 text-[11px] font-black">
+                        📙 Debe S/ {liveBookBalance.toFixed(2)}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Toggle de Entrega Física */}
+              <div className="flex items-center justify-between rounded-lg border border-border bg-background p-2">
+                <div className="space-y-0.5">
+                  <span className="text-[11px] font-bold text-foreground block">
+                    📦 Entrega Física del Material
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {packUtilesDelivered ? "✓ Entregado físicamente al alumno/apoderado en sala" : "⚠️ Pendiente de entrega física en clase"}
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={packUtilesDelivered}
+                  onChange={(e) => setPackUtilesDelivered(e.target.checked)}
+                  className="h-4 w-4 rounded border-border text-primary cursor-pointer"
                 />
               </div>
 
+              {/* Notas de Prorrateo del Libro */}
               <div>
-                <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Pack Útiles Anual (S/ 67)</label>
-                <button
-                  type="button"
-                  onClick={() => setPackUtilesPaid(!packUtilesPaid)}
-                  className={`w-full h-8 px-2 rounded-lg border text-xs font-bold flex items-center justify-between ${
-                    packUtilesPaid
-                      ? "bg-success/15 border-success/30 text-success"
-                      : "bg-destructive/10 border-destructive/30 text-destructive"
-                  }`}
-                >
-                  <span>{packUtilesPaid ? "✓ Entregado (S/ 67)" : "⚠️ Pendiente"}</span>
-                  <span className="text-[10px] underline">Cambiar</span>
-                </button>
+                <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                  📝 Detalle / Notas de Prorrateo del Libro
+                </label>
+                <Input
+                  placeholder="Ej. Abonó S/ 30 hoy con Yape, pagará saldo S/ 37 la próxima clase"
+                  value={packUtilesNotes}
+                  onChange={(e) => setPackUtilesNotes(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+            </div>
+
+            {/* RESUMEN FINANCIERO TOTAL EN VIVO */}
+            <div className="rounded-xl border border-primary/40 bg-card p-3 space-y-2 shadow-sm">
+              <span className="text-xs font-black text-foreground flex items-center justify-between border-b border-border pb-1.5">
+                <span>📊 Resumen Financiero de Matrícula</span>
+                <Badge variant="outline" className="text-[10px] font-bold border-primary/40 text-primary">
+                  {paymentMethod}
+                </Badge>
+              </span>
+
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>🎓 Matrícula ({matriculaType}):</span>
+                  <strong className="text-foreground font-semibold">S/ {matriculaAmount.toFixed(2)}</strong>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>🎵 Plan / Mensualidad (Costo: S/ {planPrice.toFixed(2)}):</span>
+                  <span className="font-semibold text-foreground">
+                    Abonó: S/ {amountPaid.toFixed(2)} {livePlanBalance > 0 && <span className="text-destructive text-[10px]">(Debe S/ {livePlanBalance.toFixed(2)})</span>}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>📙 Pack Útiles Libro (Costo: S/ {effectiveBookCost.toFixed(2)}):</span>
+                  <span className="font-semibold text-foreground">
+                    Abonó: S/ {effectiveBookPaid.toFixed(2)} {liveBookBalance > 0 && <span className="text-amber-600 dark:text-amber-400 text-[10px]">(Debe S/ {liveBookBalance.toFixed(2)})</span>}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-border grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-2 text-center">
+                  <span className="block text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
+                    Total Cobrado Hoy
+                  </span>
+                  <span className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                    S/ {liveTotalPaidToday.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className={`rounded-lg p-2 text-center border ${liveTotalBalance > 0 ? "bg-amber-500/10 border-amber-500/30" : "bg-muted/40 border-border"}`}>
+                  <span className={`block text-[10px] font-bold uppercase tracking-wider ${liveTotalBalance > 0 ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
+                    Saldo Total Pendiente
+                  </span>
+                  <span className={`text-sm font-black ${liveTotalBalance > 0 ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>
+                    {liveTotalBalance > 0 ? `S/ ${liveTotalBalance.toFixed(2)}` : "S/ 0.00 (Al día)"}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -3465,7 +3895,26 @@ function EditStudentSheetInner({
   const [matriculaType, setMatriculaType] = useState<"Promo Demo (S/ 30)" | "Regular (S/ 120)" | "Exonerada">(
     student.matriculaType || "Promo Demo (S/ 30)"
   );
-  const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(student.packUtilesPaid ?? true);
+  const [paymentMethod, setPaymentMethod] = useState<string>(student.paymentMethod || "Yape / Plin");
+
+  // Pack de Útiles / Libro (Control de Pago Personalizado + Entrega Física)
+  const [packUtilesStatus, setPackUtilesStatus] = useState<"cancelado" | "parcial" | "pendiente" | "exonerado">(
+    student.packUtilesStatus || (student.packUtilesPaid === false ? "pendiente" : "cancelado")
+  );
+  const [packUtilesCost, setPackUtilesCost] = useState<number>(student.packUtilesCost ?? 67);
+  const [packUtilesAmountPaid, setPackUtilesAmountPaid] = useState<number>(
+    student.packUtilesAmountPaid !== undefined
+      ? student.packUtilesAmountPaid
+      : (student.packUtilesPaid === false ? 0 : (student.packUtilesCost ?? 67))
+  );
+  const [packUtilesDelivered, setPackUtilesDelivered] = useState<boolean>(
+    student.packUtilesDelivered !== undefined
+      ? student.packUtilesDelivered
+      : (student.packUtilesPaid !== false)
+  );
+  const [packUtilesNotes, setPackUtilesNotes] = useState<string>(student.packUtilesNotes || "");
+
+  const [enrollmentDate, setEnrollmentDate] = useState<string>(student.enrollmentDate || student.joinedAt || "2026-08-01");
   const [planStartDate, setPlanStartDate] = useState<string>(student.planStartDate || "2026-08-03");
   const [planEndDate, setPlanEndDate] = useState<string>(student.planEndDate || "2026-08-31");
 
@@ -3475,8 +3924,29 @@ function EditStudentSheetInner({
     modality.includes("Flexible") ||
     modality.includes("Irregular");
 
-  const liveBalance = Math.max(0, planPrice - amountPaid);
-  const livePaymentStatus = liveBalance === 0 ? "al-dia" : "pendiente";
+  const matriculaAmount =
+    matriculaType === "Promo Demo (S/ 30)"
+      ? 30
+      : matriculaType === "Regular (S/ 120)"
+      ? 120
+      : 0;
+
+  const effectiveBookCost = packUtilesStatus === "exonerado" ? 0 : packUtilesCost;
+  const effectiveBookPaid =
+    packUtilesStatus === "cancelado"
+      ? effectiveBookCost
+      : packUtilesStatus === "parcial"
+      ? Math.min(effectiveBookCost, Math.max(0, packUtilesAmountPaid))
+      : 0;
+  const liveBookBalance =
+    packUtilesStatus === "exonerado"
+      ? 0
+      : Math.max(0, effectiveBookCost - effectiveBookPaid);
+
+  const livePlanBalance = Math.max(0, planPrice - amountPaid);
+  const liveTotalBalance = livePlanBalance + liveBookBalance;
+  const liveTotalPaidToday = amountPaid + matriculaAmount + effectiveBookPaid;
+  const livePaymentStatus = liveTotalBalance === 0 ? "al-dia" : "pendiente";
 
   // Cálculo de categoría: manual si fue seleccionada, personalizada si está marcada, o automática por edad
   const effectiveCategory: AgeCategory = isPersonalized
@@ -3527,12 +3997,19 @@ function EditStudentSheetInner({
       planType,
       planPrice,
       amountPaid,
-      balance: liveBalance,
+      balance: liveTotalBalance,
       payment: livePaymentStatus,
       packageTotalSessions: isFlexiblePlan ? packageTotalSessions : undefined,
       teacherNote: customPriceReason.trim() || undefined,
       matriculaType,
-      packUtilesPaid,
+      enrollmentDate,
+      paymentMethod,
+      packUtilesPaid: packUtilesStatus === "cancelado",
+      packUtilesCost: effectiveBookCost,
+      packUtilesAmountPaid: effectiveBookPaid,
+      packUtilesStatus,
+      packUtilesDelivered,
+      packUtilesNotes: packUtilesNotes.trim() || undefined,
       planStartDate,
       planEndDate: isFlexiblePlan ? (planEndDate || "2026-12-31") : planEndDate,
       fatherName: fatherName.trim() || undefined,
@@ -3771,7 +4248,7 @@ function EditStudentSheetInner({
           </div>
 
           {/* Plan de Inversión del Dossier */}
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2.5">
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5" /> Plan Oficial del Dossier
@@ -3827,9 +4304,9 @@ function EditStudentSheetInner({
                   onChange={(e) => setMatriculaType(e.target.value as any)}
                   className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
                 >
-                  <option value="Promo Demo (S/ 30)">Promo Demo — S/ 30</option>
-                  <option value="Regular (S/ 120)">Regular — S/ 120</option>
-                  <option value="Exonerada">Exonerada — S/ 0</option>
+                  <option value="Promo Demo (S/ 30)">Promo Demo — S/ 30.00</option>
+                  <option value="Regular (S/ 120)">Regular — S/ 120.00</option>
+                  <option value="Exonerada">Exonerada — S/ 0.00</option>
                 </select>
               </div>
             </div>
@@ -3864,10 +4341,10 @@ function EditStudentSheetInner({
               </div>
             )}
 
-            {/* Tarifa Personalizada y Control de Abono Inicial */}
+            {/* Tarifa Personalizada y Control de Abono de Mensualidad */}
             <div className="rounded-lg border border-border bg-background/80 p-2.5 space-y-2">
               <span className="text-[11px] font-bold text-foreground block">
-                💰 Tarifa Personalizada y Estado de Pago
+                💰 Cobro del Plan / Mensualidad
               </span>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -3886,7 +4363,7 @@ function EditStudentSheetInner({
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
-                    Monto Abonado (S/ PEN) *
+                    Monto Abonado Plan (S/ PEN) *
                   </label>
                   <Input
                     type="number"
@@ -3900,16 +4377,16 @@ function EditStudentSheetInner({
                 </div>
               </div>
 
-              {/* Indicador reactivo de saldo y estado */}
+              {/* Indicador reactivo de saldo del plan */}
               <div className="flex items-center justify-between pt-1 text-xs">
-                <span className="text-muted-foreground font-medium text-[11px]">Estado de Cuenta:</span>
-                {liveBalance === 0 ? (
+                <span className="text-muted-foreground font-medium text-[11px]">Saldo Mensualidad:</span>
+                {livePlanBalance === 0 ? (
                   <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-black">
-                    ✓ Al Día (Cancelado S/ {planPrice.toFixed(2)})
+                    ✓ Cancelado (S/ {planPrice.toFixed(2)})
                   </Badge>
                 ) : (
                   <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-black">
-                    ⚠️ Saldo Pendiente: S/ {liveBalance.toFixed(2)}
+                    ⚠️ Debe Mensualidad: S/ {livePlanBalance.toFixed(2)}
                   </Badge>
                 )}
               </div>
@@ -3917,10 +4394,10 @@ function EditStudentSheetInner({
               {/* Motivo o Justificación de Tarifa / Paquete */}
               <div className="pt-1">
                 <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
-                  📝 Motivo / Justificación de Tarifa o Paquete Especial
+                  📝 Motivo / Justificación de Tarifa Especial
                 </label>
                 <Input
-                  placeholder="Ej. Ex-alumno de Alex / Convenio especial / Tarifa preferencial / Descuento hermanos"
+                  placeholder="Ej. Ex-alumno de Alex / Descuento hermanos / Tarifa convenida"
                   value={customPriceReason}
                   onChange={(e) => setCustomPriceReason(e.target.value)}
                   className="h-8 text-xs bg-background"
@@ -3928,57 +4405,252 @@ function EditStudentSheetInner({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div>
-                <label className="block text-[10px] text-primary font-bold mb-1">🗓️ Fecha de Inicio</label>
-                <Input
-                  type="date"
-                  value={planStartDate}
-                  onChange={(e) => {
-                    const newStart = e.target.value;
-                    setPlanStartDate(newStart);
-                    if (newStart) {
-                      const durationMonths = planType === "Trimestral" ? 3 : planType === "Anual" ? 12 : 1;
-                      const [y, m, d] = newStart.split("-").map((v) => parseInt(v, 10));
-                      const endD = new Date(y!, (m! - 1) + durationMonths, d!);
-                      endD.setDate(endD.getDate() - 1);
-                      const endY = endD.getFullYear();
-                      const endM = String(endD.getMonth() + 1).padStart(2, "0");
-                      const endDay = String(endD.getDate()).padStart(2, "0");
-                      setPlanEndDate(`${endY}-${endM}-${endDay}`);
-                    }
-                  }}
-                  className="h-8 text-xs bg-background"
-                  required
+            {/* SEPARACIÓN DE FECHAS Y MÉTODO DE PAGO */}
+            <div className="rounded-lg border border-border bg-background/80 p-2.5 space-y-2">
+              <span className="text-[11px] font-bold text-foreground block">
+                🗓️ Fechas Oficiales y Método de Pago
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-foreground mb-1">
+                    📝 Fecha de Matrícula (Pago) *
+                  </label>
+                  <Input
+                    type="date"
+                    value={enrollmentDate}
+                    onChange={(e) => setEnrollmentDate(e.target.value)}
+                    className="h-8 text-xs bg-background font-semibold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-primary mb-1">
+                    🗓️ Inicio de Clases en Sala *
+                  </label>
+                  <Input
+                    type="date"
+                    value={planStartDate}
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      setPlanStartDate(newStart);
+                      if (newStart) {
+                        const durationMonths = planType === "Trimestral" ? 3 : planType === "Anual" ? 12 : 1;
+                        const [y, m, d] = newStart.split("-").map((v) => parseInt(v, 10));
+                        const endD = new Date(y!, (m! - 1) + durationMonths, d!);
+                        endD.setDate(endD.getDate() - 1);
+                        const endY = endD.getFullYear();
+                        const endM = String(endD.getMonth() + 1).padStart(2, "0");
+                        const endDay = String(endD.getDate()).padStart(2, "0");
+                        setPlanEndDate(`${endY}-${endM}-${endDay}`);
+                      }
+                    }}
+                    className="h-8 text-xs bg-background font-semibold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-primary mb-1">
+                    🏁 Fecha de Fin / Vencimiento *
+                  </label>
+                  <Input
+                    type="date"
+                    value={planEndDate}
+                    onChange={(e) => setPlanEndDate(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    💳 Método de Pago
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-semibold"
+                  >
+                    <option value="Yape / Plin">📱 Yape / Plin</option>
+                    <option value="Tarjeta de Débito">💳 Débito (POS/Culqi)</option>
+                    <option value="Tarjeta de Crédito">💳 Crédito (POS/Culqi)</option>
+                    <option value="Efectivo">💵 Efectivo</option>
+                    <option value="Transferencia Bancaria">🏦 Transferencia</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* CONTROL DEL PACK DE ÚTILES / LIBRO (S/ 67 BASE O PERSONALIZADO) */}
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                  📙 Pack de Útiles Anual (Libro Oficial Vibra)
+                </span>
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                  Base: S/ {packUtilesCost.toFixed(2)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Estado de Pago del Libro
+                  </label>
+                  <select
+                    value={packUtilesStatus}
+                    onChange={(e) => {
+                      const val = e.target.value as "cancelado" | "parcial" | "pendiente" | "exonerado";
+                      setPackUtilesStatus(val);
+                      if (val === "cancelado") {
+                        setPackUtilesAmountPaid(packUtilesCost);
+                        setPackUtilesDelivered(true);
+                      } else if (val === "pendiente" || val === "exonerado") {
+                        setPackUtilesAmountPaid(0);
+                      } else if (val === "parcial") {
+                        if (packUtilesAmountPaid === packUtilesCost || packUtilesAmountPaid === 0) {
+                          setPackUtilesAmountPaid(30);
+                        }
+                      }
+                    }}
+                    className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-bold"
+                  >
+                    <option value="cancelado">🟢 Cancelado Completo (S/ {packUtilesCost.toFixed(2)})</option>
+                    <option value="parcial">🟡 Prorrateado / Abono Parcial</option>
+                    <option value="pendiente">🔴 Pendiente de Pago (Debe S/ {packUtilesCost.toFixed(2)})</option>
+                    <option value="exonerado">⚪ Exonerado / Sin Libro (S/ 0.00)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Costo Total del Libro (S/)
+                  </label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min={0}
+                    value={packUtilesCost}
+                    onChange={(e) => {
+                      const newCost = parseFloat(e.target.value) || 0;
+                      setPackUtilesCost(newCost);
+                      if (packUtilesStatus === "cancelado") setPackUtilesAmountPaid(newCost);
+                    }}
+                    className="h-8 text-xs bg-background font-bold"
+                    placeholder="67.00"
+                  />
+                </div>
+              </div>
+
+              {/* Si es Prorrateado / Abono Parcial: Input de Abono y Saldo Dinámico Personalizado */}
+              {packUtilesStatus === "parcial" && (
+                <div className="rounded-lg border border-amber-500/30 bg-background/90 p-2 space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-amber-700 dark:text-amber-400 mb-0.5">
+                        Monto Abonado Hoy (S/) *
+                      </label>
+                      <Input
+                        type="number"
+                        step="1"
+                        min={0}
+                        max={packUtilesCost}
+                        value={packUtilesAmountPaid}
+                        onChange={(e) => setPackUtilesAmountPaid(parseFloat(e.target.value) || 0)}
+                        className="h-8 text-xs font-black bg-background border-amber-500/50"
+                        placeholder="Ej. 30"
+                      />
+                    </div>
+                    <div className="flex flex-col justify-end">
+                      <span className="text-[10px] text-muted-foreground font-semibold mb-0.5">Saldo Libro Pendiente:</span>
+                      <Badge className="h-8 flex items-center justify-center bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 text-[11px] font-black">
+                        📙 Debe S/ {liveBookBalance.toFixed(2)}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Toggle de Entrega Física */}
+              <div className="flex items-center justify-between rounded-lg border border-border bg-background p-2">
+                <div className="space-y-0.5">
+                  <span className="text-[11px] font-bold text-foreground block">
+                    📦 Entrega Física del Material
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {packUtilesDelivered ? "✓ Entregado físicamente al alumno/apoderado en sala" : "⚠️ Pendiente de entrega física en clase"}
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={packUtilesDelivered}
+                  onChange={(e) => setPackUtilesDelivered(e.target.checked)}
+                  className="h-4 w-4 rounded border-border text-primary cursor-pointer"
                 />
               </div>
 
+              {/* Notas de Prorrateo del Libro */}
               <div>
-                <label className="block text-[10px] text-primary font-bold mb-1">🏁 Fecha de Fin</label>
+                <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                  📝 Detalle / Notas de Prorrateo del Libro
+                </label>
                 <Input
-                  type="date"
-                  value={planEndDate}
-                  onChange={(e) => setPlanEndDate(e.target.value)}
+                  placeholder="Ej. Abonó S/ 30 hoy con Yape, pagará saldo S/ 37 la próxima clase"
+                  value={packUtilesNotes}
+                  onChange={(e) => setPackUtilesNotes(e.target.value)}
                   className="h-8 text-xs bg-background"
-                  required
                 />
               </div>
             </div>
 
-            <div className="pt-1">
-              <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Pack Útiles Anual (S/ 67)</label>
-              <button
-                type="button"
-                onClick={() => setPackUtilesPaid(!packUtilesPaid)}
-                className={`w-full h-8 px-2 rounded-lg border text-xs font-bold flex items-center justify-between ${
-                  packUtilesPaid
-                    ? "bg-success/15 border-success/30 text-success"
-                    : "bg-destructive/10 border-destructive/30 text-destructive"
-                }`}
-              >
-                <span>{packUtilesPaid ? "✓ Entregado (S/ 67)" : "⚠️ Pendiente de entrega"}</span>
-                <span className="text-[10px] underline">Cambiar</span>
-              </button>
+            {/* RESUMEN FINANCIERO TOTAL EN VIVO */}
+            <div className="rounded-xl border border-primary/40 bg-card p-3 space-y-2 shadow-sm">
+              <span className="text-xs font-black text-foreground flex items-center justify-between border-b border-border pb-1.5">
+                <span>📊 Resumen Financiero Actualizado</span>
+                <Badge variant="outline" className="text-[10px] font-bold border-primary/40 text-primary">
+                  {paymentMethod}
+                </Badge>
+              </span>
+
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>🎓 Matrícula ({matriculaType}):</span>
+                  <strong className="text-foreground font-semibold">S/ {matriculaAmount.toFixed(2)}</strong>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>🎵 Plan / Mensualidad (Costo: S/ {planPrice.toFixed(2)}):</span>
+                  <span className="font-semibold text-foreground">
+                    Abonó: S/ {amountPaid.toFixed(2)} {livePlanBalance > 0 && <span className="text-destructive text-[10px]">(Debe S/ {livePlanBalance.toFixed(2)})</span>}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>📙 Pack Útiles Libro (Costo: S/ {effectiveBookCost.toFixed(2)}):</span>
+                  <span className="font-semibold text-foreground">
+                    Abonó: S/ {effectiveBookPaid.toFixed(2)} {liveBookBalance > 0 && <span className="text-amber-600 dark:text-amber-400 text-[10px]">(Debe S/ {liveBookBalance.toFixed(2)})</span>}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-border grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-2 text-center">
+                  <span className="block text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
+                    Total Cobrado Registrado
+                  </span>
+                  <span className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                    S/ {liveTotalPaidToday.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className={`rounded-lg p-2 text-center border ${liveTotalBalance > 0 ? "bg-amber-500/10 border-amber-500/30" : "bg-muted/40 border-border"}`}>
+                  <span className={`block text-[10px] font-bold uppercase tracking-wider ${liveTotalBalance > 0 ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
+                    Saldo Total Pendiente
+                  </span>
+                  <span className={`text-sm font-black ${liveTotalBalance > 0 ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>
+                    {liveTotalBalance > 0 ? `S/ ${liveTotalBalance.toFixed(2)}` : "S/ 0.00 (Al día)"}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 

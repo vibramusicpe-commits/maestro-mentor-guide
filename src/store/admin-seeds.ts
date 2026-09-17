@@ -173,10 +173,18 @@ export type AdminStudent = {
   planType?: VibraPlanType;
   planPrice?: number;
   amountPaid?: number; // Monto abonado al momento de la matrícula
+  paymentMethod?: "Yape / Plin" | "Tarjeta de Débito" | "Tarjeta de Crédito" | "Efectivo" | "Transferencia Bancaria" | string;
+  enrollmentDate?: string; // Fecha de matrícula / pago (YYYY-MM-DD)
   packageTotalSessions?: number; // Total de clases del paquete (ej. 24 para Jonathan, 8 para regular)
   matriculaType?: MatriculaType;
-  packUtilesPaid?: boolean;
-  planStartDate?: string; // "2026-08-03" (Día exacto de inicio)
+  // Pack de Útiles / Libro (S/ 67)
+  packUtilesPaid?: boolean; // legacy compatibility
+  packUtilesCost?: number; // Costo base (S/ 67 por defecto)
+  packUtilesAmountPaid?: number; // Monto efectivamente abonado (ej. S/ 30 o S/ 67)
+  packUtilesStatus?: "cancelado" | "parcial" | "pendiente" | "exonerado";
+  packUtilesDelivered?: boolean; // Entregado físicamente
+  packUtilesNotes?: string; // Notas de prorrateo (ej. "Pagó S/ 30, saldo S/ 37 la próxima clase")
+  planStartDate?: string; // "2026-08-03" (Día exacto de primera clase)
   planEndDate?: string; // "2026-08-31" (Día exacto de fin de ciclo)
   planStartMonth?: string; // "2026-08"
   planEndMonth?: string; // "2026-08"

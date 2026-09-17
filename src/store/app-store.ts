@@ -367,7 +367,14 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
         balance: student.balance ?? 0,
         packageTotalSessions: student.packageTotalSessions || (student.modality?.includes("Intensivo") ? 4 : 8),
         matriculaType: student.matriculaType || "Promo Demo (S/ 30)",
+        enrollmentDate: student.enrollmentDate || new Date().toISOString().slice(0, 10),
+        paymentMethod: student.paymentMethod || "Yape / Plin",
         packUtilesPaid: student.packUtilesPaid !== undefined ? student.packUtilesPaid : true,
+        packUtilesCost: student.packUtilesCost ?? 67,
+        packUtilesAmountPaid: student.packUtilesAmountPaid !== undefined ? student.packUtilesAmountPaid : (student.packUtilesPaid === false ? 0 : 67),
+        packUtilesStatus: student.packUtilesStatus || (student.packUtilesPaid === false ? "pendiente" : "cancelado"),
+        packUtilesDelivered: student.packUtilesDelivered !== undefined ? student.packUtilesDelivered : (student.packUtilesPaid !== false),
+        packUtilesNotes: student.packUtilesNotes || "",
         planStartDate: student.planStartDate || new Date().toISOString().slice(0, 10),
         planEndDate: student.planEndDate,
         planStartMonth: student.planStartMonth,
@@ -504,7 +511,14 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       if (updates.packageTotalSessions !== undefined) ecData.packageTotalSessions = updates.packageTotalSessions;
       if (updates.modality) ecData.modality = updates.modality;
       if (updates.matriculaType) ecData.matriculaType = updates.matriculaType;
+      if (updates.enrollmentDate !== undefined) ecData.enrollmentDate = updates.enrollmentDate;
+      if (updates.paymentMethod !== undefined) ecData.paymentMethod = updates.paymentMethod;
       if (updates.packUtilesPaid !== undefined) ecData.packUtilesPaid = updates.packUtilesPaid;
+      if (updates.packUtilesCost !== undefined) ecData.packUtilesCost = updates.packUtilesCost;
+      if (updates.packUtilesAmountPaid !== undefined) ecData.packUtilesAmountPaid = updates.packUtilesAmountPaid;
+      if (updates.packUtilesStatus !== undefined) ecData.packUtilesStatus = updates.packUtilesStatus;
+      if (updates.packUtilesDelivered !== undefined) ecData.packUtilesDelivered = updates.packUtilesDelivered;
+      if (updates.packUtilesNotes !== undefined) ecData.packUtilesNotes = updates.packUtilesNotes;
       if (updates.planStartDate) ecData.planStartDate = updates.planStartDate;
       if (updates.planEndDate) ecData.planEndDate = updates.planEndDate;
       if (updates.attendanceRate !== undefined) ecData.attendanceRate = updates.attendanceRate;
@@ -992,20 +1006,34 @@ export const useAppStore = create<AppState>()(
           const id = generateUUID();
           const planPrice = newSt.planPrice || 297;
           const amountPaid = newSt.amountPaid !== undefined ? newSt.amountPaid : planPrice;
-          const balance = newSt.balance !== undefined ? newSt.balance : Math.max(0, planPrice - amountPaid);
+          const planBalance = Math.max(0, planPrice - amountPaid);
+          const bookCost = newSt.packUtilesCost ?? 67;
+          const bookStatus = newSt.packUtilesStatus || (newSt.packUtilesPaid === false ? "pendiente" : "cancelado");
+          const bookPaid = newSt.packUtilesAmountPaid !== undefined
+            ? newSt.packUtilesAmountPaid
+            : (bookStatus === "cancelado" ? bookCost : 0);
+          const bookBalance = bookStatus === "exonerado" ? 0 : Math.max(0, bookCost - bookPaid);
+          const totalBalance = newSt.balance !== undefined ? newSt.balance : (planBalance + bookBalance);
           const fullStudent: AdminStudent = {
             ...newSt,
             id,
             planPrice,
             amountPaid,
-            balance,
-            payment: balance > 0 ? "pendiente" : "al-dia",
+            balance: totalBalance,
+            payment: totalBalance > 0 ? "pendiente" : "al-dia",
             risk: 10,
             joinedAt: newSt.joinedAt || "Set 2026",
             attendanceRate: newSt.attendanceRate !== undefined ? newSt.attendanceRate : 100,
             makeupCredits: newSt.makeupCredits || 0,
             recentAttendance: newSt.recentAttendance || [],
             teacherNote: newSt.teacherNote || "",
+            enrollmentDate: newSt.enrollmentDate || new Date().toISOString().slice(0, 10),
+            paymentMethod: newSt.paymentMethod || "Yape / Plin",
+            packUtilesCost: bookCost,
+            packUtilesAmountPaid: bookPaid,
+            packUtilesStatus: bookStatus,
+            packUtilesDelivered: newSt.packUtilesDelivered !== undefined ? newSt.packUtilesDelivered : (bookStatus === "cancelado"),
+            packUtilesNotes: newSt.packUtilesNotes || "",
           };
           backgroundCreateStudentInDB(s.activeRole, fullStudent);
           return {
