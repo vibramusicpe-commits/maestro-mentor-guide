@@ -290,6 +290,7 @@ type AppState = {
   hydrateFromBackend: (data: {
     students?: AdminStudent[];
     invoices?: Invoice[];
+    attendanceLogs?: any[];
   }) => void;
 
   // Moderación de Notas Pedagógicas de Profesores para Familias
@@ -815,8 +816,7 @@ export const useAppStore = create<AppState>()(
                     (isMatchingStudentName(existing.student, matchedActive.name) &&
                      existing.day === l.day &&
                      existing.time === l.time &&
-                     existing.weekIndex === l.weekIndex &&
-                     existing.month === l.month)
+                     (existing.weekIndex === l.weekIndex || existing.weekIndex === undefined || l.weekIndex === undefined))
                 );
                 if (!alreadyScheduled) {
                   scheduleMap.set(l.id, {
@@ -829,6 +829,43 @@ export const useAppStore = create<AppState>()(
               }
             }
           });
+
+          // 4. Rehidratar asistencias reales históricas desde attendance_logs en PostgreSQL
+          if (data.attendanceLogs && data.attendanceLogs.length > 0) {
+            data.attendanceLogs.forEach((log: any) => {
+              if (!log.student_id) return;
+              const matchedStudent = mergedStudents.find(
+                (st) =>
+                  resolveStudentUUID(st.id) === log.student_id ||
+                  isSameStudentId(st.id, log.student_id)
+              );
+              if (matchedStudent) {
+                const dateMatch = log.note?.match(/Fecha\s+(\d{4}-\d{2}-\d{2})/i);
+                const dateStr = dateMatch ? dateMatch[1] : log.registered_at?.slice(0, 10);
+                if (dateStr) {
+                  let attStatus: "presente" | "ausente" | "tarde" | "justificada" = "presente";
+                  if (log.status === "ausente") {
+                    attStatus = log.credit_delta > 0 ? "justificada" : "ausente";
+                  } else if (log.status === "tarde") {
+                    attStatus = "tarde";
+                  } else {
+                    attStatus = "presente";
+                  }
+
+                  scheduleMap.forEach((lesson, lId) => {
+                    if (isMatchingStudentName(lesson.student, matchedStudent.name)) {
+                      const prevByDate = { ...(lesson.attendanceByDate || {}) };
+                      prevByDate[dateStr] = attStatus;
+                      scheduleMap.set(lId, {
+                        ...lesson,
+                        attendanceByDate: prevByDate,
+                      });
+                    }
+                  });
+                }
+              }
+            });
+          }
 
           const cleanSchedule = Array.from(scheduleMap.values());
 

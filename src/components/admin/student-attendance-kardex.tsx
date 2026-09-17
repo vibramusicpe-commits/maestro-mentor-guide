@@ -185,9 +185,21 @@ export function StudentAttendanceKardex({
 
   // Clases agendadas para este alumno (matching inteligente de nombres)
   const studentLessons = useMemo(() => {
-    return schedule.filter(
+    const raw = schedule.filter(
       (l) => isMatchingStudentName(l.student, liveStudent.name) && l.status !== "cancelada"
     );
+    // Deduplicar lecciones para garantizar que no haya clases repetidas en el mismo día y hora
+    const deduped: ScheduledLesson[] = [];
+    raw.forEach((l) => {
+      const already = deduped.some(
+        (ex) =>
+          ex.day === l.day &&
+          ex.time === l.time &&
+          (ex.weekIndex === l.weekIndex || ex.weekIndex === undefined || l.weekIndex === undefined)
+      );
+      if (!already) deduped.push(l);
+    });
+    return deduped;
   }, [schedule, liveStudent.name]);
 
   // Generar lista cronológica exacta de sesiones con fecha y hora
@@ -201,10 +213,12 @@ export function StudentAttendanceKardex({
         if (!dayInfo.isCurrentMonth) return;
 
         // 🛡️ REGLA DE ORO (ADR 0099 & ADR 0100): Respetar vigencia del plan del alumno
-        // No generar sesiones previas a su fecha de inicio; para alumnos activos en plan regular mensual,
-        // generar la totalidad de sus 8 clases del mes lectivo seleccionado.
-        if (effectivePlanStartDate && dayInfo.dateStr < effectivePlanStartDate) return;
-        if (!isFlexiblePackage && effectivePlanEndDate && liveStudent.status !== "activo" && dayInfo.dateStr > effectivePlanEndDate) return;
+        // Para alumnos activos en plan mensual regular (8 clases), generar la totalidad de sus 8 clases del mes lectivo seleccionado.
+        // Si el alumno está inactivo o en paquete flexible a demanda, respetar fechas límites estrictas.
+        if (liveStudent.status !== "activo" || isFlexiblePackage) {
+          if (effectivePlanStartDate && dayInfo.dateStr < effectivePlanStartDate) return;
+          if (effectivePlanEndDate && dayInfo.dateStr > effectivePlanEndDate) return;
+        }
 
         // Buscar si el alumno tiene lección este día de la semana
         studentLessons.forEach((lesson) => {
@@ -892,30 +906,18 @@ export function StudentAttendanceKardex({
                       {item.status === "pendiente" && "⚪ Sin marcar"}
                     </Badge>
 
-                    {/* 🔄 Botón directo de Reprogramar si tiene Falta */}
-                    {item.status === "ausente" && (
+                    {/* 🔄 Botón directo de Reprogramar si tiene Falta, Tardanza o Justificada */}
+                    {(item.status === "ausente" || item.status === "tarde" || item.status === "justificada") && (
                       <Button
                         size="sm"
                         onClick={() => handleOpenReschedule(item)}
                         className="h-7 px-2.5 text-[11px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs flex items-center gap-1.5 transition-transform active:scale-95"
-                        title="Reprogramar esta clase con inasistencia"
+                        title="Reprogramar esta clase"
                       >
                         <CalendarSync className="h-3.5 w-3.5" />
                         <span>🔄 Reprogramar</span>
                       </Button>
                     )}
-
-                    {/* ➕ Botón rápido de clase de corrido (+45m contiguo) */}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleAddConsecutiveClass(item)}
-                      className="h-7 px-2 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-xl border border-primary/20 flex items-center gap-1 transition-transform active:scale-95"
-                      title="Agregar sesión de corrido (+45 min contiguo inmediatamente después)"
-                    >
-                      <Layers className="h-3 w-3" />
-                      <span>+ De corrido (+45m)</span>
-                    </Button>
 
                     {/* Botones de Actualización Inmediata en 1 Clic (Solo en modo edición) */}
                     {isEditable ? (

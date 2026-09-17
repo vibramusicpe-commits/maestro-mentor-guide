@@ -15,6 +15,15 @@ export function useInsforgeSync() {
         if (activeRole === "super_admin" || activeRole === "staff" || activeRole === "teacher") {
           const dbStudents = await getStudents(activeRole);
           const dbInvoices = activeRole === "teacher" ? [] : await getInvoices(activeRole);
+          let dbAttendance: any[] = [];
+          try {
+            const { postgrestSelect } = await import("@/lib/insforge");
+            dbAttendance = await postgrestSelect(
+              "attendance_logs",
+              { order: "registered_at.asc", limit: "1000" },
+              "id,student_id,status,credit_delta,note,registered_at"
+            );
+          } catch {}
 
           if (isMounted) {
             const mappedStudents =
@@ -27,15 +36,17 @@ export function useInsforgeSync() {
                 ? dbInvoices.map(mapDBInvoiceToInvoice)
                 : undefined;
 
-            if (mappedStudents || mappedInvoices) {
+            if (mappedStudents || mappedInvoices || (dbAttendance && dbAttendance.length > 0)) {
               hydrateFromBackend({
                 students: mappedStudents,
                 invoices: mappedInvoices,
+                attendanceLogs: dbAttendance,
               });
               console.log("[Insforge Sync] Hidratación exitosa desde backend PostgreSQL:", {
                 role: activeRole,
                 students: mappedStudents?.length || 0,
                 invoices: mappedInvoices?.length || 0,
+                attendanceLogs: dbAttendance?.length || 0,
               });
             }
           }

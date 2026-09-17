@@ -4,6 +4,24 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.9.6] - 2026-09-17
+
+### Rehidratación Histórica de Asistencias PostgreSQL, Restauración de Alumnos y Blindaje Quirúrgico del Kardex
+- **Rehidratación Automática de `attendance_logs` (`src/hooks/use-insforge-sync.ts` y `src/store/app-store.ts`)**:
+  - Se conectó la lectura de la tabla inmutable `attendance_logs` (90 registros existentes en PostgreSQL) durante el ciclo de sincronización al iniciar la aplicación.
+  - Las marcas registradas por los usuarios (Presente, Falta, Tardanza, Justificada) se vinculan automáticamente con cada alumno y fecha (`YYYY-MM-DD`), preservando todas las asistencias marcadas incluso tras recargas completas o limpieza de caché del navegador.
+- **Restauración en Vivo de Emma Micaela Sevilla Perez (`00000000-0000-0000-0002-000000000048`)**:
+  - Se reactivó a Emma Micaela en PostgreSQL con `status: "activo"`. Todo su expediente (Plan Regular 8 clases, teléfono de apoderada Sara Perez, Prof. Fernando, costo de libro S/ 0 exonerado, y 16 logs de asistencia) se encuentra 100% íntegro en la base de datos.
+- **Erradicación de Clases Duplicadas por Día**:
+  - En `studentLessons` de `StudentAttendanceKardex`, se aplicó deduplicación estricta por `(day, time, weekIndex)` para evitar que dos entradas con el mismo horario aparezcan como clases duplicadas en el mismo día.
+  - En `hydrateFromBackend`, se blindó la verificación `alreadyScheduled` para que clases con el mismo día y hora no se dupliquen al combinar `initialSchedule` con `emergency_contact.scheduleLessons`.
+- **Eliminación del Botón Confuso `+ De corrido (+45m)` en las Filas del Kardex**:
+  - Se retiró el botón `+ De corrido (+45m)` presente en cada sesión del Kardex que generaba confusión visual sobre si las clases eran dobles o dos por día. Las sesiones adicionales o adelantos se gestionan a través del modal estándar `+ Agregar Sesión / Adelanto`.
+- **Habilitación de Reprogramación en Tardanzas y Faltas**:
+  - El botón `🔄 Reprogramar` ahora está disponible inmediatamente tanto para sesiones marcadas como `Falta` (`ausente`), `Tardanza` (`tarde`) o `Justificada` (`justificada`).
+- **Garantía de 8 Clases Mensuales para Alumnos Activos en Plan Regular**:
+  - El Kardex ya no descarta sesiones de principios de mes por `effectivePlanStartDate` para alumnos con estado `"activo"` en planes regulares mensuales, mostrando las 8 clases del mes completas para su evaluación.
+
 ## [1.9.5] - 2026-09-17
 
 ### Auditoría y Blindaje de Backend: Snapshot de Vacantes, Servicios de Datos y Persistencia de Horarios en PostgreSQL
