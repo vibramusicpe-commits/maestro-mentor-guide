@@ -4,6 +4,20 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.9.5] - 2026-09-17
+
+### Auditoría y Blindaje de Backend: Snapshot de Vacantes, Servicios de Datos y Persistencia de Horarios en PostgreSQL
+- **Corrección de Endpoint HTTP Backend `/api/availability/snapshot` (`src/server/availability-snapshot-handler.ts`)**:
+  - Corrección de la consulta PostgREST que fallaba con `HTTP 400 (42703: column students.name does not exist)` al solicitar erróneamente la columna inexistente `name`. Se corrigió a `full_name` con tipado estricto `DBStudentSnapshotRow`.
+  - Integración en vivo de las clases de alumnos activos persistidas en PostgreSQL (`emergency_contact.scheduleLessons`) en la matriz de cálculo de cupos de las salas A, B y C. Esto previene que el bot Karla ofrezca turnos ocupados por alumnos reales como Emma Micaela (Jue/Vie 16:00) o Camila Pastor (Mar/Jue 17:30).
+  - Normalización de plantillas de horario en el backend (`month: undefined`), evitando candados estáticos de mes en la disponibilidad.
+- **Sanitización Defensiva en Capa de Servicios Backend (`src/lib/services/students.service.ts`)**:
+  - En `mapDBStudentToAdminStudent`, se mapea `scheduleLessons` eliminando preventivamente el atributo `month` en plantillas semanales recurrentes (`l.weekIndex === undefined`), blindando la memoria de la aplicación ante registros históricos con mes fijo en base de datos.
+- **Persistencia de Horarios en Creación de Alumnos (`src/store/app-store.ts`)**:
+  - Se incorporó `scheduleLessons` dentro del objeto `emergency_contact` al ejecutar `backgroundCreateStudentInDB`, asegurando que cualquier alumno nuevo matriculado con horario asignado quede inmediatamente registrado en PostgreSQL con sus sesiones.
+- **Sincronización Física en Base de Datos PostgreSQL de Marco Antonio Adrian**:
+  - Se persistió el horario oficial de Marco Antonio Adrian (`00000000-0000-0000-0002-000000000054`) en `emergency_contact.scheduleLessons` (Martes 17:30 y Jueves 17:30 con Prof. Jeremy en Sala A), sumándose a los horarios de Emma Micaela Sevilla Perez y Camila Valentina Pastor Conco.
+
 ## [1.9.4] - 2026-09-17
 
 ### Restauración de 8 Clases Completas del Mes en Kardex de Asistencias para Planes Regulares

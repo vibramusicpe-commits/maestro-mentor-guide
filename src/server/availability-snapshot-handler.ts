@@ -12,6 +12,24 @@ import { generateAvailabilitySnapshot } from "@/lib/services/availability-snapsh
 import { officialSchedule, officialAdminStudents } from "@/store/official-seeds";
 import { postgrestSelect } from "@/lib/insforge";
 import type { AdminStudent, ScheduledLesson } from "@/store/admin-seeds";
+import { isMatchingStudentName } from "@/lib/student-matching";
+
+interface DBStudentSnapshotRow {
+  id: string;
+  full_name: string;
+  instrument?: string;
+  status: string;
+  emergency_contact?: {
+    teacher?: string;
+    modality?: string;
+    scheduleLessons?: ScheduledLesson[];
+    family?: string;
+    email?: string;
+    phone?: string;
+    name?: string;
+    relation?: string;
+  } | null;
+}
 
 export async function handleAvailabilitySnapshot(request: Request): Promise<Response> {
   const url = new URL(request.url);
@@ -22,14 +40,18 @@ export async function handleAvailabilitySnapshot(request: Request): Promise<Resp
   let schedule: ScheduledLesson[] = [...officialSchedule];
 
   try {
-    const dbStudents = await postgrestSelect<Array<{ id: string; name: string; status: string; emergency_contact?: unknown }>>(
-      "students?select=id,name,status,emergency_contact&limit=200"
+    const dbStudents = await postgrestSelect<DBStudentSnapshotRow>(
+      "students",
+      { limit: "200" },
+      "id,full_name,instrument,status,emergency_contact"
     );
     if (dbStudents && dbStudents.length > 0) {
       // Combinar estado activo desde PostgreSQL
       students = students.map((st) => {
         const found = dbStudents.find(
-          (db) => db.name.toLowerCase().trim() === st.name.toLowerCase().trim()
+          (db) =>
+            isMatchingStudentName(db.full_name, st.name) ||
+            db.full_name.toLowerCase().trim() === st.name.toLowerCase().trim()
         );
         if (found) {
           return {
@@ -43,22 +65,63 @@ export async function handleAvailabilitySnapshot(request: Request): Promise<Resp
       // Añadir alumnos creados en DB que no estén en semillas
       dbStudents.forEach((db) => {
         const exists = students.some(
-          (st) => st.name.toLowerCase().trim() === db.name.toLowerCase().trim()
+          (st) =>
+            isMatchingStudentName(st.name, db.full_name) ||
+            st.name.toLowerCase().trim() === db.full_name.toLowerCase().trim()
         );
         if (!exists) {
+          const ec = db.emergency_contact || {};
           students.push({
             id: db.id,
-            name: db.name,
-            family: db.name,
-            instrument: "General",
-            level: "Principiante",
-            teacher: "Jeremy",
+            name: db.full_name,
+            family: ec.family || `Familia ${db.full_name}`,
+            instrument: db.instrument || "Piano",
+            level: "Nivel 1",
+            teacher: ec.teacher || "Fernando",
             status: db.status === "activo" ? "activo" : db.status === "pausa" ? "pausa" : "baja",
-            paymentStatus: "al-dia",
-            hourlyRate: 0,
-            notes: "",
-            modality: "Regular (8 clases / 45 min)",
-            history: [],
+            attendanceRate: 100,
+            payment: "al-dia",
+            risk: 0,
+            joinedAt: "Ago 2026",
+            makeupCredits: 0,
+            balance: 0,
+            recentAttendance: [],
+            teacherNote: "",
+            email: ec.email || `alumno_${db.id.slice(0, 4)}@vibramusic.pe`,
+            phone: ec.phone || "+51 900 000 000",
+            emergencyContact: {
+              name: ec.name || db.full_name,
+              phone: ec.phone || "+51 900 000 000",
+              relation: ec.relation || "Apoderado",
+            },
+            birthdate: "15 de Agosto",
+            modality: (ec.modality as any) || "Regular (8 clases / 45 min)",
+          });
+        }
+      });
+
+      // Incorporar clases persistidas en PostgreSQL (emergency_contact.scheduleLessons) para inventario real
+      dbStudents.forEach((db) => {
+        const ec = db.emergency_contact;
+        if (db.status === "activo" && ec && Array.isArray(ec.scheduleLessons)) {
+          ec.scheduleLessons.forEach((lesson: ScheduledLesson) => {
+            const alreadyInSchedule = schedule.some(
+              (s) =>
+                s.day === lesson.day &&
+                s.time === lesson.time &&
+                (isMatchingStudentName(s.student, db.full_name) || s.student === db.full_name)
+            );
+            if (!alreadyInSchedule) {
+              schedule.push({
+                ...lesson,
+                id: lesson.id || `db-sch-${db.id}-${lesson.day}-${lesson.time}`,
+                student: db.full_name,
+                teacher: lesson.teacher || ec.teacher || "Fernando",
+                instrument: lesson.instrument || db.instrument || "Piano",
+                status: "programada",
+                month: undefined,
+              });
+            }
           });
         }
       });

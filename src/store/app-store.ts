@@ -387,6 +387,7 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
         motherPhone: student.motherPhone,
         teacherNote: student.teacherNote,
         recentAttendance: student.recentAttendance || [],
+        scheduleLessons: Array.isArray(student.scheduleLessons) ? student.scheduleLessons : undefined,
       };
 
       const resolvedStudentUUID = resolveStudentUUID(student.id) || (

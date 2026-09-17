@@ -151,8 +151,12 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     planStartDate: ec.planStartDate || (isCamilaDB ? "2026-09-10" : (isJonathanDB ? "2026-08-18" : (isEmmaDB ? "2026-08-28" : "2026-08-01"))),
     planEndDate: ec.planEndDate || (isCamilaDB ? "2026-10-09" : (isJonathanDB ? "2026-12-31" : (isEmmaDB ? "2026-09-27" : "2026-12-31"))),
     planStartMonth: ec.planStartMonth || (ec.planStartDate ? ec.planStartDate.slice(0, 7) : (isCamilaDB ? "2026-09" : (isJonathanDB ? "2026-08" : (isEmmaDB ? "2026-08" : "2026-08")))),
-    planEndMonth: ec.planEndMonth || (ec.planEndDate ? ec.planEndDate.slice(0, 7) : (isCamilaDB ? "2026-10" : (isJonathanDB ? "2026-12" : (isEmmaDB ? "2026-09" : "2026-12")))),
-    scheduleLessons: Array.isArray(ec.scheduleLessons) ? ec.scheduleLessons : undefined,
+    scheduleLessons: Array.isArray(ec.scheduleLessons)
+      ? ec.scheduleLessons.map((l: any) => ({
+          ...l,
+          month: l.weekIndex === undefined ? undefined : l.month,
+        }))
+      : undefined,
   };
 }
 
