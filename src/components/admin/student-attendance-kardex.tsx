@@ -282,20 +282,71 @@ export function StudentAttendanceKardex({
       });
     });
 
-    // Ordenar cronológicamente por fecha y hora
+    // 1. Ordenar cronológicamente por fecha y hora
     result.sort((a, b) => {
       const cmpDate = a.dateStr.localeCompare(b.dateStr);
       if (cmpDate !== 0) return cmpDate;
       return a.time.localeCompare(b.time);
     });
 
+    // 2. Deduplicar por fecha y hora exactas (garantiza jamás 2 clases a la misma hora el mismo día)
+    const seenSlots = new Set<string>();
+    const dedupedSessions: StudentSessionItem[] = [];
+    result.forEach((item) => {
+      const slotKey = `${item.dateStr}-${item.time}`;
+      if (!seenSlots.has(slotKey)) {
+        seenSlots.add(slotKey);
+        dedupedSessions.push(item);
+      }
+    });
+
+    // 3. Respetar estrictamente la cuota del plan (4 clases para Intensivo, 8 clases para Regular):
+    // Si un mes de 5 semanas genera clases de plantilla recurrentes adicionales sin evaluar,
+    // se preservan todas las que tengan asistencia marcada (presente/ausente/tarde/justificada) o sean recuperación,
+    // y para las pendientes de plantilla se ajusta exactamente a la cuota contractual del mes.
+    const isIntensivePlan = liveStudent.modality?.includes("Intensivo");
+    const targetQuota = isFlexiblePackage ? packageTotal : (isIntensivePlan ? 4 : 8);
+
+    let finalSessions: StudentSessionItem[] = [];
+    if (isFlexiblePackage) {
+      finalSessions = dedupedSessions;
+    } else {
+      if (dedupedSessions.length <= targetQuota) {
+        finalSessions = dedupedSessions;
+      } else {
+        const markedOrSpecial = new Set(
+          dedupedSessions.filter((s) => s.status !== "pendiente" || s.isMakeup)
+        );
+        const selected = new Set<StudentSessionItem>(markedOrSpecial);
+        for (const s of dedupedSessions) {
+          if (selected.size >= targetQuota) break;
+          selected.add(s);
+        }
+        finalSessions = dedupedSessions.filter((s) => selected.has(s));
+      }
+    }
+
     // Asignar índice secuencial (Sesión 1, 2, 3...)
-    result.forEach((item, idx) => {
+    finalSessions.forEach((item, idx) => {
       item.sessionIndex = idx + 1;
     });
 
-    return result;
-  }, [monthWeeks, studentLessons, student.teacher, student.room, student.instrument]);
+    return finalSessions;
+  }, [
+    monthWeeks,
+    studentLessons,
+    student.teacher,
+    student.room,
+    student.instrument,
+    liveStudent.status,
+    liveStudent.modality,
+    isFlexiblePackage,
+    packageTotal,
+    selectedMonth,
+    selectedYear,
+    effectivePlanStartDate,
+    effectivePlanEndDate,
+  ]);
 
   // Contadores de Asistencia
   const stats = useMemo(() => {
@@ -918,6 +969,18 @@ export function StudentAttendanceKardex({
                         <span>🔄 Reprogramar</span>
                       </Button>
                     )}
+
+                    {/* ➕ Botón rápido de clase de corrido (+45m contiguo) */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleAddConsecutiveClass(item)}
+                      className="h-7 px-2 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-xl border border-primary/20 flex items-center gap-1 transition-transform active:scale-95"
+                      title="Agregar sesión de corrido (+45 min contiguo inmediatamente después)"
+                    >
+                      <Layers className="h-3 w-3" />
+                      <span>+ De corrido (+45m)</span>
+                    </Button>
 
                     {/* Botones de Actualización Inmediata en 1 Clic (Solo en modo edición) */}
                     {isEditable ? (

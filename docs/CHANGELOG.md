@@ -4,6 +4,23 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.9.7] - 2026-09-17
+
+### Restauración del Botón `+ De corrido (+45m)`, Cuotas Estrictas de Plan en Kardex (4 Intensivo / 8 Regular) y Sincronización Reactiva
+- **Restauración del Botón `+ De corrido (+45m)` (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - Reincorporado el botón de acción rápida `+ De corrido (+45m)` en cada fila de sesión del Kardex cronológico, permitiendo añadir una sesión adyacente contigua de 45 minutos inmediatamente posterior a la clase seleccionada mediante `handleAddConsecutiveClass`.
+- **Cuotas Estrictas según Plan Contractual del Alumno (4 para Intensivo, 8 para Regular)**:
+  - **Plan Intensivo (4 clases / 90 min)**: El Kardex presenta de forma exacta las **4 clases del mes**, evitando que semanas desbordadas (quintas semanas del calendario) inflen la lista con clases no contratadas.
+  - **Plan Regular (8 clases / 45 min)**: El Kardex presenta de forma exacta las **8 clases del mes** (2 clases por semana x 4 semanas lectivas).
+  - **Deduplicación Estricta por Franja Horaria (`dateStr-time`)**: Se blindó la lista cronológica para que sea físicamente imposible mostrar dos clases el mismo día a la misma hora para el mismo alumno.
+  - **Preservación Incondicional de Asistencias Evaluadas y Recuperaciones**: Cualquier clase que tenga asistencia registrada (`presente`, `ausente`, `tarde`, `justificada`) o sea una recuperación/adelanto (`isMakeup`) siempre se conserva en la vista.
+- **Sincronización Reactiva de Horarios en Memoria Zustand (`src/store/app-store.ts`)**:
+  - `setStudentSchedule` y `addLessonToSchedule` ahora actualizan inmediatamente la propiedad `scheduleLessons` dentro de la colección `adminStudents` en la memoria local de Zustand, permitiendo que la UI y el Kardex reaccionen de inmediato sin depender de una recarga de red.
+- **Persistencia de Fecha de Inicio de Clases en Horarios (`src/components/admin/students-table.tsx`)**:
+  - En `ScheduleStudentForm`, al presionar "Guardar Horario", se invoca `updateStudentDetails` para persistir la fecha oficial de inicio de clases (`planStartDate`), el profesor asignado y el instrumento en el expediente del alumno en PostgreSQL.
+- **Verificación de Integridad de Datos en PostgreSQL**:
+  - Auditados y confirmados en base de datos PostgreSQL los 7 alumnos activos (Marco Antonio Adrian, Emma Micaela Sevilla Perez, Camila Valentina Pastor Conco, Sasha Dharma Contreras, KARLITOS FABRIZIO, etc.) junto con los 90 registros inmutables de `attendance_logs`.
+
 ## [1.9.6] - 2026-09-17
 
 ### Rehidratación Histórica de Asistencias PostgreSQL, Restauración de Alumnos y Blindaje Quirúrgico del Kardex

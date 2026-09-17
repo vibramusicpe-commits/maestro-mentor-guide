@@ -5264,6 +5264,13 @@ function ScheduleStudentForm({
 
     setStudentSchedule(student.name, lessonsToSet);
 
+    // Actualizar fecha oficial de inicio de clases y profesor/instrumento en la ficha del alumno
+    updateStudentDetails(student.id, {
+      planStartDate: startDate,
+      teacher: finalTeacher,
+      instrument: instrument,
+    });
+
     // Actualizar profesor en la ficha si no tenía o cambió
     if (!student.teacher || student.teacher === "Prof. por Asignar" || student.teacher !== finalTeacher) {
       assignTeacher(student.id, finalTeacher);

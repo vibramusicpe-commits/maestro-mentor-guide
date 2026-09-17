@@ -1102,6 +1102,7 @@ export const useAppStore = create<AppState>()(
           const targetSt = s.adminStudents.find(
             (st) => isMatchingStudentName(st.name, lesson.student) || st.name.toLowerCase() === lesson.student.toLowerCase()
           );
+          let updatedStudents = s.adminStudents;
           if (targetSt) {
             const studentLessons = updatedSchedule.filter(
               (l) => (isMatchingStudentName(l.student, targetSt.name) || l.student.toLowerCase() === targetSt.name.toLowerCase()) && l.status !== "cancelada"
@@ -1109,8 +1110,12 @@ export const useAppStore = create<AppState>()(
             backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
               scheduleLessons: studentLessons,
             });
+            updatedStudents = s.adminStudents.map((st) =>
+              isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: studentLessons } : st
+            );
           }
           return {
+            adminStudents: updatedStudents,
             schedule: updatedSchedule,
             syncQueue: [...s.syncQueue, queueItem(`Clase programada: ${lesson.student} (${lesson.day} ${lesson.time})`)],
           };
@@ -1128,12 +1133,19 @@ export const useAppStore = create<AppState>()(
           const targetSt = s.adminStudents.find(
             (st) => isMatchingStudentName(st.name, studentName) || st.name.toLowerCase() === studentName.toLowerCase()
           );
+          let updatedStudents = s.adminStudents;
           if (targetSt) {
             backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
               scheduleLessons: newLessons,
             });
+            updatedStudents = s.adminStudents.map((st) =>
+              isMatchingStudentName(st.name, studentName) || st.name.toLowerCase() === studentName.toLowerCase()
+                ? { ...st, scheduleLessons: newLessons }
+                : st
+            );
           }
           return {
+            adminStudents: updatedStudents,
             schedule: finalSchedule,
             syncQueue: [
               ...s.syncQueue,
