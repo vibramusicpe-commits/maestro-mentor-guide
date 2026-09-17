@@ -202,7 +202,7 @@ export function AgendaBoard() {
   const [targetExistingLessonId, setTargetExistingLessonId] = useState<string | "new">("new");
   // Modo Unificado de Programación: Plan Regular Pareado vs Sesión Individual
   const [newLessonPlanMode, setNewLessonPlanMode] = useState<"paired" | "individual">("paired");
-  const [newLessonPairGroup, setNewLessonPairGroup] = useState<"L-M" | "M-J" | "Vie" | "Sáb">("L-M");
+  const [newLessonPairGroup, setNewLessonPairGroup] = useState<"L-M" | "M-J" | "Jue" | "Vie" | "Sáb">("L-M");
   const [newLessonTime2, setNewLessonTime2] = useState(timeSlotsWeekday[0] || "16:00");
   const [newLessonRoom2, setNewLessonRoom2] = useState(rooms[0] || "Sala A");
 
@@ -442,10 +442,11 @@ export function AgendaBoard() {
             if (l.category !== category) return false;
           }
 
-          // 7. Filtro por Modalidad de Días (L-M, M-J, Viernes Intensivo, Sábado Intensivo, Personalizado)
+          // 7. Filtro por Modalidad de Días (L-M, M-J, Jueves Intensivo, Viernes Intensivo, Sábado Intensivo, Personalizado)
           if (dayGroup !== ALL) {
             if (dayGroup === "L-M" && l.day !== "Lun" && l.day !== "Mié") return false;
             if (dayGroup === "M-J" && l.day !== "Mar" && l.day !== "Jue") return false;
+            if (dayGroup === "Jue" && l.day !== "Jue") return false;
             if (dayGroup === "Vie" && l.day !== "Vie") return false;
             if (dayGroup === "Sáb" && l.day !== "Sáb") return false;
             if (dayGroup === "Personalizado" && l.category !== "PERSONALIZADA") return false;
@@ -675,6 +676,8 @@ export function AgendaBoard() {
         return { day1: "Lun" as WeekDay, day2: "Mié" as WeekDay, isRegular: true };
       case "M-J":
         return { day1: "Mar" as WeekDay, day2: "Jue" as WeekDay, isRegular: true };
+      case "Jue":
+        return { day1: "Jue" as WeekDay, day2: null, isRegular: false };
       case "Vie":
         return { day1: "Vie" as WeekDay, day2: null, isRegular: false };
       case "Sáb":
@@ -1254,6 +1257,7 @@ export function AgendaBoard() {
             options={[
               { value: "L-M", label: "Lunes y Miércoles (Regular)" },
               { value: "M-J", label: "Martes y Jueves (Regular)" },
+              { value: "Jue", label: "Jueves Intensivo (Personalizado)" },
               { value: "Vie", label: "Viernes Intensivo" },
               { value: "Sáb", label: "Sábado Intensivo" },
               { value: "Personalizado", label: "Solo Personalizadas" },
@@ -4008,10 +4012,11 @@ export function AgendaBoard() {
                       {pairedDays.isRegular ? "2 clases x semana (45 min)" : "1 clase intensiva (90 min)"}
                     </span>
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                     {[
                       { id: "L-M", label: "Lun + Mié", sub: "Regular 45m" },
                       { id: "M-J", label: "Mar + Jue", sub: "Regular 45m" },
+                      { id: "Jue", label: "Jueves", sub: "Intensivo 90m" },
                       { id: "Vie", label: "Viernes", sub: "Intensivo 90m" },
                       { id: "Sáb", label: "Sábado", sub: "Intensivo 90m" },
                     ].map((opt) => (
@@ -4019,7 +4024,7 @@ export function AgendaBoard() {
                         key={opt.id}
                         type="button"
                         onClick={() => {
-                          const g = opt.id as "L-M" | "M-J" | "Vie" | "Sáb";
+                          const g = opt.id as "L-M" | "M-J" | "Jue" | "Vie" | "Sáb";
                           setNewLessonPairGroup(g);
                           if (g === "Sáb") {
                             setNewLessonTime(timeSlotsSaturday[0] || "09:00");

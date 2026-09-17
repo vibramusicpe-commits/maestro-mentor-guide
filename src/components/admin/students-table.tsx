@@ -5450,11 +5450,20 @@ function ScheduleStudentForm({
         </div>
       ) : isIntensive ? (
         <div className="p-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-[11px] font-bold text-amber-500 flex items-center gap-1.5">
               ⚡ Plan Intensivo (1x semana · 90 min)
             </span>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 flex-wrap">
+              <Button
+                type="button"
+                variant={day1 === "Jue" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDay1("Jue")}
+                className="h-6 px-2 text-[10px] font-bold"
+              >
+                Jueves (Personalizado)
+              </Button>
               <Button
                 type="button"
                 variant={day1 === "Vie" ? "default" : "outline"}
@@ -5476,7 +5485,7 @@ function ScheduleStudentForm({
             </div>
           </div>
           <p className="text-[10px] text-muted-foreground">
-            Los intensivos se recomiendan los <strong>Viernes</strong> o <strong>Sábados</strong> para cubrir los 90 minutos continuos sin cruces de horario.
+            Los intensivos se programan los <strong>Viernes</strong> o <strong>Sábados</strong> (oficiales) o los <strong>Jueves</strong> como opción personalizada de 90 minutos continuos sin cruces de horario.
           </p>
         </div>
       ) : null}
