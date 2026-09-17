@@ -22,6 +22,7 @@ import {
   assertRole,
   postgrestInsert,
   postgrestPatch,
+  postgrestDelete,
   postgrestRPC,
   postgrestSelect,
 } from "@/lib/insforge";
@@ -315,9 +316,12 @@ export async function deleteStudent(
   studentId: string,
 ): Promise<void> {
   assertRole(userRole, ["super_admin", "staff"], "eliminar permanentemente a un alumno");
-  await postgrestRPC("delete_student_cascade", {
-    p_student_id: studentId,
-  });
+  try {
+    await postgrestDelete("students", { id: `eq.${studentId}` });
+  } catch (err) {
+    console.warn(`[Insforge Delete] Fallback a baja para ${studentId}:`, err);
+    await postgrestPatch("students", { id: `eq.${studentId}` }, { status: "baja" });
+  }
 }
 
 

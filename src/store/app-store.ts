@@ -548,6 +548,22 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
   } catch {}
 }
 
+// Sincronizador en segundo plano de eliminación / baja de alumnos con Insforge PostgreSQL
+function backgroundDeleteStudentFromDB(role: Role, studentId: string) {
+  try {
+    if (typeof window === "undefined") return;
+    const resolvedStudentId = resolveStudentUUID(studentId);
+    if (!resolvedStudentId) return;
+
+    import("@/lib/services/students.service").then(({ deleteStudent, updateStudent }) => {
+      const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";
+      deleteStudent(syncRole, resolvedStudentId).catch(() => {
+        updateStudent(syncRole, resolvedStudentId, { status: "baja" }).catch(() => {});
+      });
+    }).catch(() => {});
+  } catch {}
+}
+
 // Sincronizador en segundo plano de bitácora de asistencias con Insforge PostgreSQL
 function backgroundSyncAttendanceLogToDB(
   role: Role,
@@ -1033,6 +1049,7 @@ export const useAppStore = create<AppState>()(
           const studentToDelete = s.adminStudents.find((st) => isSameStudentId(st.id, id));
           if (!studentToDelete) return s;
           const studentName = studentToDelete.name;
+          backgroundDeleteStudentFromDB(s.activeRole, id);
 
           const logEntry: DeletedStudentLog = {
             id: `del-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -1057,6 +1074,7 @@ export const useAppStore = create<AppState>()(
         }),
       deleteStudents: (ids, reasonCategory = "otro", reasonText = "", deletedBy = "Nayeli (Secretaría)") =>
         set((s) => {
+          ids.forEach((id) => backgroundDeleteStudentFromDB(s.activeRole, id));
           const studentsToDelete = s.adminStudents.filter((st) => ids.some((id) => isSameStudentId(st.id, id)));
           const namesToDelete = studentsToDelete.map((st) => st.name);
           const now = new Date().toISOString();
@@ -1091,8 +1109,10 @@ export const useAppStore = create<AppState>()(
 
           const alreadyExists = s.adminStudents.some((st) => isSameStudentId(st.id, log.studentSnapshot.id));
           const restoredStudent: AdminStudent = alreadyExists
-            ? { ...log.studentSnapshot, id: `st-${Date.now()}` }
+            ? { ...log.studentSnapshot, id: generateUUID() }
             : { ...log.studentSnapshot };
+
+          backgroundSyncStudentToDB(s.activeRole, restoredStudent.id, { status: "activo" });
 
           return {
             adminStudents: [restoredStudent, ...s.adminStudents],
