@@ -36,7 +36,9 @@ import {
   ShieldCheck,
   Copy,
   Info,
+  CalendarDays,
 } from "lucide-react";
+import { generateAvailabilitySnapshot } from "@/lib/services/availability-snapshot";
 import {
   getWhatsAppBotConfig,
   saveWhatsAppBotConfig,
@@ -64,10 +66,17 @@ export const Route = createFileRoute("/admin/whatsapp")({
 
 export function AdminWhatsAppPage() {
   const activeRole = useAppStore((s) => s.activeRole);
+  const schedule = useAppStore((s) => s.schedule);
+  const adminStudents = useAppStore((s) => s.adminStudents);
   const navigate = useNavigate();
 
-  // Tab activo: 'agente' | 'reglas' | 'conversaciones' | 'citas-ventas'
-  const [activeTab, setActiveTab] = useState<"agente" | "reglas" | "conversaciones" | "citas-ventas">("agente");
+  // Tab activo: 'agente' | 'reglas' | 'snapshot' | 'conversaciones' | 'citas-ventas'
+  const [activeTab, setActiveTab] = useState<"agente" | "reglas" | "snapshot" | "conversaciones" | "citas-ventas">("agente");
+
+  // Snapshot de vacantes en vivo para Karla
+  const snapshotResult = useMemo(() => {
+    return generateAvailabilitySnapshot(schedule, adminStudents);
+  }, [schedule, adminStudents]);
 
   // Configuración del Bot
   const [botConfig, setBotConfig] = useState<WhatsAppBotConfig>(DEFAULT_BOT_CONFIG);
@@ -384,6 +393,42 @@ export function AdminWhatsAppPage() {
     setPaymentLinkGenerated(checkoutUrl);
   }
 
+  // Copiar el Snapshot en texto plano al portapapeles
+  function handleCopySnapshot() {
+    navigator.clipboard.writeText(snapshotResult.text);
+    toast.success("¡Snapshot de Vacantes copiado!", {
+      description: "Texto plano listo para pegar en Meta Business, WhatsApp o prompt de Karla.",
+    });
+  }
+
+  // Sincronizar Snapshot directamente en la configuración del bot (PostgreSQL)
+  async function handleSyncSnapshotToBotConfig() {
+    try {
+      setIsSavingConfig(true);
+      const updatedContext = `${DEFAULT_BOT_CONFIG.business_context}\n\n${snapshotResult.text}`;
+      await saveWhatsAppBotConfig(activeRole, {
+        business_context: updatedContext,
+      });
+      setBusinessContext(updatedContext);
+      toast.success("Snapshot sincronizado con el bot en PostgreSQL", {
+        description: "Karla ahora responderá con este inventario de vacantes en tiempo real.",
+      });
+    } catch (err) {
+      toast.error("Error al sincronizar snapshot");
+    } finally {
+      setIsSavingConfig(false);
+    }
+  }
+
+  // Copiar URL del endpoint GET
+  function handleCopyApiUrl() {
+    const fullUrl = `${window.location.origin}/api/availability/snapshot`;
+    navigator.clipboard.writeText(fullUrl);
+    toast.success("URL del Endpoint copiada", {
+      description: fullUrl,
+    });
+  }
+
   // Filtrado de conversaciones
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
@@ -452,6 +497,15 @@ export function AdminWhatsAppPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleCopySnapshot}
+            className="border-[#F47B20]/40 bg-orange-500/10 hover:bg-orange-500/20 text-[#F47B20] text-xs font-bold"
+          >
+            <Copy className="w-3.5 h-3.5 mr-1.5" />
+            Copiar Snapshot Karla
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={loadData}
             className="border-border bg-card hover:bg-muted text-foreground text-xs"
           >
@@ -482,6 +536,21 @@ export function AdminWhatsAppPage() {
         >
           <Bot className="w-4 h-4 text-[#F47B20]" />
           Agente
+        </button>
+
+        <button
+          onClick={() => setActiveTab("snapshot")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap cursor-pointer ${
+            activeTab === "snapshot"
+              ? "border-[#F47B20] text-foreground font-bold"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <CalendarDays className="w-4 h-4 text-[#FFB52E]" />
+          Snapshot Karla
+          <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30">
+            En Vivo
+          </span>
         </button>
 
         <button
@@ -919,6 +988,161 @@ export function AdminWhatsAppPage() {
               >
                 <Send className="w-4 h-4" />
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* TAB: SNAPSHOT KARLA (INVENTARIO EN VIVO Y REGLAS OFICIALES) */}
+      {/* ============================================================== */}
+      {activeTab === "snapshot" && (
+        <div className="space-y-6">
+          {/* Tarjeta Superior con Acciones Rápidas */}
+          <div className="bg-card rounded-2xl p-6 border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-orange-500/10 text-[#F47B20] border border-orange-500/30 font-mono">
+                  INVENTARIO EN VIVO
+                </span>
+                <span className="text-xs text-muted-foreground font-mono">
+                  Actualizado: {snapshotResult.updatedAt}
+                </span>
+              </div>
+              <h2 className="text-xl md:text-2xl font-bold font-display text-foreground mt-2">
+                Snapshot de Vacantes para el Bot Karla
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1 max-w-2xl leading-relaxed">
+                Texto plano generado en tiempo real basado en la ocupación de alumnos activos.
+                Karla utiliza este bloque exacto como input para responder cupos sin margen de error.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button
+                onClick={handleCopySnapshot}
+                className="bg-gradient-to-r from-[#F47B20] to-[#FF9E3D] hover:from-[#e06b12] hover:to-[#f08e2e] text-[#0D0B0A] font-extrabold text-xs shadow-md shadow-orange-500/20 cursor-pointer"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copiar Snapshot
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={handleSyncSnapshotToBotConfig}
+                disabled={isSavingConfig}
+                className="border-border bg-card hover:bg-muted text-foreground text-xs cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 text-[#F47B20] ${isSavingConfig ? "animate-spin" : ""}`} />
+                Sincronizar en PostgreSQL
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={handleCopyApiUrl}
+                className="border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-mono cursor-pointer"
+              >
+                <span className="text-[#F47B20] mr-1.5 font-bold">GET</span> /api/availability/snapshot
+              </Button>
+            </div>
+          </div>
+
+          {/* Grid de 2 Columnas: Vista de Texto y Reglas Maestras */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Columna Izquierda: Vista del Texto Plano (7 columnas) */}
+            <div className="lg:col-span-7 space-y-4">
+              <div className="bg-[#0D0B0A] border border-orange-500/30 rounded-2xl p-5 relative shadow-inner">
+                <div className="flex items-center justify-between pb-3 border-b border-border/40 mb-3">
+                  <div className="flex items-center gap-2 text-xs font-mono text-[#FFB52E]">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#F47B20] animate-pulse"></span>
+                    <span>snapshot_vacantes_karla.txt</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopySnapshot}
+                    className="h-7 text-[11px] text-[#F47B20] hover:text-[#FF9E3D] hover:bg-orange-500/10 cursor-pointer font-semibold"
+                  >
+                    <Copy className="w-3 h-3 mr-1" /> Copiar Texto
+                  </Button>
+                </div>
+                <pre className="text-xs font-mono text-[#FFF8EC] whitespace-pre-wrap leading-relaxed overflow-x-auto max-h-[580px] p-2 select-all font-sans sm:font-mono">
+                  {snapshotResult.text}
+                </pre>
+              </div>
+            </div>
+
+            {/* Columna Derecha: Tarjetas de las 4 Reglas Maestras Oficiales (5 columnas) */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="bg-card rounded-2xl p-5 border border-border space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2 font-display">
+                  <ShieldCheck className="w-4 h-4 text-[#F47B20]" />
+                  4 Reglas Maestras Oficiales (MVP)
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Criterios innegociables integrados en las respuestas de Karla:
+                </p>
+
+                <div className="space-y-3 text-xs">
+                  {/* Regla 1 */}
+                  <div className="p-3.5 rounded-xl bg-background border border-border space-y-1">
+                    <div className="font-bold text-foreground flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-orange-500/15 text-[#F47B20] text-[10px] flex items-center justify-center font-bold">1</span>
+                      Piano vs. Piano Infantil (Edad y Nivel)
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed pl-7">
+                      <strong>Prof. Nathaly (Sala C):</strong> Exclusivamente Piano Infantil (iniciación/pequeños) y Canto.<br />
+                      <strong>Prof. Fernando (Sala B):</strong> Piano estándar, jóvenes, adultos, avanzados/Master y Violín.<br />
+                      <span className="text-red-500 font-semibold">Innegociable:</span> Jamás mandar a un alumno de Fernando a Nathaly por falta de cupo. Si está lleno, ofrecer otro turno con Fernando.
+                    </p>
+                  </div>
+
+                  {/* Regla 2 */}
+                  <div className="p-3.5 rounded-xl bg-background border border-border space-y-1">
+                    <div className="font-bold text-foreground flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-orange-500/15 text-[#F47B20] text-[10px] flex items-center justify-center font-bold">2</span>
+                      Disponibilidad Sala D (Demos con Claudia)
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed pl-7">
+                      Horarios sugeridos: <strong>3:30 pm a 7:00 pm</strong>.<br />
+                      <strong>Respuesta obligatoria:</strong> <em>"Te daremos la confirmación en un momento mientras coordinamos con nuestra Directora Claudia 🎵"</em>. No cerrar la cita hasta que Claudia valide.
+                    </p>
+                  </div>
+
+                  {/* Regla 3 */}
+                  <div className="p-3.5 rounded-xl bg-background border border-border space-y-1">
+                    <div className="font-bold text-foreground flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-orange-500/15 text-[#F47B20] text-[10px] flex items-center justify-center font-bold">3</span>
+                      Escalamiento por Pagos (Anti-Fraude)
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed pl-7">
+                      Ante cualquier comprobante (foto) o mención de pago (Yape/Plin/BCP), el bot <strong>NO</strong> confirma el dinero y transfiere inmediatamente a Karla.
+                    </p>
+                  </div>
+
+                  {/* Regla 4 */}
+                  <div className="p-3.5 rounded-xl bg-background border border-border space-y-1">
+                    <div className="font-bold text-foreground flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-orange-500/15 text-[#F47B20] text-[10px] flex items-center justify-center font-bold">4</span>
+                      Clientes VIP (Paquete Flexible)
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed pl-7">
+                      Alumnos con metadato <code className="text-[#F47B20] bg-orange-500/10 px-1 py-0.5 rounded font-mono">paquete flexible</code> (bolsa de horas o convenios): <strong>NUNCA</strong> dar precios de lista estándar. Escalar a Karla.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tarjetas resumen por sala */}
+              <div className="grid grid-cols-2 gap-3">
+                {snapshotResult.rooms.map((r) => (
+                  <div key={r.roomName} className="p-3.5 rounded-xl bg-card border border-border text-xs">
+                    <div className="font-bold text-[#F47B20] font-mono">{r.roomName}</div>
+                    <div className="text-foreground font-semibold truncate text-[11px]">{r.instruments}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{r.teacher}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

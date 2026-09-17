@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { handleWhatsAppWebhook } from "./server/whatsapp-webhook";
+import { handleAvailabilitySnapshot } from "./server/availability-snapshot-handler";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -52,6 +53,11 @@ export default {
       // Endpoint oficial WhatsApp Cloud API
       if (url.pathname === "/api/webhook/whatsapp") {
         return await handleWhatsAppWebhook(request);
+      }
+
+      // Snapshot de Vacantes para Agente WhatsApp Karla (GET /api/availability/snapshot)
+      if (url.pathname === "/api/availability/snapshot") {
+        return await handleAvailabilitySnapshot(request);
       }
 
       const handler = await getServerEntry();

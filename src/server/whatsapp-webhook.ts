@@ -22,7 +22,9 @@ interface MetaWebhookPayload {
         messages?: Array<{
           id: string;
           from: string;
+          type?: string;
           text?: { body: string };
+          image?: { id: string; mime_type?: string; sha256?: string };
         }>;
         contacts?: Array<{
           profile?: { name: string };
@@ -110,6 +112,31 @@ export async function handleWhatsAppWebhook(request: Request): Promise<Response>
       // 3. Cargar configuración del bot en runtime (ADR-001 §2.2)
       const botConfig = await getWhatsAppBotConfig();
 
+      // Regla 3 (Anti-Fraude): Si envió imagen / comprobante, escalamiento humano inmediato a Karla
+      const isImage = message.type === "image" || Boolean(message.image);
+      if (isImage) {
+        const paymentHandoffText =
+          "¡Muchas gracias! Hemos recibido tu imagen. He transferido este chat inmediatamente a Karla de administración para que revise tu comprobante y confirme tu matrícula. ¡Un momento por favor! 👩🏻‍💼";
+
+        try {
+          await postgrestInsert("whatsapp_messages", {
+            phone: fromPhone,
+            sender_name: botConfig.agent_name,
+            direction: "outbound",
+            body: paymentHandoffText,
+            status: "enviado",
+            resolved_by: "humano",
+          });
+        } catch (dbErr) {
+          console.warn("[WhatsApp Webhook DB non-blocking]:", dbErr);
+        }
+
+        return new Response(
+          JSON.stringify({ status: "handoff", reason: "image_payment_escalation", reply: paymentHandoffText }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
       // 4. Filtro de Costo / Atajos Deterministas SIN IA (Fase 3.1)
       const lowerBody = messageBody.toLowerCase();
       let matchedShortcutText: string | null = null;
@@ -178,16 +205,45 @@ export async function handleWhatsAppWebhook(request: Request): Promise<Response>
         );
       }
 
-      // 6. Solicitud directa de asesor humano (Handoff a Claudia / Sergio)
-      if (
+      // 6. Solicitud directa de asesor humano o caso de pago / VIP (Reglas 3 y 4)
+      const isPaymentMention =
+        lowerBody.includes("comprobante") ||
+        lowerBody.includes("voucher") ||
+        lowerBody.includes("ya pague") ||
+        lowerBody.includes("ya pagué") ||
+        lowerBody.includes("ya transferi") ||
+        lowerBody.includes("ya transferí") ||
+        lowerBody.includes("ya yapee") ||
+        lowerBody.includes("ya yapeé") ||
+        lowerBody.includes("constancia");
+
+      const isVIPMention =
+        lowerBody.includes("paquete flexible") ||
+        lowerBody.includes("tarifa especial") ||
+        lowerBody.includes("precio antiguo") ||
+        lowerBody.includes("exsocio") ||
+        lowerBody.includes("ex socio");
+
+      const isHumanRequest =
         lowerBody.includes("asesor") ||
         lowerBody.includes("humano") ||
         lowerBody.includes("persona") ||
         lowerBody.includes("secretaria") ||
-        lowerBody.includes("hablar con alguien")
-      ) {
-        const advisorText =
-          "Entendido. En este momento estoy notificando a Dirección (Claudia y Sergio) para que un asesor continúe tu atención de forma personalizada. ¡Un momento por favor! 📲";
+        lowerBody.includes("hablar con alguien") ||
+        lowerBody.includes("reclamo") ||
+        lowerBody.includes("queja");
+
+      if (isPaymentMention || isVIPMention || isHumanRequest) {
+        let advisorText =
+          "Entendido. En este momento estoy notificando a Karla de administración para que continúe tu atención de forma personalizada. ¡Un momento por favor! 👩🏻‍💼📲";
+
+        if (isPaymentMention) {
+          advisorText =
+            "¡Muchas gracias por informarnos sobre tu pago! 💳 He notificado inmediatamente a Karla de administración para que verifique el abono en la cuenta bancaria y confirme tu matrícula. ¡Un momento por favor! 👩🏻‍💼";
+        } else if (isVIPMention) {
+          advisorText =
+            "¡Hola! Veo que tienes un convenio o paquete flexible especial. Para darte tu tarifa personalizada y confirmar tus clases, te transfiero de inmediato con Karla de administración. 👩🏻‍💼🎵";
+        }
 
         try {
           await postgrestInsert("whatsapp_messages", {
@@ -204,6 +260,35 @@ export async function handleWhatsAppWebhook(request: Request): Promise<Response>
 
         return new Response(
           JSON.stringify({ status: "handoff", reply: advisorText }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Regla 2 (Demos en Sala D): Respuesta con espera para confirmación de Claudia
+      if (
+        lowerBody.includes("demo") ||
+        lowerBody.includes("demostrativa") ||
+        lowerBody.includes("clase modelo") ||
+        lowerBody.includes("probar clase")
+      ) {
+        const demoResponseText =
+          "¡Excelente! 🎵 Con gusto podemos coordinar una clase demostrativa (horarios sugeridos de 3:30 pm a 7:00 pm). Te daremos la confirmación en un momento mientras coordinamos la disponibilidad de nuestra Directora Claudia.";
+
+        try {
+          await postgrestInsert("whatsapp_messages", {
+            phone: fromPhone,
+            sender_name: botConfig.agent_name,
+            direction: "outbound",
+            body: demoResponseText,
+            status: "enviado",
+            resolved_by: "bot",
+          });
+        } catch (dbErr) {
+          console.warn("[WhatsApp Webhook DB non-blocking]:", dbErr);
+        }
+
+        return new Response(
+          JSON.stringify({ status: "success", type: "demo_inquiry", reply: demoResponseText }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         );
       }
