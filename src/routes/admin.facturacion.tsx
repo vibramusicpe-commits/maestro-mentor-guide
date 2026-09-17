@@ -40,6 +40,7 @@ import {
 } from "@/store/admin-seeds";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { compressImageToWebP } from "@/lib/image-compressor";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -297,19 +298,25 @@ function AdminFacturacionPage() {
     setNote("");
   };
 
-  // Manejo de lectura de imagen y pegado directo desde el portapapeles (Ctrl+V)
-  const processImageFile = (file: File, setImageState: (b64: string) => void) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Por favor selecciona un archivo de imagen válido (PNG, JPG, WEBP).");
+  // Manejo de lectura de imagen, compresión automática a WebP y pegado directo (Ctrl+V)
+  const processImageFile = async (fileOrBlob: File | Blob, setImageState: (b64: string) => void) => {
+    if (fileOrBlob instanceof File && !fileOrBlob.type.startsWith("image/")) {
+      toast.error("Por favor selecciona un archivo de imagen válido (PNG, JPG, WEBP, etc.).");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const res = e.target?.result as string;
-      setImageState(res);
-      toast.success("Foto del voucher cargada correctamente");
-    };
-    reader.readAsDataURL(file);
+    try {
+      const result = await compressImageToWebP(fileOrBlob, 1200, 1600, 0.8);
+      setImageState(result.base64);
+      if (result.compressionRatio > 0) {
+        toast.success(`Voucher optimizado a .webp (${result.compressedSizeKb} KB)`, {
+          description: `Ahorro del ${result.compressionRatio}% de espacio para proteger la base de datos.`,
+        });
+      } else {
+        toast.success("Foto del voucher cargada correctamente");
+      }
+    } catch {
+      toast.error("Error al procesar la imagen del voucher");
+    }
   };
 
   const handlePasteEvent = (e: React.ClipboardEvent, setImageState: (b64: string) => void) => {

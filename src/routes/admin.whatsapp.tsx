@@ -1088,12 +1088,13 @@ export function AdminWhatsAppPage() {
                   <div className="p-3.5 rounded-xl bg-background border border-border space-y-1">
                     <div className="font-bold text-foreground flex items-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-orange-500/15 text-[#F47B20] text-[10px] flex items-center justify-center font-bold">1</span>
-                      Piano vs. Piano Infantil (Edad y Nivel)
+                      Piano vs. Piano Infantil (Edad y Experiencia)
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-relaxed pl-7">
-                      <strong>Prof. Nathaly (Sala C):</strong> Exclusivamente Piano Infantil (iniciación/pequeños) y Canto.<br />
+                      <strong>Prof. Nathaly (Sala C):</strong> Exclusivamente Piano Infantil (iniciación/niños) y Canto.<br />
                       <strong>Prof. Fernando (Sala B):</strong> Piano estándar, jóvenes, adultos, avanzados/Master y Violín.<br />
-                      <span className="text-red-500 font-semibold">Innegociable:</span> Jamás mandar a un alumno de Fernando a Nathaly por falta de cupo. Si está lleno, ofrecer otro turno con Fernando.
+                      <span className="text-amber-500 font-semibold">Diagnóstico 8, 9 y 10 años:</span> Si <em>NO</em> tiene experiencia previa y Nathaly <em>TIENE cupo</em>, va con ella; si <em>SÍ</em> tiene experiencia previa, va con Fernando.<br />
+                      <span className="text-red-500 font-semibold">Innegociable:</span> Jamás derivar de Fernando a Nathaly por falta de cupo de sala.
                     </p>
                   </div>
 
