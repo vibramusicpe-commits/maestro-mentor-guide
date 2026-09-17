@@ -4,6 +4,31 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.9.3] - 2026-09-17
+
+### Sincronización en Vivo Insforge PostgreSQL, Blindaje del Dossier y Control Documental (ADR 0102, ADR 0103, ADR 0104)
+- **Resolución de Error 401 Unauthorized en PostgREST (`src/lib/insforge.ts` y `src/lib/services/auth.service.ts`)**:
+  - Corrección de la cabecera `Authorization` en `buildHeaders`: sólo utiliza `_sessionToken` si es un JWT criptográfico real (`startsWith("eyJ")` con 3 partes). Si el token es simulado o nulo, recurre de forma garantizada a `INSFORGE_CONFIG.anonKey`.
+  - Asignación por defecto de `INSFORGE_CONFIG.anonKey` en `auth.service.ts` y sanitización automática de tokens heredados en `localStorage`.
+  - Erradicación de fallos silenciosos en `updateStudent` y `createStudent`; las mutaciones hacia PostgreSQL devuelven ahora `HTTP 200 OK` / `204 No Content`.
+- **Debounce Inteligente y Persistencia Atómica en Store (`src/store/app-store.ts`)**:
+  - Implementación de `backgroundSyncStudentToDB` con acumulador de actualizaciones pendientes y debounce de 350ms por alumno, eliminando condiciones de carrera de red al escribir en inputs de texto.
+  - Implementación de `performSyncStudentToDB` con fusión de `currentStudent` y `updates`, asegurando que `emergency_contact` JSONB retenga íntegramente teléfonos, familiares, costos de libro, vigencias y `scheduleLessons`.
+  - Validación de formato ISO `YYYY-MM-DD` en `birthdate` antes de enviar a la columna SQL `date`, evitando errores `400 Bad Request`.
+  - Normalización del campo `modality` acorde al enum PostgreSQL `lesson_modality_enum`.
+  - Verificación directa y exitosa en base de datos PostgreSQL de la persistencia de **Emma Micaela Sevilla Perez** (`00000000-0000-0000-0002-000000000048`) sin pérdida de datos tras recarga o limpieza de caché.
+- **Separación Pedagógica Estricta de Piano vs. Piano Infantil (ADR 0102)**:
+  - Delimitación innegociable de funciones docentes: Prof. Nathaly (Sala C) para Piano Infantil y Canto; Prof. Fernando (Sala B) para Piano estándar, jóvenes, adultos, avanzados y Violín.
+  - Blindaje del bot de WhatsApp para nunca transferir alumnos a salas incompatibles por saturación de cupos.
+- **Gestión Financiera de Libro / Pack Útiles, Prorrateo y Métodos de Pago (ADR 0104)**:
+  - Registro de costo de libro (S/ 67 configurable), abonos parciales, saldo pendiente dinámico, estado y entrega física en la ficha del alumno.
+  - Desacoplamiento explícito entre Fecha de Matrícula (`enrollmentDate`) y Fecha de Inicio de Clases (`planStartDate`).
+  - Selector desplegable de método de pago (Yape / Plin, Débito, Crédito, Efectivo).
+  - Habilitación del día Jueves como opción personalizada en el plan Intensivo.
+- **Corrección en Portal Docente de Fernando**:
+  - Mapeo de identidad `fernando@vibramusic.pe` a `"Fernando (Violín y Piano)"`.
+  - Corrección de preselección en `teacher.alumnos.tsx`, permitiendo a Fernando visualizar a sus alumnas asignadas Camila Pastor y Emma Sevilla.
+
 ## [1.9.0] - 2026-09-16
 
 ### Blindaje de Portal Docente, Kardex en Modo Consulta y Vigencia de Matrícula en Horario (ADR 0101)

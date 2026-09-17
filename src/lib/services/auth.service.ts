@@ -21,6 +21,9 @@ export function getStoredSession(): UserSession | null {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const session = JSON.parse(raw) as UserSession;
+    if (session.token && !session.token.startsWith("eyJ")) {
+      session.token = INSFORGE_CONFIG.anonKey;
+    }
     setSessionToken(session.token);
     return session;
   } catch {
@@ -85,7 +88,7 @@ export async function loginWithCredentials(
         ? "Profesor/a Vibra"
         : "Familia Vibra",
     role,
-    token: `jwt-token-${role}-${Date.now()}`,
+    token: INSFORGE_CONFIG.anonKey,
   };
 
   saveStoredSession(mockUser);

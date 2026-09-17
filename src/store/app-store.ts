@@ -427,8 +427,11 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
   } catch {}
 }
 
-// Sincronizador en segundo plano de alumnos con Insforge PostgreSQL
-function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Partial<AdminStudent>) {
+// Mapa de timers y actualizaciones pendientes para debounce por alumno
+const pendingStudentUpdates = new Map<string, Partial<AdminStudent>>();
+const syncDebounceTimers = new Map<string, any>();
+
+function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<AdminStudent>) {
   try {
     if (typeof window === "undefined") return;
     const currentStudent = useAppStore.getState().adminStudents.find((st) => isSameStudentId(st.id, studentId));
@@ -441,20 +444,26 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
     }
 
     import("@/lib/services/students.service").then(({ updateStudent, updateFamily }) => {
+      // Combinar alumno actual con las actualizaciones para preservar integridad de datos
+      const mergedStudent: Partial<AdminStudent> = {
+        ...currentStudent,
+        ...updates,
+      };
+
       const payload: Record<string, unknown> = {};
-      if (updates.name) payload.full_name = updates.name;
-      if (updates.instrument) payload.instrument = updates.instrument;
-      if (updates.level) payload.level = updates.level;
-      if (updates.status) payload.status = updates.status;
-      if (updates.modality) {
+      if (mergedStudent.name) payload.full_name = mergedStudent.name;
+      if (mergedStudent.instrument) payload.instrument = mergedStudent.instrument;
+      if (mergedStudent.level) payload.level = mergedStudent.level;
+      if (mergedStudent.status) payload.status = mergedStudent.status;
+      if (mergedStudent.modality) {
         // La columna SQL 'modality' usa el enum lesson_modality_enum ('Regular (8 clases / 45 min)' | 'Intensivo (4 clases / 90 min)')
-        payload.modality = updates.modality === "Intensivo (4 clases / 90 min)"
+        payload.modality = mergedStudent.modality === "Intensivo (4 clases / 90 min)"
           ? "Intensivo (4 clases / 90 min)"
           : "Regular (8 clases / 45 min)";
       }
-      if (updates.teacherNote !== undefined) payload.notes = updates.teacherNote;
-      if (updates.attendanceRate !== undefined) payload.attendance_rate = updates.attendanceRate;
-      if (updates.makeupCredits !== undefined) payload.makeup_credits = updates.makeupCredits;
+      if (mergedStudent.teacherNote !== undefined) payload.notes = mergedStudent.teacherNote;
+      if (mergedStudent.attendanceRate !== undefined) payload.attendance_rate = mergedStudent.attendanceRate;
+      if (mergedStudent.makeupCredits !== undefined) payload.makeup_credits = mergedStudent.makeupCredits;
 
       // Mapear profesor oficial a assigned_teacher_id de forma robusta
       const teacherIdMap: Record<string, string> = {
@@ -464,8 +473,9 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
         Demo: "00000000-0000-0000-0000-000000000006",
         "Profesor Demo": "00000000-0000-0000-0000-000000000006",
       };
-      if (updates.teacher) {
-        const cleanT = updates.teacher
+      const teacherToUse = mergedStudent.teacher;
+      if (teacherToUse) {
+        const cleanT = teacherToUse
           .replace(/^prof\.\s*/i, "")
           .replace(/\s*\(.*?\)/, "")
           .trim();
@@ -477,14 +487,14 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
           payload.assigned_teacher_id = "00000000-0000-0000-0000-000000000005";
         } else if (cleanT.toLowerCase().includes("demo")) {
           payload.assigned_teacher_id = "00000000-0000-0000-0000-000000000006";
-        } else if (teacherIdMap[updates.teacher]) {
-          payload.assigned_teacher_id = teacherIdMap[updates.teacher];
+        } else if (teacherIdMap[teacherToUse]) {
+          payload.assigned_teacher_id = teacherIdMap[teacherToUse];
         }
       }
 
       // Validar formato de fecha de nacimiento (YYYY-MM-DD) para columna SQL date
-      if (updates.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(updates.birthdate)) {
-        payload.birthdate = updates.birthdate;
+      if (mergedStudent.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(mergedStudent.birthdate)) {
+        payload.birthdate = mergedStudent.birthdate;
       }
 
       // Persistir metadatos extendidos en columna JSONB emergency_contact
@@ -493,37 +503,37 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
         ...(typeof updates.emergencyContact === "object" ? updates.emergencyContact : {}),
       };
 
-      if (updates.phone) ecData.phone = updates.phone;
-      if (updates.email) ecData.email = updates.email;
-      if (updates.family) ecData.family = updates.family;
-      if (updates.teacher) ecData.teacher = updates.teacher;
-      if (updates.birthdate) ecData.birthdate = updates.birthdate;
-      if (updates.age !== undefined) ecData.age = updates.age;
-      if (updates.ageCategory) ecData.ageCategory = updates.ageCategory;
-      if (updates.fatherName !== undefined) ecData.fatherName = updates.fatherName;
-      if (updates.fatherPhone !== undefined) ecData.fatherPhone = updates.fatherPhone;
-      if (updates.motherName !== undefined) ecData.motherName = updates.motherName;
-      if (updates.motherPhone !== undefined) ecData.motherPhone = updates.motherPhone;
-      if (updates.planType) ecData.planType = updates.planType;
-      if (updates.planPrice !== undefined) ecData.planPrice = updates.planPrice;
-      if (updates.amountPaid !== undefined) ecData.amountPaid = updates.amountPaid;
-      if (updates.balance !== undefined) ecData.balance = updates.balance;
-      if (updates.packageTotalSessions !== undefined) ecData.packageTotalSessions = updates.packageTotalSessions;
-      if (updates.modality) ecData.modality = updates.modality;
-      if (updates.matriculaType) ecData.matriculaType = updates.matriculaType;
-      if (updates.enrollmentDate !== undefined) ecData.enrollmentDate = updates.enrollmentDate;
-      if (updates.paymentMethod !== undefined) ecData.paymentMethod = updates.paymentMethod;
-      if (updates.packUtilesPaid !== undefined) ecData.packUtilesPaid = updates.packUtilesPaid;
-      if (updates.packUtilesCost !== undefined) ecData.packUtilesCost = updates.packUtilesCost;
-      if (updates.packUtilesAmountPaid !== undefined) ecData.packUtilesAmountPaid = updates.packUtilesAmountPaid;
-      if (updates.packUtilesStatus !== undefined) ecData.packUtilesStatus = updates.packUtilesStatus;
-      if (updates.packUtilesDelivered !== undefined) ecData.packUtilesDelivered = updates.packUtilesDelivered;
-      if (updates.packUtilesNotes !== undefined) ecData.packUtilesNotes = updates.packUtilesNotes;
-      if (updates.planStartDate) ecData.planStartDate = updates.planStartDate;
-      if (updates.planEndDate) ecData.planEndDate = updates.planEndDate;
-      if (updates.attendanceRate !== undefined) ecData.attendanceRate = updates.attendanceRate;
-      if (updates.recentAttendance !== undefined) ecData.recentAttendance = updates.recentAttendance;
-      if (updates.scheduleLessons !== undefined) ecData.scheduleLessons = updates.scheduleLessons;
+      if (mergedStudent.phone) ecData.phone = mergedStudent.phone;
+      if (mergedStudent.email) ecData.email = mergedStudent.email;
+      if (mergedStudent.family) ecData.family = mergedStudent.family;
+      if (mergedStudent.teacher) ecData.teacher = mergedStudent.teacher;
+      if (mergedStudent.birthdate) ecData.birthdate = mergedStudent.birthdate;
+      if (mergedStudent.age !== undefined) ecData.age = mergedStudent.age;
+      if (mergedStudent.ageCategory) ecData.ageCategory = mergedStudent.ageCategory;
+      if (mergedStudent.fatherName !== undefined) ecData.fatherName = mergedStudent.fatherName;
+      if (mergedStudent.fatherPhone !== undefined) ecData.fatherPhone = mergedStudent.fatherPhone;
+      if (mergedStudent.motherName !== undefined) ecData.motherName = mergedStudent.motherName;
+      if (mergedStudent.motherPhone !== undefined) ecData.motherPhone = mergedStudent.motherPhone;
+      if (mergedStudent.planType) ecData.planType = mergedStudent.planType;
+      if (mergedStudent.planPrice !== undefined) ecData.planPrice = mergedStudent.planPrice;
+      if (mergedStudent.amountPaid !== undefined) ecData.amountPaid = mergedStudent.amountPaid;
+      if (mergedStudent.balance !== undefined) ecData.balance = mergedStudent.balance;
+      if (mergedStudent.packageTotalSessions !== undefined) ecData.packageTotalSessions = mergedStudent.packageTotalSessions;
+      if (mergedStudent.modality) ecData.modality = mergedStudent.modality;
+      if (mergedStudent.matriculaType) ecData.matriculaType = mergedStudent.matriculaType;
+      if (mergedStudent.enrollmentDate !== undefined) ecData.enrollmentDate = mergedStudent.enrollmentDate;
+      if (mergedStudent.paymentMethod !== undefined) ecData.paymentMethod = mergedStudent.paymentMethod;
+      if (mergedStudent.packUtilesPaid !== undefined) ecData.packUtilesPaid = mergedStudent.packUtilesPaid;
+      if (mergedStudent.packUtilesCost !== undefined) ecData.packUtilesCost = mergedStudent.packUtilesCost;
+      if (mergedStudent.packUtilesAmountPaid !== undefined) ecData.packUtilesAmountPaid = mergedStudent.packUtilesAmountPaid;
+      if (mergedStudent.packUtilesStatus !== undefined) ecData.packUtilesStatus = mergedStudent.packUtilesStatus;
+      if (mergedStudent.packUtilesDelivered !== undefined) ecData.packUtilesDelivered = mergedStudent.packUtilesDelivered;
+      if (mergedStudent.packUtilesNotes !== undefined) ecData.packUtilesNotes = mergedStudent.packUtilesNotes;
+      if (mergedStudent.planStartDate) ecData.planStartDate = mergedStudent.planStartDate;
+      if (mergedStudent.planEndDate) ecData.planEndDate = mergedStudent.planEndDate;
+      if (mergedStudent.attendanceRate !== undefined) ecData.attendanceRate = mergedStudent.attendanceRate;
+      if (mergedStudent.recentAttendance !== undefined) ecData.recentAttendance = mergedStudent.recentAttendance;
+      if (mergedStudent.scheduleLessons !== undefined) ecData.scheduleLessons = mergedStudent.scheduleLessons;
 
       payload.emergency_contact = ecData;
 
@@ -535,7 +545,7 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
               backgroundCreateStudentInDB(role, currentStudent);
             }
           } else {
-            console.log(`[Insforge Sync] Alumno ${resolvedStudentId} sincronizado en PostgreSQL`);
+            console.log(`[Insforge Sync] Alumno ${resolvedStudentId} (${mergedStudent.name}) sincronizado en PostgreSQL`);
           }
         })
         .catch((err) => {
@@ -552,15 +562,43 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       );
       if (familyId !== resolvedStudentId) {
         const famPayload: Record<string, string> = {};
-        if (updates.family) famPayload.family_name = updates.family;
-        if (updates.email) famPayload.email = updates.email;
-        if (updates.phone) famPayload.primary_guardian_phone = updates.phone;
+        if (mergedStudent.family) famPayload.family_name = mergedStudent.family;
+        if (mergedStudent.email) famPayload.email = mergedStudent.email;
+        if (mergedStudent.phone) famPayload.primary_guardian_phone = mergedStudent.phone;
         if (Object.keys(famPayload).length > 0) {
           updateFamily(role, familyId, famPayload).catch(() => {});
         }
       }
     }).catch(() => {});
   } catch {}
+}
+
+// Sincronizador en segundo plano de alumnos con Insforge PostgreSQL (con Debounce inteligente)
+function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Partial<AdminStudent>) {
+  try {
+    if (typeof window === "undefined") return;
+
+    // Acumular actualizaciones en memoria mientras se escribe
+    const currentPending = pendingStudentUpdates.get(studentId) || {};
+    pendingStudentUpdates.set(studentId, { ...currentPending, ...updates });
+
+    const existingTimer = syncDebounceTimers.get(studentId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+
+    const timer = setTimeout(() => {
+      syncDebounceTimers.delete(studentId);
+      const accumulatedUpdates = pendingStudentUpdates.get(studentId) || updates;
+      pendingStudentUpdates.delete(studentId);
+      performSyncStudentToDB(role, studentId, accumulatedUpdates);
+    }, 350);
+
+    syncDebounceTimers.set(studentId, timer);
+  } catch {
+    // Si falla el timer, ejecución síncrona de respaldo
+    performSyncStudentToDB(role, studentId, updates);
+  }
 }
 
 // Sincronizador en segundo plano de eliminación / baja de alumnos con Insforge PostgreSQL

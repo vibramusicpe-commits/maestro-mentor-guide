@@ -64,10 +64,18 @@ export function setSessionToken(token: string | null) {
 // Siempre se incluyen: apikey + Authorization + Content-Type
 // ---------------------------------------------------------------
 function buildHeaders(extra: Record<string, string> = {}): HeadersInit {
+  // Solo se usa _sessionToken si es un JWT criptográfico real (comienza con 'eyJ' y tiene 3 partes)
+  const isRealJwt =
+    typeof _sessionToken === "string" &&
+    _sessionToken.startsWith("eyJ") &&
+    _sessionToken.split(".").length === 3;
+
+  const activeAuthToken = isRealJwt ? _sessionToken : INSFORGE_CONFIG.anonKey;
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     apikey: INSFORGE_CONFIG.anonKey,                     // Requerido por PostgREST
-    Authorization: `Bearer ${_sessionToken ?? INSFORGE_CONFIG.anonKey}`,
+    Authorization: `Bearer ${activeAuthToken}`,
     ...extra,
   };
   return headers;
