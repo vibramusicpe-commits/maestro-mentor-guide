@@ -22,9 +22,25 @@ function TeacherAgendaPage() {
   const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
 
-  // Extraer nombre del profesor logueado (ej. "Jeremy (Guitarra y Batería)" -> "jeremy")
-  const teacherRawName = currentUser?.name ?? "Jeremy";
-  const teacherClean = teacherRawName.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
+  // Extraer nombre del profesor logueado de forma inteligente (por email o nombre)
+  const teacherClean = useMemo(() => {
+    const email = currentUser?.email?.toLowerCase() || "";
+    if (email.includes("jeremy")) return "jeremy";
+    if (email.includes("fernando")) return "fernando";
+    if (email.includes("nathaly")) return "nathaly";
+    const name = (currentUser?.name || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
+    if (name.includes("jeremy")) return "jeremy";
+    if (name.includes("fernando")) return "fernando";
+    if (name.includes("nathaly")) return "nathaly";
+    return name || "jeremy";
+  }, [currentUser]);
+
+  const teacherDisplayName = useMemo(() => {
+    if (teacherClean === "jeremy") return "Jeremy";
+    if (teacherClean === "fernando") return "Fernando";
+    if (teacherClean === "nathaly") return "Nathaly";
+    return currentUser?.name?.split(" ")[0] || "Profesor";
+  }, [teacherClean, currentUser]);
 
   // Filtrar las clases reales de este profesor (únicamente de alumnos ACTIVOS)
   const teacherLessons = useMemo(() => {
@@ -52,7 +68,7 @@ function TeacherAgendaPage() {
     <div className="space-y-4">
       <MinimalAgendaCalendar
         lessons={teacherLessons}
-        title={`Mi Horario Semanal (${teacherRawName.split(" ")[0]})`}
+        title={`Mi Horario Semanal (${teacherDisplayName})`}
         subtitle="Clases asignadas y salas de la sede"
         userType="teacher"
         defaultYear={2026}

@@ -75,9 +75,25 @@ export function TeacherKiosk() {
   // Semana lectiva activa del mes actual (0-indexed)
   const activeWeekIndex = useMemo(() => getCurrentWeekIndex(), []);
 
-  // Extraer el nombre del profesor logueado
-  const teacherRawName = currentUser?.name ?? "Jeremy (Guitarra y Batería)";
-  const teacherClean = teacherRawName.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
+  // Extraer el nombre del profesor logueado de forma inteligente (por email o nombre)
+  const teacherClean = useMemo(() => {
+    const email = currentUser?.email?.toLowerCase() || "";
+    if (email.includes("jeremy")) return "jeremy";
+    if (email.includes("fernando")) return "fernando";
+    if (email.includes("nathaly")) return "nathaly";
+    const name = (currentUser?.name || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
+    if (name.includes("jeremy")) return "jeremy";
+    if (name.includes("fernando")) return "fernando";
+    if (name.includes("nathaly")) return "nathaly";
+    return name || "jeremy";
+  }, [currentUser]);
+
+  const teacherDisplayName = useMemo(() => {
+    if (teacherClean === "jeremy") return "Jeremy";
+    if (teacherClean === "fernando") return "Fernando";
+    if (teacherClean === "nathaly") return "Nathaly";
+    return currentUser?.name?.split(" ")[0] || "Profesor";
+  }, [teacherClean, currentUser]);
 
   // Filtrar todas las clases de este profesor desde el horario central (únicamente alumnos ACTIVOS)
   const teacherScheduleLessons = useMemo(() => {
@@ -146,7 +162,7 @@ export function TeacherKiosk() {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between px-1">
           <p className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-primary" /> Horario por Día · {teacherRawName.split(" ")[0]}
+            <Calendar className="h-3.5 w-3.5 text-primary" /> Horario por Día · {teacherDisplayName}
           </p>
           <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
             {dayLessons.length} {dayLessons.length === 1 ? "alumno" : "alumnos"} el {selectedDayFull}

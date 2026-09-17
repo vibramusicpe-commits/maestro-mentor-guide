@@ -85,13 +85,15 @@ function TeacherStudents() {
         return isMatchingStudentName(s.name, l.student) || normalize(l.student) === normS;
       });
 
-      let resolvedTeacher = s.teacher || "Fernando";
+      let resolvedTeacher = s.teacher;
       let resolvedInstrument = s.instrument || "Piano";
 
+      // 1. Si el alumno tiene clases agendadas, respetar el profesor e instrumento del horario
       if (matchingLessons.length > 0) {
         resolvedTeacher = matchingLessons[0].teacher;
         resolvedInstrument = matchingLessons[0].instrument;
-      } else {
+      } else if (!resolvedTeacher || resolvedTeacher === "Prof. por Asignar") {
+        // 2. Solo si NO tiene profesor asignado en su ficha, aplicar fallback según instrumento
         const instLower = (s.instrument || "").toLowerCase();
         if (
           instLower.includes("batería") ||
@@ -106,6 +108,8 @@ function TeacherStudents() {
           instLower.includes("estimulación")
         ) {
           resolvedTeacher = "Nathaly";
+        } else {
+          resolvedTeacher = "Fernando";
         }
       }
 
@@ -177,10 +181,17 @@ function TeacherStudents() {
         (s.instrument && s.instrument.toLowerCase().includes(q)) ||
         (s.emergencyContact?.name && s.emergencyContact.name.toLowerCase().includes(q));
 
+      const cleanTarget = selectedTeacher.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
+      const stTeacherClean = (s.teacher || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
       const matchTeacher =
         selectedTeacher === "todos" ||
-        s.teacher.toLowerCase().includes(selectedTeacher.toLowerCase()) ||
-        (s.matchingLessons && s.matchingLessons.some((l: any) => l.teacher.toLowerCase().includes(selectedTeacher.toLowerCase())));
+        cleanTarget === "todos" ||
+        stTeacherClean.includes(cleanTarget) ||
+        cleanTarget.includes(stTeacherClean) ||
+        (s.matchingLessons && s.matchingLessons.some((l: any) => {
+          const lTeachClean = (l.teacher || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
+          return lTeachClean.includes(cleanTarget) || cleanTarget.includes(lTeachClean);
+        }));
 
       const matchCategory =
         selectedCategory === "todas" || s.ageCategory === selectedCategory;

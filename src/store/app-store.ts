@@ -307,25 +307,24 @@ function queueItem(label: string): SyncItem {
   return { id, label };
 }
 
-// Sincronizador en segundo plano de alumnos con Insforge PostgreSQL
-function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Partial<AdminStudent>) {
+// Helper para generar UUIDs estándar RFC4122 v4
+function generateUUID(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+// Persiste alumnos nuevos en Insforge PostgreSQL de forma resiliente
+function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
   try {
     if (typeof window === "undefined") return;
-    const resolvedStudentId = resolveStudentUUID(studentId);
-    if (!resolvedStudentId) return;
 
-    import("@/lib/services/students.service").then(({ updateStudent, updateFamily }) => {
-      const payload: Record<string, unknown> = {};
-      if (updates.name) payload.full_name = updates.name;
-      if (updates.instrument) payload.instrument = updates.instrument;
-      if (updates.level) payload.level = updates.level;
-      if (updates.status) payload.status = updates.status;
-      if (updates.modality) payload.modality = updates.modality;
-      if (updates.teacherNote !== undefined) payload.notes = updates.teacherNote;
-      if (updates.attendanceRate !== undefined) payload.attendance_rate = updates.attendanceRate;
-      if (updates.makeupCredits !== undefined) payload.makeup_credits = updates.makeupCredits;
-
-      // Mapear profesor oficial a assigned_teacher_id
+    import("@/lib/services/students.service").then(async ({ createStudent, updateStudent }) => {
       const teacherIdMap: Record<string, string> = {
         Jeremy: "00000000-0000-0000-0000-000000000003",
         Fernando: "00000000-0000-0000-0000-000000000004",
@@ -333,8 +332,147 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
         Demo: "00000000-0000-0000-0000-000000000006",
         "Profesor Demo": "00000000-0000-0000-0000-000000000006",
       };
-      if (updates.teacher && teacherIdMap[updates.teacher]) {
-        payload.assigned_teacher_id = teacherIdMap[updates.teacher];
+
+      let assigned_teacher_id: string | null = null;
+      if (student.teacher) {
+        const cleanT = student.teacher
+          .replace(/^prof\.\s*/i, "")
+          .replace(/\s*\(.*?\)/, "")
+          .trim()
+          .toLowerCase();
+        if (cleanT.includes("jeremy")) assigned_teacher_id = "00000000-0000-0000-0000-000000000003";
+        else if (cleanT.includes("fernando")) assigned_teacher_id = "00000000-0000-0000-0000-000000000004";
+        else if (cleanT.includes("nathaly")) assigned_teacher_id = "00000000-0000-0000-0000-000000000005";
+        else if (cleanT.includes("demo")) assigned_teacher_id = "00000000-0000-0000-0000-000000000006";
+        else if (teacherIdMap[student.teacher]) assigned_teacher_id = teacherIdMap[student.teacher];
+      }
+
+      // Modality compatible con enum PostgreSQL lesson_modality_enum
+      const dbModality = student.modality === "Intensivo (4 clases / 90 min)"
+        ? "Intensivo (4 clases / 90 min)"
+        : "Regular (8 clases / 45 min)";
+
+      const ecData: Record<string, any> = {
+        ...(typeof student.emergencyContact === "object" ? student.emergencyContact : {}),
+        name: student.emergencyContact?.name || student.family || student.name,
+        phone: student.phone || student.emergencyContact?.phone || "",
+        relation: student.emergencyContact?.relation || "Apoderado",
+        family: student.family || "",
+        email: student.email || "",
+        teacher: student.teacher,
+        modality: student.modality,
+        planType: student.planType || "Mensual",
+        planPrice: student.planPrice ?? 297,
+        amountPaid: student.amountPaid ?? 297,
+        balance: student.balance ?? 0,
+        packageTotalSessions: student.packageTotalSessions || (student.modality?.includes("Intensivo") ? 4 : 8),
+        matriculaType: student.matriculaType || "Promo Demo (S/ 30)",
+        packUtilesPaid: student.packUtilesPaid !== undefined ? student.packUtilesPaid : true,
+        planStartDate: student.planStartDate || new Date().toISOString().slice(0, 10),
+        planEndDate: student.planEndDate,
+        planStartMonth: student.planStartMonth,
+        planEndMonth: student.planEndMonth,
+        age: student.age,
+        ageCategory: student.ageCategory,
+        fatherName: student.fatherName,
+        fatherPhone: student.fatherPhone,
+        motherName: student.motherName,
+        motherPhone: student.motherPhone,
+        teacherNote: student.teacherNote,
+        recentAttendance: student.recentAttendance || [],
+      };
+
+      const resolvedStudentUUID = resolveStudentUUID(student.id) || (
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(student.id)
+          ? student.id.toLowerCase()
+          : generateUUID()
+      );
+
+      const payload: any = {
+        id: resolvedStudentUUID,
+        full_name: student.name,
+        instrument: student.instrument || "Piano",
+        level: student.level || "Nivel 1",
+        status: student.status || "activo",
+        modality: dbModality,
+        attendance_rate: student.attendanceRate ?? 100,
+        makeup_credits: student.makeupCredits ?? 0,
+        notes: student.teacherNote || "",
+        emergency_contact: ecData,
+      };
+
+      if (assigned_teacher_id) {
+        payload.assigned_teacher_id = assigned_teacher_id;
+      }
+      if (student.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(student.birthdate)) {
+        payload.birthdate = student.birthdate;
+      }
+
+      const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";
+      try {
+        await createStudent(syncRole, payload);
+        console.log(`[Insforge Sync] Alumno nuevo ${student.name} (${payload.id}) creado exitosamente en PostgreSQL`);
+      } catch (err) {
+        console.warn(`[Insforge Sync] Aviso al crear alumno ${student.name} en PostgreSQL, aplicando fallback PATCH:`, err);
+        updateStudent(syncRole, payload.id, payload).catch(() => {});
+      }
+    }).catch(() => {});
+  } catch {}
+}
+
+// Sincronizador en segundo plano de alumnos con Insforge PostgreSQL
+function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Partial<AdminStudent>) {
+  try {
+    if (typeof window === "undefined") return;
+    const currentStudent = useAppStore.getState().adminStudents.find((st) => isSameStudentId(st.id, studentId));
+    const resolvedStudentId = resolveStudentUUID(studentId);
+    if (!resolvedStudentId) {
+      if (currentStudent) {
+        backgroundCreateStudentInDB(role, currentStudent);
+      }
+      return;
+    }
+
+    import("@/lib/services/students.service").then(({ updateStudent, updateFamily }) => {
+      const payload: Record<string, unknown> = {};
+      if (updates.name) payload.full_name = updates.name;
+      if (updates.instrument) payload.instrument = updates.instrument;
+      if (updates.level) payload.level = updates.level;
+      if (updates.status) payload.status = updates.status;
+      if (updates.modality) {
+        // La columna SQL 'modality' usa el enum lesson_modality_enum ('Regular (8 clases / 45 min)' | 'Intensivo (4 clases / 90 min)')
+        payload.modality = updates.modality === "Intensivo (4 clases / 90 min)"
+          ? "Intensivo (4 clases / 90 min)"
+          : "Regular (8 clases / 45 min)";
+      }
+      if (updates.teacherNote !== undefined) payload.notes = updates.teacherNote;
+      if (updates.attendanceRate !== undefined) payload.attendance_rate = updates.attendanceRate;
+      if (updates.makeupCredits !== undefined) payload.makeup_credits = updates.makeupCredits;
+
+      // Mapear profesor oficial a assigned_teacher_id de forma robusta
+      const teacherIdMap: Record<string, string> = {
+        Jeremy: "00000000-0000-0000-0000-000000000003",
+        Fernando: "00000000-0000-0000-0000-000000000004",
+        Nathaly: "00000000-0000-0000-0000-000000000005",
+        Demo: "00000000-0000-0000-0000-000000000006",
+        "Profesor Demo": "00000000-0000-0000-0000-000000000006",
+      };
+      if (updates.teacher) {
+        const cleanT = updates.teacher
+          .replace(/^prof\.\s*/i, "")
+          .replace(/\s*\(.*?\)/, "")
+          .trim();
+        if (cleanT.toLowerCase().includes("jeremy")) {
+          payload.assigned_teacher_id = "00000000-0000-0000-0000-000000000003";
+        } else if (cleanT.toLowerCase().includes("fernando")) {
+          payload.assigned_teacher_id = "00000000-0000-0000-0000-000000000004";
+        } else if (cleanT.toLowerCase().includes("nathaly")) {
+          payload.assigned_teacher_id = "00000000-0000-0000-0000-000000000005";
+        } else if (cleanT.toLowerCase().includes("demo")) {
+          payload.assigned_teacher_id = "00000000-0000-0000-0000-000000000006";
+        } else if (teacherIdMap[updates.teacher]) {
+          payload.assigned_teacher_id = teacherIdMap[updates.teacher];
+        }
       }
 
       // Validar formato de fecha de nacimiento (YYYY-MM-DD) para columna SQL date
@@ -343,7 +481,6 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       }
 
       // Persistir metadatos extendidos en columna JSONB emergency_contact
-      const currentStudent = useAppStore.getState().adminStudents.find((st) => isSameStudentId(st.id, studentId));
       const ecData: Record<string, any> = {
         ...(typeof currentStudent?.emergencyContact === "object" ? currentStudent.emergencyContact : {}),
         ...(typeof updates.emergencyContact === "object" ? updates.emergencyContact : {}),
@@ -362,6 +499,10 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       if (updates.motherPhone !== undefined) ecData.motherPhone = updates.motherPhone;
       if (updates.planType) ecData.planType = updates.planType;
       if (updates.planPrice !== undefined) ecData.planPrice = updates.planPrice;
+      if (updates.amountPaid !== undefined) ecData.amountPaid = updates.amountPaid;
+      if (updates.balance !== undefined) ecData.balance = updates.balance;
+      if (updates.packageTotalSessions !== undefined) ecData.packageTotalSessions = updates.packageTotalSessions;
+      if (updates.modality) ecData.modality = updates.modality;
       if (updates.matriculaType) ecData.matriculaType = updates.matriculaType;
       if (updates.packUtilesPaid !== undefined) ecData.packUtilesPaid = updates.packUtilesPaid;
       if (updates.planStartDate) ecData.planStartDate = updates.planStartDate;
@@ -371,9 +512,23 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
 
       payload.emergency_contact = ecData;
 
-      updateStudent(role, resolvedStudentId, payload)
-        .then(() => console.log(`[Insforge Sync] Alumno ${resolvedStudentId} sincronizado en PostgreSQL`))
-        .catch((err) => console.warn(`[Insforge Sync] Error sincronizando alumno ${resolvedStudentId}:`, err));
+      const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";
+      updateStudent(syncRole, resolvedStudentId, payload)
+        .then((res) => {
+          if (!res || !res.id) {
+            if (currentStudent) {
+              backgroundCreateStudentInDB(role, currentStudent);
+            }
+          } else {
+            console.log(`[Insforge Sync] Alumno ${resolvedStudentId} sincronizado en PostgreSQL`);
+          }
+        })
+        .catch((err) => {
+          console.warn(`[Insforge Sync] Error sincronizando alumno ${resolvedStudentId}, intentando create:`, err);
+          if (currentStudent) {
+            backgroundCreateStudentInDB(role, currentStudent);
+          }
+        });
 
       // Sincronizar familia asociada en tabla families de PostgreSQL
       const familyId = resolvedStudentId.replace(
@@ -485,10 +640,72 @@ export const useAppStore = create<AppState>()(
       currentUser: null,
       setActiveRole: (role) => set({ activeRole: role }),
       hydrateFromBackend: (data) =>
-        set((s) => ({
-          adminStudents: data.students && data.students.length > 0 ? data.students : s.adminStudents,
-          invoices: data.invoices && data.invoices.length > 0 ? data.invoices : s.invoices,
-        })),
+        set((s) => {
+          if (!data.students || data.students.length === 0) {
+            return {
+              invoices: data.invoices && data.invoices.length > 0 ? data.invoices : s.invoices,
+            };
+          }
+
+          // Fusión no destructiva: PostgreSQL enriquece datos sin borrar alumnos locales ni activaciones válidas
+          const mergedStudents: AdminStudent[] = [...s.adminStudents];
+
+          data.students.forEach((dbSt) => {
+            const existingIdx = mergedStudents.findIndex(
+              (locSt) => isSameStudentId(locSt.id, dbSt.id) || isMatchingStudentName(locSt.name, dbSt.name)
+            );
+
+            if (existingIdx >= 0) {
+              const localSt = mergedStudents[existingIdx];
+              const keepLocalActive = localSt.status === "activo" && dbSt.status === "pausa";
+              const keepLocalTeacher =
+                localSt.teacher &&
+                localSt.teacher !== "Prof. por Asignar" &&
+                (!dbSt.teacher || dbSt.teacher === "Prof. por Asignar");
+
+              const isEmma = isMatchingStudentName(dbSt.name, "Emma Micaela") || isMatchingStudentName(dbSt.name, "Emma Sevilla");
+              const isJonathan =
+                isMatchingStudentName(dbSt.name, "Jonathan Ticona Cachay") ||
+                isMatchingStudentName(dbSt.name, "Ticona Cachay, Jonathan");
+
+              const effectiveStartDate = isEmma
+                ? "2026-08-28"
+                : (isJonathan ? "2026-08-18" : (dbSt.planStartDate && dbSt.planStartDate !== "2026-08-01" ? dbSt.planStartDate : (localSt.planStartDate || dbSt.planStartDate)));
+              const effectiveEndDate = isEmma
+                ? "2026-09-27"
+                : (isJonathan ? "2026-12-31" : (dbSt.planEndDate && dbSt.planEndDate !== "2026-12-31" ? dbSt.planEndDate : (localSt.planEndDate || dbSt.planEndDate)));
+
+              const effectivePackage = isJonathan
+                ? 24
+                : (dbSt.packageTotalSessions || localSt.packageTotalSessions || (dbSt.modality?.includes("Intensivo") ? 4 : 8));
+
+              mergedStudents[existingIdx] = {
+                ...dbSt,
+                id: dbSt.id || localSt.id,
+                status: keepLocalActive ? "activo" : dbSt.status,
+                teacher: keepLocalTeacher ? localSt.teacher : (dbSt.teacher && dbSt.teacher !== "Prof. por Asignar" ? dbSt.teacher : localSt.teacher),
+                modality: isJonathan ? "Paquete Flexible (A demanda)" : (localSt.modality || dbSt.modality),
+                planType: isJonathan ? "Paquete Flexible" : (localSt.planType || dbSt.planType),
+                recentAttendance: localSt.recentAttendance?.length ? localSt.recentAttendance : dbSt.recentAttendance,
+                attendanceRate: typeof localSt.attendanceRate === "number" && localSt.attendanceRate > 0 ? localSt.attendanceRate : dbSt.attendanceRate,
+                planStartDate: effectiveStartDate,
+                planEndDate: effectiveEndDate,
+                packageTotalSessions: effectivePackage,
+                amountPaid: isJonathan ? 500 : (dbSt.amountPaid !== undefined ? dbSt.amountPaid : localSt.amountPaid),
+                balance: isJonathan ? 0 : (dbSt.balance !== undefined ? dbSt.balance : localSt.balance),
+                planPrice: isJonathan ? 500 : (dbSt.planPrice !== undefined ? dbSt.planPrice : localSt.planPrice),
+                payment: isJonathan ? "al-dia" : ((dbSt.balance !== undefined && dbSt.balance > 0) ? "pendiente" : (localSt.payment || dbSt.payment || "al-dia")),
+              };
+            } else {
+              mergedStudents.push(dbSt);
+            }
+          });
+
+          return {
+            adminStudents: mergedStudents,
+            invoices: data.invoices && data.invoices.length > 0 ? data.invoices : s.invoices,
+          };
+        }),
       updateUserName: (name: string) =>
         set((s) => ({
           currentUser: s.currentUser ? { ...s.currentUser, name } : { email: "usuario@vibramusic.pe", name },
@@ -598,6 +815,8 @@ export const useAppStore = create<AppState>()(
                 excludedWeeks: undefined,
                 attendanceStatus: undefined,
                 attendanceByWeek: undefined,
+                attendanceByDate: undefined,
+                isMakeup: true,
               };
 
               return {
@@ -616,7 +835,18 @@ export const useAppStore = create<AppState>()(
               // Ya era una clase puntual de una semana específica
               const updated = s.schedule.map((l) => {
                 if (l.id === id) {
-                  return { ...l, day, time, teacher: newTeacher, room: newRoom, weekIndex: targetWeekIndex };
+                  return {
+                    ...l,
+                    day,
+                    time,
+                    teacher: newTeacher,
+                    room: newRoom,
+                    weekIndex: targetWeekIndex,
+                    attendanceStatus: undefined,
+                    attendanceByWeek: undefined,
+                    attendanceByDate: undefined,
+                    isMakeup: true,
+                  };
                 }
                 return l;
               });
@@ -741,6 +971,32 @@ export const useAppStore = create<AppState>()(
           adminStudents: [],
           syncQueue: [...s.syncQueue, queueItem("Directorio de alumnos limpiado por completo")],
         })),
+      addNewStudent: (newSt) =>
+        set((s) => {
+          const id = generateUUID();
+          const planPrice = newSt.planPrice || 297;
+          const amountPaid = newSt.amountPaid !== undefined ? newSt.amountPaid : planPrice;
+          const balance = newSt.balance !== undefined ? newSt.balance : Math.max(0, planPrice - amountPaid);
+          const fullStudent: AdminStudent = {
+            ...newSt,
+            id,
+            planPrice,
+            amountPaid,
+            balance,
+            payment: balance > 0 ? "pendiente" : "al-dia",
+            risk: 10,
+            joinedAt: newSt.joinedAt || "Set 2026",
+            attendanceRate: newSt.attendanceRate !== undefined ? newSt.attendanceRate : 100,
+            makeupCredits: newSt.makeupCredits || 0,
+            recentAttendance: newSt.recentAttendance || [],
+            teacherNote: newSt.teacherNote || "",
+          };
+          backgroundCreateStudentInDB(s.activeRole, fullStudent);
+          return {
+            adminStudents: [fullStudent, ...s.adminStudents],
+            syncQueue: [...s.syncQueue, queueItem(`Nuevo alumno matriculado: ${newSt.name} (${newSt.instrument})`)],
+          };
+        }),
       resetToOfficialStudents: () => {
         try {
           if (typeof window !== "undefined" && window.localStorage) {
@@ -755,6 +1011,22 @@ export const useAppStore = create<AppState>()(
           schedule: initialSchedule,
           syncQueue: [...s.syncQueue, queueItem("Base oficial de 83 alumnos individualizados restaurada con éxito")],
         }));
+        // Rehidratar inmediatamente desde la base de datos PostgreSQL para preservar alumnos y activaciones en la nube
+        try {
+          if (typeof window !== "undefined") {
+            import("@/lib/services/students.service").then(({ getStudents, mapDBStudentToAdminStudent }) => {
+              getStudents("staff")
+                .then((dbStudents) => {
+                  if (dbStudents && dbStudents.length > 0) {
+                    useAppStore.getState().hydrateFromBackend({
+                      students: dbStudents.map(mapDBStudentToAdminStudent),
+                    });
+                  }
+                })
+                .catch(() => {});
+            }).catch(() => {});
+          }
+        } catch {}
       },
       deleteStudent: (id, reasonCategory = "otro", reasonText = "", deletedBy = "Nayeli (Secretaría)") =>
         set((s) => {
@@ -832,8 +1104,23 @@ export const useAppStore = create<AppState>()(
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, updates);
           const targetStudent = s.adminStudents.find((st) => isSameStudentId(st.id, id));
-          const updatedStudents = s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, ...updates } : st));
           let updatedSchedule = s.schedule;
+          const updatedStudents = s.adminStudents.map((st) => {
+            if (!isSameStudentId(st.id, id)) return st;
+            const newPrice = updates.planPrice !== undefined ? updates.planPrice : st.planPrice;
+            const newPaid = updates.amountPaid !== undefined ? updates.amountPaid : st.amountPaid;
+            let newBalance = updates.balance !== undefined ? updates.balance : st.balance;
+            if (updates.balance === undefined && newPrice !== undefined && newPaid !== undefined) {
+              newBalance = Math.max(0, newPrice - newPaid);
+            }
+            const newPayment = (newBalance !== undefined && newBalance > 0) ? "pendiente" : (updates.payment || st.payment || "al-dia");
+            return {
+              ...st,
+              ...updates,
+              balance: newBalance !== undefined ? newBalance : st.balance,
+              payment: newPayment,
+            };
+          });
 
           // Propagar cambios clave al horario (nombre, instrumento, profesor, categoría)
           if (targetStudent) {
@@ -893,10 +1180,23 @@ export const useAppStore = create<AppState>()(
           };
         }),
       assignTeacher: (id, teacher) =>
-        set((s) => ({
-          adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, teacher } : st)),
-          syncQueue: [...s.syncQueue, queueItem(`Profesor asignado · ${teacher}`)],
-        })),
+        set((s) => {
+          backgroundSyncStudentToDB(s.activeRole, id, { teacher });
+          const targetStudent = s.adminStudents.find((st) => isSameStudentId(st.id, id));
+          let updatedSchedule = s.schedule;
+          if (targetStudent) {
+            updatedSchedule = s.schedule.map((l) =>
+              isMatchingStudentName(targetStudent.name, l.student)
+                ? { ...l, teacher }
+                : l
+            );
+          }
+          return {
+            adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, teacher } : st)),
+            schedule: updatedSchedule,
+            syncQueue: [...s.syncQueue, queueItem(`Profesor asignado · ${teacher}`)],
+          };
+        }),
       setStudentModality: (id, modality) =>
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, { modality });
@@ -1580,24 +1880,6 @@ export const useAppStore = create<AppState>()(
         }));
         return generatedInvoices.length;
       },
-      addNewStudent: (newSt) =>
-        set((s) => {
-          const created: AdminStudent = {
-            id: `st-${Date.now()}`,
-            ...newSt,
-            risk: 10,
-            joinedAt: new Date().toLocaleDateString("es-PE"),
-            attendanceRate: 0,
-            makeupCredits: 0,
-            balance: 0,
-            recentAttendance: [],
-            teacherNote: "Alumno nuevo matriculado.",
-          };
-          return {
-            adminStudents: [created, ...s.adminStudents],
-            syncQueue: [...s.syncQueue, queueItem(`Nuevo alumno matriculado · ${created.name}`)],
-          };
-        }),
 
       // Configuración de Timbre Acústico Oficial
       chimeSettings: {
@@ -1775,41 +2057,93 @@ export const useAppStore = create<AppState>()(
           }
         } catch {}
 
-        // Migración limpia alineada estrictamente con la base de datos PostgreSQL:
-        // Solo alumnos formalmente activos confirmados (Camila Pastor) quedan en 'activo'.
-        // Todos los demás alumnos históricos inician en 'pausa' (o 'baja').
+        // Migración limpia alineada con la base de datos PostgreSQL:
+        // Respeta alumnos activados por administración y los alumnos confirmados activos:
+        // Camila Pastor, Emma Sevilla / Micaela, Marco Antonio Adrian y Jonathan Ticona Cachay.
         const migratedStudents = (persistedState?.adminStudents || adminStudents).map((st: any) => {
           const isCamila = isMatchingStudentName(st.name, "Camila Valentina Pastor Conco");
+          const isEmma = isMatchingStudentName(st.name, "Emma Micaela") || isMatchingStudentName(st.name, "Emma Sevilla");
+          const isMarco = isMatchingStudentName(st.name, "Marco Antonio Adrian");
+          const isJonathan = isMatchingStudentName(st.name, "Ticona Cachay, Jonathan") || isMatchingStudentName(st.name, "Jonathan Ticona Cachay");
+          const isAlreadyActive = st.status === "activo";
+          const isActive = isAlreadyActive || isCamila || isEmma || isMarco || isJonathan;
+
+          let resolvedTeacher = st.teacher;
+          if (isCamila || isEmma) resolvedTeacher = "Fernando";
+          else if (isMarco) resolvedTeacher = "Jeremy";
+          else if (isJonathan) resolvedTeacher = "Nathaly";
+
+          let planStartDate = st.planStartDate || "2026-08-01";
+          let planEndDate = st.planEndDate || "2026-08-31";
+          let modality = st.modality || "Regular (8 clases / 45 min)";
+          let planType = st.planType || "Mensual";
+          let planPrice = st.planPrice !== undefined ? st.planPrice : 297;
+          let amountPaid = st.amountPaid !== undefined ? st.amountPaid : planPrice;
+          let balance = st.balance !== undefined ? st.balance : Math.max(0, planPrice - amountPaid);
+          let packageTotalSessions = st.packageTotalSessions || (modality.includes("Intensivo") ? 4 : 8);
+
+          if (isCamila) {
+            planStartDate = "2026-09-10";
+            planEndDate = "2026-10-09";
+          } else if (isEmma) {
+            planStartDate = "2026-08-28";
+            planEndDate = "2026-09-27";
+          } else if (isJonathan) {
+            planStartDate = "2026-08-18";
+            planEndDate = "2026-12-31";
+            modality = "Paquete Flexible (A demanda)";
+            planType = "Paquete Flexible";
+            planPrice = 500;
+            amountPaid = 500;
+            balance = 0;
+            packageTotalSessions = 24;
+          }
+
           return {
             ...st,
-            status: isCamila ? "activo" : (st.status === "baja" ? "baja" : "pausa"),
-            recentAttendance: isCamila ? [] : (Array.isArray(st.recentAttendance) ? st.recentAttendance : []),
-            attendanceRate: isCamila ? 0 : (typeof st.attendanceRate === "number" ? st.attendanceRate : 0),
-            teacher: isCamila ? "Fernando" : (st.teacher || "Prof. por Asignar"),
-            planStartDate: isCamila ? "2026-09-10" : (st.planStartDate || "2026-08-01"),
-            planEndDate: isCamila ? "2026-10-09" : (st.planEndDate || "2026-08-31"),
-            planStartMonth: isCamila ? "2026-09" : (st.planStartMonth || "2026-08"),
-            planEndMonth: isCamila ? "2026-10" : (st.planEndMonth || "2026-08"),
+            status: isActive ? "activo" : (st.status === "baja" ? "baja" : "pausa"),
+            recentAttendance: Array.isArray(st.recentAttendance) ? st.recentAttendance : [],
+            attendanceRate: typeof st.attendanceRate === "number" ? st.attendanceRate : 0,
+            teacher: resolvedTeacher && resolvedTeacher !== "Prof. por Asignar" ? resolvedTeacher : (st.teacher || "Prof. por Asignar"),
+            modality,
+            planType,
+            planPrice,
+            amountPaid,
+            balance,
+            packageTotalSessions,
+            payment: balance > 0 ? "pendiente" : "al-dia",
+            planStartDate,
+            planEndDate,
+            planStartMonth: planStartDate.slice(0, 7),
+            planEndMonth: planEndDate.slice(0, 7),
           };
         });
 
         // 🛡️ REGLA DE ORO ADR 0098, 0099 & 0100:
         // En el horario de clases (schedule), solo deben figurar clases de alumnos ACTIVOS.
-        // Alumnos en pausa no deben tener clases en el horario, garantizando que profesores
-        // sin alumnos activos (Jeremy, Nathaly) vean su horario 100% limpio.
         const activeStudentNames = migratedStudents
           .filter((st: any) => st.status === "activo")
           .map((st: any) => st.name);
 
-        const cleanSchedule = (persistedState?.schedule || initialSchedule)
-          .filter((l: any) => {
-            if (l.status === "cancelada") return false;
-            return activeStudentNames.some((actName: string) => isMatchingStudentName(actName, l.student));
-          })
-          .map((l: any) => ({
-            ...l,
-            attendanceStatus: undefined,
-          }));
+        // Fusión inteligente de schedule: combina initialSchedule y persistedState.schedule
+        // para garantizar que clases oficiales de alumnos activos (Emma, Marco, Jonathan, Camila)
+        // se encuentren disponibles y no se pierdan reprogramaciones locales.
+        const scheduleMap = new Map<string, any>();
+        (initialSchedule || []).forEach((l: any) => {
+          if (l.status !== "cancelada" && activeStudentNames.some((actName: string) => isMatchingStudentName(actName, l.student))) {
+            scheduleMap.set(l.id, l);
+          }
+        });
+        (persistedState?.schedule || []).forEach((l: any) => {
+          if (l.status !== "cancelada" && activeStudentNames.some((actName: string) => isMatchingStudentName(actName, l.student))) {
+            scheduleMap.set(l.id, l);
+          }
+        });
+
+        const cleanSchedule = Array.from(scheduleMap.values()).map((l: any) => ({
+          ...l,
+          attendanceStatus: undefined,
+        }));
 
         return {
           ...persistedState,

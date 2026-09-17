@@ -19,6 +19,9 @@ import {
   Send,
   CalendarDays,
   Lock,
+  CalendarSync,
+  PlusCircle,
+  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -27,6 +30,14 @@ import {
   type ScheduledLesson,
   type WeekDay,
 } from "@/store/app-store";
+import {
+  weekDays,
+  timeSlots,
+  timeSlotsWeekday,
+  timeSlotsSaturday,
+  rooms,
+  teachers,
+} from "@/store/admin-seeds";
 import {
   getMonthWeeks,
   MONTHS_NAME,
@@ -51,6 +62,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 export interface StudentSessionItem {
@@ -96,6 +108,8 @@ export function StudentAttendanceKardex({
   const adminStudents = useAppStore((s) => s.adminStudents);
   const setStudentSessionAttendance = useAppStore((s) => s.setStudentSessionAttendance);
   const bulkRegularizeStudentAttendance = useAppStore((s) => s.bulkRegularizeStudentAttendance);
+  const rescheduleLesson = useAppStore((s) => s.rescheduleLesson);
+  const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
 
   // Alumno reactivo sincronizado con el store general
   const liveStudent = useMemo(() => {
@@ -107,12 +121,33 @@ export function StudentAttendanceKardex({
   }, [adminStudents, student]);
 
   // 🛡️ REGLA DE ORO (ADR 0100): Fecha de inicio oficial estricta
+  const isEmma =
+    isMatchingStudentName(liveStudent.name, "Emma Micaela") ||
+    isMatchingStudentName(liveStudent.name, "Emma Sevilla");
+
   const effectivePlanStartDate =
     liveStudent.planStartDate ||
-    (isMatchingStudentName(liveStudent.name, "Camila Valentina Pastor Conco") ? "2026-09-10" : undefined);
+    (isMatchingStudentName(liveStudent.name, "Camila Valentina Pastor Conco")
+      ? "2026-09-10"
+      : isEmma
+      ? "2026-08-28"
+      : undefined);
+
   const effectivePlanEndDate =
     liveStudent.planEndDate ||
-    (isMatchingStudentName(liveStudent.name, "Camila Valentina Pastor Conco") ? "2026-10-09" : undefined);
+    (isMatchingStudentName(liveStudent.name, "Camila Valentina Pastor Conco")
+      ? "2026-10-09"
+      : isEmma
+      ? "2026-09-27"
+      : undefined);
+
+  const isFlexiblePackage =
+    liveStudent.modality?.includes("Flexible") ||
+    liveStudent.modality?.includes("Irregular") ||
+    liveStudent.planType === "Paquete Flexible" ||
+    liveStudent.planType === "Paquete Especial";
+
+  const packageTotal = liveStudent.packageTotalSessions || 24;
 
   const now = new Date();
   const currentRealMonth = now.getMonth();
@@ -125,6 +160,23 @@ export function StudentAttendanceKardex({
     defaultYear !== undefined ? defaultYear : currentRealYear
   );
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
+
+  // 🔄 Estado para Reprogramar Clase (cuando hay Falta / Inasistencia)
+  const [rescheduleSession, setRescheduleSession] = useState<StudentSessionItem | null>(null);
+  const [reschedDay, setReschedDay] = useState<WeekDay>("Lun");
+  const [reschedTime, setReschedTime] = useState<string>("16:00");
+  const [reschedTeacher, setReschedTeacher] = useState<string>("");
+  const [reschedRoom, setReschedRoom] = useState<string>("Sala A");
+  const [reschedScope, setReschedScope] = useState<"only-this-week" | "all">("only-this-week");
+
+  // ➕ Estado para Agregar Sesión / Adelanto
+  const [isAddSessionOpen, setIsAddSessionOpen] = useState(false);
+  const [addSessionWeekIndex, setAddSessionWeekIndex] = useState<number>(0);
+  const [addSessionDay, setAddSessionDay] = useState<WeekDay>("Mié");
+  const [addSessionTime, setAddSessionTime] = useState<string>("16:00");
+  const [addSessionTeacher, setAddSessionTeacher] = useState<string>("");
+  const [addSessionRoom, setAddSessionRoom] = useState<string>("Sala B");
+  const [addSessionReason, setAddSessionReason] = useState<string>("adelanto");
 
   // Semanas del mes seleccionado
   const monthWeeks = useMemo(() => {
@@ -151,10 +203,14 @@ export function StudentAttendanceKardex({
         // 🛡️ REGLA DE ORO (ADR 0099 & ADR 0100): Respetar vigencia del plan del alumno
         // No generar sesiones previas a su fecha de inicio ni posteriores a su vencimiento
         if (effectivePlanStartDate && dayInfo.dateStr < effectivePlanStartDate) return;
-        if (effectivePlanEndDate && dayInfo.dateStr > effectivePlanEndDate) return;
+        if (!isFlexiblePackage && effectivePlanEndDate && dayInfo.dateStr > effectivePlanEndDate) return;
 
         // Buscar si el alumno tiene lección este día de la semana
         studentLessons.forEach((lesson) => {
+          // Si la lección especifica un mes determinado, verificar que coincida con el mes en vista
+          if (lesson.month !== undefined && lesson.month !== selectedMonth) return;
+          if (lesson.year !== undefined && lesson.year !== selectedYear) return;
+
           // Si la lección es para un día específico
           if (lesson.day !== dayInfo.dayKey) return;
 
@@ -251,6 +307,32 @@ export function StudentAttendanceKardex({
     };
   }, [sessions]);
 
+  // Para alumnos con Paquete Flexible: conteo global de todas las clases consumidas en su bolsa histórica
+  const totalPackageAttended = useMemo(() => {
+    let count = 0;
+    studentLessons.forEach((lesson) => {
+      if (lesson.attendanceByDate) {
+        Object.values(lesson.attendanceByDate).forEach((st) => {
+          if (st === "presente" || st === "tarde") count++;
+        });
+      } else if (lesson.attendanceByWeek) {
+        Object.values(lesson.attendanceByWeek).forEach((st) => {
+          if (st === "presente" || st === "tarde") count++;
+        });
+      } else if (lesson.attendanceStatus === "presente" || lesson.attendanceStatus === "tarde") {
+        count++;
+      }
+    });
+
+    if (count === 0 && Array.isArray(liveStudent.recentAttendance) && liveStudent.recentAttendance.length > 0) {
+      count = liveStudent.recentAttendance.filter((st) => st === "presente" || st === "tarde").length;
+    }
+    return count;
+  }, [studentLessons, liveStudent.recentAttendance]);
+
+  const remainingPackageClasses = Math.max(0, packageTotal - totalPackageAttended);
+  const isPackageCompleted = isFlexiblePackage && totalPackageAttended >= packageTotal;
+
   // Acción: Cambiar estado individual de una sesión
   const handleSetStatus = (
     item: StudentSessionItem,
@@ -344,8 +426,140 @@ export function StudentAttendanceKardex({
     });
   };
 
+  // 🔄 Handlers de Reprogramación de Clases
+  const handleDayChange = (newDay: WeekDay) => {
+    setReschedDay(newDay);
+    const slots = newDay === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
+    if (!slots.includes(reschedTime)) {
+      setReschedTime(slots[0] || "16:00");
+    }
+  };
+
+  const handleOpenReschedule = (session: StudentSessionItem) => {
+    setRescheduleSession(session);
+    setReschedDay(session.dayKey);
+    const slots = session.dayKey === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
+    setReschedTime(slots.includes(session.time) ? session.time : slots[0] || "16:00");
+    setReschedTeacher(
+      session.teacher && teachers.includes(session.teacher)
+        ? session.teacher
+        : liveStudent.teacher && teachers.includes(liveStudent.teacher)
+        ? liveStudent.teacher
+        : "Jeremy"
+    );
+    setReschedRoom(
+      session.room && rooms.includes(session.room)
+        ? session.room
+        : liveStudent.room && rooms.includes(liveStudent.room)
+        ? liveStudent.room
+        : "Sala A"
+    );
+    setReschedScope("only-this-week");
+  };
+
+  const handleConfirmReschedule = () => {
+    if (!rescheduleSession) return;
+
+    rescheduleLesson(
+      rescheduleSession.lessonId,
+      reschedDay,
+      reschedTime,
+      reschedScope,
+      rescheduleSession.weekIndex,
+      reschedTeacher,
+      reschedRoom
+    );
+
+    toast.success(`Clase reprogramada para ${reschedDay} a las ${reschedTime}`, {
+      description:
+        reschedScope === "only-this-week"
+          ? `Se reprogramó la clase de la ${rescheduleSession.weekLabel} con Prof. ${reschedTeacher} (${reschedRoom}).`
+          : `Se reprogramaron todas las clases del mes con Prof. ${reschedTeacher} (${reschedRoom}).`,
+    });
+
+    setRescheduleSession(null);
+  };
+
+  // ➕ Acción Rápida: Agregar Clase de Corrido (+45 min contiguo)
+  const handleAddConsecutiveClass = (session: StudentSessionItem) => {
+    const nextTime = session.timeEnd || "16:45";
+    const alreadyExists = schedule.some(
+      (l) =>
+        isMatchingStudentName(l.student, liveStudent.name) &&
+        l.day === session.dayKey &&
+        l.time === nextTime &&
+        (l.weekIndex === undefined || l.weekIndex === session.weekIndex) &&
+        l.status !== "cancelada"
+    );
+
+    if (alreadyExists) {
+      toast.info(`Ya existe una clase a las ${nextTime} para ${liveStudent.name} este día.`);
+      return;
+    }
+
+    addLessonToSchedule({
+      student: liveStudent.name,
+      teacher: session.teacher && teachers.includes(session.teacher) ? session.teacher : liveStudent.teacher || "Fernando",
+      instrument: session.instrument || liveStudent.instrument || "Piano",
+      day: session.dayKey,
+      time: nextTime,
+      room: session.room && rooms.includes(session.room) ? session.room : liveStudent.room || "Sala B",
+      category: liveStudent.ageCategory || "JUNIOR",
+      status: "programada",
+      weekIndex: session.weekIndex,
+      month: selectedMonth,
+      year: selectedYear,
+    });
+
+    toast.success(`¡Clase de corrido (+45m) agregada con éxito!`, {
+      description: `${session.dayShort} · ${nextTime} con Prof. ${session.teacher || liveStudent.teacher} (${session.room || "Sala B"})`,
+    });
+  };
+
+  // ➕ Handlers para Modal de Agregar Sesión o Adelanto
+  const handleOpenAddSession = () => {
+    const curWeek = getCurrentWeekIndex(selectedYear, selectedMonth);
+    setAddSessionWeekIndex(curWeek >= 0 && curWeek < monthWeeks.length ? curWeek : 0);
+    setAddSessionDay("Mié");
+    setAddSessionTime("16:00");
+    setAddSessionTeacher(liveStudent.teacher && teachers.includes(liveStudent.teacher) ? liveStudent.teacher : "Fernando");
+    setAddSessionRoom(liveStudent.room && rooms.includes(liveStudent.room) ? liveStudent.room : "Sala B");
+    setAddSessionReason("adelanto");
+    setIsAddSessionOpen(true);
+  };
+
+  const handleConfirmAddSession = () => {
+    addLessonToSchedule({
+      student: liveStudent.name,
+      teacher: addSessionTeacher,
+      instrument: liveStudent.instrument || "Piano",
+      day: addSessionDay,
+      time: addSessionTime,
+      room: addSessionRoom,
+      category: liveStudent.ageCategory || "JUNIOR",
+      status: "programada",
+      weekIndex: addSessionWeekIndex,
+      month: selectedMonth,
+      year: selectedYear,
+      isMakeup: addSessionReason === "recuperacion",
+    });
+
+    const labels: Record<string, string> = {
+      adelanto: "Adelanto de clase",
+      recuperacion: "Recuperación de inasistencia",
+      adicional: "Clase adicional",
+      regular: "Clase regular",
+    };
+
+    toast.success(`Sesión agregada: ${addSessionDay} a las ${addSessionTime}`, {
+      description: `Semana ${addSessionWeekIndex + 1} (${labels[addSessionReason] || "Sesión"}) · Prof. ${addSessionTeacher}`,
+    });
+
+    setIsAddSessionOpen(false);
+  };
+
   const isIntensivo = liveStudent.modality?.includes("Intensivo");
-  const targetLessons = isIntensivo ? 4 : 8;
+  const targetLessons = isFlexiblePackage ? packageTotal : (isIntensivo ? 4 : 8);
 
   const content = (
     <div className="space-y-4">
@@ -374,7 +588,11 @@ export function StudentAttendanceKardex({
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5 text-primary" />
-              {isIntensivo ? "Plan Intensivo (4 clases)" : "Plan Regular (8 clases)"}
+              {isFlexiblePackage
+                ? `🎒 Paquete Flexible (${packageTotal} clases · Vigencia por clases terminadas)`
+                : isIntensivo
+                ? "Plan Intensivo (4 clases)"
+                : "Plan Regular (8 clases)"}
             </span>
           </p>
         </div>
@@ -422,6 +640,58 @@ export function StudentAttendanceKardex({
         </div>
       </div>
 
+      {/* Banner de Control de Bolsa de Clases y Vigencia por Clases Terminadas */}
+      {isFlexiblePackage && (
+        <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-4 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black text-purple-800 dark:text-purple-200">
+                🎒 BOLSA DE HORAS: {totalPackageAttended} de {packageTotal} clases consumidas
+              </span>
+              {isPackageCompleted ? (
+                <Badge className="bg-amber-500 text-white font-bold text-[10px]">
+                  ✓ Paquete Completado ({packageTotal}/{packageTotal})
+                </Badge>
+              ) : (
+                <Badge className="bg-purple-600 text-white font-bold text-[10px]">
+                  {remainingPackageClasses} clases disponibles
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-purple-500/40 bg-background text-foreground font-mono text-xs">
+                Inversión: S/ {(liveStudent.planPrice || 500).toFixed(2)}
+              </Badge>
+              {liveStudent.balance === 0 ? (
+                <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                  ✓ Al Día
+                </Badge>
+              ) : (
+                <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                  ⚠️ Deuda: S/ {(liveStudent.balance || 0).toFixed(2)}
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Progress
+              value={Math.min(100, (totalPackageAttended / packageTotal) * 100)}
+              className="h-2.5 bg-purple-950/20"
+            />
+            <div className="flex flex-wrap items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+              <span>
+                📌 <strong>Vigencia:</strong> Por clases terminadas (no caduca mensualmente · Activo hasta completar las {packageTotal} clases).
+              </span>
+              {liveStudent.teacherNote && (
+                <span className="italic text-purple-700 dark:text-purple-300">
+                  Motivo: "{liveStudent.teacherNote}"
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tarjetas de Métricas de Asistencia */}
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
         <div className="p-3 rounded-xl border border-border bg-card text-center">
@@ -464,11 +734,21 @@ export function StudentAttendanceKardex({
       <div className="p-3.5 rounded-2xl border border-border bg-card/60 flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1.5 flex-1 min-w-[220px]">
           <div className="flex justify-between text-xs font-bold">
-            <span className="text-foreground">Cumplimiento del Plan del Mes:</span>
-            <span className="font-mono text-primary">{stats.asistidasTotal} de {targetLessons} clases asistidas</span>
+            <span className="text-foreground">
+              {isFlexiblePackage ? "Avance en este Mes Seleccionado:" : "Cumplimiento del Plan del Mes:"}
+            </span>
+            <span className="font-mono text-primary">
+              {isFlexiblePackage
+                ? `${stats.asistidasTotal} clases asistidas en ${MONTHS_NAME[selectedMonth]} (${totalPackageAttended}/${packageTotal} en bolsa total)`
+                : `${stats.asistidasTotal} de ${targetLessons} clases asistidas`}
+            </span>
           </div>
           <Progress
-            value={Math.min(100, (stats.asistidasTotal / targetLessons) * 100)}
+            value={
+              isFlexiblePackage
+                ? Math.min(100, (totalPackageAttended / packageTotal) * 100)
+                : Math.min(100, (stats.asistidasTotal / targetLessons) * 100)
+            }
             className="h-2"
           />
         </div>
@@ -491,6 +771,17 @@ export function StudentAttendanceKardex({
               <span>Modo Consulta (Botones bloqueados · Para editar asistencias, ingresa a "Editar Ficha")</span>
             </div>
           )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleOpenAddSession}
+            className="text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/10 rounded-xl"
+            title="Agregar una sesión puntual, adelanto o clase extra al cronograma"
+          >
+            <PlusCircle className="h-3.5 w-3.5" />
+            <span>➕ Agregar Sesión / Adelanto</span>
+          </Button>
 
           <Button
             size="sm"
@@ -600,6 +891,31 @@ export function StudentAttendanceKardex({
                       {item.status === "pendiente" && "⚪ Sin marcar"}
                     </Badge>
 
+                    {/* 🔄 Botón directo de Reprogramar si tiene Falta */}
+                    {item.status === "ausente" && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleOpenReschedule(item)}
+                        className="h-7 px-2.5 text-[11px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs flex items-center gap-1.5 transition-transform active:scale-95"
+                        title="Reprogramar esta clase con inasistencia"
+                      >
+                        <CalendarSync className="h-3.5 w-3.5" />
+                        <span>🔄 Reprogramar</span>
+                      </Button>
+                    )}
+
+                    {/* ➕ Botón rápido de clase de corrido (+45m contiguo) */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleAddConsecutiveClass(item)}
+                      className="h-7 px-2 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-xl border border-primary/20 flex items-center gap-1 transition-transform active:scale-95"
+                      title="Agregar sesión de corrido (+45 min contiguo inmediatamente después)"
+                    >
+                      <Layers className="h-3 w-3" />
+                      <span>+ De corrido (+45m)</span>
+                    </Button>
+
                     {/* Botones de Actualización Inmediata en 1 Clic (Solo en modo edición) */}
                     {isEditable ? (
                       <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
@@ -680,6 +996,350 @@ export function StudentAttendanceKardex({
           </div>
         )}
       </div>
+
+      {/* 🔄 MODAL DE REPROGRAMACIÓN DE CLASE */}
+      <Dialog
+        open={Boolean(rescheduleSession)}
+        onOpenChange={(open) => !open && setRescheduleSession(null)}
+      >
+        <DialogContent className="sm:max-w-md p-6 rounded-3xl bg-card border-border z-[70]">
+          <DialogHeader className="pb-2 border-b border-border">
+            <DialogTitle className="text-base font-black flex items-center gap-2 text-foreground">
+              <CalendarSync className="h-5 w-5 text-amber-500" />
+              Reprogramar Clase
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Selecciona el nuevo día, hora y profesor para la clase de <strong>{liveStudent.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          {rescheduleSession && (
+            <div className="space-y-4 py-2">
+              {/* Resumen de la sesión original que tuvo falta */}
+              <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/25 space-y-1">
+                <div className="flex items-center justify-between text-xs font-bold text-red-700 dark:text-red-300">
+                  <span>Sesión {rescheduleSession.sessionIndex} (Inasistencia)</span>
+                  <Badge className="bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-black border-0">
+                    🔴 Falta registrada
+                  </Badge>
+                </div>
+                <p className="text-xs text-foreground font-medium">
+                  {rescheduleSession.dayName} · {rescheduleSession.time} - {rescheduleSession.timeEnd}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Prof. {rescheduleSession.teacher} · {rescheduleSession.room} ({rescheduleSession.weekLabel})
+                </p>
+              </div>
+
+              {/* Formulario de Nueva Fecha y Horario */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground">Nuevo Día</label>
+                  <Select
+                    value={reschedDay}
+                    onValueChange={(v) => handleDayChange(v as WeekDay)}
+                  >
+                    <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[80]">
+                      {weekDays.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {WEEKDAY_FULL_NAMES[d] || d} ({d})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground">Nueva Hora</label>
+                  <Select
+                    value={reschedTime}
+                    onValueChange={(v) => setReschedTime(v)}
+                  >
+                    <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56 z-[80]">
+                      {(reschedDay === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday).map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground">Profesor Asignado</label>
+                  <Select
+                    value={reschedTeacher}
+                    onValueChange={(v) => setReschedTeacher(v)}
+                  >
+                    <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[80]">
+                      {teachers.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground">Sala / Ambiente</label>
+                  <Select
+                    value={reschedRoom}
+                    onValueChange={(v) => setReschedRoom(v)}
+                  >
+                    <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[80]">
+                      {rooms.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Alcance de la reprogramación */}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-xs font-bold text-foreground">Alcance del cambio</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReschedScope("only-this-week")}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                      reschedScope === "only-this-week"
+                        ? "border-primary bg-primary/10 font-bold text-foreground ring-1 ring-primary"
+                        : "border-border bg-card text-muted-foreground hover:border-border/80"
+                    }`}
+                  >
+                    <p className="font-bold">Solo esta sesión</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Aplica a {rescheduleSession.weekLabel}
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReschedScope("all")}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                      reschedScope === "all"
+                        ? "border-primary bg-primary/10 font-bold text-foreground ring-1 ring-primary"
+                        : "border-border bg-card text-muted-foreground hover:border-border/80"
+                    }`}
+                  >
+                    <p className="font-bold">Todo el mes</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Cambio permanente de horario
+                    </p>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="pt-3 border-t border-border flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRescheduleSession(null)}
+              className="rounded-xl text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleConfirmReschedule}
+              className="rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+            >
+              <CalendarSync className="h-3.5 w-3.5" />
+              Confirmar Reprogramación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ➕ MODAL DE AGREGAR SESIÓN O ADELANTO */}
+      <Dialog open={isAddSessionOpen} onOpenChange={setIsAddSessionOpen}>
+        <DialogContent className="sm:max-w-md p-6 rounded-3xl bg-card border-border z-[70]">
+          <DialogHeader className="pb-2 border-b border-border">
+            <DialogTitle className="text-base font-black flex items-center gap-2 text-foreground">
+              <PlusCircle className="h-5 w-5 text-primary" />
+              Agregar Sesión o Adelanto de Clase
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Programa una clase puntual (adelanto por inasistencia o clase adicional) para <strong>{liveStudent.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Selector de Semana */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-foreground">
+                Semana del Mes ({MONTHS_NAME[selectedMonth]} {selectedYear})
+              </label>
+              <Select
+                value={String(addSessionWeekIndex)}
+                onValueChange={(v) => setAddSessionWeekIndex(parseInt(v, 10))}
+              >
+                <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[80]">
+                  {monthWeeks.map((w) => (
+                    <SelectItem key={w.weekIndex} value={String(w.weekIndex)}>
+                      {w.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Día y Hora */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">Día de la Semana</label>
+                <Select
+                  value={addSessionDay}
+                  onValueChange={(v) => {
+                    const day = v as WeekDay;
+                    setAddSessionDay(day);
+                    const slots = day === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
+                    if (!slots.includes(addSessionTime)) {
+                      setAddSessionTime(slots[0] || "16:00");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[80]">
+                    {weekDays.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {WEEKDAY_FULL_NAMES[d] || d} ({d})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">Hora de Inicio</label>
+                <Select
+                  value={addSessionTime}
+                  onValueChange={setAddSessionTime}
+                >
+                  <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-56 z-[80]">
+                    {(addSessionDay === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday).map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Profesor y Sala */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">Profesor</label>
+                <Select
+                  value={addSessionTeacher}
+                  onValueChange={setAddSessionTeacher}
+                >
+                  <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[80]">
+                    {teachers.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">Sala</label>
+                <Select
+                  value={addSessionRoom}
+                  onValueChange={setAddSessionRoom}
+                >
+                  <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[80]">
+                    {rooms.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Motivo */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-foreground">Tipo / Motivo de la Sesión</label>
+              <Select
+                value={addSessionReason}
+                onValueChange={setAddSessionReason}
+              >
+                <SelectTrigger className="h-9 rounded-xl text-xs font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[80]">
+                  <SelectItem value="adelanto">⏩ Adelanto de clase (por inasistencia programada)</SelectItem>
+                  <SelectItem value="recuperacion">🔄 Recuperación de inasistencia previa</SelectItem>
+                  <SelectItem value="adicional">➕ Clase adicional</SelectItem>
+                  <SelectItem value="regular">📅 Sesión regular de horario</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-3 border-t border-border flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAddSessionOpen(false)}
+              className="rounded-xl text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleConfirmAddSession}
+              className="rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              Guardar Sesión
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 

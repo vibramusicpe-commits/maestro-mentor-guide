@@ -67,6 +67,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -93,6 +94,14 @@ function statusBadge(status: StudentStatus) {
 }
 
 function modalityBadge(modality: LessonModality) {
+  if (modality.includes("Flexible") || modality.includes("Irregular")) {
+    return (
+      <Badge variant="outline" className="border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold text-[11px]">
+        <Clock className="mr-1 h-3 w-3" />
+        Paquete Flexible
+      </Badge>
+    );
+  }
   if (modality.startsWith("Intensivo")) {
     return (
       <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary text-[11px]">
@@ -190,6 +199,11 @@ export function StudentsTable() {
   const [ownerPassword, setOwnerPassword] = useState("");
   const [confirmPhrase, setConfirmPhrase] = useState("");
   const EXPECTED_PHRASE = "VACIAR ALUMNOS VIBRA";
+
+  // Estados de Recargar Base Oficial Seguro (Contraseña / Frase obligatoria)
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [resetConfirmPhrase, setResetConfirmPhrase] = useState("");
+  const EXPECTED_RESET_PHRASE = "/eliminar-recargar-base-oficial-83-separados";
 
   // Estado para Programar Horario de Alumno
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
@@ -592,15 +606,96 @@ export function StudentsTable() {
         <Button
           variant="outline"
           onClick={() => {
-            resetToOfficialStudents();
-            toast.success("¡Base oficial de 83 alumnos individualizados restaurada con éxito!");
+            setIsResetConfirmOpen(true);
+            setResetConfirmPhrase("");
           }}
-          className="gap-1.5 font-bold border-blue-500/40 text-blue-600 bg-blue-500/10 hover:bg-blue-500/20"
-          title="Recargar los 83 alumnos separados directamente desde el archivo oficial"
+          className="gap-1.5 font-bold border-rose-500/30 text-rose-600 dark:text-rose-400 bg-rose-500/5 hover:bg-rose-500/15"
+          title="Recargar los 83 alumnos separados directamente desde el archivo oficial (Requiere frase de confirmación)"
         >
-          <RotateCcw className="h-4 w-4 text-blue-600" />
+          <RotateCcw className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           🔄 Recargar Base Oficial (83 Separados)
         </Button>
+
+        {/* Modal de Protección Crítica: Recargar Base Oficial con Contraseña Obligatoria */}
+        <Dialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen}>
+          <DialogContent className="sm:max-w-md border-rose-500/40 bg-card shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400 text-base font-black">
+                <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 animate-bounce" />
+                ⚠️ Zona de Peligro: Recargar Base Oficial
+              </DialogTitle>
+              <DialogDescription className="space-y-2.5 text-xs text-muted-foreground pt-2 text-left">
+                <div className="p-3 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 font-medium space-y-1.5 leading-relaxed">
+                  <p className="font-bold flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                    <ShieldAlert className="h-4 w-4 shrink-0" />
+                    ¡Acción crítica y potencialmente destructiva!
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                    <li>Restablece el directorio local a las semillas base de fábrica.</li>
+                    <li>Limpia la memoria local del navegador (localStorage).</li>
+                    <li>
+                      <strong className="text-foreground font-semibold">
+                        No debe utilizarse durante la operación regular diaria.
+                      </strong>
+                    </li>
+                  </ul>
+                </div>
+                <p className="text-foreground font-medium pt-1">
+                  Para confirmar y desbloquear el restablecimiento, escribe exactamente la siguiente frase:
+                </p>
+                <div className="p-2.5 rounded-md bg-muted font-mono text-[11px] font-bold text-center select-all text-rose-600 dark:text-rose-400 border border-border tracking-tight break-all">
+                  {EXPECTED_RESET_PHRASE}
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2 py-1">
+              <Input
+                value={resetConfirmPhrase}
+                onChange={(e) => setResetConfirmPhrase(e.target.value)}
+                placeholder="/eliminar-recargar-base-oficial-83-separados"
+                className="font-mono text-xs border-rose-500/40 focus-visible:ring-rose-500 text-foreground"
+                autoFocus
+              />
+              {resetConfirmPhrase && resetConfirmPhrase !== EXPECTED_RESET_PHRASE && (
+                <p className="text-[11px] text-rose-500 font-medium">
+                  La frase ingresada aún no coincide con la frase de seguridad requerida.
+                </p>
+              )}
+            </div>
+
+            <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  setIsResetConfirmOpen(false);
+                  setResetConfirmPhrase("");
+                }}
+                className="text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                type="button"
+                disabled={resetConfirmPhrase.trim() !== EXPECTED_RESET_PHRASE}
+                onClick={() => {
+                  if (resetConfirmPhrase.trim() === EXPECTED_RESET_PHRASE) {
+                    resetToOfficialStudents();
+                    setIsResetConfirmOpen(false);
+                    setResetConfirmPhrase("");
+                    toast.success("¡Base oficial de 83 alumnos individualizados restaurada con éxito!");
+                  }
+                }}
+                className="gap-1.5 font-bold text-xs"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Confirmar Restablecimiento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Button
           variant="outline"
@@ -2535,7 +2630,11 @@ function NewStudentDialog() {
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [emergencyRelation, setEmergencyRelation] = useState("Abuela");
 
-  const [planType, setPlanType] = useState<"Mensual" | "Trimestral" | "Anual">("Mensual");
+  const [planType, setPlanType] = useState<VibraPlanType>("Mensual");
+  const [planPrice, setPlanPrice] = useState<number>(VIBRA_PRICING.Mensual.priceMonthly);
+  const [amountPaid, setAmountPaid] = useState<number>(VIBRA_PRICING.Mensual.priceMonthly);
+  const [packageTotalSessions, setPackageTotalSessions] = useState<number>(24);
+  const [customPriceReason, setCustomPriceReason] = useState<string>("");
   const [matriculaType, setMatriculaType] = useState<"Promo Demo (S/ 30)" | "Regular (S/ 120)" | "Exonerada">("Promo Demo (S/ 30)");
   const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(true);
   // Fecha actual formateada YYYY-MM-DD
@@ -2548,6 +2647,15 @@ function NewStudentDialog() {
   }, []);
 
   const [planStartDate, setPlanStartDate] = useState<string>(todayStr);
+
+  const isFlexiblePlan =
+    planType === "Paquete Flexible" ||
+    planType === "Paquete Especial" ||
+    modality.includes("Flexible") ||
+    modality.includes("Irregular");
+
+  const liveBalance = Math.max(0, planPrice - amountPaid);
+  const livePaymentStatus = liveBalance === 0 ? "al-dia" : "pendiente";
 
   // Mantener profesor seleccionado sincronizado si cambia la lista
   useEffect(() => {
@@ -2610,14 +2718,9 @@ function NewStudentDialog() {
     const endY = endD.getFullYear();
     const endM = String(endD.getMonth() + 1).padStart(2, "0");
     const endDay = String(endD.getDate()).padStart(2, "0");
-    const calculatedEndDate = `${endY}-${endM}-${endDay}`;
+    const calculatedEndDate = isFlexiblePlan ? "2026-12-31" : `${endY}-${endM}-${endDay}`;
     const startMonthStr = `${y}-${String(m).padStart(2, "0")}`;
-    const endMonthStr = `${endY}-${endM}`;
-    const prices = {
-      Mensual: VIBRA_PRICING.Mensual.priceMonthly,
-      Trimestral: VIBRA_PRICING.Trimestral.priceMonthly,
-      Anual: VIBRA_PRICING.Anual.priceMonthly,
-    };
+    const endMonthStr = isFlexiblePlan ? "2026-12" : `${endY}-${endM}`;
 
     // Resolver denominación de familia / titular
     const resolvedFamily = family.trim()
@@ -2634,12 +2737,15 @@ function NewStudentDialog() {
       ageCategory: effectiveCategory,
       age: isAdultStudent ? Math.max(18, age) : age,
       status: "activo",
-      payment: "al-dia",
+      payment: livePaymentStatus,
       email: email || `${name.toLowerCase().replace(/\s+/g, ".")}@gmail.com`,
       phone: isAdultStudent ? (phone || "987 654 321") : (motherPhone || fatherPhone || phone || "987 654 321"),
       birthdate,
       planType,
-      planPrice: prices[planType],
+      planPrice,
+      amountPaid,
+      packageTotalSessions: isFlexiblePlan ? packageTotalSessions : undefined,
+      teacherNote: customPriceReason.trim() || undefined,
       matriculaType,
       packUtilesPaid,
       planStartDate: planStartDate || "2026-08-03",
@@ -2676,6 +2782,10 @@ function NewStudentDialog() {
     setSelectedCategory("AUTO");
     setPlanStartDate(todayStr);
     setPackUtilesPaid(true);
+    setPlanPrice(297);
+    setAmountPaid(297);
+    setPackageTotalSessions(24);
+    setCustomPriceReason("");
   };
 
   return (
@@ -2817,12 +2927,26 @@ function NewStudentDialog() {
                 <label className="block text-[10px] text-muted-foreground font-semibold mb-1">Plan Contratado</label>
                 <select
                   value={planType}
-                  onChange={(e) => setPlanType(e.target.value as any)}
+                  onChange={(e) => {
+                    const val = e.target.value as VibraPlanType;
+                    setPlanType(val);
+                    if (val === "Paquete Flexible" || val === "Paquete Especial") {
+                      setPlanPrice(500);
+                      setAmountPaid(500);
+                      setPackageTotalSessions(24);
+                      setModality("Paquete Flexible (A demanda)");
+                    } else {
+                      const defaultPrice = VIBRA_PRICING[val]?.priceMonthly ?? 297;
+                      setPlanPrice(defaultPrice);
+                      setAmountPaid(defaultPrice);
+                    }
+                  }}
                   className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
                 >
                   <option value="Mensual">Mensual — S/ {VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)}</option>
                   <option value="Trimestral">Trimestral — S/ {VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)} (12% Dcto.)</option>
                   <option value="Anual">Anual — S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)} (20% Dcto.)</option>
+                  <option value="Paquete Flexible">🎒 Paquete Flexible (A Demanda)</option>
                 </select>
               </div>
 
@@ -2837,6 +2961,100 @@ function NewStudentDialog() {
                   <option value="Regular (S/ 120)">Regular — S/ 120</option>
                   <option value="Exonerada">Exonerada — S/ 0</option>
                 </select>
+              </div>
+            </div>
+
+            {/* Configuración de Bolsa de Clases si es Paquete Flexible */}
+            {isFlexiblePlan && (
+              <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                    🎒 Configuración de Paquete Flexible
+                  </span>
+                  <Badge variant="outline" className="text-[9px] font-bold border-purple-500/40 text-purple-700 dark:text-purple-300">
+                    A demanda
+                  </Badge>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Cantidad de Clases Contratadas (Bolsa de Horas)
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={packageTotalSessions}
+                    onChange={(e) => setPackageTotalSessions(parseInt(e.target.value, 10) || 24)}
+                    className="h-8 text-xs font-bold bg-background"
+                  />
+                </div>
+                <p className="text-[10px] text-purple-700 dark:text-purple-300 font-medium leading-relaxed">
+                  📌 <strong>Vigencia por clases terminadas:</strong> Este paquete no vence por mes calendario. Se completa automáticamente al registrar las {packageTotalSessions} clases asistidas.
+                </p>
+              </div>
+            )}
+
+            {/* Tarifa Personalizada y Control de Abono Inicial */}
+            <div className="rounded-lg border border-border bg-background/80 p-2.5 space-y-2">
+              <span className="text-[11px] font-bold text-foreground block">
+                💰 Tarifa Personalizada y Estado de Pago
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Costo del Plan (S/ PEN) *
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min={0}
+                    value={planPrice}
+                    onChange={(e) => setPlanPrice(parseFloat(e.target.value) || 0)}
+                    className="h-8 text-xs font-bold bg-background"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Monto Abonado (S/ PEN) *
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min={0}
+                    value={amountPaid}
+                    onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+                    className="h-8 text-xs font-bold bg-background"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Indicador reactivo de saldo y estado */}
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <span className="text-muted-foreground font-medium text-[11px]">Estado de Cuenta:</span>
+                {liveBalance === 0 ? (
+                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-black">
+                    ✓ Al Día (Cancelado S/ {planPrice.toFixed(2)})
+                  </Badge>
+                ) : (
+                  <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-black">
+                    ⚠️ Saldo Pendiente: S/ {liveBalance.toFixed(2)}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Motivo o Justificación de Tarifa / Paquete */}
+              <div className="pt-1">
+                <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                  📝 Motivo / Justificación de Tarifa o Paquete Especial
+                </label>
+                <Input
+                  placeholder="Ej. Ex-alumno de Alex / Convenio especial / Tarifa preferencial / Descuento hermanos"
+                  value={customPriceReason}
+                  onChange={(e) => setCustomPriceReason(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                />
               </div>
             </div>
 
@@ -2921,7 +3139,19 @@ function NewStudentDialog() {
 
           <div>
             <label className="block text-xs font-semibold mb-1">Frecuencia y Modalidad</label>
-            <Select value={modality} onValueChange={(v) => setModality(v as LessonModality)}>
+            <Select
+              value={modality}
+              onValueChange={(v) => {
+                const mod = v as LessonModality;
+                setModality(mod);
+                if (mod === "Paquete Flexible (A demanda)") {
+                  setPlanType("Paquete Flexible");
+                  setPlanPrice(500);
+                  setAmountPaid(500);
+                  setPackageTotalSessions(24);
+                }
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -2934,6 +3164,9 @@ function NewStudentDialog() {
                 </SelectItem>
                 <SelectItem value="Intensivo (4 clases / 90 min)">
                   Intensivo: 4 clases/mes (1x semana, 90 min)
+                </SelectItem>
+                <SelectItem value="Paquete Flexible (A demanda)">
+                  🎒 Paquete Flexible: Clases a demanda (Vigencia por clases terminadas)
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -3222,13 +3455,28 @@ function EditStudentSheetInner({
   const [emergencyName, setEmergencyName] = useState(student.emergencyContact?.name || "");
   const [emergencyPhone, setEmergencyPhone] = useState(student.emergencyContact?.phone || "");
   const [emergencyRelation, setEmergencyRelation] = useState(student.emergencyContact?.relation || "Abuela");
-  const [planType, setPlanType] = useState<"Mensual" | "Trimestral" | "Anual">(student.planType || "Mensual");
+  const [planType, setPlanType] = useState<VibraPlanType>(student.planType || "Mensual");
+  const [planPrice, setPlanPrice] = useState<number>(student.planPrice ?? (VIBRA_PRICING[student.planType || "Mensual"]?.priceMonthly ?? 297));
+  const [amountPaid, setAmountPaid] = useState<number>(
+    student.amountPaid ?? (student.balance !== undefined ? Math.max(0, (student.planPrice ?? 297) - student.balance) : (student.payment === "al-dia" ? (student.planPrice ?? 297) : 0))
+  );
+  const [packageTotalSessions, setPackageTotalSessions] = useState<number>(student.packageTotalSessions ?? 24);
+  const [customPriceReason, setCustomPriceReason] = useState<string>(student.teacherNote || "");
   const [matriculaType, setMatriculaType] = useState<"Promo Demo (S/ 30)" | "Regular (S/ 120)" | "Exonerada">(
     student.matriculaType || "Promo Demo (S/ 30)"
   );
   const [packUtilesPaid, setPackUtilesPaid] = useState<boolean>(student.packUtilesPaid ?? true);
   const [planStartDate, setPlanStartDate] = useState<string>(student.planStartDate || "2026-08-03");
   const [planEndDate, setPlanEndDate] = useState<string>(student.planEndDate || "2026-08-31");
+
+  const isFlexiblePlan =
+    planType === "Paquete Flexible" ||
+    planType === "Paquete Especial" ||
+    modality.includes("Flexible") ||
+    modality.includes("Irregular");
+
+  const liveBalance = Math.max(0, planPrice - amountPaid);
+  const livePaymentStatus = liveBalance === 0 ? "al-dia" : "pendiente";
 
   // Cálculo de categoría: manual si fue seleccionada, personalizada si está marcada, o automática por edad
   const effectiveCategory: AgeCategory = isPersonalized
@@ -3257,12 +3505,6 @@ function EditStudentSheetInner({
       return;
     }
 
-    const prices = {
-      Mensual: VIBRA_PRICING.Mensual.priceMonthly,
-      Trimestral: VIBRA_PRICING.Trimestral.priceMonthly,
-      Anual: VIBRA_PRICING.Anual.priceMonthly,
-    };
-
     const resolvedFamily = family.trim()
       ? (family.trim().startsWith("Familia ") ? family.trim() : `Familia ${family.trim()}`)
       : (isAdultStudent ? `Adulto Titular` : `Familia ${name}`);
@@ -3283,11 +3525,16 @@ function EditStudentSheetInner({
       phone: phone || student.phone,
       birthdate,
       planType,
-      planPrice: prices[planType],
+      planPrice,
+      amountPaid,
+      balance: liveBalance,
+      payment: livePaymentStatus,
+      packageTotalSessions: isFlexiblePlan ? packageTotalSessions : undefined,
+      teacherNote: customPriceReason.trim() || undefined,
       matriculaType,
       packUtilesPaid,
       planStartDate,
-      planEndDate,
+      planEndDate: isFlexiblePlan ? (planEndDate || "2026-12-31") : planEndDate,
       fatherName: fatherName.trim() || undefined,
       fatherPhone: fatherPhone.trim() || undefined,
       motherName: motherName.trim() || undefined,
@@ -3544,22 +3791,32 @@ function EditStudentSheetInner({
                 <select
                   value={planType}
                   onChange={(e) => {
-                    const newPlan = e.target.value as "Mensual" | "Trimestral" | "Anual";
+                    const newPlan = e.target.value as VibraPlanType;
                     setPlanType(newPlan);
-                    const durationMonths = newPlan === "Trimestral" ? 3 : newPlan === "Anual" ? 12 : 1;
-                    const [y, m, d] = (planStartDate || "2026-08-03").split("-").map((v) => parseInt(v, 10));
-                    const endD = new Date(y!, (m! - 1) + durationMonths, d!);
-                    endD.setDate(endD.getDate() - 1);
-                    const endY = endD.getFullYear();
-                    const endM = String(endD.getMonth() + 1).padStart(2, "0");
-                    const endDay = String(endD.getDate()).padStart(2, "0");
-                    setPlanEndDate(`${endY}-${endM}-${endDay}`);
+                    if (newPlan === "Paquete Flexible" || newPlan === "Paquete Especial") {
+                      if (!student.planPrice) setPlanPrice(500);
+                      if (student.amountPaid === undefined) setAmountPaid(500);
+                      setModality("Paquete Flexible (A demanda)");
+                      setPlanEndDate("2026-12-31");
+                    } else {
+                      const durationMonths = newPlan === "Trimestral" ? 3 : newPlan === "Anual" ? 12 : 1;
+                      const [y, m, d] = (planStartDate || "2026-08-03").split("-").map((v) => parseInt(v, 10));
+                      const endD = new Date(y!, (m! - 1) + durationMonths, d!);
+                      endD.setDate(endD.getDate() - 1);
+                      const endY = endD.getFullYear();
+                      const endM = String(endD.getMonth() + 1).padStart(2, "0");
+                      const endDay = String(endD.getDate()).padStart(2, "0");
+                      setPlanEndDate(`${endY}-${endM}-${endDay}`);
+                      const defaultPrice = VIBRA_PRICING[newPlan]?.priceMonthly ?? 297;
+                      if (!student.planPrice) setPlanPrice(defaultPrice);
+                    }
                   }}
                   className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
                 >
                   <option value="Mensual">Mensual — S/ {VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)}</option>
                   <option value="Trimestral">Trimestral — S/ {VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)} (12% Dcto.)</option>
                   <option value="Anual">Anual — S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)} (20% Dcto.)</option>
+                  <option value="Paquete Flexible">🎒 Paquete Flexible (A Demanda)</option>
                 </select>
               </div>
 
@@ -3574,6 +3831,100 @@ function EditStudentSheetInner({
                   <option value="Regular (S/ 120)">Regular — S/ 120</option>
                   <option value="Exonerada">Exonerada — S/ 0</option>
                 </select>
+              </div>
+            </div>
+
+            {/* Configuración de Bolsa de Clases si es Paquete Flexible */}
+            {isFlexiblePlan && (
+              <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                    🎒 Configuración de Paquete Flexible
+                  </span>
+                  <Badge variant="outline" className="text-[9px] font-bold border-purple-500/40 text-purple-700 dark:text-purple-300">
+                    A demanda
+                  </Badge>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Cantidad de Clases Contratadas (Bolsa de Horas)
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={packageTotalSessions}
+                    onChange={(e) => setPackageTotalSessions(parseInt(e.target.value, 10) || 24)}
+                    className="h-8 text-xs font-bold bg-background"
+                  />
+                </div>
+                <p className="text-[10px] text-purple-700 dark:text-purple-300 font-medium leading-relaxed">
+                  📌 <strong>Vigencia por clases terminadas:</strong> Este paquete no vence por mes calendario. Se completa automáticamente al registrar las {packageTotalSessions} clases asistidas.
+                </p>
+              </div>
+            )}
+
+            {/* Tarifa Personalizada y Control de Abono Inicial */}
+            <div className="rounded-lg border border-border bg-background/80 p-2.5 space-y-2">
+              <span className="text-[11px] font-bold text-foreground block">
+                💰 Tarifa Personalizada y Estado de Pago
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Costo del Plan (S/ PEN) *
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min={0}
+                    value={planPrice}
+                    onChange={(e) => setPlanPrice(parseFloat(e.target.value) || 0)}
+                    className="h-8 text-xs font-bold bg-background"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                    Monto Abonado (S/ PEN) *
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min={0}
+                    value={amountPaid}
+                    onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+                    className="h-8 text-xs font-bold bg-background"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Indicador reactivo de saldo y estado */}
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <span className="text-muted-foreground font-medium text-[11px]">Estado de Cuenta:</span>
+                {liveBalance === 0 ? (
+                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-black">
+                    ✓ Al Día (Cancelado S/ {planPrice.toFixed(2)})
+                  </Badge>
+                ) : (
+                  <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-black">
+                    ⚠️ Saldo Pendiente: S/ {liveBalance.toFixed(2)}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Motivo o Justificación de Tarifa / Paquete */}
+              <div className="pt-1">
+                <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                  📝 Motivo / Justificación de Tarifa o Paquete Especial
+                </label>
+                <Input
+                  placeholder="Ej. Ex-alumno de Alex / Convenio especial / Tarifa preferencial / Descuento hermanos"
+                  value={customPriceReason}
+                  onChange={(e) => setCustomPriceReason(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                />
               </div>
             </div>
 
@@ -3683,7 +4034,20 @@ function EditStudentSheetInner({
 
             <div>
               <label className="block text-xs font-semibold mb-1">Modalidad</label>
-              <Select value={modality} onValueChange={(v) => setModality(v as LessonModality)}>
+              <Select
+                value={modality}
+                onValueChange={(v) => {
+                  const mod = v as LessonModality;
+                  setModality(mod);
+                  if (mod === "Paquete Flexible (A demanda)") {
+                    setPlanType("Paquete Flexible");
+                    if (!planPrice) setPlanPrice(500);
+                    if (amountPaid === undefined) setAmountPaid(500);
+                    if (!packageTotalSessions) setPackageTotalSessions(24);
+                    setPlanEndDate("2026-12-31");
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -3696,6 +4060,9 @@ function EditStudentSheetInner({
                   </SelectItem>
                   <SelectItem value="Intensivo (4 clases / 90 min)">
                     Intensivo (4 clases / 90 min)
+                  </SelectItem>
+                  <SelectItem value="Paquete Flexible (A demanda)">
+                    🎒 Paquete Flexible (Clases a demanda)
                   </SelectItem>
                 </SelectContent>
               </Select>

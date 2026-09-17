@@ -26,6 +26,7 @@ import {
   postgrestSelect,
 } from "@/lib/insforge";
 import type { Role } from "@/store/app-store";
+import { isMatchingStudentName } from "@/lib/student-matching";
 
 // ---------------------------------------------------------------
 // Tipos de la capa de servicio (reflejan el schema SQL)
@@ -37,7 +38,7 @@ export interface DBStudent {
   instrument: string;
   level: string;
   assigned_teacher_id: string | null;
-  modality: "Regular (8 clases / 45 min)" | "Intensivo (4 clases / 90 min)";
+  modality: import("@/store/app-store").LessonModality | string;
   status: "activo" | "pausa" | "baja";
   makeup_credits: number;
   birthdate: string | null;
@@ -75,32 +76,42 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
   const ecPhone = ec.phone || db.families?.primary_guardian_phone || "987654321";
   const ecEmail = ec.email || db.families?.email || `alumno_${db.id.slice(0, 4)}@vibramusic.pe`;
   const ecFamily = ec.family || db.families?.family_name || `Familia ${db.full_name}`;
+  const isEmmaDB = isMatchingStudentName(db.full_name, "Emma Micaela") || isMatchingStudentName(db.full_name, "Emma Sevilla");
+  const isJonathanDB =
+    isMatchingStudentName(db.full_name, "Jonathan Ticona Cachay") ||
+    isMatchingStudentName(db.full_name, "Ticona Cachay, Jonathan");
+
+  const planPrice = typeof ec.planPrice === "number" ? ec.planPrice : (isJonathanDB ? 500 : 297);
+  const amountPaid = typeof ec.amountPaid === "number" ? ec.amountPaid : (isJonathanDB ? 500 : undefined);
+  const calculatedBalance = typeof ec.balance === "number"
+    ? ec.balance
+    : (amountPaid !== undefined ? Math.max(0, planPrice - amountPaid) : 0);
 
   return {
     id: db.id,
     name: db.full_name,
     family: ecFamily,
-    instrument: db.instrument || "Piano",
+    instrument: db.instrument || (isJonathanDB ? "Canto" : "Piano"),
     level: db.level || "Nivel 1",
-    teacher: (db.assigned_teacher_id && teacherNames[db.assigned_teacher_id]) || ec.teacher || "Fernando",
-    modality: db.modality || "Regular (8 clases / 45 min)",
+    teacher: (db.assigned_teacher_id && teacherNames[db.assigned_teacher_id]) || ec.teacher || (isJonathanDB ? "Nathaly" : "Prof. por Asignar"),
+    modality: (ec.modality as any) || (db.modality as any) || (isJonathanDB ? "Paquete Flexible (A demanda)" : "Regular (8 clases / 45 min)"),
     status: db.status || "activo",
     attendanceRate: typeof ec.attendanceRate === "number"
       ? ec.attendanceRate
       : (db.attendance_rate !== undefined && db.attendance_rate !== null ? Number(db.attendance_rate) : 0),
-    payment: "al-dia",
+    payment: calculatedBalance > 0 ? "pendiente" : "al-dia",
     risk: 20,
     joinedAt: "Ago 2026",
     makeupCredits: db.makeup_credits || 0,
-    balance: 0,
+    balance: calculatedBalance,
     recentAttendance: Array.isArray(ec.recentAttendance)
       ? ec.recentAttendance
       : [],
-    teacherNote: db.notes || "",
+    teacherNote: db.notes || ec.notes || (isJonathanDB ? "Ex-alumno Alex. Paquete Flexible 24 clases a demanda por S/ 500 pagado el 20/08/2026." : ""),
     email: ecEmail,
     phone: ecPhone,
     age: typeof ec.age === "number" ? ec.age : undefined,
-    ageCategory: ec.ageCategory || undefined,
+    ageCategory: ec.ageCategory || (isJonathanDB ? "ADULTO" : undefined),
     fatherName: ec.fatherName || undefined,
     fatherPhone: ec.fatherPhone || undefined,
     motherName: ec.motherName || undefined,
@@ -111,14 +122,16 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
       relation: ec.relation || "Apoderado",
     },
     birthdate: db.birthdate || ec.birthdate || "15 de Agosto",
-    planType: ec.planType || "Mensual",
-    planPrice: typeof ec.planPrice === "number" ? ec.planPrice : 297,
+    planType: ec.planType || (isJonathanDB ? "Paquete Flexible" : "Mensual"),
+    planPrice,
+    amountPaid,
+    packageTotalSessions: typeof ec.packageTotalSessions === "number" ? ec.packageTotalSessions : (isJonathanDB ? 24 : 8),
     matriculaType: ec.matriculaType || "Promo Demo (S/ 30)",
     packUtilesPaid: typeof ec.packUtilesPaid === "boolean" ? ec.packUtilesPaid : true,
-    planStartDate: ec.planStartDate || "2026-08-01",
-    planEndDate: ec.planEndDate || "2026-12-31",
-    planStartMonth: ec.planStartMonth || (ec.planStartDate ? ec.planStartDate.slice(0, 7) : "2026-08"),
-    planEndMonth: ec.planEndMonth || (ec.planEndDate ? ec.planEndDate.slice(0, 7) : "2026-12"),
+    planStartDate: ec.planStartDate || (isJonathanDB ? "2026-08-18" : (isEmmaDB ? "2026-08-28" : "2026-08-01")),
+    planEndDate: ec.planEndDate || (isJonathanDB ? "2026-12-31" : (isEmmaDB ? "2026-09-27" : "2026-12-31")),
+    planStartMonth: ec.planStartMonth || (ec.planStartDate ? ec.planStartDate.slice(0, 7) : (isJonathanDB ? "2026-08" : (isEmmaDB ? "2026-08" : "2026-08"))),
+    planEndMonth: ec.planEndMonth || (ec.planEndDate ? ec.planEndDate.slice(0, 7) : (isJonathanDB ? "2026-12" : (isEmmaDB ? "2026-09" : "2026-12"))),
   };
 }
 

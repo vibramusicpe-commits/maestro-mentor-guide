@@ -35,6 +35,11 @@ export function isMatchingStudentName(nameA: string, nameB: string): boolean {
   const cleanA = wordsA.filter((w) => !stopWords.has(w));
   const cleanB = wordsB.filter((w) => !stopWords.has(w));
 
+  // 🌟 Alias canónicos específicos (casos conocidos con nombres alternativos)
+  const isEmmaA = a.includes("emma") && (a.includes("sevilla") || a.includes("micaela"));
+  const isEmmaB = b.includes("emma") && (b.includes("sevilla") || b.includes("micaela"));
+  if (isEmmaA && isEmmaB) return true;
+
   const matchingWords = cleanA.filter((w) => cleanB.includes(w));
 
   // Si coinciden al menos 2 palabras clave (ej: "valerie" + "angulo", "camila" + "pastor")
@@ -62,11 +67,30 @@ export function resolveStudentUUID(id: string | number | null | undefined): stri
     return str.toLowerCase();
   }
 
+  // Mapeos explícitos para semillas conocidas
+  if (str === "as-31") {
+    return "00000000-0000-0000-0002-000000000054"; // Marco Antonio Adrian
+  }
+  if (str === "as-51" || str === "as-cp-72") {
+    return "00000000-0000-0000-0002-000000000048"; // Emma Sevilla / Emma Micaela
+  }
+
   // Extracción de número para IDs como "as-cp-1", "student-10", 15
+  if (str.startsWith("as-cp-") || str.startsWith("student-")) {
+    const match = str.match(/\d+/);
+    if (match) {
+      const num = parseInt(match[0], 10);
+      if (!isNaN(num) && num > 0 && num <= 200) {
+        const hex = num.toString(16).padStart(12, "0");
+        return `00000000-0000-0000-0002-${hex}`;
+      }
+    }
+  }
+
   const match = str.match(/\d+/);
   if (match) {
     const num = parseInt(match[0], 10);
-    if (!isNaN(num) && num > 0) {
+    if (!isNaN(num) && num > 0 && num <= 200 && !str.startsWith("sch-") && !str.startsWith("st-")) {
       const hex = num.toString(16).padStart(12, "0");
       return `00000000-0000-0000-0002-${hex}`;
     }

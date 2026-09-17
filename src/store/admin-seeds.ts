@@ -41,7 +41,7 @@ export function getCategoryFromAge(age: number): AgeCategory {
 }
 
 // ===== Planes Oficiales (Dossier Comunidad Vibra) =====
-export type VibraPlanType = "Mensual" | "Trimestral" | "Anual";
+export type VibraPlanType = "Mensual" | "Trimestral" | "Anual" | "Paquete Flexible" | "Paquete Especial";
 export type MatriculaType = "Regular (S/ 120)" | "Promo Demo (S/ 30)" | "Exonerada";
 
 export const VIBRA_PRICING = {
@@ -58,8 +58,8 @@ export const VIBRA_PRICING = {
     priceMonthly: 261.4,
     discountPct: 12,
     totalMonths: 3,
-    totalPlan: 784.2,
-    description: "S/ 261.40 / mes (Total S/ 784.20 por 3 meses)",
+    totalPlan: 784.08,
+    description: "S/ 261.40 / mes (Tarifa Trimestral)",
   },
   Anual: {
     name: "Anual (20% Dcto.)",
@@ -67,7 +67,23 @@ export const VIBRA_PRICING = {
     discountPct: 20,
     totalMonths: 12,
     totalPlan: 2851.2,
-    description: "S/ 237.60 / mes (Total S/ 2,851.20 por 12 meses)",
+    description: "S/ 237.60 / mes (Tarifa Anual)",
+  },
+  "Paquete Flexible": {
+    name: "Paquete Flexible (A Demanda)",
+    priceMonthly: 500.0,
+    discountPct: 0,
+    totalMonths: 0,
+    totalPlan: 500.0,
+    description: "Tarifa personalizada (Vigencia por clases terminadas)",
+  },
+  "Paquete Especial": {
+    name: "Paquete Flexible (A Demanda)",
+    priceMonthly: 500.0,
+    discountPct: 0,
+    totalMonths: 0,
+    totalPlan: 500.0,
+    description: "Tarifa personalizada (Vigencia por clases terminadas)",
   },
   MatriculaRegular: 120.0,
   MatriculaPromoDemo: 30.0, // 75% descuento
@@ -101,7 +117,9 @@ export type PaymentStatus = "al-dia" | "pendiente" | "vencido";
 export type LessonModality =
   | "Regular (8 clases / 45 min)"
   | "Regular 1x/sem (8 clases / 45 min)"
-  | "Intensivo (4 clases / 90 min)";
+  | "Intensivo (4 clases / 90 min)"
+  | "Paquete Flexible (A demanda)"
+  | "Irregular (Clases a demanda / Paquete flexible)";
 
 export const HISTORICAL_BASE_METADATA = {
   name: "Base Histórica Inicial Vibra Music",
@@ -154,6 +172,8 @@ export type AdminStudent = {
   // Campos del Dossier con control exacto día por día
   planType?: VibraPlanType;
   planPrice?: number;
+  amountPaid?: number; // Monto abonado al momento de la matrícula
+  packageTotalSessions?: number; // Total de clases del paquete (ej. 24 para Jonathan, 8 para regular)
   matriculaType?: MatriculaType;
   packUtilesPaid?: boolean;
   planStartDate?: string; // "2026-08-03" (Día exacto de inicio)
@@ -236,8 +256,8 @@ import { isMatchingStudentName } from "@/lib/student-matching";
 
 export const initialSchedule: ScheduledLesson[] = officialSchedule.map((l) => ({
   ...l,
-  year: 2026,
-  month: 7, // Agosto (0-indexed)
+  year: l.year ?? 2026,
+  month: l.month !== undefined ? l.month : 7, // Agosto (0-indexed) por defecto
 }));
 
 // Lista oficial de alumnos extraída del Control de Pagos y Horario de Vibra Music
