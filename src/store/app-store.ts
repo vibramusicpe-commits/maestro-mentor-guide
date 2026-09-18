@@ -137,8 +137,7 @@ type AppState = {
   schedule: ScheduledLesson[];
   adminStudents: AdminStudent[];
   historicalStudents: AdminStudent[];
-  historicalMetadata: typeof HISTORICAL_BASE_METADATA;
-  rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number, teacher?: string, room?: string) => void;
+  rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number, teacher?: string, room?: string, originalDateStr?: string, newDateStr?: string) => void;
   removeLessonFromSchedule: (id: string) => void;
   deleteLessonFromSchedule: (id: string) => void;
   addLessonToSchedule: (lesson: Omit<ScheduledLesson, "id">) => void;
@@ -977,7 +976,17 @@ export const useAppStore = create<AppState>()(
       historicalMetadata: HISTORICAL_BASE_METADATA,
       deletedStudents: [],
       invoices: initialInvoices,
-      rescheduleLesson: (id, day, time, scope = "only-this-week", targetWeekIndex, teacher, room) =>
+      rescheduleLesson: (
+        id,
+        day,
+        time,
+        scope = "only-this-week",
+        targetWeekIndex,
+        teacher,
+        room,
+        originalDateStr,
+        newDateStr
+      ) =>
         set((s) => {
           const targetLesson = s.schedule.find((l) => l.id === id);
           if (!targetLesson) return s;
@@ -985,87 +994,106 @@ export const useAppStore = create<AppState>()(
           const newTeacher = teacher || targetLesson.teacher;
           const newRoom = room || targetLesson.room;
 
-          if (scope === "only-this-week" && targetWeekIndex !== undefined) {
-            // Si es un horario recurrente mensual (sin weekIndex fijado)
-            if (targetLesson.weekIndex === undefined) {
-              const excluded = targetLesson.excludedWeeks || [];
-              const updatedOriginal = {
-                ...targetLesson,
-                excludedWeeks: Array.from(new Set([...excluded, targetWeekIndex])),
-              };
+          if (scope === "only-this-week") {
+            const excludedWeeks = targetLesson.excludedWeeks || [];
+            const excludedDates = targetLesson.excludedDates || [];
 
-              const newSingleWeekLesson: ScheduledLesson = {
-                ...targetLesson,
-                id: `sch-resched-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                day: day,
-                time: time,
-                teacher: newTeacher,
-                room: newRoom,
-                weekIndex: targetWeekIndex,
-                excludedWeeks: undefined,
-                attendanceStatus: undefined,
-                attendanceByWeek: undefined,
-                attendanceByDate: undefined,
-                isMakeup: true,
-              };
+            const updatedOriginal: ScheduledLesson = {
+              ...targetLesson,
+              excludedWeeks: targetWeekIndex !== undefined
+                ? Array.from(new Set([...excludedWeeks, targetWeekIndex]))
+                : excludedWeeks,
+              excludedDates: originalDateStr
+                ? Array.from(new Set([...excludedDates, originalDateStr]))
+                : excludedDates,
+            };
 
-              return {
-                schedule: [
-                  ...s.schedule.map((l) => (l.id === id ? updatedOriginal : l)),
-                  newSingleWeekLesson,
-                ],
-                syncQueue: [
-                  ...s.syncQueue,
-                  queueItem(
-                    `Clase reprogramada (Solo Semana ${targetWeekIndex + 1}) · ${day} ${time}`,
-                  ),
-                ],
-              };
-            } else {
-              // Ya era una clase puntual de una semana específica
-              const updated = s.schedule.map((l) => {
-                if (l.id === id) {
-                  return {
-                    ...l,
-                    day,
-                    time,
-                    teacher: newTeacher,
-                    room: newRoom,
-                    weekIndex: targetWeekIndex,
-                    attendanceStatus: undefined,
-                    attendanceByWeek: undefined,
-                    attendanceByDate: undefined,
-                    isMakeup: true,
-                  };
-                }
-                return l;
-              });
-              return {
-                schedule: updated,
-                syncQueue: [
-                  ...s.syncQueue,
-                  queueItem(
-                    `Clase reprogramada (Solo Semana ${targetWeekIndex + 1}) · ${day} ${time}`,
-                  ),
-                ],
-              };
+            const newSingleWeekLesson: ScheduledLesson = {
+              ...targetLesson,
+              id: `sch-resched-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              day: day,
+              time: time,
+              teacher: newTeacher,
+              room: newRoom,
+              dateStr: newDateStr, // Fecha exacta YYYY-MM-DD
+              weekIndex: targetWeekIndex,
+              excludedWeeks: undefined,
+              excludedDates: undefined,
+              attendanceStatus: undefined,
+              attendanceByWeek: undefined,
+              attendanceByDate: undefined,
+              isMakeup: true,
+              recoveringLessonDate: originalDateStr,
+            };
+
+            const updatedSchedule = [
+              ...s.schedule.map((l) => (l.id === id ? updatedOriginal : l)),
+              newSingleWeekLesson,
+            ];
+
+            // Sincronizar en adminStudents.scheduleLessons para el alumno activo
+            const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, targetLesson.student));
+            let updatedAdminStudents = s.adminStudents;
+            if (targetSt) {
+              const currentLessons = targetSt.scheduleLessons || [];
+              const updatedPersisted = [
+                ...currentLessons.map((l) => (l.id === id ? updatedOriginal : l)),
+                newSingleWeekLesson,
+              ];
+              updatedAdminStudents = s.adminStudents.map((st) =>
+                isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: updatedPersisted } : st
+              );
+              backgroundSyncStudentToDB(s.activeRole, targetSt.id, { scheduleLessons: updatedPersisted });
             }
+
+            return {
+              schedule: updatedSchedule,
+              adminStudents: updatedAdminStudents,
+              syncQueue: [
+                ...s.syncQueue,
+                queueItem(
+                  `Clase reprogramada: ${originalDateStr || targetLesson.day} ➔ ${newDateStr || day} ${time}`,
+                ),
+              ],
+            };
           }
 
           // Por defecto: Aplica a todo el mes (las 4 o 5 semanas)
           const updatedSchedule = s.schedule.map((l) => {
             if (l.id === id) {
-              const { weekIndex, excludedWeeks, ...rest } = l;
-              return { ...rest, day, time, teacher: newTeacher, room: newRoom, excludedWeeks: [] };
+              const { weekIndex, excludedWeeks, excludedDates, dateStr, ...rest } = l;
+              return {
+                ...rest,
+                day,
+                time,
+                teacher: newTeacher,
+                room: newRoom,
+                excludedWeeks: [],
+                excludedDates: [],
+              };
             }
             return l;
           });
 
+          const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, targetLesson.student));
+          let updatedAdminStudents = s.adminStudents;
+          if (targetSt) {
+            const currentLessons = targetSt.scheduleLessons || [];
+            const updatedPersisted = currentLessons.map((l) =>
+              l.id === id ? { ...l, day, time, teacher: newTeacher, room: newRoom } : l
+            );
+            updatedAdminStudents = s.adminStudents.map((st) =>
+              isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: updatedPersisted } : st
+            );
+            backgroundSyncStudentToDB(s.activeRole, targetSt.id, { scheduleLessons: updatedPersisted });
+          }
+
           return {
             schedule: updatedSchedule,
+            adminStudents: updatedAdminStudents,
             syncQueue: [
               ...s.syncQueue,
-              queueItem(`Clase reprogramada (Mes completo) · ${day} ${time}`),
+              queueItem(`Horario permanente actualizado a ${day} ${time}`),
             ],
           };
         }),

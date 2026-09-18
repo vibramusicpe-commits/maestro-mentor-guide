@@ -110,6 +110,8 @@ export type ScheduledLesson = {
   excludedWeeks?: number[];
   isMakeup?: boolean;
   recoveringLessonDate?: string;
+  dateStr?: string; // Fecha exacta YYYY-MM-DD si es una sesión única o reprogramada
+  excludedDates?: string[]; // Fechas específicas YYYY-MM-DD excluidas de una lección recurrente
 };
 
 export type StudentStatus = "activo" | "pausa" | "baja";

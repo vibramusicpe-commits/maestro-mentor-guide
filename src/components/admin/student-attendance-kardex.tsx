@@ -49,6 +49,7 @@ import {
 import { isMatchingStudentName, isSameStudentId } from "@/lib/student-matching";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -83,6 +84,7 @@ export interface StudentSessionItem {
   room: string;
   instrument: string;
   isMakeup: boolean;
+  recoveringLessonDate?: string;
   status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente";
 }
 
@@ -176,6 +178,7 @@ export function StudentAttendanceKardex({
 
   // 🔄 Estado para Reprogramar Clase (cuando hay Falta / Inasistencia)
   const [rescheduleSession, setRescheduleSession] = useState<StudentSessionItem | null>(null);
+  const [reschedDate, setReschedDate] = useState<string>("");
   const [reschedDay, setReschedDay] = useState<WeekDay>("Lun");
   const [reschedTime, setReschedTime] = useState<string>("16:00");
   const [reschedTeacher, setReschedTeacher] = useState<string>("");
@@ -244,7 +247,30 @@ export function StudentAttendanceKardex({
       studentLessons.forEach((lesson) => {
         if (lesson.month !== undefined && lesson.month !== curM) return;
         if (lesson.year !== undefined && lesson.year !== curY) return;
-        if (lesson.day !== dayKey) return;
+
+        // A. Si la lección tiene fecha exacta fija (dateStr), SOLO emitir en esa fecha exacta
+        if (lesson.dateStr) {
+          if (lesson.dateStr !== curDateStr) return;
+        } else {
+          // B. Si es recurrente por día de semana, validar que coincida con el día
+          if (lesson.day !== dayKey) return;
+        }
+
+        // C. Si la lección tiene fechas excluidas (reprogramada fuera de este día), omitir
+        if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
+          return;
+        }
+
+        // D. Si tiene semana fija (weekIndex) y no dateStr, verificar semana del ciclo
+        const curCycleWeekIndex = Math.floor(offset / 7);
+        if (!lesson.dateStr && lesson.weekIndex !== undefined && lesson.weekIndex !== curCycleWeekIndex) {
+          return;
+        }
+
+        // E. Si tiene semanas excluidas en el ciclo, omitir
+        if (lesson.excludedWeeks && lesson.excludedWeeks.includes(curCycleWeekIndex)) {
+          return;
+        }
 
         let currentStatus: StudentSessionItem["status"] = "pendiente";
         if (lesson.attendanceByDate && lesson.attendanceByDate[curDateStr]) {
@@ -281,6 +307,7 @@ export function StudentAttendanceKardex({
           room: lesson.room || liveStudent.room || "Sala A",
           instrument: lesson.instrument || liveStudent.instrument || "Música",
           isMakeup: !!lesson.isMakeup,
+          recoveringLessonDate: lesson.recoveringLessonDate,
           status: currentStatus,
         });
       });
@@ -312,15 +339,26 @@ export function StudentAttendanceKardex({
       if (deduped.length <= targetQuota) {
         finalSessions = deduped;
       } else {
-        const markedOrSpecial = new Set(
-          deduped.filter((s) => s.status !== "pendiente" || s.isMakeup)
-        );
-        const selected = new Set<StudentSessionItem>(markedOrSpecial);
-        for (const s of deduped) {
-          if (selected.size >= targetQuota) break;
-          selected.add(s);
+        // Separar clases ya evaluadas (asistió, falta, tarde, justificada) de las pendientes
+        const evaluated = deduped.filter((s) => s.status !== "pendiente");
+
+        if (evaluated.length >= targetQuota) {
+          // Si ya completó o superó su cuota con clases reales evaluadas, mostrar las evaluadas
+          finalSessions = evaluated;
+        } else {
+          // Mantener todas las evaluadas y completar con las próximas pendientes hasta llegar exactamente a targetQuota
+          const pending = deduped.filter((s) => s.status === "pendiente");
+          const slotsNeeded = targetQuota - evaluated.length;
+          const chosenPending = pending.slice(0, slotsNeeded);
+
+          const combined = [...evaluated, ...chosenPending];
+          combined.sort((a, b) => {
+            const cmp = a.dateStr.localeCompare(b.dateStr);
+            if (cmp !== 0) return cmp;
+            return a.time.localeCompare(b.time);
+          });
+          finalSessions = combined;
         }
-        finalSessions = deduped.filter((s) => selected.has(s));
       }
     }
 
@@ -505,6 +543,19 @@ export function StudentAttendanceKardex({
     });
   };
 
+  // 🔄 Helper: Obtener fecha exacta en la misma semana para reprogramación
+  const getTargetDateInSameWeek = (originDateStr: string, targetDay: WeekDay): string => {
+    const [y, m, d] = originDateStr.split("-").map(Number);
+    const origin = new Date(y, m - 1, d);
+    const originJsDay = origin.getDay(); // 0 Dom, 1 Lun, 2 Mar, 3 Mié, 4 Jue, 5 Vie, 6 Sáb
+    const dayOrder: Record<WeekDay, number> = { Lun: 1, Mar: 2, Mié: 3, Jue: 4, Vie: 5, Sáb: 6 };
+    const targetJsDay = dayOrder[targetDay] || 1;
+    const jsDayNormalized = originJsDay === 0 ? 7 : originJsDay;
+    const diffDays = targetJsDay - jsDayNormalized;
+    const targetDate = new Date(origin.getFullYear(), origin.getMonth(), origin.getDate() + diffDays);
+    return `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}-${String(targetDate.getDate()).padStart(2, "0")}`;
+  };
+
   // 🔄 Handlers de Reprogramación de Clases
   const handleDayChange = (newDay: WeekDay) => {
     setReschedDay(newDay);
@@ -512,11 +563,15 @@ export function StudentAttendanceKardex({
     if (!slots.includes(reschedTime)) {
       setReschedTime(slots[0] || "16:00");
     }
+    if (rescheduleSession?.dateStr) {
+      setReschedDate(getTargetDateInSameWeek(rescheduleSession.dateStr, newDay));
+    }
   };
 
   const handleOpenReschedule = (session: StudentSessionItem) => {
     setRescheduleSession(session);
     setReschedDay(session.dayKey);
+    setReschedDate(session.dateStr);
     const slots = session.dayKey === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
     setReschedTime(slots.includes(session.time) ? session.time : slots[0] || "16:00");
     setReschedTeacher(
@@ -546,10 +601,12 @@ export function StudentAttendanceKardex({
       reschedScope,
       rescheduleSession.weekIndex,
       reschedTeacher,
-      reschedRoom
+      reschedRoom,
+      rescheduleSession.dateStr,
+      reschedDate || undefined
     );
 
-    toast.success(`Clase reprogramada para ${reschedDay} a las ${reschedTime}`, {
+    toast.success(`Clase reprogramada para ${reschedDate || reschedDay} a las ${reschedTime}`, {
       description:
         reschedScope === "only-this-week"
           ? `Se reprogramó la clase de la ${rescheduleSession.weekLabel} con Prof. ${reschedTeacher} (${reschedRoom}).`
@@ -584,7 +641,7 @@ export function StudentAttendanceKardex({
         isMatchingStudentName(l.student, liveStudent.name) &&
         l.day === session.dayKey &&
         l.time === nextTime &&
-        (l.weekIndex === undefined || l.weekIndex === session.weekIndex) &&
+        (l.dateStr === session.dateStr || (!l.dateStr && (l.weekIndex === undefined || l.weekIndex === session.weekIndex))) &&
         l.status !== "cancelada"
     );
 
@@ -606,9 +663,11 @@ export function StudentAttendanceKardex({
       room: session.room && rooms.includes(session.room) ? session.room : liveStudent.room || "Sala B",
       category: liveStudent.ageCategory || "JUNIOR",
       status: "programada",
+      dateStr: session.dateStr,
       weekIndex: session.weekIndex,
       month: targetMonth,
       year: targetYear,
+      isMakeup: false,
     });
 
     toast.success(`¡Clase de corrido (+45m) agregada con éxito!`, {
@@ -1065,11 +1124,15 @@ export function StudentAttendanceKardex({
                         <span className="text-xs font-black text-foreground">
                           Sesión {item.sessionIndex} · {item.dayName}
                         </span>
-                        {item.isMakeup && (
-                          <Badge className="bg-red-500/20 text-red-700 dark:text-red-300 text-[9px] font-black border-0">
-                            🔴 Recuperación
+                        {item.recoveringLessonDate ? (
+                          <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] font-black border-0">
+                            🔄 Reprogramada (orig. {item.recoveringLessonDate})
                           </Badge>
-                        )}
+                        ) : item.isMakeup ? (
+                          <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[9px] font-black border-0">
+                            🔄 Recuperación
+                          </Badge>
+                        ) : null}
                         <span className="text-[10px] text-muted-foreground">({item.weekLabel})</span>
                       </div>
 
@@ -1254,6 +1317,29 @@ export function StudentAttendanceKardex({
                 <p className="text-[11px] text-muted-foreground">
                   Prof. {rescheduleSession.teacher} · {rescheduleSession.room} ({rescheduleSession.weekLabel})
                 </p>
+              </div>
+
+              {/* Selector de Fecha Específica */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground">Fecha Específica a Reprogramar</label>
+                <Input
+                  type="date"
+                  value={reschedDate}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setReschedDate(val);
+                    if (val) {
+                      const [y, m, d] = val.split("-").map(Number);
+                      const dt = new Date(y, m - 1, d);
+                      const jsDay = dt.getDay();
+                      if (jsDay >= 1 && jsDay <= 6) {
+                        const newD = WEEKDAYS_ORDER[jsDay - 1];
+                        setReschedDay(newD);
+                      }
+                    }
+                  }}
+                  className="h-9 rounded-xl text-xs bg-background"
+                />
               </div>
 
               {/* Formulario de Nueva Fecha y Horario */}
