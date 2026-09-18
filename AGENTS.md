@@ -91,6 +91,13 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - Si existen lecciones marcadas como recuperación o adelanto, el sistema preserva todas las evaluadas (`status !== "pendiente"`) y acota las clases pendientes para que el total del ciclo sume exactamente la cuota del contrato (`targetQuota`).
 3. **Clases de Corrido (+45 min) Circunscritas a Fecha**:
    - Al pulsar `+ De corrido (+45m)`, la lección creada debe registrar `dateStr: session.dateStr` para que únicamente exista en la fecha en que se impartió, impidiendo su réplica en semanas posteriores.
+4. **Deduplicación por Fecha y Hora (`dateStr-time`)**:
+   - Cuando se consolidan lecciones con fecha específica en el Kardex y horario semanal, las lecciones puntuales con `dateStr` distinto (por ejemplo, una clase de corrido el viernes 11/09 a las 16:45 y una reprogramación el viernes 18/09 a las 16:45) jamás deben descartarse entre sí, garantizando su coexistencia armónica.
+5. **Restablecimiento Inmaculado a Pendiente (`status: "pendiente"`)**:
+   - Restablecer una sesión evaluada al estado inicial pendiente invoca `postgrestDelete` sobre `attendance_logs` para esa fecha y limpia `attendanceByDate` en Zustand y PostgreSQL.
+   - Está **TERMINANTEMENTE PROHIBIDO** persistir un registro con `status: "presente"` o cualquier otro valor en la base de datos cuando el usuario solicita "Restablecer" o "Sin marcar".
+6. **Reversión y Eliminación Directa de Reprogramaciones**:
+   - El Kardex debe permitir revertir o eliminar sesiones reprogramadas o extras en modo edición, liberando simultáneamente la exclusión en la lección original para restaurar el cronograma normal en un solo clic.
 
 ---
 ---

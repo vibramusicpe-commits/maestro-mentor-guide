@@ -21,6 +21,12 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
   - Se agregó campo de fecha interactivo `<Input type="date">` sincronizado bidireccionalmente con el selector de días mediante la función `getTargetDateInSameWeek`.
 - **Fijación de Fecha en Clases de Corrido (`+ De corrido (+45m)`)**:
   - Al presionar `+ De corrido (+45m)`, la clase contigua se almacena con `dateStr: session.dateStr` para no propagarse a los demás días del mes.
+- **Deduplicación Respetuosa de Fechas Exactas (`dateStr-time`)**:
+  - Al consolidar `studentLessons`, lecciones puntuales con `dateStr` diferente (ej. clase de corrido viernes 11/09 a las 16:45 y reprogramación viernes 18/09 a las 16:45) coexisten sin descartarse por colisión horaria.
+- **Restablecimiento Inmaculado a Pendiente (`RotateCcw`)**:
+  - Al restablecer una asistencia previamente marcada a pendiente, el backend ejecuta `postgrestDelete` en `attendance_logs` de PostgreSQL y purga `attendanceByDate`, erradicando el bug que forzaba el guardado como `"presente"`.
+- **Botón de Reversión Directa de Reprogramaciones (`❌`)**:
+  - Se añadió un botón en modo edición del Kardex para revertir y eliminar clases reprogramadas en un solo paso, eliminando la sesión recuperada y liberando automáticamente la fecha excluida de la lección original.
 - **Distintivo Visual de Reprogramación**:
   - En las filas del Kardex, las clases reprogramadas se identifican con un distintivo ámbar: `🔄 Reprogramada (orig. YYYY-MM-DD)`.
 

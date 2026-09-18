@@ -34,8 +34,15 @@ Aprobado (v1.9.9) — 18 de Septiembre, 2026
    - Inclusión de un selector `<Input type="date">` sincronizado bidireccionalmente mediante `getTargetDateInSameWeek`, permitiendo reprogramar con precisión de calendario.
 6. **Distinción Visual Clara**:
    - Las sesiones reprogramadas muestran un distintivo ámbar: `🔄 Reprogramada (orig. YYYY-MM-DD)`, diferenciándolas de las recuperaciones generales.
+7. **Deduplicación Respetuosa de Fechas Exactas (`dateStr-time`)**:
+   - Al agregar lecciones al array `studentLessons`, las clases con `dateStr` distinto (ej. clase de corrido viernes 11/09 y reprogramación viernes 18/09 ambas a las 16:45) coexisten sin descartarse erróneamente por colisión de hora y día de la semana.
+8. **Restablecimiento Inmaculado a Pendiente (`status: "pendiente"`) en Backend**:
+   - Restablecer una sesión evaluada al estado pendiente mediante `RotateCcw` invoca `postgrestDelete("attendance_logs", ...)` en PostgreSQL y elimina la entrada en `attendanceByDate`. Se evita terminantemente el fallback incorrecto que grababa la sesión como `presente`.
+9. **Acción de Reversión y Eliminación Rápida (`❌`)**:
+   - En el Kardex (modo edición), las lecciones reprogramadas o extras cuentan con un botón de reversión directa que elimina la clase de recuperación y desenmarca la fecha de exclusión en la lección original.
 
 ## Consecuencias
 - Erradicación definitiva de clases fantasma multiplicadas en semanas posteriores.
+- Coexistencia armónica de múltiples clases en el mismo día y hora siempre que pertenezcan a fechas calendario distintas.
 - Paridad matemática al 100% con el Excel de Nayeli: exactamente 8 clases visibles para el contrato de 1 mes.
-- Control auditable y transparente de reprogramaciones y clases de corrido en PostgreSQL.
+- Control auditable y transparente de reprogramaciones, asistencias y restablecimientos en PostgreSQL.
