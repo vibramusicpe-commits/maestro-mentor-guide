@@ -113,6 +113,7 @@ export function StudentAttendanceKardex({
   const bulkRegularizeStudentAttendance = useAppStore((s) => s.bulkRegularizeStudentAttendance);
   const rescheduleLesson = useAppStore((s) => s.rescheduleLesson);
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
+  const deleteLessonFromSchedule = useAppStore((s) => s.deleteLessonFromSchedule);
   const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
 
   // 🎛️ Selector Dual de Modo de Vista: Ciclo Activo Vigente (8 clases) vs Por Mes Calendario
@@ -207,12 +208,22 @@ export function StudentAttendanceKardex({
     // Deduplicar lecciones para garantizar que no haya clases repetidas en el mismo día y hora
     const deduped: ScheduledLesson[] = [];
     raw.forEach((l) => {
-      const already = deduped.some(
-        (ex) =>
+      const already = deduped.some((ex) => {
+        // Si ambas lecciones tienen fecha exacta (dateStr) y son fechas distintas, NO son duplicados
+        if (ex.dateStr && l.dateStr && ex.dateStr !== l.dateStr) return false;
+        // Si una lección tiene fecha exacta puntual y la otra es recurrente semanal (sin dateStr), NO son duplicados
+        if (Boolean(ex.dateStr) !== Boolean(l.dateStr)) return false;
+        // Si ambas tienen la misma fecha exacta puntual, son duplicados si coinciden en hora
+        if (ex.dateStr && l.dateStr && ex.dateStr === l.dateStr) {
+          return ex.time === l.time;
+        }
+        // Para lecciones recurrentes semanales abiertas (sin dateStr):
+        return (
           ex.day === l.day &&
           ex.time === l.time &&
           (ex.weekIndex === l.weekIndex || ex.weekIndex === undefined || l.weekIndex === undefined)
-      );
+        );
+      });
       if (!already) deduped.push(l);
     });
     return deduped;
@@ -1259,9 +1270,34 @@ export function StudentAttendanceKardex({
                             variant="ghost"
                             onClick={() => handleSetStatus(item, "pendiente")}
                             className="h-7 px-1.5 text-[11px] text-muted-foreground hover:text-foreground rounded-lg"
-                            title="Restablecer a Pendiente / Sin marcar"
+                            title="Restablecer asistencia a Pendiente / Sin marcar"
                           >
                             <RotateCcw className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {(item.isMakeup || item.recoveringLessonDate) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              deleteLessonFromSchedule(item.lessonId);
+                              if (item.recoveringLessonDate) {
+                                const origDate = item.recoveringLessonDate;
+                                const studentLessons = schedule.filter((l) => isMatchingStudentName(l.student, liveStudent.name));
+                                studentLessons.forEach((l) => {
+                                  if (l.excludedDates && l.excludedDates.includes(origDate)) {
+                                    const updatedExcluded = l.excludedDates.filter((d) => d !== origDate);
+                                    const updatedSchedule = schedule.map((sl) => sl.id === l.id ? { ...sl, excludedDates: updatedExcluded } : sl);
+                                    useAppStore.setState({ schedule: updatedSchedule });
+                                  }
+                                });
+                              }
+                              toast.success("Sesión reprogramada eliminada / revertida");
+                            }}
+                            className="h-7 px-1.5 text-[11px] text-rose-500 hover:text-rose-700 hover:bg-rose-500/10 rounded-lg"
+                            title="Eliminar esta clase reprogramada y restaurar original"
+                          >
+                            <XCircle className="h-3 w-3" />
                           </Button>
                         )}
                       </div>

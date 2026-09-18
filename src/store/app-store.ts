@@ -622,12 +622,29 @@ function backgroundDeleteStudentFromDB(role: Role, studentId: string) {
 function backgroundSyncAttendanceLogToDB(
   role: Role,
   studentId: string,
-  status: "presente" | "ausente" | "tarde" | "justificada",
+  status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente",
   note?: string
 ) {
   try {
     if (typeof window === "undefined") return;
     const resolvedStudentId = resolveStudentUUID(studentId);
+    const dateMatch = note?.match(/Fecha\s+(\d{4}-\d{2}-\d{2})/i);
+    const dateStr = dateMatch ? dateMatch[1] : undefined;
+
+    // Si se restablece a "pendiente", limpiar los logs de esa fecha en PostgreSQL
+    if (status === "pendiente") {
+      if (dateStr) {
+        import("@/lib/insforge").then(({ postgrestDelete }) => {
+          postgrestDelete("attendance_logs", {
+            student_id: `eq.${resolvedStudentId}`,
+            note: `like.*Fecha ${dateStr}*`,
+          })
+            .then(() => console.log(`[Insforge Sync] Asistencia eliminada de attendance_logs para ${resolvedStudentId} (${dateStr})`))
+            .catch((err) => console.warn(`[Insforge Sync] Error eliminando attendance_log:`, err));
+        }).catch(() => {});
+      }
+      return;
+    }
 
     // Insforge attendance_enum acepta: 'presente', 'ausente', 'tarde', 'recuperacion'
     let dbStatus: "presente" | "ausente" | "tarde" | "recuperacion" = "presente";
@@ -643,7 +660,14 @@ function backgroundSyncAttendanceLogToDB(
       dbStatus = "presente";
     }
 
-    import("@/lib/insforge").then(({ postgrestInsert }) => {
+    import("@/lib/insforge").then(async ({ postgrestInsert, postgrestDelete }) => {
+      // Si tiene fecha exacta, primero eliminar cualquier log previo de esa misma fecha para evitar duplicados
+      if (dateStr) {
+        await postgrestDelete("attendance_logs", {
+          student_id: `eq.${resolvedStudentId}`,
+          note: `like.*Fecha ${dateStr}*`,
+        }).catch(() => {});
+      }
       postgrestInsert("attendance_logs", {
         student_id: resolvedStudentId,
         status: dbStatus,
@@ -651,7 +675,7 @@ function backgroundSyncAttendanceLogToDB(
         note: dbNote || null,
         registered_at: new Date().toISOString(),
       })
-        .then(() => console.log(`[Insforge Sync] Asistencia guardada en attendance_logs para ${resolvedStudentId}`))
+        .then(() => console.log(`[Insforge Sync] Asistencia guardada en attendance_logs para ${resolvedStudentId} (${status})`))
         .catch((err) => console.warn(`[Insforge Sync] Error guardando attendance_log:`, err));
     }).catch(() => {});
   } catch {}
@@ -800,7 +824,7 @@ export const useAppStore = create<AppState>()(
           activeStudents.forEach((st) => {
             if (Array.isArray(st.scheduleLessons) && st.scheduleLessons.length > 0) {
               st.scheduleLessons.forEach((l) => {
-                const lessonId = l.id || `db-sch-${st.id}-${l.day}-${l.time}`;
+                const lessonId = l.id || `db-sch-${st.id}-${l.day}-${l.time}${l.dateStr ? `-${l.dateStr}` : ""}`;
                 // Las clases semanales recurrentes regulares no deben estar bloqueadas a un solo mes
                 const isRecurringTemplate = l.weekIndex === undefined;
                 scheduleMap.set(lessonId, {
@@ -1695,6 +1719,10 @@ export const useAppStore = create<AppState>()(
 
           const recentList = allMarked.length > 0 ? allMarked.slice(-5) : [];
 
+          const targetLessons = newSchedule.filter(
+            (l) => (isMatchingStudentName(l.student, studentName) || l.student.toLowerCase() === studentName.toLowerCase()) && l.status !== "cancelada"
+          );
+
           const newStudents = s.adminStudents.map((st) => {
             if (isMatchingStudentName(st.name, studentName)) {
               const updatedCredits = Math.max(0, (st.makeupCredits || 0) + creditDelta);
@@ -1703,6 +1731,7 @@ export const useAppStore = create<AppState>()(
                 attendanceRate: newRate,
                 recentAttendance: recentList,
                 makeupCredits: updatedCredits,
+                scheduleLessons: targetLessons,
               };
             }
             return st;
@@ -1714,6 +1743,7 @@ export const useAppStore = create<AppState>()(
               attendanceRate: newRate,
               recentAttendance: recentList,
               makeupCredits: updatedStudent.makeupCredits,
+              scheduleLessons: targetLessons,
             });
             backgroundSyncAttendanceLogToDB(
               s.activeRole,
