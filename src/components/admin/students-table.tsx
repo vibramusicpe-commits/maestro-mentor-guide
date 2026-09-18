@@ -2960,6 +2960,8 @@ function NewStudentDialog() {
       ageCategory: effectiveCategory,
       age: isAdultStudent ? Math.max(18, age) : age,
       status: "activo",
+      attendanceRate: 0,
+      recentAttendance: [],
       payment: livePaymentStatus,
       balance: liveTotalBalance,
       email: email || `${name.toLowerCase().replace(/\s+/g, ".")}@gmail.com`,
@@ -3862,7 +3864,7 @@ function EditStudentSheetInner({
 }) {
   const [name, setName] = useState(student.name);
   const [status, setStatus] = useState<StudentStatus>(student.status || "activo");
-  const [attendanceRate, setAttendanceRate] = useState<number>(student.attendanceRate ?? 100);
+  const [attendanceRate, setAttendanceRate] = useState<number>(student.attendanceRate ?? 0);
   const [family, setFamily] = useState(student.family.replace(/^Familia\s+/i, ""));
   const [isAdult, setIsAdult] = useState(
     student.ageCategory === "ADULTO" || (student.age || 0) >= 18 || student.family.toLowerCase().includes("titular")

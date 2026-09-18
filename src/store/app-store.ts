@@ -404,7 +404,7 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
         level: student.level || "Nivel 1",
         status: student.status || "activo",
         modality: dbModality,
-        attendance_rate: student.attendanceRate ?? 100,
+        attendance_rate: student.attendanceRate ?? 0,
         makeup_credits: student.makeupCredits ?? 0,
         notes: student.teacherNote || "",
         emergency_contact: ecData,
@@ -722,13 +722,19 @@ export const useAppStore = create<AppState>()(
           const mergedStudents: AdminStudent[] = [...s.adminStudents];
 
           data.students.forEach((dbSt) => {
-            const existingIdx = mergedStudents.findIndex(
-              (locSt) => isSameStudentId(locSt.id, dbSt.id) || isMatchingStudentName(locSt.name, dbSt.name)
-            );
+            const existingIdx = mergedStudents.findIndex((locSt) => {
+              // 1. Coincidencia estricta por ID
+              if (isSameStudentId(locSt.id, dbSt.id)) return true;
+              // 2. Un registro en "baja" de PostgreSQL JAMÁS debe sobreescribir a un alumno "activo" local por nombre
+              if (dbSt.status === "baja" && locSt.status === "activo") return false;
+              if (dbSt.status === "activo" && locSt.status === "baja") return false;
+              // 3. Coincidencia por nombre solo si ambos comparten el mismo estado
+              return isMatchingStudentName(locSt.name, dbSt.name);
+            });
 
             if (existingIdx >= 0) {
               const localSt = mergedStudents[existingIdx];
-              const keepLocalActive = localSt.status === "activo" && dbSt.status === "pausa";
+              const keepLocalActive = localSt.status === "activo" && dbSt.status !== "baja";
               const keepLocalTeacher =
                 localSt.teacher &&
                 localSt.teacher !== "Prof. por Asignar" &&
@@ -739,26 +745,32 @@ export const useAppStore = create<AppState>()(
                 isMatchingStudentName(dbSt.name, "Jonathan Ticona Cachay") ||
                 isMatchingStudentName(dbSt.name, "Ticona Cachay, Jonathan");
 
-              const effectiveStartDate = isEmma
-                ? "2026-08-28"
-                : (isJonathan ? "2026-08-18" : (dbSt.planStartDate && dbSt.planStartDate !== "2026-08-01" ? dbSt.planStartDate : (localSt.planStartDate || dbSt.planStartDate)));
-              const effectiveEndDate = isEmma
-                ? "2026-09-27"
-                : (isJonathan ? "2026-12-31" : (dbSt.planEndDate && dbSt.planEndDate !== "2026-12-31" ? dbSt.planEndDate : (localSt.planEndDate || dbSt.planEndDate)));
+              // Respetar las fechas ingresadas por el usuario en el formulario local o DB antes de recurrir a defaults históricos
+              const effectiveStartDate = localSt.planStartDate || dbSt.planStartDate || (isEmma ? "2026-08-28" : (isJonathan ? "2026-08-18" : "2026-08-01"));
+              const effectiveEndDate = localSt.planEndDate || dbSt.planEndDate || (isEmma ? "2026-09-27" : (isJonathan ? "2026-12-31" : "2026-09-30"));
 
               const effectivePackage = isJonathan
                 ? 24
                 : (dbSt.packageTotalSessions || localSt.packageTotalSessions || (dbSt.modality?.includes("Intensivo") ? 4 : 8));
 
+              // Tasa de asistencia: si es un alumno sin clases evaluadas (recentAttendance vacío), es 0 ("Sin evaluar"), no un valor heredado
+              const hasAttendanceHistory = (localSt.recentAttendance && localSt.recentAttendance.length > 0) || (dbSt.recentAttendance && dbSt.recentAttendance.length > 0);
+              let resolvedAttendanceRate = 0;
+              if (hasAttendanceHistory) {
+                resolvedAttendanceRate = typeof localSt.attendanceRate === "number" && localSt.attendanceRate > 0
+                  ? localSt.attendanceRate
+                  : (typeof dbSt.attendanceRate === "number" ? dbSt.attendanceRate : 0);
+              }
+
               mergedStudents[existingIdx] = {
                 ...dbSt,
-                id: dbSt.id || localSt.id,
+                id: localSt.id || dbSt.id,
                 status: keepLocalActive ? "activo" : dbSt.status,
                 teacher: keepLocalTeacher ? localSt.teacher : (dbSt.teacher && dbSt.teacher !== "Prof. por Asignar" ? dbSt.teacher : localSt.teacher),
                 modality: isJonathan ? "Paquete Flexible (A demanda)" : (localSt.modality || dbSt.modality),
                 planType: isJonathan ? "Paquete Flexible" : (localSt.planType || dbSt.planType),
                 recentAttendance: localSt.recentAttendance?.length ? localSt.recentAttendance : dbSt.recentAttendance,
-                attendanceRate: typeof localSt.attendanceRate === "number" && localSt.attendanceRate > 0 ? localSt.attendanceRate : dbSt.attendanceRate,
+                attendanceRate: resolvedAttendanceRate,
                 planStartDate: effectiveStartDate,
                 planEndDate: effectiveEndDate,
                 packageTotalSessions: effectivePackage,
@@ -804,12 +816,15 @@ export const useAppStore = create<AppState>()(
             }
           });
 
-          // 3. Garantizar que alumnos activos oficiales de planta (Camila Pastor, Emma Sevilla, etc.)
+          // 3. Garantizar que alumnos activos oficiales de planta (Camila Pastor, Marco Antonio, etc.)
           // tengan sus clases oficiales desde initialSchedule si aún no estuvieran en el horario
           (initialSchedule || []).forEach((l) => {
             if (l.status !== "cancelada") {
               const matchedActive = activeStudents.find((actSt) => isMatchingStudentName(actSt.name, l.student));
               if (matchedActive) {
+                // Si el alumno activo ya cuenta con scheduleLessons explícitas en su ficha, respetarlas
+                if (matchedActive.scheduleLessons && matchedActive.scheduleLessons.length > 0) return;
+
                 const alreadyScheduled = Array.from(scheduleMap.values()).some(
                   (existing) =>
                     existing.id === l.id ||
@@ -836,8 +851,8 @@ export const useAppStore = create<AppState>()(
               if (!log.student_id) return;
               const matchedStudent = mergedStudents.find(
                 (st) =>
-                  resolveStudentUUID(st.id) === log.student_id ||
-                  isSameStudentId(st.id, log.student_id)
+                  st.status === "activo" &&
+                  (resolveStudentUUID(st.id) === log.student_id || isSameStudentId(st.id, log.student_id))
               );
               if (matchedStudent) {
                 const dateMatch = log.note?.match(/Fecha\s+(\d{4}-\d{2}-\d{2})/i);
@@ -1201,7 +1216,7 @@ export const useAppStore = create<AppState>()(
             payment: totalBalance > 0 ? "pendiente" : "al-dia",
             risk: 10,
             joinedAt: newSt.joinedAt || "Set 2026",
-            attendanceRate: newSt.attendanceRate !== undefined ? newSt.attendanceRate : 100,
+            attendanceRate: newSt.attendanceRate !== undefined ? newSt.attendanceRate : 0,
             makeupCredits: newSt.makeupCredits || 0,
             recentAttendance: newSt.recentAttendance || [],
             teacherNote: newSt.teacherNote || "",

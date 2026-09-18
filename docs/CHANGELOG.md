@@ -20,6 +20,12 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - **Desbloqueo Ágil de Edición en 1 Clic**:
   - Al abrir el Kardex desde "Editar Ficha" / "Kardex (Editar)", se inicia automáticamente en modo edición rápida.
   - Al abrir desde consulta, se muestra banner claro con botón `✏️ Desbloquear Edición` y los candados de cada fila son clicables para desbloquear el registro de asistencia sin fricción.
+- **Corrección de Referencia `useEffect` en Kardex (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - Incorporada la importación faltante de `useEffect` desde `"react"`, resolviendo el `ReferenceError: useEffect is not defined` al abrir el Kardex de asistencias.
+- **Erradicación de Asistencia Fantasma (72%) en Alumnos Nuevos (`src/store/app-store.ts` y `src/components/admin/students-table.tsx`)**:
+  - Se blindó `hydrateFromBackend` para que registros con `status: "baja"` en PostgreSQL jamás sobreescriban a un alumno activo nuevo por coincidencia difusa de nombres.
+  - Alumnos recién registrados inician limpiamente con `attendanceRate: 0` ("—" / Sin evaluar) en lugar de heredar tasas históricas o un 100% artificial antes de su primera clase.
+  - Se vincularon únicamente logs de asistencia a alumnos con estado activo vigente.
 - **Acciones Rápidas Preservadas y Optimizadas**:
   - Botones `+ De corrido (+45m)` y `🔄 Reprogramar` reforzados visualmente y 100% operativos.
 
