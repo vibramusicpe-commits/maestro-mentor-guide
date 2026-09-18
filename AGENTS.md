@@ -99,6 +99,21 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
 6. **Reversión y Eliminación Directa de Reprogramaciones**:
    - El Kardex debe permitir revertir o eliminar sesiones reprogramadas o extras en modo edición, liberando simultáneamente la exclusión en la lección original para restaurar el cronograma normal en un solo clic.
 
+
+---
+
+### 7. Gestión Quirúrgica de Cobros, Abonos y Facturación Vinculada a Alumnos Activos (ADR-0106)
+1. **Facturación Exclusiva para Alumnos Activos**:
+   - El panel de Cobros y Abonos (`/admin/facturacion`), la Matriz Anual y las tablas `invoices` y `payment_audit_logs` en PostgreSQL reflejan únicamente a los alumnos con `status: "activo"`.
+   - No se deben inyectar facturas de semillas antiguas ni recibos dummy. Se preserva intacta la base de alumnos inactivos (`baja` / `pausa`) en `students` para su depuración y migración manual progresiva 1 a 1.
+2. **Sincronización Bidireccional Automática entre Ficha y Recibo**:
+   - Al registrar un abono (`recordPaymentAbono`) con comprobante o N° de Operación en el módulo de facturación, se persiste en `payment_audit_logs` y se actualiza el estado del recibo (`invoices`). Simultáneamente, actualiza de inmediato `amountPaid`, `balance` y `payment: "al-dia" | "pendiente"` en la ficha del alumno (`adminStudents`) y en PostgreSQL vía `backgroundSyncStudentToDB`.
+   - Al matricular un nuevo alumno (`addNewStudent`), se genera automáticamente su recibo inicial y su log de auditoría si hubo un pago inicial.
+   - Si se edita el precio del plan (`planPrice`) o abono (`amountPaid`) desde la ficha de edición del alumno (`updateStudentDetails`), el recibo enlazado actualiza su monto, saldo y estado en tiempo real.
+3. **Control de Abonos Fraccionados y Planes Promocionales**:
+   - Para planes con descuento especial (ej. Plan Trimestral de S/ 297 a S/ 261) o pagos fraccionados (ej. primer abono de reserva y segundo abono al inicio de clases), cada entrega queda registrada en `payment_audit_logs` con fecha, monto, medio de pago y referencia.
+   - El saldo pendiente (`remainingBalance`) se calcula estrictamente como `Math.max(0, amount - amountPaid)`. Un saldo en 0 marca el recibo y alumno como `pagado` / `al-dia`.
+
 ---
 ---
 

@@ -341,8 +341,8 @@ export const adminStudents: AdminStudent[] = [
 ];
 
 
-// Lista oficial de 99 facturas y estados de pago reales de Agosto 2026
-export const initialInvoices: Invoice[] = officialControlPagosInvoices;
+// Lista de recibos oficiales sincronizados desde PostgreSQL para alumnos activos
+export const initialInvoices: Invoice[] = [];
 
 export const recurringConcepts: RecurringConcept[] = [
   { id: "rc1", label: "Plan Mensual Regular", detail: "8 clases de 45 min (2x semana)", amount: 297.0, families: 48 },

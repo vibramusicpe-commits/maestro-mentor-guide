@@ -4,6 +4,27 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.0] - 2026-09-18
+
+### Gestión Quirúrgica de Cobros, Abonos y Facturación Vinculada Exclusivamente a Alumnos Activos (ADR-0106)
+- **Facturación Limpia y Exclusiva para Alumnos Activos (`src/routes/admin.facturacion.tsx`)**:
+  - Pestaña "Matriz Anual 2026" y tabla de cobranzas acotadas estrictamente a `activeStudents = adminStudents.filter(st => st.status === "activo")`.
+  - Purgadas en PostgreSQL las 83 facturas antiguas de prueba/semillas previas a septiembre 2026.
+  - Inicialización en frontend (`src/store/admin-seeds.ts`) con `initialInvoices = []` para evitar contaminación por datos mock.
+- **Sincronización Reactiva Bidireccional de Pagos y Abonos (`src/store/app-store.ts`)**:
+  - `recordPaymentAbono`: registra el cobro en `payment_audit_logs` con comprobante y actualiza `invoices`. Simultáneamente sincroniza en tiempo real `amountPaid`, `balance` y `payment: "al-dia" | "pendiente"` en la ficha del alumno (`adminStudents`) y persiste en PostgreSQL vía `backgroundSyncStudentToDB`.
+  - `addNewStudent`: genera automáticamente el recibo inicial del alumno matriculado y su primer log de pago.
+  - `updateStudentDetails`: mantiene la sincronización cuando se modifican montos del plan desde la ficha de edición del alumno.
+  - `generateMonthlyInvoices`: genera recibos mensuales únicamente para alumnos con `status: "activo"`.
+- **Carga de Auditoría Unificada (`src/lib/services/invoices.service.ts` y `src/hooks/use-insforge-sync.ts`)**:
+  - Nuevo servicio `getInvoicesWithAudit` que consulta concurrentemente `invoices` y `payment_audit_logs`, rehidratando la bitácora de vouchers y abonos históricos de cada recibo.
+- **Migración y Activación de Camila Pastor Conco**:
+  - Alumna activada con Plan Trimestral (promoción S/ 261), matrícula exonerada por reingreso/continuación.
+  - Abonos auditados en PostgreSQL: S/ 200 el 08/09/2026 y S/ 61 el 10/09/2026 (saldo cancelado S/ 261 al día).
+  - Horario regular configurado: Martes 17:30 y Jueves 17:30 (Violín, Prof. Fernando, Sala B).
+  - Clase puntual reprogramada: Jueves 17/09 a las 18:15 (`dateStr: "2026-09-17"`) con exclusión en la lección regular.
+  - Asistencias registradas en `attendance_logs`: 3 clases evaluadas como presente (10/09, 15/09, 17/09).
+
 ## [1.9.9] - 2026-09-18
 
 ### Blindaje de Reprogramación Puntual con Fechas Exactas (`dateStr`), Fechas Excluidas y Cuota Contractual Estricta en Kardex (ADR-0105)

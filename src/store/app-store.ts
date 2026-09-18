@@ -737,7 +737,7 @@ export const useAppStore = create<AppState>()(
         set((s) => {
           if (!data.students || data.students.length === 0) {
             return {
-              invoices: data.invoices && data.invoices.length > 0 ? data.invoices : s.invoices,
+              invoices: Array.isArray(data.invoices) ? data.invoices : s.invoices,
             };
           }
 
@@ -910,7 +910,7 @@ export const useAppStore = create<AppState>()(
           return {
             adminStudents: mergedStudents,
             schedule: cleanSchedule,
-            invoices: data.invoices && data.invoices.length > 0 ? data.invoices : s.invoices,
+            invoices: Array.isArray(data.invoices) ? data.invoices : s.invoices,
           };
         }),
       updateUserName: (name: string) =>
@@ -1281,8 +1281,36 @@ export const useAppStore = create<AppState>()(
             packUtilesNotes: newSt.packUtilesNotes || "",
           };
           backgroundCreateStudentInDB(s.activeRole, fullStudent);
+
+          const newInvStatus = planBalance === 0 ? ("pagado" as const) : (amountPaid > 0 ? ("parcial" as const) : ("pendiente" as const));
+          const studentInvoice: Invoice = {
+            id: generateUUID(),
+            family: fullStudent.family,
+            student: fullStudent.name,
+            phone: fullStudent.phone,
+            concept: `Plan ${fullStudent.planType || "Mensual"} (${fullStudent.instrument}) — ${fullStudent.name}`,
+            amount: planPrice,
+            amountPaid: amountPaid,
+            remainingBalance: planBalance,
+            dueDate: fullStudent.enrollmentDate || new Date().toISOString().slice(0, 10),
+            daysToDue: 10,
+            status: newInvStatus,
+            paymentMethod: (fullStudent.paymentMethod as any) || "Yape",
+            paymentLogs: amountPaid > 0 ? [{
+              id: `log-${Date.now()}`,
+              timestamp: new Date().toLocaleString("es-PE"),
+              registeredBy: s.activeRole === "staff" ? "Secretaría (Nayeli)" : "Dirección (Dueña)",
+              amount: amountPaid,
+              method: (fullStudent.paymentMethod as any) || "Yape",
+              voucherRef: "ABONO-MATRICULA",
+              paymentTime: new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
+              note: `Abono inicial al matricular (${fullStudent.planType || "Mensual"})`,
+            }] : [],
+          };
+
           return {
             adminStudents: [fullStudent, ...s.adminStudents],
+            invoices: [studentInvoice, ...s.invoices],
             syncQueue: [...s.syncQueue, queueItem(`Nuevo alumno matriculado: ${newSt.name} (${newSt.instrument})`)],
           };
         }),
@@ -1442,9 +1470,30 @@ export const useAppStore = create<AppState>()(
             }
           }
 
+          const updatedInvoices = s.invoices.map((inv) => {
+            const isMatch = targetStudent && (
+              isMatchingStudentName(inv.student || "", targetStudent.name) ||
+              isMatchingStudentName(inv.family, targetStudent.family) ||
+              (inv.concept && isMatchingStudentName(targetStudent.name, inv.concept.split("—")[1]?.trim() || ""))
+            );
+            if (!isMatch) return inv;
+            const newPrice = updates.planPrice !== undefined ? updates.planPrice : inv.amount;
+            const newPaid = updates.amountPaid !== undefined ? updates.amountPaid : inv.amountPaid;
+            const newRemaining = Math.max(0, newPrice - newPaid);
+            const newStatus = newRemaining === 0 ? ("pagado" as const) : (newPaid > 0 ? ("parcial" as const) : ("pendiente" as const));
+            return {
+              ...inv,
+              amount: newPrice,
+              amountPaid: newPaid,
+              remainingBalance: newRemaining,
+              status: newStatus,
+            };
+          });
+
           return {
             adminStudents: updatedStudents,
             schedule: updatedSchedule,
+            invoices: updatedInvoices,
             syncQueue: [...s.syncQueue, queueItem("Ficha de alumno actualizada")],
           };
         }),
@@ -2011,7 +2060,29 @@ export const useAppStore = create<AppState>()(
             ...(voucherImage ? { voucherImage } : {}),
           };
 
+          const updatedStudents = s.adminStudents.map((st) => {
+            const isMatch = isMatchingStudentName(st.name, inv.student || "") ||
+              isMatchingStudentName(st.family, inv.family) ||
+              (inv.concept && isMatchingStudentName(st.name, inv.concept.split("—")[1]?.trim() || ""));
+            if (!isMatch) return st;
+            const updatedPaid = (st.amountPaid || 0) + amount;
+            const updatedBalance = Math.max(0, (st.planPrice || inv.amount) - updatedPaid);
+            const updatedPayment = updatedBalance === 0 ? ("al-dia" as const) : ("pendiente" as const);
+            backgroundSyncStudentToDB(s.activeRole, st.id, {
+              amountPaid: updatedPaid,
+              balance: updatedBalance,
+              payment: updatedPayment,
+            });
+            return {
+              ...st,
+              amountPaid: updatedPaid,
+              balance: updatedBalance,
+              payment: updatedPayment,
+            };
+          });
+
           return {
+            adminStudents: updatedStudents,
             invoices: s.invoices.map((i) =>
               i.id === id
                 ? {
@@ -2171,7 +2242,7 @@ export const useAppStore = create<AppState>()(
           syncQueue: [...s.syncQueue, queueItem("Recordatorio enviado")],
         })),
       generateMonthlyInvoices: (): number => {
-        const currentStudents = get().adminStudents;
+        const currentStudents = get().adminStudents.filter((st) => st.status === "activo");
         const now = new Date();
         const dynDueDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-20`;
         const generatedInvoices: Invoice[] = currentStudents.map((st, idx) => {

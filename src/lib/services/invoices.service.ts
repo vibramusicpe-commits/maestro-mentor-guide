@@ -90,13 +90,28 @@ export interface DueSoonInvoice {
   phone: string;
 }
 
-export function mapDBInvoiceToInvoice(db: DBInvoice): import("@/store/app-store").Invoice {
+export function mapDBInvoiceToInvoice(
+  db: DBInvoice,
+  auditLogs: DBPaymentAuditLog[] = [],
+): import("@/store/app-store").Invoice {
+  const matchingLogs = auditLogs.filter((l) => l.invoice_id === db.id);
+  const paymentLogs = matchingLogs.map((log) => ({
+    id: log.id,
+    timestamp: new Date(log.created_at).toLocaleString("es-PE"),
+    registeredBy: log.registered_by_role === "staff" ? "Secretaría (Nayeli)" : "Dirección (Dueña)",
+    amount: Number(log.amount),
+    method: log.payment_method as any,
+    voucherRef: log.voucher_reference || "PAGO-DIRECTO",
+    paymentTime: new Date(log.created_at).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
+    note: log.note || "Abono registrado",
+  }));
+
   return {
     id: db.id,
     family: db.families?.family_name || "Familia",
     student: db.families?.primary_guardian_name || "Alumno",
     phone: db.families?.primary_guardian_phone || "987654321",
-    concept: db.concept || "Mensualidad Agosto 2026",
+    concept: db.concept || "Mensualidad",
     amount: Number(db.amount) || 297,
     amountPaid: Number(db.amount_paid) || 0,
     remainingBalance: Number(db.remaining_balance) || 0,
@@ -105,7 +120,7 @@ export function mapDBInvoiceToInvoice(db: DBInvoice): import("@/store/app-store"
     daysToDue: 10,
     paymentMethod: db.payment_method ? (db.payment_method as any) : undefined,
     remindedAt: db.reminded_at || undefined,
-    paymentLogs: [],
+    paymentLogs,
     items: [],
   };
 }
@@ -129,6 +144,35 @@ export async function getInvoices(
     params,
     "id,family_id,concept,amount,amount_paid,remaining_balance,due_date,status,payment_method,reminded_at,culqi_charge_id,families(family_name,email,primary_guardian_name,primary_guardian_phone)",
   );
+}
+
+// ---------------------------------------------------------------
+// EDGE: getInvoicesWithAudit
+// Carga recibos junto con sus payment_audit_logs para la UI y galería de vouchers.
+// ---------------------------------------------------------------
+export async function getInvoicesWithAudit(
+  userRole: Role,
+  filterStatus?: InvoiceStatusDB,
+): Promise<{ invoices: DBInvoice[]; auditLogs: DBPaymentAuditLog[] }> {
+  assertRole(userRole, ["super_admin", "staff"], "ver facturas con bitácora");
+
+  const params: Record<string, string> = { order: "due_date.asc" };
+  if (filterStatus) params["status"] = `eq.${filterStatus}`;
+
+  const invoicesPromise = postgrestSelect<DBInvoice>(
+    "invoices",
+    params,
+    "id,family_id,concept,amount,amount_paid,remaining_balance,due_date,status,payment_method,reminded_at,culqi_charge_id,families(family_name,email,primary_guardian_name,primary_guardian_phone)",
+  );
+
+  const logsPromise = postgrestSelect<DBPaymentAuditLog>(
+    "payment_audit_logs",
+    { order: "created_at.asc" },
+    "id,invoice_id,registered_by_user_id,registered_by_role,amount,payment_method,voucher_reference,note,culqi_token_id,created_at",
+  ).catch(() => [] as DBPaymentAuditLog[]);
+
+  const [invoices, auditLogs] = await Promise.all([invoicesPromise, logsPromise]);
+  return { invoices: invoices || [], auditLogs: auditLogs || [] };
 }
 
 // ---------------------------------------------------------------
@@ -250,16 +294,21 @@ export async function getAuditLogsForInvoice(
 }
 
 // ---------------------------------------------------------------
-// EDGE: createInvoice (solo super_admin puede crear recibos nuevos)
+// EDGE: createInvoice (super_admin y staff / Secretaría Nayeli)
 // ---------------------------------------------------------------
 export async function createInvoice(
   userRole: Role,
-  payload: Pick<DBInvoice, "family_id" | "concept" | "amount" | "due_date">,
+  payload: Partial<DBInvoice> & Pick<DBInvoice, "family_id" | "concept" | "amount" | "due_date">,
 ): Promise<DBInvoice> {
-  assertRole(userRole, ["super_admin"], "crear recibo");
+  assertRole(userRole, ["super_admin", "staff"], "crear recibo");
+  const amountPaid = payload.amount_paid ?? 0;
+  const remaining = Math.max(0, payload.amount - amountPaid);
+  const status = remaining === 0 ? "pagado" : (amountPaid > 0 ? "parcial" : "pendiente");
+
   return postgrestInsert<DBInvoice>("invoices", {
     ...payload,
-    remaining_balance: payload.amount,
-    status: "pendiente",
+    amount_paid: amountPaid,
+    remaining_balance: remaining,
+    status: payload.status || status,
   });
 }

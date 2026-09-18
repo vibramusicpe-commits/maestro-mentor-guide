@@ -215,6 +215,11 @@ function AdminFacturacionPage() {
 
   const isStaff = activeRole === "staff";
 
+  const activeStudents = useMemo(
+    () => adminStudents.filter((st) => st.status === "activo"),
+    [adminStudents],
+  );
+
   const selectedInv = useMemo(
     () => invoices.find((i) => i.id === selectedInvoiceId),
     [invoices, selectedInvoiceId],
@@ -634,7 +639,7 @@ function AdminFacturacionPage() {
             }`}
           >
             <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-            Matriz Anual 2026 ({adminStudents.length})
+            Matriz Anual 2026 ({activeStudents.length})
           </button>
 
           <button
@@ -886,7 +891,7 @@ function AdminFacturacionPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {adminStudents
+                  {activeStudents
                     .filter((st) => {
                       if (!searchQuery) return true;
                       const q = searchQuery.toLowerCase();

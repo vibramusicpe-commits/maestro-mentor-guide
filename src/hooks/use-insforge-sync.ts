@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useAppStore } from "@/store/app-store";
 import { getStudents, mapDBStudentToAdminStudent } from "@/lib/services/students.service";
-import { getInvoices, mapDBInvoiceToInvoice } from "@/lib/services/invoices.service";
+import { getInvoicesWithAudit, mapDBInvoiceToInvoice } from "@/lib/services/invoices.service";
 
 export function useInsforgeSync() {
   const activeRole = useAppStore((s) => s.activeRole);
@@ -14,7 +14,10 @@ export function useInsforgeSync() {
       try {
         if (activeRole === "super_admin" || activeRole === "staff" || activeRole === "teacher") {
           const dbStudents = await getStudents(activeRole);
-          const dbInvoices = activeRole === "teacher" ? [] : await getInvoices(activeRole);
+          const { invoices: dbInvoices, auditLogs: dbPaymentLogs } =
+            activeRole === "teacher"
+              ? { invoices: [], auditLogs: [] }
+              : await getInvoicesWithAudit(activeRole);
           let dbAttendance: any[] = [];
           try {
             const { postgrestSelect } = await import("@/lib/insforge");
@@ -32,8 +35,8 @@ export function useInsforgeSync() {
                 : undefined;
 
             const mappedInvoices =
-              dbInvoices && dbInvoices.length > 0
-                ? dbInvoices.map(mapDBInvoiceToInvoice)
+              dbInvoices
+                ? dbInvoices.map((inv) => mapDBInvoiceToInvoice(inv, dbPaymentLogs))
                 : undefined;
 
             if (mappedStudents || mappedInvoices || (dbAttendance && dbAttendance.length > 0)) {
