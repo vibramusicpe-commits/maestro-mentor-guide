@@ -80,6 +80,19 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - `planStartDate`: Fecha efectiva en que el alumno asiste a su primera clase en sala. Ambas fechas deben mantenerse desacopladas para evitar desajustes en el calendario.
 
 ---
+
+### 6. Blindaje de Reprogramaciones Puntuales y Cuota Contractual en Kardex (ADR-0105)
+1. **Aislamiento Estricto por Fecha (`dateStr` y `excludedDates`)**:
+   - Cuando se reprograma una clase con alcance *"Solo esta sesión"*, la nueva sesión DEBE recibir una fecha exacta (`dateStr: YYYY-MM-DD`).
+   - La lección original semanal recurrente DEBE añadir la fecha reprogramada a su lista de exclusiones (`excludedDates: ["YYYY-MM-DD"]`).
+   - Está **TERMINANTEMENTE PROHIBIDO** crear lecciones recurrentes semanales abiertas cuando el usuario solicita un cambio puntual de una sola clase.
+2. **Cumplimiento Invariable de la Cuota Contractual (8 Clases Regular / 4 Intensivo)**:
+   - El Kardex del alumno jamás debe proyectar más clases de las contratadas salvo que existan clases extras evaluadas en sala.
+   - Si existen lecciones marcadas como recuperación o adelanto, el sistema preserva todas las evaluadas (`status !== "pendiente"`) y acota las clases pendientes para que el total del ciclo sume exactamente la cuota del contrato (`targetQuota`).
+3. **Clases de Corrido (+45 min) Circunscritas a Fecha**:
+   - Al pulsar `+ De corrido (+45m)`, la lección creada debe registrar `dateStr: session.dateStr` para que únicamente exista en la fecha en que se impartió, impidiendo su réplica en semanas posteriores.
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)

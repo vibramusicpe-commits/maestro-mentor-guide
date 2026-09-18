@@ -4,6 +4,26 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.9.9] - 2026-09-18
+
+### Blindaje de Reprogramación Puntual con Fechas Exactas (`dateStr`), Fechas Excluidas y Cuota Contractual Estricta en Kardex (ADR-0105)
+- **Aislamiento de Clases Reprogramadas a una Fecha Única (`src/store/admin-seeds.ts` y `src/store/app-store.ts`)**:
+  - Incorporados `dateStr?: string` (fecha única `YYYY-MM-DD`) y `excludedDates?: string[]` a la interfaz `ScheduledLesson`.
+  - Al reprogramar una clase con alcance *"Solo esta sesión"*, la lección original agrega `originalDateStr` a sus fechas excluidas y la nueva lección se crea con `dateStr: newDateStr`, evitando que se replique como clase semanal en las semanas sucesivas del mes.
+  - Sincronización automática de `schedule` y `adminStudents.scheduleLessons` persistiendo en PostgreSQL.
+- **Filtrado Estricto en el Generador de Sesiones (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - `allCycleSessions` valida que si una lección posee `dateStr`, solo se emita en esa fecha exacta (`lesson.dateStr === curDateStr`).
+  - Se omiten fechas presentes en `lesson.excludedDates` y semanas presentes en `lesson.excludedWeeks`.
+- **Tope Estricto de Cuota Contractual (8 Clases Plan Regular / 4 Intensivo)**:
+  - Se garantiza que el Kardex proyecte exactamente las 8 clases del mes contratado (en paridad con el Excel físico de secretaría de Nayeli), impidiendo que lecciones marcadas como recuperación o adelanto inflen el contador a 12 de 8 clases.
+  - Se preservan incondicionalmente todas las clases evaluadas (`presente`, `ausente`, `tarde`, `justificada`) y se completan únicamente las pendientes inmediatas estrictamente necesarias para alcanzar la cuota (`targetQuota`).
+- **Selector de Fecha Específica en Modal de Reprogramación**:
+  - Se agregó campo de fecha interactivo `<Input type="date">` sincronizado bidireccionalmente con el selector de días mediante la función `getTargetDateInSameWeek`.
+- **Fijación de Fecha en Clases de Corrido (`+ De corrido (+45m)`)**:
+  - Al presionar `+ De corrido (+45m)`, la clase contigua se almacena con `dateStr: session.dateStr` para no propagarse a los demás días del mes.
+- **Distintivo Visual de Reprogramación**:
+  - En las filas del Kardex, las clases reprogramadas se identifican con un distintivo ámbar: `🔄 Reprogramada (orig. YYYY-MM-DD)`.
+
 ## [1.9.8] - 2026-09-18
 
 ### Kardex de Asistencias: Mapeo de Ciclo Contractual, Vista Dual, Filosofía Vibra de Recuperación y Desbloqueo de Edición
