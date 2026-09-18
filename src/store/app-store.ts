@@ -1563,17 +1563,27 @@ export const useAppStore = create<AppState>()(
         }),
       setStudentSessionAttendance: (studentName, lessonId, weekIndex, status, notes = "", dateStr?: string) =>
         set((s) => {
-          const isJustificada = status === "justificada";
+          const targetLesson = s.schedule.find((l) => l.id === lessonId);
+          const prevStatus = dateStr
+            ? targetLesson?.attendanceByDate?.[dateStr]
+            : (weekIndex !== undefined ? targetLesson?.attendanceByWeek?.[weekIndex] : undefined);
+
+          const isAbsence = status === "ausente" || status === "justificada";
+          const wasAbsence = prevStatus === "ausente" || prevStatus === "justificada";
+          let creditDelta = 0;
+          if (isAbsence && !wasAbsence) creditDelta = 1;
+          else if (!isAbsence && wasAbsence) creditDelta = -1;
+
           const newSchedule = s.schedule.map((l) => {
             if (l.id === lessonId) {
               const prevByWeek = { ...(l.attendanceByWeek || {}) };
               const prevByDate = { ...(l.attendanceByDate || {}) };
 
               if (status === "pendiente") {
-                delete prevByWeek[weekIndex];
+                if (weekIndex !== undefined) delete prevByWeek[weekIndex];
                 if (dateStr) delete prevByDate[dateStr];
               } else {
-                prevByWeek[weekIndex] = status;
+                if (weekIndex !== undefined) prevByWeek[weekIndex] = status;
                 if (dateStr) prevByDate[dateStr] = status;
               }
 
@@ -1644,11 +1654,12 @@ export const useAppStore = create<AppState>()(
 
           const newStudents = s.adminStudents.map((st) => {
             if (isMatchingStudentName(st.name, studentName)) {
+              const updatedCredits = Math.max(0, (st.makeupCredits || 0) + creditDelta);
               return {
                 ...st,
                 attendanceRate: newRate,
                 recentAttendance: recentList,
-                makeupCredits: isJustificada ? st.makeupCredits + 1 : st.makeupCredits,
+                makeupCredits: updatedCredits,
               };
             }
             return st;
@@ -1665,7 +1676,7 @@ export const useAppStore = create<AppState>()(
               s.activeRole,
               updatedStudent.id,
               status,
-              dateStr ? `Fecha ${dateStr} - Regularización Kardex` : `Semana ${weekIndex + 1} - Regularización Kardex`
+              dateStr ? `Fecha ${dateStr} - Regularización Kardex` : `Semana ${(weekIndex ?? 0) + 1} - Regularización Kardex`
             );
           }
 

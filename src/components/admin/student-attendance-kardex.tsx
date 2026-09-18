@@ -42,6 +42,7 @@ import {
   getMonthWeeks,
   MONTHS_NAME,
   WEEKDAY_FULL_NAMES,
+  WEEKDAYS_ORDER,
   getCurrentWeekIndex,
   type CalendarWeekInfo,
 } from "@/lib/calendar-utils";
@@ -110,6 +111,16 @@ export function StudentAttendanceKardex({
   const bulkRegularizeStudentAttendance = useAppStore((s) => s.bulkRegularizeStudentAttendance);
   const rescheduleLesson = useAppStore((s) => s.rescheduleLesson);
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
+  const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
+
+  // 🎛️ Selector Dual de Modo de Vista: Ciclo Activo Vigente (8 clases) vs Por Mes Calendario
+  const [viewTab, setViewTab] = useState<"cycle" | "calendar">("cycle");
+  // 🔒 Modo Edición Activa (inicia según isEditable o se desbloquea directamente)
+  const [isEditMode, setIsEditMode] = useState<boolean>(isEditable);
+
+  useEffect(() => {
+    setIsEditMode(isEditable);
+  }, [isEditable]);
 
   // Alumno reactivo sincronizado con el store general
   const liveStudent = useMemo(() => {
@@ -120,7 +131,7 @@ export function StudentAttendanceKardex({
     );
   }, [adminStudents, student]);
 
-  // 🛡️ REGLA DE ORO (ADR 0100): Fecha de inicio oficial estricta
+  // 🛡️ REGLA DE ORO (ADR 0100 & ADR 0104): Fecha de inicio oficial estricta
   const isEmma =
     isMatchingStudentName(liveStudent.name, "Emma Micaela") ||
     isMatchingStudentName(liveStudent.name, "Emma Sevilla");
@@ -148,6 +159,8 @@ export function StudentAttendanceKardex({
     liveStudent.planType === "Paquete Especial";
 
   const packageTotal = liveStudent.packageTotalSessions || 24;
+  const isIntensivo = liveStudent.modality?.toLowerCase().includes("inten");
+  const targetQuota = isFlexiblePackage ? packageTotal : isIntensivo ? 4 : 8;
 
   const now = new Date();
   const currentRealMonth = now.getMonth();
@@ -202,151 +215,151 @@ export function StudentAttendanceKardex({
     return deduped;
   }, [schedule, liveStudent.name]);
 
-  // Generar lista cronológica exacta de sesiones con fecha y hora
-  const sessions: StudentSessionItem[] = useMemo(() => {
-    const result: StudentSessionItem[] = [];
-    const currentActiveWeek = getCurrentWeekIndex(selectedYear, selectedMonth);
+  // 🎯 Generador Exacto del Ciclo Contractual (8 clases Regular / 4 clases Intensivo)
+  // Comienza estrictamente en planStartDate y abarca su cuota completa del contrato
+  const allCycleSessions: StudentSessionItem[] = useMemo(() => {
+    const defaultStartStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-01`;
+    const startStr = effectivePlanStartDate || defaultStartStr;
+    const [sy, sm, sd] = startStr.split("-").map(Number);
+    if (!sy || !sm || !sd) return [];
 
-    monthWeeks.forEach((week) => {
-      week.days.forEach((dayInfo) => {
-        // Ignorar días desbordados que no pertenecen al mes actual del ciclo
-        if (!dayInfo.isCurrentMonth) return;
+    const startDate = new Date(sy, sm - 1, sd);
+    const rawCandidates: StudentSessionItem[] = [];
+    const maxDaysToScan = 60; // Proyecta hasta 2 meses lectivos
 
-        // 🛡️ REGLA DE ORO (ADR 0099 & ADR 0100): Respetar vigencia del plan del alumno
-        // Para alumnos activos en plan mensual regular (8 clases), generar la totalidad de sus 8 clases del mes lectivo seleccionado.
-        // Si el alumno está inactivo o en paquete flexible a demanda, respetar fechas límites estrictas.
-        if (liveStudent.status !== "activo" || isFlexiblePackage) {
-          if (effectivePlanStartDate && dayInfo.dateStr < effectivePlanStartDate) return;
-          if (effectivePlanEndDate && dayInfo.dateStr > effectivePlanEndDate) return;
+    for (let offset = 0; offset < maxDaysToScan; offset++) {
+      const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + offset);
+      const curY = cur.getFullYear();
+      const curM = cur.getMonth();
+      const curD = cur.getDate();
+      const curDateStr = `${curY}-${String(curM + 1).padStart(2, "0")}-${String(curD).padStart(2, "0")}`;
+
+      const jsDay = cur.getDay(); // 0 Dom, 1 Lun, 2 Mar, 3 Mié, 4 Jue, 5 Vie, 6 Sáb
+      if (jsDay === 0) continue; // Los domingos no son lectivos
+      const dayKey = WEEKDAYS_ORDER[jsDay - 1];
+
+      // Si supera la fecha fin del plan, solo incluir si ya tiene asistencia evaluada o es recuperación
+      const isBeyondEnd = effectivePlanEndDate ? curDateStr > effectivePlanEndDate : false;
+
+      studentLessons.forEach((lesson) => {
+        if (lesson.month !== undefined && lesson.month !== curM) return;
+        if (lesson.year !== undefined && lesson.year !== curY) return;
+        if (lesson.day !== dayKey) return;
+
+        let currentStatus: StudentSessionItem["status"] = "pendiente";
+        if (lesson.attendanceByDate && lesson.attendanceByDate[curDateStr]) {
+          currentStatus = lesson.attendanceByDate[curDateStr]!;
         }
 
-        // Buscar si el alumno tiene lección este día de la semana
-        studentLessons.forEach((lesson) => {
-          // Si la lección especifica un mes determinado, verificar que coincida con el mes en vista
-          if (lesson.month !== undefined && lesson.month !== selectedMonth) return;
-          if (lesson.year !== undefined && lesson.year !== selectedYear) return;
+        if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup) {
+          return;
+        }
 
-          // Si la lección es para un día específico
-          if (lesson.day !== dayInfo.dayKey) return;
+        const [hh, mm] = (lesson.time || "16:00").split(":").map((v) => parseInt(v, 10));
+        const endMinuteTotal = (hh || 16) * 60 + (mm || 0) + 45;
+        const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
+        const endM = String(endMinuteTotal % 60).padStart(2, "0");
+        const timeEnd = `${endH}:${endM}`;
 
-          // Si la lección es exclusiva de una semana y no es esta semana
-          if (lesson.weekIndex !== undefined && lesson.weekIndex !== week.weekIndex) return;
+        const monthName = MONTHS_NAME[curM] || "";
+        const fullDayName = WEEKDAY_FULL_NAMES[dayKey] || dayKey;
 
-          // Si la lección excluye esta semana
-          if (lesson.excludedWeeks && lesson.excludedWeeks.includes(week.weekIndex)) return;
-
-          // Calcular hora de fin (+45 min)
-          const [hh, mm] = (lesson.time || "16:00").split(":").map((v) => parseInt(v, 10));
-          const endMinuteTotal = (hh || 16) * 60 + (mm || 0) + 45;
-          const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
-          const endM = String(endMinuteTotal % 60).padStart(2, "0");
-          const timeEnd = `${endH}:${endM}`;
-
-          // Determinar estado de asistencia aislado por fecha exacta (dateStr: YYYY-MM-DD)
-          // 🛡️ REGLA DE ORO (ADR 0099): Cero fallbacks a lección global para evitar auto-marcados fantasma
-          let currentStatus: StudentSessionItem["status"] = "pendiente";
-          if (lesson.attendanceByDate && lesson.attendanceByDate[dayInfo.dateStr]) {
-            currentStatus = lesson.attendanceByDate[dayInfo.dateStr]!;
-          } else if (
-            // Compatibilidad legacy: solo si el mes de la lección coincide exactamente
-            lesson.month === selectedMonth &&
-            lesson.attendanceByWeek &&
-            lesson.attendanceByWeek[week.weekIndex]
-          ) {
-            currentStatus = lesson.attendanceByWeek[week.weekIndex]!;
-          }
-
-          const monthName = MONTHS_NAME[dayInfo.monthIndex] || "Agosto";
-          const fullDayName = WEEKDAY_FULL_NAMES[dayInfo.dayKey] || dayInfo.dayKey;
-
-          result.push({
-            id: `${lesson.id}-${dayInfo.dateStr}`,
-            lessonId: lesson.id,
-            sessionIndex: 0, // Se numera al ordenar
-            weekIndex: week.weekIndex,
-            weekLabel: week.label,
-            dateStr: dayInfo.dateStr,
-            dayNum: dayInfo.dayNum,
-            dayName: `${fullDayName} ${String(dayInfo.dayNum).padStart(2, "0")} de ${monthName} ${dayInfo.year}`,
-            dayShort: `${dayInfo.dayKey} ${dayInfo.dayNum} ${monthName.slice(0, 3)}`,
-            dayKey: dayInfo.dayKey,
-            time: lesson.time,
-            timeEnd,
-            teacher: lesson.teacher || student.teacher || "Por asignar",
-            room: lesson.room || student.room || "Sala A",
-            instrument: lesson.instrument || student.instrument || "Música",
-            isMakeup: !!lesson.isMakeup,
-            status: currentStatus,
-          });
+        rawCandidates.push({
+          id: `${lesson.id}-${curDateStr}`,
+          lessonId: lesson.id,
+          sessionIndex: 0,
+          weekIndex: Math.floor(offset / 7),
+          weekLabel: `Semana ${Math.floor(offset / 7) + 1}`,
+          dateStr: curDateStr,
+          dayNum: curD,
+          dayName: `${fullDayName} ${String(curD).padStart(2, "0")} de ${monthName} ${curY}`,
+          dayShort: `${dayKey} ${String(curD).padStart(2, "0")} ${monthName.slice(0, 3)}`,
+          dayKey,
+          time: lesson.time,
+          timeEnd,
+          teacher: lesson.teacher || liveStudent.teacher || "Por asignar",
+          room: lesson.room || liveStudent.room || "Sala A",
+          instrument: lesson.instrument || liveStudent.instrument || "Música",
+          isMakeup: !!lesson.isMakeup,
+          status: currentStatus,
         });
       });
-    });
+    }
 
-    // 1. Ordenar cronológicamente por fecha y hora
-    result.sort((a, b) => {
-      const cmpDate = a.dateStr.localeCompare(b.dateStr);
-      if (cmpDate !== 0) return cmpDate;
+    // 1. Orden cronológico
+    rawCandidates.sort((a, b) => {
+      const cmp = a.dateStr.localeCompare(b.dateStr);
+      if (cmp !== 0) return cmp;
       return a.time.localeCompare(b.time);
     });
 
-    // 2. Deduplicar por fecha y hora exactas (garantiza jamás 2 clases a la misma hora el mismo día)
+    // 2. Deduplicar por fecha y hora exactas
     const seenSlots = new Set<string>();
-    const dedupedSessions: StudentSessionItem[] = [];
-    result.forEach((item) => {
+    const deduped: StudentSessionItem[] = [];
+    rawCandidates.forEach((item) => {
       const slotKey = `${item.dateStr}-${item.time}`;
       if (!seenSlots.has(slotKey)) {
         seenSlots.add(slotKey);
-        dedupedSessions.push(item);
+        deduped.push(item);
       }
     });
 
-    // 3. Respetar estrictamente la cuota del plan (4 clases para Intensivo, 8 clases para Regular):
-    // Si un mes de 5 semanas genera clases de plantilla recurrentes adicionales sin evaluar,
-    // se preservan todas las que tengan asistencia marcada (presente/ausente/tarde/justificada) o sean recuperación,
-    // y para las pendientes de plantilla se ajusta exactamente a la cuota contractual del mes.
-    const isIntensivePlan = liveStudent.modality?.includes("Intensivo");
-    const targetQuota = isFlexiblePackage ? packageTotal : (isIntensivePlan ? 4 : 8);
-
+    // 3. Respetar cuota contractual (8 para Regular, 4 para Intensivo)
     let finalSessions: StudentSessionItem[] = [];
     if (isFlexiblePackage) {
-      finalSessions = dedupedSessions;
+      finalSessions = deduped.slice(0, targetQuota);
     } else {
-      if (dedupedSessions.length <= targetQuota) {
-        finalSessions = dedupedSessions;
+      if (deduped.length <= targetQuota) {
+        finalSessions = deduped;
       } else {
         const markedOrSpecial = new Set(
-          dedupedSessions.filter((s) => s.status !== "pendiente" || s.isMakeup)
+          deduped.filter((s) => s.status !== "pendiente" || s.isMakeup)
         );
         const selected = new Set<StudentSessionItem>(markedOrSpecial);
-        for (const s of dedupedSessions) {
+        for (const s of deduped) {
           if (selected.size >= targetQuota) break;
           selected.add(s);
         }
-        finalSessions = dedupedSessions.filter((s) => selected.has(s));
+        finalSessions = deduped.filter((s) => selected.has(s));
       }
     }
 
-    // Asignar índice secuencial (Sesión 1, 2, 3...)
+    // 4. Numerar secuencialmente (Sesión 1 a N)
     finalSessions.forEach((item, idx) => {
       item.sessionIndex = idx + 1;
     });
 
     return finalSessions;
   }, [
-    monthWeeks,
-    studentLessons,
-    student.teacher,
-    student.room,
-    student.instrument,
-    liveStudent.status,
-    liveStudent.modality,
-    isFlexiblePackage,
-    packageTotal,
-    selectedMonth,
-    selectedYear,
     effectivePlanStartDate,
     effectivePlanEndDate,
+    studentLessons,
+    targetQuota,
+    liveStudent.teacher,
+    liveStudent.room,
+    liveStudent.instrument,
+    isFlexiblePackage,
+    selectedYear,
+    selectedMonth,
   ]);
+
+  // Sesiones finales a renderizar según vista activa (Ciclo Activo vs Mes Calendario)
+  const sessions: StudentSessionItem[] = useMemo(() => {
+    if (viewTab === "cycle") {
+      return allCycleSessions;
+    }
+
+    // Modo Por Mes Calendario: Filtrar sesiones del ciclo correspondientes al mes/año
+    return allCycleSessions.filter((s) => {
+      const [y, m] = s.dateStr.split("-").map(Number);
+      return y === selectedYear && (m - 1) === selectedMonth;
+    });
+  }, [viewTab, allCycleSessions, selectedYear, selectedMonth]);
+
+  // Total de asistencias en todo el ciclo contractual
+  const cycleAttendedTotal = useMemo(() => {
+    return allCycleSessions.filter((s) => s.status === "presente" || s.status === "tarde").length;
+  }, [allCycleSessions]);
 
   // Contadores de Asistencia
   const stats = useMemo(() => {
@@ -546,6 +559,23 @@ export function StudentAttendanceKardex({
     setRescheduleSession(null);
   };
 
+  // 🔄 Acción: Extender Vigencia del Plan (+X días) ante inasistencias ("La clase no se pierde, se recupera")
+  const handleExtendPlan = (daysToAdd: number = 7) => {
+    const currentEndStr = effectivePlanEndDate || "2026-09-27";
+    const [y, m, d] = currentEndStr.split("-").map(Number);
+    const curEnd = new Date(y, m - 1, d);
+    const newEnd = new Date(curEnd.getFullYear(), curEnd.getMonth(), curEnd.getDate() + daysToAdd);
+    const newEndStr = `${newEnd.getFullYear()}-${String(newEnd.getMonth() + 1).padStart(2, "0")}-${String(newEnd.getDate()).padStart(2, "0")}`;
+
+    updateStudentDetails(liveStudent.id, {
+      planEndDate: newEndStr,
+    });
+
+    toast.success(`✓ Vigencia de plan extendida (+${daysToAdd} días)`, {
+      description: `Nueva fecha fin: ${newEnd.getDate()} de ${MONTHS_NAME[newEnd.getMonth()]} ${newEnd.getFullYear()} para recuperar clases pendientes.`,
+    });
+  };
+
   // ➕ Acción Rápida: Agregar Clase de Corrido (+45 min contiguo)
   const handleAddConsecutiveClass = (session: StudentSessionItem) => {
     const nextTime = session.timeEnd || "16:45";
@@ -563,6 +593,10 @@ export function StudentAttendanceKardex({
       return;
     }
 
+    const [y, m] = session.dateStr.split("-").map(Number);
+    const targetMonth = m !== undefined ? m - 1 : selectedMonth;
+    const targetYear = y || selectedYear;
+
     addLessonToSchedule({
       student: liveStudent.name,
       teacher: session.teacher && teachers.includes(session.teacher) ? session.teacher : liveStudent.teacher || "Fernando",
@@ -573,8 +607,8 @@ export function StudentAttendanceKardex({
       category: liveStudent.ageCategory || "JUNIOR",
       status: "programada",
       weekIndex: session.weekIndex,
-      month: selectedMonth,
-      year: selectedYear,
+      month: targetMonth,
+      year: targetYear,
     });
 
     toast.success(`¡Clase de corrido (+45m) agregada con éxito!`, {
@@ -624,8 +658,7 @@ export function StudentAttendanceKardex({
     setIsAddSessionOpen(false);
   };
 
-  const isIntensivo = liveStudent.modality?.includes("Intensivo");
-  const targetLessons = isFlexiblePackage ? packageTotal : (isIntensivo ? 4 : 8);
+  const targetLessons = targetQuota;
 
   const content = (
     <div className="space-y-4">
@@ -663,46 +696,80 @@ export function StudentAttendanceKardex({
           </p>
         </div>
 
-        {/* Selector de Mes del Ciclo con pestañas rápidas Agosto / Setiembre */}
-        <div className="flex items-center gap-1.5 shrink-0 bg-muted/60 p-1 rounded-xl border border-border">
-          <button
-            type="button"
-            onClick={() => setSelectedMonth(7)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-              selectedMonth === 7
-                ? "bg-background text-foreground shadow-2xs font-black"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Agosto
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedMonth(8)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              selectedMonth === 8
-                ? "bg-primary text-primary-foreground shadow-2xs font-black"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Setiembre
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          </button>
-          <Select
-            value={String(selectedMonth)}
-            onValueChange={(v) => setSelectedMonth(parseInt(v, 10))}
-          >
-            <SelectTrigger className="h-7 text-[11px] w-[115px] rounded-lg font-bold border-0 bg-transparent">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MONTHS_NAME.map((m, idx) => (
-                <SelectItem key={m} value={String(idx)}>
-                  {m} {selectedYear}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Selector Dual de Modo de Vista (Ciclo Activo vs Mes Calendario) */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 bg-muted/80 p-1 rounded-xl border border-border">
+            <button
+              type="button"
+              onClick={() => setViewTab("cycle")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                viewTab === "cycle"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title="Ver las 8 clases continuas de su ciclo contractual según fecha de inicio"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>🎯 Ciclo Activo ({targetQuota} clases)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewTab("calendar")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                viewTab === "calendar"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title="Filtrar clases divididas por mes calendario oficial"
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              <span>📅 Mes Calendario</span>
+            </button>
+          </div>
+
+          {/* Selector de Mes (solo activo en vista calendario) */}
+          {viewTab === "calendar" && (
+            <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
+              <button
+                type="button"
+                onClick={() => setSelectedMonth(7)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  selectedMonth === 7
+                    ? "bg-background text-foreground shadow-2xs font-black"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Agosto
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedMonth(8)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  selectedMonth === 8
+                    ? "bg-primary text-primary-foreground shadow-2xs font-black"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Setiembre
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              </button>
+              <Select
+                value={String(selectedMonth)}
+                onValueChange={(v) => setSelectedMonth(parseInt(v, 10))}
+              >
+                <SelectTrigger className="h-7 text-[11px] w-[115px] rounded-lg font-bold border-0 bg-transparent">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS_NAME.map((m, idx) => (
+                    <SelectItem key={m} value={String(idx)}>
+                      {m} {selectedYear}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -758,6 +825,41 @@ export function StudentAttendanceKardex({
         </div>
       )}
 
+      {/* 💡 Banner Filosofía Vibra: "La clase no se pierde, se recupera" */}
+      {liveStudent.makeupCredits > 0 && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div className="space-y-0.5">
+            <p className="text-xs font-black text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-amber-500" />
+              💡 Filosofía Vibra: {liveStudent.makeupCredits} clase(s) pendiente(s) por recuperar
+            </p>
+            <p className="text-[11px] text-muted-foreground font-medium">
+              "La clase no se pierde, se recupera". Puedes reprogramar en la fila de la falta o extender la vigencia del plan para completar sus {targetLessons} clases.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleExtendPlan(7)}
+              className="h-8 text-xs font-bold border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 rounded-xl"
+              title="Sumar 7 días a la fecha fin del plan para recuperar sesiones"
+            >
+              <CalendarSync className="h-3.5 w-3.5 mr-1" />
+              +1 Sem. Vigencia
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleOpenAddSession}
+              className="h-8 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow-xs"
+            >
+              <PlusCircle className="h-3.5 w-3.5 mr-1" />
+              Programar Recuperación
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Tarjetas de Métricas de Asistencia */}
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
         <div className="p-3 rounded-xl border border-border bg-card text-center">
@@ -801,12 +903,18 @@ export function StudentAttendanceKardex({
         <div className="space-y-1.5 flex-1 min-w-[220px]">
           <div className="flex justify-between text-xs font-bold">
             <span className="text-foreground">
-              {isFlexiblePackage ? "Avance en este Mes Seleccionado:" : "Cumplimiento del Plan del Mes:"}
+              {viewTab === "cycle"
+                ? "Cumplimiento del Ciclo Oficial:"
+                : isFlexiblePackage
+                ? "Avance en este Mes Seleccionado:"
+                : "Cumplimiento del Plan del Mes:"}
             </span>
-            <span className="font-mono text-primary">
-              {isFlexiblePackage
+            <span className="font-mono text-primary font-black">
+              {viewTab === "cycle"
+                ? `${stats.asistidasTotal} de ${targetLessons} clases asistidas`
+                : isFlexiblePackage
                 ? `${stats.asistidasTotal} clases asistidas en ${MONTHS_NAME[selectedMonth]} (${totalPackageAttended}/${packageTotal} en bolsa total)`
-                : `${stats.asistidasTotal} de ${targetLessons} clases asistidas`}
+                : `${stats.asistidasTotal} clases en ${MONTHS_NAME[selectedMonth]} (${cycleAttendedTotal} de ${targetLessons} en ciclo)`}
             </span>
           </div>
           <Progress
@@ -820,7 +928,7 @@ export function StudentAttendanceKardex({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {isEditable && stats.pendientes > 0 && (
+          {isEditMode && stats.pendientes > 0 && (
             <Button
               size="sm"
               onClick={handleRegularizeAllPending}
@@ -831,10 +939,31 @@ export function StudentAttendanceKardex({
             </Button>
           )}
 
-          {!isEditable && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-bold shadow-xs">
+          {!isEditMode ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-bold shadow-xs">
               <Lock className="h-3.5 w-3.5 shrink-0" />
-              <span>Modo Consulta (Botones bloqueados · Para editar asistencias, ingresa a "Editar Ficha")</span>
+              <span>Modo Consulta</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setIsEditMode(true)}
+                className="h-6 px-2 text-[11px] font-black underline hover:bg-amber-500/20 text-amber-900 dark:text-amber-100 rounded-md"
+              >
+                ✏️ Desbloquear Edición
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold shadow-xs">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+              <span>Modo Edición Rápida</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setIsEditMode(false)}
+                className="h-6 px-2 text-[10px] font-semibold text-muted-foreground hover:bg-emerald-500/20 rounded-md"
+              >
+                🔒 Bloquear
+              </Button>
             </div>
           )}
 
@@ -877,17 +1006,40 @@ export function StudentAttendanceKardex({
         <div className="px-4 py-2.5 bg-muted/60 border-b border-border flex items-center justify-between">
           <span className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
             <CalendarCheck className="h-4 w-4 text-primary" />
-            Historial Cronológico de Sesiones ({sessions.length} clases encontradas)
+            {viewTab === "cycle"
+              ? `Historial del Ciclo Activo (${sessions.length} de ${targetLessons} clases)`
+              : `Historial Cronológico de Sesiones (${sessions.length} clases encontradas)`}
           </span>
-          <span className="text-[11px] text-muted-foreground">
-            {MONTHS_NAME[selectedMonth]} {selectedYear}
+          <span className="text-[11px] text-muted-foreground font-mono font-bold">
+            {viewTab === "cycle"
+              ? `${effectivePlanStartDate || "Inicio"} ➔ ${effectivePlanEndDate || "Fin"} · Plan ${liveStudent.modality || "Regular"}`
+              : `${MONTHS_NAME[selectedMonth]} ${selectedYear}`}
           </span>
         </div>
 
         {sessions.length === 0 ? (
           <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
-            <p>⚠️ No se encontraron clases programadas en agenda para este alumno en este mes.</p>
-            <p className="text-[11px]">Verifica que el alumno tenga horarios asignados en la Agenda.</p>
+            <p>
+              {viewTab === "cycle"
+                ? "⚠️ No se encontraron clases programadas en el ciclo vigente para este alumno."
+                : `⚠️ No se encontraron clases programadas en ${MONTHS_NAME[selectedMonth]} ${selectedYear}.`}
+            </p>
+            <p className="text-[11px]">
+              {viewTab === "calendar" && effectivePlanStartDate && (
+                <>Ciclo lectivo contratado: <strong>{effectivePlanStartDate}</strong> al <strong>{effectivePlanEndDate || "Fin"}</strong>. </>
+              )}
+              Verifica que el alumno tenga horarios asignados en la Agenda.
+            </p>
+            {viewTab === "calendar" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setViewTab("cycle")}
+                className="mt-2 text-xs font-bold text-primary border-primary/40 rounded-xl"
+              >
+                🎯 Ver Ciclo Activo Completo
+              </Button>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -963,7 +1115,7 @@ export function StudentAttendanceKardex({
                         size="sm"
                         onClick={() => handleOpenReschedule(item)}
                         className="h-7 px-2.5 text-[11px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs flex items-center gap-1.5 transition-transform active:scale-95"
-                        title="Reprogramar esta clase"
+                        title="Reprogramar esta clase para recuperar la sesión"
                       >
                         <CalendarSync className="h-3.5 w-3.5" />
                         <span>🔄 Reprogramar</span>
@@ -975,15 +1127,15 @@ export function StudentAttendanceKardex({
                       size="sm"
                       variant="ghost"
                       onClick={() => handleAddConsecutiveClass(item)}
-                      className="h-7 px-2 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-xl border border-primary/20 flex items-center gap-1 transition-transform active:scale-95"
+                      className="h-7 px-2 text-[11px] font-black text-primary hover:bg-primary/10 rounded-xl border border-primary/30 flex items-center gap-1 transition-transform active:scale-95 shadow-2xs"
                       title="Agregar sesión de corrido (+45 min contiguo inmediatamente después)"
                     >
-                      <Layers className="h-3 w-3" />
+                      <Layers className="h-3.5 w-3.5" />
                       <span>+ De corrido (+45m)</span>
                     </Button>
 
                     {/* Botones de Actualización Inmediata en 1 Clic (Solo en modo edición) */}
-                    {isEditable ? (
+                    {isEditMode ? (
                       <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
                         <Button
                           size="sm"
@@ -1007,7 +1159,7 @@ export function StudentAttendanceKardex({
                               ? "bg-red-600 hover:bg-red-700 text-white"
                               : "text-red-600 hover:bg-red-500/15"
                           }`}
-                          title="Marcar como Falta / Ausente"
+                          title="Marcar como Falta / Ausente (Suma +1 Crédito para recuperar)"
                         >
                           ✗ Falta
                         </Button>
@@ -1020,7 +1172,7 @@ export function StudentAttendanceKardex({
                               ? "bg-amber-500 hover:bg-amber-600 text-white"
                               : "text-amber-600 hover:bg-amber-500/15"
                           }`}
-                          title="Marcar como Tardanza"
+                          title="Marcar como Tardanza (Se cuenta como asistida)"
                         >
                           ⏰ Tar
                         </Button>
@@ -1034,7 +1186,7 @@ export function StudentAttendanceKardex({
                               ? "bg-blue-600 hover:bg-blue-700 text-white"
                               : "text-blue-600 hover:bg-blue-500/15"
                           }`}
-                          title="Marcar como Justificada (Genera +1 Crédito)"
+                          title="Marcar como Justificada (Genera +1 Crédito de recuperación)"
                         >
                           🔵 Just
                         </Button>
@@ -1051,9 +1203,16 @@ export function StudentAttendanceKardex({
                         )}
                       </div>
                     ) : (
-                      <span className="text-[11px] text-muted-foreground italic flex items-center gap-1 font-medium bg-muted/40 px-2 py-1 rounded-lg border border-border/50">
-                        <Lock className="h-3 w-3 text-muted-foreground/60" /> Bloqueado en consulta
-                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setIsEditMode(true)}
+                        className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground italic flex items-center gap-1 font-medium bg-muted/40 hover:bg-muted/70 rounded-lg border border-border/50"
+                        title="Haz clic para activar edición y registrar asistencia"
+                      >
+                        <Lock className="h-3 w-3 text-muted-foreground/60" />
+                        <span>Consulta (Clic para editar)</span>
+                      </Button>
                     )}
                   </div>
                 </div>
