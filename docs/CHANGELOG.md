@@ -4,6 +4,25 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.9.8] - 2026-09-18
+
+### Kardex de Asistencias: Mapeo de Ciclo Contractual, Vista Dual, Filosofía Vibra de Recuperación y Desbloqueo de Edición
+- **Mapeo Exacto del Ciclo Contractual sin Clases Previas a `planStartDate` (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - Respeto estricto a la fecha real de inicio del alumno (`effectivePlanStartDate`). Se eliminaron completamente las clases previas a la fecha de inicio contratada (ej. si el alumno inicia el 28 de agosto, no se muestran clases los días 6, 7, 13, 14, 20, 21 o 27 de agosto).
+  - En agosto solo se mapea la Sesión 1 (28 de agosto) y en septiembre las 7 restantes (Sesiones 2 a 8), completando las 8 clases del contrato de forma correlativa.
+- **Pestañas de Vista Dual ("Ciclo Activo Vigente" vs "Por Mes Calendario")**:
+  - **"🎯 Ciclo Activo Vigente"**: Presenta en una sola vista continua la totalidad de las clases del contrato (8 para Regular, 4 para Intensivo, bolsa de horas para Flexible), ordenadas del 1 al 8 con fechas, días y horarios.
+  - **"📅 Por Mes Calendario"**: Permite la navegación mes por mes acotada al ciclo real del alumno.
+- **Filosofía Vibra: "La clase no se pierde, se recupera" (`src/store/app-store.ts`)**:
+  - Toda inasistencia (`ausente` o `justificada`) suma automáticamente **+1 Crédito de Recuperación** (`makeupCredits`) en el expediente del alumno con persistencia hacia PostgreSQL.
+  - Las tardanzas (`tarde`) se computan como clases asistidas en la tasa porcentual.
+  - Nuevo botón de acción rápida `🔄 +1 Sem. Vigencia` para extender la fecha de fin de plan (`planEndDate`) en 7 días ante inasistencias o reprogramaciones pendientes.
+- **Desbloqueo Ágil de Edición en 1 Clic**:
+  - Al abrir el Kardex desde "Editar Ficha" / "Kardex (Editar)", se inicia automáticamente en modo edición rápida.
+  - Al abrir desde consulta, se muestra banner claro con botón `✏️ Desbloquear Edición` y los candados de cada fila son clicables para desbloquear el registro de asistencia sin fricción.
+- **Acciones Rápidas Preservadas y Optimizadas**:
+  - Botones `+ De corrido (+45m)` y `🔄 Reprogramar` reforzados visualmente y 100% operativos.
+
 ## [1.9.7] - 2026-09-17
 
 ### Restauración del Botón `+ De corrido (+45m)`, Cuotas Estrictas de Plan en Kardex (4 Intensivo / 8 Regular) y Sincronización Reactiva
