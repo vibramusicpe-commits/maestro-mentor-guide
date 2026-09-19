@@ -4,6 +4,20 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.4] - 2026-09-19
+
+### Soporte Integral para Modalidad Regular 1x/sem (8 clases / 45 min · 2 meses) (ADR-0110)
+- **Organizador de Horario Adaptativo (`src/components/admin/students-table.tsx`)**:
+  - `ScheduleStudentForm`: distingue formalmente entre `isRegular2x` (2 clases/semana · 8 clases/mes), `isRegular1x` (1 clase/semana de 45 min · 8 clases en 2 meses) e `isIntensive` (1 clase/semana de 90 min · 4 clases/mes).
+  - Eliminación de falsas alertas de aforo y cruce de salas: al detectar modalidad 1x/semana, el formulario solo evalúa y requiere la franja horaria de la clase 1 (`day1`), suprimiendo la exigencia de un Día 2 inexistente.
+  - Asignación pedagógica automática de sala (ADR-0102): Prof. Nathaly asigna por defecto Sala C (Canto y Piano Infantil), Prof. Fernando Sala B y Prof. Jeremy Sala A.
+  - Sincronización de vigencia contractual: calcula automáticamente 2 meses lectivos (`planEndDate = +2 meses`) al guardar el horario en modalidad 1x/sem.
+  - Botón de guardado dinámico: refleja claramente la frecuencia contratada (`Guardar Horario Completo (1 Clase Semanal · 45 min)`).
+- **Cálculo de Vigencia al Matricular (`src/components/admin/students-table.tsx`)**:
+  - En `AddNewStudentDialog`, la duración del plan regular con modalidad 1x/sem se fija en 2 meses lectivos para abarcar las 8 sesiones.
+- **Ventana de Proyección en Kardex (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - Se amplió `maxDaysToScan` a 90 días (alineado con `computeStudentCycle`) para que el Kardex de Asistencias proyecte sin truncamientos las 8 semanas de clases del ciclo lectivo.
+
 ## [2.0.3] - 2026-09-19
 
 ### Blindaje Backend para Migración 1 a 1 y Auto-Aprovisionamiento de Recibos en PostgreSQL (ADR-0109)

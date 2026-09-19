@@ -2933,8 +2933,9 @@ function NewStudentDialog() {
       }
     }
 
-    // Calcular fecha de fin según el plan contratado
-    const durationMonths = planType === "Trimestral" ? 3 : planType === "Anual" ? 12 : 1;
+    // Calcular fecha de fin según el plan contratado (Regular 1x/sem = 2 meses lectivos para 8 clases)
+    const isRegular1xPlan = modality?.includes("1x/sem") || modality?.includes("1x");
+    const durationMonths = planType === "Trimestral" ? 3 : planType === "Anual" ? 12 : isRegular1xPlan ? 2 : 1;
     const [y, m, d] = (planStartDate || "2026-08-03").split("-").map((v) => parseInt(v, 10));
     const endD = new Date(y!, (m! - 1) + durationMonths, d!);
     endD.setDate(endD.getDate() - 1);
@@ -5008,9 +5009,20 @@ function ScheduleStudentForm({
       (student.age >= 18 ? "ADULTO" : student.age >= 13 ? "JUVENIL" : student.age >= 7 ? "JUNIOR" : "INFANTIL")
   );
 
+  // Asignación de sala oficial por docente (ADR-0102)
+  const getDefaultRoomForTeacher = (teachName: string) => {
+    const t = (teachName || "").toLowerCase();
+    if (t.includes("nathaly")) return "Sala C";
+    if (t.includes("fernando")) return "Sala B";
+    if (t.includes("jeremy")) return "Sala A";
+    return "Sala A";
+  };
+
   const modStr = (student.modality || "Regular").toLowerCase();
-  const isRegular = modStr.includes("reg") || modStr.includes("8") || !modStr.includes("inten");
-  const isIntensive = modStr.includes("inten") || modStr.includes("4");
+  const isRegular1x = modStr.includes("1x") || modStr.includes("1x/sem");
+  const isIntensive = modStr.includes("inten") || (!isRegular1x && modStr.includes("4"));
+  const isRegular2x = !isRegular1x && !isIntensive;
+  const isRegular = isRegular2x; // Conservar para compatibilidad
 
   // Modo de asignación: "pareadas" (por defecto oficial) o "personalizado"
   const isPairedMatch = existingL1 && existingL2 && (
@@ -5021,19 +5033,30 @@ function ScheduleStudentForm({
     existingLessons.length > 1 && !isPairedMatch ? "personalizado" : "pareadas"
   );
 
-  // Sesión 1 pre-poblada con horario existente
+  // Sesión 1 pre-poblada con horario existente o sala oficial docente
   const [day1, setDay1] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">(
     (existingL1?.day as any) || (isIntensive ? "Vie" : "Lun")
   );
   const [time1, setTime1] = useState(existingL1?.time || "16:00");
-  const [room1, setRoom1] = useState(existingL1?.room || "Sala A");
+  const [room1, setRoom1] = useState(
+    existingL1?.room || student.room || getDefaultRoomForTeacher(teacher)
+  );
 
-  // Sesión 2 pre-poblada con horario existente
+  // Sesión 2 pre-poblada con horario existente o sala oficial docente
   const [day2, setDay2] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">(
     (existingL2?.day as any) || (day1 === "Mar" ? "Jue" : "Mié")
   );
   const [time2, setTime2] = useState(existingL2?.time || time1 || "16:00");
-  const [room2, setRoom2] = useState(existingL2?.room || room1 || "Sala A");
+  const [room2, setRoom2] = useState(
+    existingL2?.room || existingL1?.room || student.room || getDefaultRoomForTeacher(teacher)
+  );
+
+  const handleTeacherChange = (newTeacher: string) => {
+    setTeacher(newTeacher);
+    const defRoom = getDefaultRoomForTeacher(newTeacher);
+    setRoom1(defRoom);
+    setRoom2(defRoom);
+  };
 
   // Helpers de sincronización para Modo Días Pareados Oficiales
   const handleDay1Change = (newDay: "Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb") => {
@@ -5216,7 +5239,7 @@ function ScheduleStudentForm({
     try {
       const d = new Date(startStr);
       if (!isNaN(d.getTime())) {
-        const monthsToAdd = (student.modality || "").includes("1x/sem") ? 2 : 1;
+        const monthsToAdd = isRegular1x ? 2 : 1;
         d.setMonth(d.getMonth() + monthsToAdd);
         d.setDate(d.getDate() - 1);
         calculatedEndDate = d.toISOString().slice(0, 10);
@@ -5229,11 +5252,14 @@ function ScheduleStudentForm({
       planEndDate: calculatedEndDate || undefined,
       planStartMonth: startStr.slice(0, 7),
       planEndMonth: calculatedEndDate ? calculatedEndDate.slice(0, 7) : undefined,
+      teacher: finalTeacher,
+      instrument: instrument,
+      room: room1,
     });
 
     // Agendar clases semanales reemplazando atómicamente cualquier horario previo
     // Las clases regulares son recurrentes semanales (sin fijar un mes único) para que generen
-    // automáticamente todas las 8 clases del mes en el Kardex y en la agenda semanal.
+    // automáticamente todas las clases contratadas en el Kardex y en la agenda semanal.
     const lessonsToSet: Omit<ScheduledLesson, "id">[] = [
       {
         student: student.name,
@@ -5249,7 +5275,7 @@ function ScheduleStudentForm({
       },
     ];
 
-    if (isRegular) {
+    if (isRegular2x) {
       lessonsToSet.push({
         student: student.name,
         teacher: finalTeacher,
@@ -5266,21 +5292,16 @@ function ScheduleStudentForm({
 
     setStudentSchedule(student.name, lessonsToSet);
 
-    // Actualizar fecha oficial de inicio de clases y profesor/instrumento en la ficha del alumno
-    updateStudentDetails(student.id, {
-      planStartDate: startDate,
-      teacher: finalTeacher,
-      instrument: instrument,
-    });
-
     // Actualizar profesor en la ficha si no tenía o cambió
     if (!student.teacher || student.teacher === "Prof. por Asignar" || student.teacher !== finalTeacher) {
       assignTeacher(student.id, finalTeacher);
     }
 
     toast.success(`🗓️ Horario de ${student.name} programado con éxito`, {
-      description: isRegular
+      description: isRegular2x
         ? `Plan Regular (8 clases): ${day1} ${time1} (${room1}) y ${day2} ${time2} (${room2}) con Prof. ${finalTeacher}.`
+        : isRegular1x
+        ? `Plan Regular 1x/sem (8 clases · 2 meses): ${day1} ${time1} (${room1}) con Prof. ${finalTeacher}.`
         : `Plan Intensivo (4 clases): ${day1} ${time1} (${room1}) con Prof. ${finalTeacher}.`,
     });
 
@@ -5298,7 +5319,11 @@ function ScheduleStudentForm({
             <p className="text-[11px] text-muted-foreground">{student.family} · {student.instrument}</p>
           </div>
           <Badge className="bg-primary/20 text-primary border-primary/30 font-bold text-[11px]">
-            {isRegular ? "Plan Regular (2x semana · 8 clases)" : "Plan Intensivo (1x semana · 4 clases)"}
+            {isRegular1x
+              ? "Plan Regular 1x/sem (1x semana · 8 clases · 2 meses)"
+              : isIntensive
+              ? "Plan Intensivo (1x semana · 4 clases)"
+              : "Plan Regular (2x semana · 8 clases)"}
           </Badge>
         </div>
       </div>
@@ -5330,7 +5355,7 @@ function ScheduleStudentForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label className="font-bold text-foreground">Profesor Asignado</label>
-          <Select value={teacher} onValueChange={setTeacher}>
+          <Select value={teacher} onValueChange={handleTeacherChange}>
             <SelectTrigger className="text-xs">
               <SelectValue placeholder="Seleccionar profesor" />
             </SelectTrigger>
@@ -5387,8 +5412,8 @@ function ScheduleStudentForm({
         )}
       </div>
 
-      {/* Selector de Modo de Horario: Pareadas Oficial vs Personalizado */}
-      {isRegular ? (
+      {/* Selector de Modo de Horario: Pareadas Oficial vs Personalizado vs 1x/Sem vs Intensivo */}
+      {isRegular2x ? (
         <div className="space-y-2 p-3 rounded-2xl border border-primary/20 bg-primary/5">
           <div className="flex items-center justify-between">
             <label className="font-bold text-foreground flex items-center gap-1.5">
@@ -5456,6 +5481,20 @@ function ScheduleStudentForm({
               ⚙️ <strong>Modo Personalizado Activo</strong>: Puedes escoger libremente cualquier combinación de días de la semana según disponibilidad (ej. Miércoles + Viernes, Lunes + Sábado).
             </p>
           )}
+        </div>
+      ) : isRegular1x ? (
+        <div className="p-3.5 rounded-2xl border border-blue-500/30 bg-blue-500/10 space-y-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+              🗓️ Plan Regular 1x/sem (8 clases · 1x semana · 45 min)
+            </span>
+            <Badge variant="outline" className="text-[10px] font-bold border-blue-500/40 text-blue-600 dark:text-blue-400">
+              1 clase / semana (45 min · Vigencia 2 meses)
+            </Badge>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Este plan contempla <strong>1 clase semanal de 45 minutos</strong>. El ciclo completo de 8 clases se proyectará a lo largo de <strong>2 meses lectivos</strong> desde su fecha oficial de inicio.
+          </p>
         </div>
       ) : isIntensive ? (
         <div className="p-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 space-y-2">
@@ -5575,7 +5614,7 @@ function ScheduleStudentForm({
           </span>
           <span className="text-[11px] font-semibold text-muted-foreground bg-background/80 px-2 py-0.5 rounded-lg border border-emerald-500/20">
             {5 - conflictReport.session1.enrolled} vacantes en {day1}
-            {isRegular && conflictReport.session2 ? ` · ${5 - conflictReport.session2.enrolled} en ${day2}` : ""}
+            {isRegular2x && conflictReport.session2 ? ` · ${5 - conflictReport.session2.enrolled} en ${day2}` : ""}
           </span>
         </div>
       )}
@@ -5585,9 +5624,9 @@ function ScheduleStudentForm({
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" />
-            {isRegular ? "Primera Clase Semanal (Día 1)" : "Horario Semanal Oficial"}
+            {isRegular2x ? "Primera Clase Semanal (Día 1)" : isRegular1x ? "Clase Semanal (45 min)" : "Horario Semanal Oficial"}
           </span>
-          {scheduleMode === "pareadas" && isRegular && (
+          {scheduleMode === "pareadas" && isRegular2x && (
             <Badge variant="outline" className="text-[10px] text-primary border-primary/30">
               Control Principal
             </Badge>
@@ -5652,8 +5691,8 @@ function ScheduleStudentForm({
         </div>
       </div>
 
-      {/* Bloque Sesión 2 (Solo si es Plan Regular) */}
-      {isRegular && (
+      {/* Bloque Sesión 2 (Solo si es Plan Regular 2x/sem) */}
+      {isRegular2x && (
         <div className="rounded-2xl border border-border p-3.5 space-y-2.5 bg-muted/20">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
@@ -5771,7 +5810,7 @@ function ScheduleStudentForm({
         >
           {conflictReport.hasConflict
             ? "⚠️ Resolver conflictos antes de guardar"
-            : `Guardar Horario Completo (${isRegular ? "2 Clases Semanales" : "1 Clase Semanal"})`}
+            : `Guardar Horario Completo (${isRegular2x ? "2 Clases Semanales" : isRegular1x ? "1 Clase Semanal · 45 min" : "1 Clase Semanal · 90 min"})`}
         </Button>
       </div>
     </form>

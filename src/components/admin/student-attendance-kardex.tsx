@@ -239,7 +239,7 @@ export function StudentAttendanceKardex({
 
     const startDate = new Date(sy, sm - 1, sd);
     const rawCandidates: StudentSessionItem[] = [];
-    const maxDaysToScan = 60; // Proyecta hasta 2 meses lectivos
+    const maxDaysToScan = 90; // Proyecta hasta 3 meses lectivos para cubrir planes regulares de 1x/sem (8 clases en 2 meses)
 
     for (let offset = 0; offset < maxDaysToScan; offset++) {
       const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + offset);

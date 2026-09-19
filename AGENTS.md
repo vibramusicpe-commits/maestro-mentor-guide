@@ -160,6 +160,19 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - Si el concepto contiene el nombre del alumno (`Plan ... — Nombre`), se extrae de forma prioritaria para evitar confusiones con el nombre del apoderado (`primary_guardian_name`).
 
 ---
+
+### 11. Soporte Integral para Modalidad Regular 1x/sem (ADR-0110)
+1. **Diferenciación Estricta de Modalidades de Horario (`ScheduleStudentForm`)**:
+   - `isRegular2x`: `Regular (8 clases / 45 min)` -> Requiere 2 clases por semana (Días Pareados o Modo Personalizado) y programa Sesión 1 y Sesión 2.
+   - `isRegular1x`: `Regular 1x/sem (8 clases / 45 min)` -> Requiere únicamente **1 clase semanal de 45 minutos**. Solo evalúa y guarda Sesión 1, eliminando falsos cruces/alertas de aforo de Día 2 y calculando una vigencia contractual de **2 meses lectivos** (`planEndDate` = +2 meses).
+   - `isIntensive`: `Intensivo (4 clases / 90 min)` -> Requiere 1 clase semanal de 90 minutos (Jueves, Viernes o Sábado).
+2. **Asignación Oficial Automática de Sala por Docente (ADR-0102)**:
+   - Al seleccionar docente o abrir el formulario, la sala se inicializa automáticamente según la especialidad del docente: Prof. Nathaly -> Sala C (Piano Infantil y Canto), Prof. Fernando -> Sala B (Piano estándar y Violín), Prof. Jeremy -> Sala A (Guitarra y Batería).
+3. **Cálculo de Vigencia y Proyección en Kardex**:
+   - Al registrar una matrícula (`AddNewStudentDialog`) en modalidad Regular 1x/sem, `durationMonths` se fija en 2 meses.
+   - El Kardex de Asistencias (`StudentAttendanceKardex`) proyecta con una ventana de hasta 90 días (`maxDaysToScan = 90`) para abarcar holgadamente las 8 semanas de clases del ciclo lectivo sin truncar sesiones.
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)
