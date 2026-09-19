@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.3] - 2026-09-19
+
+### Blindaje Backend para Migración 1 a 1 y Auto-Aprovisionamiento de Recibos en PostgreSQL (ADR-0109)
+- **Auto-Aprovisionamiento de Recibos en PostgreSQL (`src/store/app-store.ts`)**:
+  - `backgroundCreateInvoiceInDB`: auto-persiste en la tabla `invoices` de PostgreSQL cualquier recibo nuevo originado al matricular (`addNewStudent`) o al activar un alumno histórico (`setStudentStatus` a `activo`).
+  - Garantiza la existencia de la familia en la tabla `families` y persiste el comprobante inicial en `payment_audit_logs` si hubo un abono al matricular.
+  - Elimina la pérdida de recibos al recargar la página (`F5`) y asegura que todo alumno activo cuente con su recibo correspondiente en `/admin/facturacion`.
+- **Sincronización Dinámica de Abonos (`src/store/app-store.ts`)**:
+  - `backgroundSyncPaymentToDB` ahora recibe y respeta los montos matemáticos reales del recibo (`amount`, `amount_paid`, `remaining_balance`), eliminando el hardcode anterior de S/ 297.
+  - Integrado en `recordPaymentAbono` y `recordNewDirectAbono`, permitiendo registrar abonos fraccionados y planes promocionales sin desajustes de saldo.
+- **Fusión Resiliente de Recibos en Hidratación (`src/store/app-store.ts`)**:
+  - `hydrateFromBackend` preserva los recibos locales de alumnos activos que estén en vuelo o recién generados para que no sean eliminados durante el ciclo de lectura de PostgreSQL.
+- **Mapeo Robusto de Alumnos desde Concepto de Recibo (`src/lib/services/invoices.service.ts`)**:
+  - `mapDBInvoiceToInvoice` extrae con prioridad el nombre del alumno desde el concepto (`Plan ... — Nombre`), evitando que se asigne erróneamente el nombre del apoderado.
+
 ## [2.0.2] - 2026-09-18
 
 ### Cierre Estricto de Ciclo Contractual, Preservación de Asistencias y Sincronización Kardex-Horario (ADR-0108)

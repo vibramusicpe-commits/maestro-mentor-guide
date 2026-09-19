@@ -146,6 +146,20 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - La culminación del 100% de la cuota jamás debe ocultar o borrar las sesiones pasadas efectivamente dictadas. Las clases de un alumno graduado o que completó su ciclo deben permanecer visibles e inmutables con sus marcas de asistencia en las semanas y fechas en que ocurrieron.
 
 ---
+
+### 10. Blindaje Backend para Migración 1 a 1 y Auto-Aprovisionamiento de Recibos (ADR-0109)
+1. **Auto-Aprovisionamiento de Recibos en PostgreSQL (`backgroundCreateInvoiceInDB`)**:
+   - Al matricular un nuevo alumno (`addNewStudent`) o al activar un alumno histórico desde el panel de depuración (`setStudentStatus` a `activo`), el backend aprovisiona y persiste de forma inmediata su recibo en la tabla `invoices`, garantiza la existencia de su familia en `families` y registra el pago inicial en `payment_audit_logs` si hubo un abono.
+   - Esto evita que los alumnos migrados o reactivados carezcan de recibo en `/admin/facturacion` o que sus recibos desaparezcan al recargar la página.
+2. **Sincronización Exacta de Abonos sin Valores Hardcodeados**:
+   - `backgroundSyncPaymentToDB` recibe la información matemática real del recibo (`amount`, `amount_paid`, `remaining_balance`).
+   - Queda **TERMINANTEMENTE PROHIBIDO** asumir montos fijos (como S/ 297) al registrar abonos, permitiendo el registro impecable de pagos fraccionados, planes promocionales (ej. S/ 261) y paquetes especiales.
+3. **Resiliencia contra Pérdida de Recibos en Hidratación (`hydrateFromBackend`)**:
+   - Al recibir datos de PostgreSQL, se realiza una fusión inteligente que preserva los recibos locales de alumnos activos recién creados o en vuelo que aún no hayan sido indexados por la base de datos remota.
+4. **Mapeo Robusto de Alumnos desde Concepto de Recibo (`mapDBInvoiceToInvoice`)**:
+   - Si el concepto contiene el nombre del alumno (`Plan ... — Nombre`), se extrae de forma prioritaria para evitar confusiones con el nombre del apoderado (`primary_guardian_name`).
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)

@@ -106,10 +106,14 @@ export function mapDBInvoiceToInvoice(
     note: log.note || "Abono registrado",
   }));
 
+  const studentFromConcept = db.concept?.includes("—")
+    ? db.concept.split("—")[1]?.trim()
+    : undefined;
+
   return {
     id: db.id,
     family: db.families?.family_name || "Familia",
-    student: db.families?.primary_guardian_name || "Alumno",
+    student: studentFromConcept || db.families?.primary_guardian_name || "Alumno",
     phone: db.families?.primary_guardian_phone || "987654321",
     concept: db.concept || "Mensualidad",
     amount: Number(db.amount) || 297,

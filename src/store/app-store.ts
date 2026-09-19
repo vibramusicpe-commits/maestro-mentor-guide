@@ -428,6 +428,74 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
   } catch {}
 }
 
+// Persiste recibos nuevos y pagos iniciales en Insforge PostgreSQL
+function backgroundCreateInvoiceInDB(role: Role, invoice: Invoice, student: AdminStudent) {
+  try {
+    if (typeof window === "undefined") return;
+
+    import("@/lib/services/invoices.service").then(async ({ createInvoice }) => {
+      const resolvedStudentUUID = resolveStudentUUID(student.id);
+      const familyId = resolvedStudentUUID
+        ? resolvedStudentUUID.replace(/^00000000-0000-0000-0002-/, "00000000-0000-0000-0001-")
+        : undefined;
+
+      // 1. Asegurar registro en families si es necesario
+      if (familyId) {
+        import("@/lib/insforge").then(async ({ postgrestInsert, postgrestSelect }) => {
+          try {
+            const existingFamilies = await postgrestSelect("families", { id: `eq.${familyId}` });
+            if (!existingFamilies || existingFamilies.length === 0) {
+              await postgrestInsert("families", {
+                id: familyId,
+                family_name: student.family || `Familia ${student.name}`,
+                primary_guardian_name: student.name,
+                primary_guardian_phone: student.phone || "",
+                email: student.email || null,
+              });
+            }
+          } catch {}
+        }).catch(() => {});
+      }
+
+      // 2. Insertar factura en tabla invoices de PostgreSQL
+      const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";
+      const dbMethod: any = invoice.paymentMethod === "Yape / Plin" || invoice.paymentMethod === "Yape"
+        ? "Yape"
+        : (invoice.paymentMethod === "Efectivo" ? "Efectivo" : "Transferencia");
+
+      try {
+        await createInvoice(syncRole, {
+          id: invoice.id,
+          family_id: familyId,
+          concept: invoice.concept,
+          amount: invoice.amount,
+          amount_paid: invoice.amountPaid || 0,
+          remaining_balance: invoice.remainingBalance ?? Math.max(0, invoice.amount - (invoice.amountPaid || 0)),
+          due_date: invoice.dueDate,
+          status: invoice.status as any,
+          payment_method: dbMethod,
+        });
+        console.log(`[Insforge Sync] Recibo ${invoice.id} creado en PostgreSQL`);
+
+        // 3. Si hubo pago inicial, persistir en payment_audit_logs
+        if (invoice.amountPaid && invoice.amountPaid > 0) {
+          const { postgrestInsert } = await import("@/lib/insforge");
+          await postgrestInsert("payment_audit_logs", {
+            invoice_id: invoice.id,
+            registered_by_role: syncRole,
+            amount: invoice.amountPaid,
+            payment_method: dbMethod,
+            voucher_reference: "ABONO-MATRICULA",
+            note: `Abono inicial al matricular (${student.planType || "Mensual"})`,
+          });
+        }
+      } catch (err) {
+        console.warn(`[Insforge Sync] Error creando recibo ${invoice.id} en PostgreSQL:`, err);
+      }
+    }).catch(() => {});
+  } catch {}
+}
+
 // Mapa de timers y actualizaciones pendientes para debounce por alumno
 const pendingStudentUpdates = new Map<string, Partial<AdminStudent>>();
 const syncDebounceTimers = new Map<string, any>();
@@ -689,6 +757,7 @@ function backgroundSyncPaymentToDB(
   method: PaymentMethod,
   voucherRef?: string,
   note?: string,
+  currentInvoiceData?: { amount: number; amount_paid: number; remaining_balance: number },
 ) {
   try {
     if (typeof window === "undefined") return;
@@ -708,6 +777,11 @@ function backgroundSyncPaymentToDB(
     }
 
     import("@/lib/services/invoices.service").then(({ registerPayment }) => {
+      const invData = currentInvoiceData || {
+        amount: Math.max(297, amount),
+        amount_paid: 0,
+        remaining_balance: Math.max(297, amount),
+      };
       registerPayment(
         role,
         userId,
@@ -718,7 +792,7 @@ function backgroundSyncPaymentToDB(
           voucherRef: voucherRef || undefined,
           note: note || undefined,
         },
-        { amount: 297, amount_paid: 0, remaining_balance: 297 },
+        invData,
       )
         .then(() => console.log(`[Insforge Sync] Abono en recibo ${invoiceId} sincronizado en PostgreSQL (Usuario: ${userId})`))
         .catch((err) => console.warn(`[Insforge Sync] Error sincronizando abono ${invoiceId}:`, err));
@@ -942,10 +1016,23 @@ export const useAppStore = create<AppState>()(
 
           const cleanSchedule = Array.from(scheduleMap.values());
 
+          // Fusión inteligente de recibos: PostgreSQL es fuente de verdad, preservando
+          // recibos locales de alumnos activos recién creados o en vuelo
+          const mergedInvoices: Invoice[] = Array.isArray(data.invoices) ? [...data.invoices] : [...s.invoices];
+          (s.invoices || []).forEach((localInv) => {
+            const alreadyInMerged = mergedInvoices.some((inv) => inv.id === localInv.id);
+            if (!alreadyInMerged) {
+              const studentName = localInv.student || (localInv.concept?.includes("—") ? localInv.concept.split("—")[1]?.trim() : "");
+              if (studentName && cleanStudents.some((st) => st.status === "activo" && isMatchingStudentName(st.name, studentName))) {
+                mergedInvoices.push(localInv);
+              }
+            }
+          });
+
           return {
             adminStudents: cleanStudents,
             schedule: cleanSchedule,
-            invoices: Array.isArray(data.invoices) ? data.invoices : s.invoices,
+            invoices: mergedInvoices,
           };
         }),
       updateUserName: (name: string) =>
@@ -1342,6 +1429,7 @@ export const useAppStore = create<AppState>()(
               note: `Abono inicial al matricular (${fullStudent.planType || "Mensual"})`,
             }] : [],
           };
+          backgroundCreateInvoiceInDB(s.activeRole, studentInvoice, fullStudent);
 
           return {
             adminStudents: [fullStudent, ...s.adminStudents],
@@ -1566,10 +1654,42 @@ export const useAppStore = create<AppState>()(
                 }))];
               }
             }
+
+            // Asegurar que el alumno activo cuente con su recibo correspondiente en facturación
+            const hasExistingInvoice = updatedInvoices.some(
+              (i) =>
+                isMatchingStudentName(i.student || "", target.name) ||
+                isMatchingStudentName(i.family, target.family) ||
+                (i.concept && isMatchingStudentName(target.name, i.concept.split("—")[1]?.trim() || ""))
+            );
+            if (!hasExistingInvoice) {
+              const planPrice = target.planPrice || 297;
+              const amountPaid = target.amountPaid || 0;
+              const remaining = Math.max(0, planPrice - amountPaid);
+              const invStatus = remaining === 0 ? ("pagado" as const) : (amountPaid > 0 ? ("parcial" as const) : ("pendiente" as const));
+              const newInvoice: Invoice = {
+                id: generateUUID(),
+                family: target.family || `Familia ${target.name}`,
+                student: target.name,
+                phone: target.phone,
+                concept: `Plan ${target.planType || "Mensual"} (${target.instrument || "Piano"}) — ${target.name}`,
+                amount: planPrice,
+                amountPaid: amountPaid,
+                remainingBalance: remaining,
+                dueDate: target.planStartDate || new Date().toISOString().slice(0, 10),
+                daysToDue: 10,
+                status: invStatus,
+                paymentMethod: (target.paymentMethod as any) || "Yape",
+                paymentLogs: [],
+              };
+              backgroundCreateInvoiceInDB(s.activeRole, newInvoice, target);
+              updatedInvoices = [newInvoice, ...updatedInvoices];
+            }
           }
           return {
             adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, status } : st)),
             schedule: updatedSchedule,
+            invoices: updatedInvoices,
             syncQueue: [...s.syncQueue, queueItem(`Estado actualizado · ${status}`)],
           };
         }),
@@ -2075,9 +2195,14 @@ export const useAppStore = create<AppState>()(
         })),
       recordPaymentAbono: (id, amount, method, voucherRef = "", note = "", voucherImage = "", paymentTime = "") =>
         set((s) => {
-          backgroundSyncPaymentToDB(s.activeRole, id, amount, method, voucherRef, note);
           const inv = s.invoices.find((i) => i.id === id);
           if (!inv) return s;
+
+          backgroundSyncPaymentToDB(s.activeRole, id, amount, method, voucherRef, note, {
+            amount: inv.amount,
+            amount_paid: inv.amountPaid || 0,
+            remaining_balance: inv.remainingBalance ?? Math.max(0, inv.amount - (inv.amountPaid || 0)),
+          });
 
           const newPaid = Math.min(inv.amount, inv.amountPaid + amount);
           const newRemaining = Math.max(0, inv.amount - newPaid);
@@ -2158,6 +2283,12 @@ export const useAppStore = create<AppState>()(
           };
 
           if (existingInv) {
+            backgroundSyncPaymentToDB(s.activeRole, existingInv.id, amount, method, voucherRef, note, {
+              amount: existingInv.amount,
+              amount_paid: existingInv.amountPaid || 0,
+              remaining_balance: existingInv.remainingBalance ?? Math.max(0, existingInv.amount - (existingInv.amountPaid || 0)),
+            });
+
             const newPaid = Math.min(existingInv.amount, existingInv.amountPaid + amount);
             const newRemaining = Math.max(0, existingInv.amount - newPaid);
             const newStatus = newRemaining === 0 ? ("pagado" as const) : ("parcial" as const);
@@ -2179,11 +2310,15 @@ export const useAppStore = create<AppState>()(
             };
           }
 
+          const targetStudent = s.adminStudents.find((st) =>
+            isMatchingStudentName(st.name, cleanSearch) || isMatchingStudentName(st.family, cleanSearch)
+          );
+          const newInvoiceId = generateUUID();
           const newInvoice: Invoice = {
-            id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            id: newInvoiceId,
             family: familyOrStudent.startsWith("Familia ") ? familyOrStudent : `Familia ${familyOrStudent}`,
+            student: targetStudent ? targetStudent.name : familyOrStudent,
             concept: concept || "Abono de Clases",
-            students: 1,
             amount: amount,
             amountPaid: amount,
             remainingBalance: 0,
@@ -2194,6 +2329,10 @@ export const useAppStore = create<AppState>()(
             remindedAt: null,
             paymentLogs: [newLog],
           };
+
+          if (targetStudent) {
+            backgroundCreateInvoiceInDB(s.activeRole, newInvoice, targetStudent);
+          }
 
           return {
             invoices: [newInvoice, ...s.invoices],
