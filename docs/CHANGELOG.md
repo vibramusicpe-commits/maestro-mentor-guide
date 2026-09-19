@@ -4,6 +4,22 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.2] - 2026-09-18
+
+### Cierre Estricto de Ciclo Contractual, Preservación de Asistencias y Sincronización Kardex-Horario (ADR-0108)
+- **Módulo Central de Ciclo Contractual (`src/lib/student-cycle.ts`)**:
+  - `computeStudentCycle`: calcula cuotas contractuales (`targetQuota`: 8 Regular, 4 Intensivo, N Flexible), evalúa sesiones registradas en `attendanceByDate` y detecta la culminación exacta del ciclo (`isCompleted`).
+  - `isLessonInStudentCycle`: filtra slots de clase preservando incondicionalmente todas las sesiones evaluadas o dictadas y bloqueando clases fantasma posteriores a la culminación de la cuota o al vencimiento del plan (`planEndDate`).
+- **Eliminación de Clases Fantasma y Límite Mensual en Horario (`src/components/admin/agenda-board.tsx`)**:
+  - Integrado `isLessonInStudentCycle` en el filtro `visible` para que alumnos que completaron su cuota (ej. Emma Sevilla, 8 de 8 clases al 18/09) no muestren sesiones no cursadas en Semana 4, Semana 5 ni en meses futuros.
+  - Filtro mensual estricto (`selectedYearMonthStr <= endMonth`) que evita que lecciones recurrentes sin semana asignada se proyecten en Octubre u otros meses cuando el contrato concluye en Setiembre.
+- **Visualización Inmediata de Asistencias en Horario Semanal (`src/components/admin/agenda-board.tsx` y `src/components/agenda/minimal-agenda-calendar.tsx`)**:
+  - `cardAtt` en vista semanal y sábado consulta prioritariamente `lesson.attendanceByDate?.[dayInfo.dateStr]`, permitiendo que las marcas de asistencia reales de PostgreSQL ("🟢 Pres" de Camila Pastor el 10/09, 15/09 y 17/09) se pinten directamente en el calendario.
+  - Sincronización en `MinimalAgendaCalendar` para reflejar el estado diario exacto en dispositivos móviles y Kiosco.
+- **Sincronización Bidireccional en Rehidratación (`src/store/app-store.ts`)**:
+  - En `hydrateFromBackend`, los registros de `attendance_logs` rehidratan tanto `scheduleMap` como `matchedStudent.scheduleLessons`, asegurando coherencia instantánea entre el Kardex del alumno y el Horario general.
+  - Inclusión de fallback por nota (`log.note && isMatchingStudentName`) para el mapeo resiliente de asistencias.
+
 ## [2.0.1] - 2026-09-18
 
 ### Resolución Prioritaria de Alumnos Activos y Preservación de Historial en Horario de Clases (ADR-0107)

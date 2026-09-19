@@ -130,6 +130,22 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - Las marcas de asistencia deben evaluar primero `attendanceByDate[dateStr]` para reflejar con precisión matemática el estado de asistencia real de esa fecha.
 
 ---
+
+### 9. Cierre Estricto de Ciclo Contractual, Preservación de Asistencias y Sincronización Kardex-Horario (ADR-0108)
+1. **Detección Dinámica de Culminación de Ciclo (`computeStudentCycle` / `isLessonInStudentCycle`)**:
+   - Cuando un alumno alcanza o supera su cuota de clases contratadas (`evaluatedCount >= targetQuota`), el ciclo lectivo se considera formalmente **CULMINADO**.
+   - En dicho estado, el Horario de Clases y el Kardex proyectan **ÚNICAMENTE** las sesiones ya evaluadas (`presente`, `ausente`, `tarde`, `justificada`) o explícitas con fecha exacta.
+   - Queda **TERMINANTEMENTE PROHIBIDO** proyectar sesiones genéricas/pendientes en semanas posteriores a la fecha de culminación, evitando la aparición de clases "fantasma" en semanas 4 y 5 o en meses posteriores (ej. Octubre).
+2. **Límite Estricto de Proyección Mensual (`planEndMonth`)**:
+   - Toda plantilla semanal recurrente (`weekIndex === undefined`) debe acotarse estrictamente al rango de meses de vigencia del alumno (`selectedYearMonthStr <= endMonth`).
+   - Ninguna clase regular de un plan que vence en Setiembre 2026 debe proyectarse en Octubre 2026 u otros meses posteriores.
+3. **Resolución Unificada de Asistencias por Fecha Exacta (`attendanceByDate[dateStr]`)**:
+   - Todas las vistas del Horario de Clases (`agenda-board.tsx`, `minimal-agenda-calendar.tsx`, vista diaria y semanal) deben resolver el estado de asistencia evaluando prioritariamente `lesson.attendanceByDate?.[dayInfo.dateStr]` antes de recurrir a estados genéricos o semanales.
+   - Las marcas registradas en `attendance_logs` de PostgreSQL se rehidratan directamente en `lesson.attendanceByDate[dateStr]` y en `matchedStudent.scheduleLessons` para garantizar que las píldoras de asistencia (ej. "🟢 Pres") se reflejen de inmediato en la celda y fecha exacta en que el alumno asistió.
+4. **Preservación Incondicional del Historial de Asistencia**:
+   - La culminación del 100% de la cuota jamás debe ocultar o borrar las sesiones pasadas efectivamente dictadas. Las clases de un alumno graduado o que completó su ciclo deben permanecer visibles e inmutables con sus marcas de asistencia en las semanas y fechas en que ocurrieron.
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)

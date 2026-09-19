@@ -76,6 +76,7 @@ import {
   type CalendarWeekInfo,
 } from "@/lib/calendar-utils";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
+import { isLessonInStudentCycle } from "@/lib/student-cycle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -362,10 +363,13 @@ export function AgendaBoard() {
 
         const lessonDayInfo = currentWeekObj.days.find((d) => d.dayKey === l.day);
 
-        // Exclusión por fecha exacta (reprogramaciones con excludedDates) o circunscripción a fecha puntual (dateStr)
+        // 🛡️ REGLA FUNDAMENTAL DE CUOTA CONTRACTUAL Y CICLO LECTIVO (ADR-0108):
+        // Valida que la lección en la fecha exacta forme parte del ciclo lectivo activo del alumno,
+        // respetando su cuota (8 clases Regular / 4 Intensivo), sus asistencias reales y vigencia.
         if (lessonDayInfo) {
-          if (l.excludedDates?.includes(lessonDayInfo.dateStr)) return false;
-          if (l.dateStr && l.dateStr !== lessonDayInfo.dateStr) return false;
+          if (!isLessonInStudentCycle(studentProfile, l, lessonDayInfo.dateStr, l.time, schedule)) {
+            return false;
+          }
         }
 
         if (l.isMakeup) {
@@ -398,6 +402,12 @@ export function AgendaBoard() {
               studentProfile?.planStartMonth ||
               (studentProfile?.planStartDate ? studentProfile.planStartDate.slice(0, 7) : "2026-08");
             if (selectedYearMonthStr < startMonth) return false;
+
+            // - Si el plan ya venció en un mes previo (ej. plan mensual culminado), no proyectar en meses futuros
+            const endMonth =
+              studentProfile?.planEndMonth ||
+              (studentProfile?.planEndDate ? studentProfile.planEndDate.slice(0, 7) : null);
+            if (endMonth && selectedYearMonthStr > endMonth && !lessonDayInfo?.dateStr) return false;
           }
 
           // 2. Filtro de semana específica (si aplica a semana individual o al mes completo)
@@ -406,22 +416,6 @@ export function AgendaBoard() {
           }
           if (l.excludedWeeks?.includes(safeWeekIndex)) {
             return false;
-          }
-
-          // 🛡️ REGLA CRÍTICA DE VIGENCIA DE MATRÍCULA (ADR 0100):
-          // Verificar si el día lectivo de la clase en esta semana es anterior al inicio oficial de clases del alumno.
-          // Ej: Camila Pastor inició el 10/09/2026; clases en Semana 1 (1 y 3 Set) y Semana 2 (8 Set) quedan excluidas.
-          if (lessonDayInfo) {
-            const planStartDate =
-              studentProfile?.planStartDate ||
-              (studentProfile?.planStartMonth ? `${studentProfile.planStartMonth}-01` : null);
-            if (planStartDate && lessonDayInfo.dateStr < planStartDate) {
-              return false;
-            }
-            const planEndDate = studentProfile?.planEndDate;
-            if (planEndDate && lessonDayInfo.dateStr > planEndDate) {
-              return false;
-            }
           }
 
           // 3. Filtro por Profesor
@@ -2049,7 +2043,8 @@ export function AgendaBoard() {
                       <div className="p-1.5 font-mono text-[11px] font-black text-foreground flex items-center justify-center bg-muted/20 select-none">
                         {slot}
                       </div>
-                      {(["Lun", "Mar", "Mié", "Jue", "Vie"] as WeekDay[]).map((day) => {
+                      {(["Lun", "Mar", "Mié", "Jue", "Vie"] as WeekDay[]).map((day, dIdx) => {
+                        const dayInfo = currentWeekObj.days[dIdx] || currentWeekObj.days[0]!;
                         const cell = visible.filter((l) => l.day === day && l.time === slot);
                         return (
                           <div
@@ -2076,10 +2071,10 @@ export function AgendaBoard() {
                                 studentAgeCat === "JUVENIL"
                                   ? "bg-[#4CAF50]"
                                   : studentAgeCat === "ADULTO"
-                                  ? "bg-[#757575]"
+                                  ? "bg-[#795548]"
                                   : studentAgeCat === "INFANTIL"
-                                  ? "bg-[#7C4DFF]"
-                                  : "bg-[#FBC02D]";
+                                  ? "bg-[#9C27B0]"
+                                  : "bg-[#FFEB3B]";
 
                               const dotLabel =
                                 studentAgeCat === "JUVENIL"
@@ -2095,28 +2090,30 @@ export function AgendaBoard() {
                                   key={lesson.id}
                                   onClick={() => openLesson(lesson)}
                                   aria-label={`Clase de ${lesson.student}, ${lesson.instrument}, ${lesson.teacher}, ${lesson.room}`}
-                                  className={`w-full rounded-lg border px-1.5 py-0.5 text-left transition-all hover:scale-[1.01] hover:shadow-xs focus:outline-none focus:ring-1 focus:ring-primary relative ${
+                                  className={`rounded-lg border px-1.5 py-1 text-left transition-all hover:scale-[1.01] hover:shadow-xs focus:outline-none focus:ring-1 focus:ring-primary relative ${
                                     lesson.status === "cancelada"
                                       ? "border-dashed border-border bg-muted text-muted-foreground line-through opacity-50"
                                       : `${catStyle.bg} ${catStyle.border} ${catStyle.text}`
                                   }`}
                                   title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
                                 >
+                                  {/* Indicador visual de categoría de edad */}
+                                  {lesson.category === "PERSONALIZADA" && (
+                                    <span
+                                      className={`absolute top-1 right-1 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
+                                      title={`Clase Personalizada · ${dotLabel}`}
+                                    />
+                                  )}
+
                                   <div className="flex items-center justify-between gap-1 leading-tight">
                                     <div className="flex items-center gap-1 min-w-0">
                                       <span className="block truncate font-black text-[10.5px] leading-tight">
                                         {lesson.student}
                                       </span>
-                                      {lesson.category === "PERSONALIZADA" && (
-                                        <span
-                                          className={`inline-block w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
-                                          title={`Clase Personalizada · ${dotLabel}`}
-                                        />
-                                      )}
                                     </div>
                                     <div className="flex items-center gap-0.5 shrink-0">
                                       {lesson.sessionNumber && (
-                                        <span className="text-[7.5px] font-black px-1 py-0.2 rounded bg-black/20 text-foreground border border-black/10">
+                                        <span className="text-[7.5px] font-black uppercase tracking-wider bg-black/20 text-foreground px-1 py-0.2 rounded shrink-0">
                                           {lesson.sessionNumber === 1 ? "1ra" : "2da"}
                                         </span>
                                       )}
@@ -2133,6 +2130,7 @@ export function AgendaBoard() {
                                     <div className="flex items-center gap-1">
                                       {(() => {
                                         const cardAtt =
+                                          lesson.attendanceByDate?.[dayInfo.dateStr] ??
                                           lesson.attendanceByWeek?.[safeWeekIndex] ??
                                           (lesson.weekIndex === safeWeekIndex
                                             ? lesson.attendanceStatus
@@ -2149,7 +2147,7 @@ export function AgendaBoard() {
                                                 ? "bg-amber-600"
                                                 : "bg-blue-600"
                                             }`}
-                                            title={`Asistencia Semana ${safeWeekIndex + 1}: ${cardAtt.toUpperCase()}`}
+                                            title={`Asistencia ${dayInfo.dateStr}: ${cardAtt.toUpperCase()}`}
                                           >
                                             {cardAtt === "presente" ? "🟢 Pres" : cardAtt === "ausente" ? "🔴 Aus" : cardAtt === "tarde" ? "🟡 Tar" : "🔵 Just"}
                                           </span>
@@ -2204,6 +2202,7 @@ export function AgendaBoard() {
                   {/* Filas Sábados */}
                   {timeSlotsSaturday.map((slot) => {
                     const cell = visible.filter((l) => l.day === "Sáb" && l.time === slot);
+                    const saturdayDayInfo = currentWeekObj.days.find((d) => d.dayKey === "Sáb") || currentWeekObj.days[5] || currentWeekObj.days[0]!;
                     return (
                       <div
                         key={`saturday-${slot}`}
@@ -2290,6 +2289,7 @@ export function AgendaBoard() {
                                   <div className="flex items-center gap-1">
                                     {(() => {
                                       const cardAtt =
+                                        lesson.attendanceByDate?.[saturdayDayInfo.dateStr] ??
                                         lesson.attendanceByWeek?.[safeWeekIndex] ??
                                         (lesson.weekIndex === safeWeekIndex
                                           ? lesson.attendanceStatus
@@ -2399,7 +2399,9 @@ export function AgendaBoard() {
 
                 {/* PANEL DE ASISTENCIA RÁPIDA (AISLADO POR SEMANA ESPECÍFICA) */}
                 {(() => {
+                  const selectedDayDateStr = currentWeekObj.days.find((d) => d.dayKey === selected.day)?.dateStr;
                   const currentAttendance =
+                    (selectedDayDateStr ? selected.attendanceByDate?.[selectedDayDateStr] : undefined) ??
                     selected.attendanceByWeek?.[safeWeekIndex] ??
                     (selected.weekIndex === safeWeekIndex
                       ? selected.attendanceStatus
@@ -2416,34 +2418,34 @@ export function AgendaBoard() {
                               Asistencia · Semana {safeWeekIndex + 1} de {monthWeeks.length}
                             </p>
                             <p className="text-[10px] text-muted-foreground font-semibold">
-                              {selected.day} {selected.time} · {monthsName[selectedMonth]}
+                              {selected.day} {selected.time} · {monthsName[selectedMonth]} {selectedDayDateStr ? `(${selectedDayDateStr})` : ""}
                             </p>
                           </div>
                         </div>
                         {currentAttendance && (
-                          <Badge
-                            className={`text-[10px] font-black uppercase ${
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-black uppercase text-white shadow-2xs ${
                               currentAttendance === "presente"
-                                ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                ? "bg-emerald-600"
                                 : currentAttendance === "ausente"
-                                ? "bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/30"
+                                ? "bg-red-600"
                                 : currentAttendance === "tarde"
-                                ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                : "bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                                ? "bg-amber-600"
+                                : "bg-blue-600"
                             }`}
                           >
                             ● {currentAttendance}
-                          </Badge>
+                          </span>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "presente", "", safeWeekIndex);
+                            markLessonAttendance(selected.id, "presente", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex);
                             toast.success(
-                              `Asistencia (Semana ${safeWeekIndex + 1}): ${selected.student} PRESENTE 🟢`,
+                              `Asistencia (${selectedDayDateStr || `Semana ${safeWeekIndex + 1}`}): ${selected.student} PRESENTE 🟢`,
                             );
                           }}
                           className={`h-9 font-bold text-xs gap-1.5 transition-all ${
@@ -2458,9 +2460,9 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "ausente", "", safeWeekIndex);
+                            markLessonAttendance(selected.id, "ausente", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex);
                             toast.error(
-                              `Asistencia (Semana ${safeWeekIndex + 1}): ${selected.student} AUSENTE 🔴`,
+                              `Asistencia (${selectedDayDateStr || `Semana ${safeWeekIndex + 1}`}): ${selected.student} AUSENTE 🔴`,
                             );
                           }}
                           className={`h-9 font-bold text-xs gap-1.5 transition-all ${
@@ -2475,9 +2477,9 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "tarde", "", safeWeekIndex);
+                            markLessonAttendance(selected.id, "tarde", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex);
                             toast.warning(
-                              `Asistencia (Semana ${safeWeekIndex + 1}): ${selected.student} TARDE 🟡`,
+                              `Asistencia (${selectedDayDateStr || `Semana ${safeWeekIndex + 1}`}): ${selected.student} TARDE 🟡`,
                             );
                           }}
                           className={`h-9 font-bold text-xs gap-1.5 transition-all ${
@@ -2492,9 +2494,9 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "justificada", "", safeWeekIndex);
+                            markLessonAttendance(selected.id, "justificada", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex);
                             toast.info(
-                              `Asistencia (Semana ${safeWeekIndex + 1}): ${selected.student} JUSTIFICADA 🔵 (+1 Crédito)`,
+                              `Asistencia (${selectedDayDateStr || `Semana ${safeWeekIndex + 1}`}): ${selected.student} JUSTIFICADA 🔵 (+1 Crédito)`,
                             );
                           }}
                           className={`h-9 font-bold text-xs gap-1.5 transition-all ${

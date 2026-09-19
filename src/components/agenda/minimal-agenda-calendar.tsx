@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { Calendar as CalendarIcon, Clock, MapPin, User, MessageCircle, CheckCircle2, XCircle, AlertCircle, Sparkles } from "lucide-react";
 import type { Lesson, ScheduledLesson, AttendanceStatus, WeekDay } from "@/store/app-store";
 import { useAppStore } from "@/store/app-store";
-import { getMonthWeeks } from "@/lib/calendar-utils";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
+import { isLessonInStudentCycle } from "@/lib/student-cycle";
 import { toast } from "sonner";
 
 type CalendarLessonItem = (Lesson | ScheduledLesson) & {
@@ -81,14 +81,14 @@ export function MinimalAgendaCalendar({
       if (l.status === "cancelada") return;
       const d = (l as ScheduledLesson).day || (userType === "family" ? "Mar" : "Lun");
 
-      // 🛡️ REGLA CRÍTICA (ADR 0100): Verificar vigencia en la fecha exacta de esta semana
+      // 🛡️ REGLA FUNDAMENTAL DE CUOTA CONTRACTUAL Y CICLO LECTIVO (ADR-0108):
       const dayInfo = currentWeekObj.days.find((day) => day.dayKey === d);
       if (dayInfo) {
         const studentProfile = findStudentProfileByName(adminStudents, l.student);
-        if (studentProfile?.planStartDate && dayInfo.dateStr < studentProfile.planStartDate) {
+        if (!studentProfile || studentProfile.status !== "activo") {
           return;
         }
-        if (studentProfile?.planEndDate && dayInfo.dateStr > studentProfile.planEndDate) {
+        if (!isLessonInStudentCycle(studentProfile, l as ScheduledLesson, dayInfo.dateStr, l.time, lessons as ScheduledLesson[])) {
           return;
         }
       }
@@ -216,7 +216,9 @@ export function MinimalAgendaCalendar({
               </div>
             ) : (
               currentDayLessons.map((lesson) => {
+                const currentDayDateStr = currentWeekObj.days.find((d) => d.dayKey === selectedDayShort)?.dateStr;
                 const effectiveStatus =
+                  (currentDayDateStr ? (lesson as ScheduledLesson).attendanceByDate?.[currentDayDateStr] : undefined) ||
                   (lesson as ScheduledLesson).attendanceStatus ||
                   lesson.status ||
                   "programada";

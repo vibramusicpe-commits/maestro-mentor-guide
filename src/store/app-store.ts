@@ -894,10 +894,12 @@ export const useAppStore = create<AppState>()(
           if (data.attendanceLogs && data.attendanceLogs.length > 0) {
             data.attendanceLogs.forEach((log: any) => {
               if (!log.student_id) return;
-              const matchedStudent = mergedStudents.find(
+              const matchedStudent = cleanStudents.find(
                 (st) =>
                   st.status === "activo" &&
-                  (resolveStudentUUID(st.id) === log.student_id || isSameStudentId(st.id, log.student_id))
+                  (resolveStudentUUID(st.id) === log.student_id ||
+                   isSameStudentId(st.id, log.student_id) ||
+                   (log.note && isMatchingStudentName(st.name, log.note)))
               );
               if (matchedStudent) {
                 const dateMatch = log.note?.match(/Fecha\s+(\d{4}-\d{2}-\d{2})/i);
@@ -922,6 +924,17 @@ export const useAppStore = create<AppState>()(
                       });
                     }
                   });
+
+                  if (Array.isArray(matchedStudent.scheduleLessons)) {
+                    matchedStudent.scheduleLessons = matchedStudent.scheduleLessons.map((l) => {
+                      const prevByDate = { ...(l.attendanceByDate || {}) };
+                      prevByDate[dateStr] = attStatus;
+                      return {
+                        ...l,
+                        attendanceByDate: prevByDate,
+                      };
+                    });
+                  }
                 }
               }
             });
