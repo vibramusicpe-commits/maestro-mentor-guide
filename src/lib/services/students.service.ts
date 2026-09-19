@@ -204,21 +204,24 @@ export async function getStudentsByTeacher(
 
 // ---------------------------------------------------------------
 // EDGE: setStudentModality
-// Cambia modalidad Regular ↔ Intensivo.
+// Cambia modalidad Regular ↔ Intensivo de forma segura con enum PostgreSQL.
 // ---------------------------------------------------------------
 export async function setStudentModality(
   userRole: Role,
   studentId: string,
-  modality: DBStudent["modality"],
+  modality: string,
 ): Promise<DBStudent> {
   // [RBAC Gate]
   assertRole(userRole, ["super_admin", "staff"], "cambiar modalidad");
 
-  // [Payload mínimo: solo modality]
+  const sqlModality = modality.includes("Intensivo")
+    ? "Intensivo (4 clases / 90 min)"
+    : "Regular (8 clases / 45 min)";
+
   return postgrestPatch<DBStudent>(
     "students",
     { id: `eq.${studentId}` },
-    { modality },
+    { modality: sqlModality as any },
   );
 }
 

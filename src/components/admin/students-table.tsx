@@ -208,6 +208,16 @@ export function StudentsTable() {
   // Estado para Programar Horario de Alumno
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
   const [scheduleModalStudent, setScheduleModalStudent] = useState<AdminStudent | null>(null);
+  const liveScheduleModalStudent = useMemo(() => {
+    if (!scheduleModalStudent) return null;
+    return (
+      students.find(
+        (st) =>
+          isSameStudentId(st.id, scheduleModalStudent.id) ||
+          isMatchingStudentName(st.name, scheduleModalStudent.name)
+      ) || scheduleModalStudent
+    );
+  }, [students, scheduleModalStudent]);
   const [schTeacher, setSchTeacher] = useState("");
   const [schInstrument, setSchInstrument] = useState(musicalInstruments[0] || "Piano");
   const [schDay, setSchDay] = useState<"Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb">("Lun");
@@ -2506,13 +2516,14 @@ export function StudentsTable() {
               Organizar Horario según Plan Oficial
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Configura el horario de <strong>{scheduleModalStudent?.name}</strong> según su modalidad. Se agendarán automáticamente todas las sesiones en el calendario interactivo.
+              Configura el horario de <strong>{liveScheduleModalStudent?.name || scheduleModalStudent?.name}</strong> según su modalidad. Se agendarán automáticamente todas las sesiones en el calendario interactivo.
             </DialogDescription>
           </DialogHeader>
 
-          {scheduleModalStudent && (
+          {liveScheduleModalStudent && (
             <ScheduleStudentForm
-              student={scheduleModalStudent}
+              key={`${liveScheduleModalStudent.id}-${liveScheduleModalStudent.modality || ''}`}
+              student={liveScheduleModalStudent}
               availableTeachers={availableTeachers}
               onClose={() => setScheduleModalStudent(null)}
               onSaved={() => setScheduleModalStudent(null)}
@@ -3874,6 +3885,18 @@ function EditStudentSheetInner({
   const [level, setLevel] = useState(student.level || "Principiante");
   const [teacher, setTeacher] = useState(student.teacher || availableTeachers[0] || "Prof. por Asignar");
   const [modality, setModality] = useState<LessonModality>(student.modality || "Regular (8 clases / 45 min)");
+  const schedule = useAppStore((s) => s.schedule);
+  const hasSavedSchedule = useMemo(() => {
+    return (
+      schedule.some(
+        (l) =>
+          (isMatchingStudentName(l.student, student.name) ||
+            l.student.toLowerCase() === student.name.toLowerCase()) &&
+          l.status !== "cancelada"
+      ) ||
+      (Array.isArray(student.scheduleLessons) && student.scheduleLessons.length > 0)
+    );
+  }, [schedule, student.name, student.scheduleLessons]);
   const [age, setAge] = useState<number>(student.age || 8);
   const [selectedCategory, setSelectedCategory] = useState<AgeCategory | "AUTO">(student.ageCategory || "AUTO");
   const [isPersonalized, setIsPersonalized] = useState(student.ageCategory === "PERSONALIZADA");
@@ -4437,14 +4460,17 @@ function EditStudentSheetInner({
                       const newStart = e.target.value;
                       setPlanStartDate(newStart);
                       if (newStart) {
-                        const durationMonths = planType === "Trimestral" ? 3 : planType === "Anual" ? 12 : 1;
+                        const is1x = modality.includes("1x");
+                        const durationMonths = is1x ? 2 : (planType === "Trimestral" ? 3 : planType === "Anual" ? 12 : 1);
                         const [y, m, d] = newStart.split("-").map((v) => parseInt(v, 10));
-                        const endD = new Date(y!, (m! - 1) + durationMonths, d!);
-                        endD.setDate(endD.getDate() - 1);
-                        const endY = endD.getFullYear();
-                        const endM = String(endD.getMonth() + 1).padStart(2, "0");
-                        const endDay = String(endD.getDate()).padStart(2, "0");
-                        setPlanEndDate(`${endY}-${endM}-${endDay}`);
+                        if (y && m && d) {
+                          const endD = new Date(y, (m - 1) + durationMonths, d);
+                          endD.setDate(endD.getDate() - 1);
+                          const endY = endD.getFullYear();
+                          const endM = String(endD.getMonth() + 1).padStart(2, "0");
+                          const endDay = String(endD.getDate()).padStart(2, "0");
+                          setPlanEndDate(`${endY}-${endM}-${endDay}`);
+                        }
                       }
                     }}
                     className="h-8 text-xs bg-background font-semibold"
@@ -4708,9 +4734,21 @@ function EditStudentSheetInner({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold mb-1">Modalidad</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold">Modalidad y Frecuencia</label>
+                {hasSavedSchedule ? (
+                  <Badge variant="outline" className="text-[9px] font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">
+                    🔒 Horario activo
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+                    Editable (Sin horario)
+                  </Badge>
+                )}
+              </div>
               <Select
                 value={modality}
+                disabled={hasSavedSchedule}
                 onValueChange={(v) => {
                   const mod = v as LessonModality;
                   setModality(mod);
@@ -4720,27 +4758,44 @@ function EditStudentSheetInner({
                     if (amountPaid === undefined) setAmountPaid(500);
                     if (!packageTotalSessions) setPackageTotalSessions(24);
                     setPlanEndDate("2026-12-31");
+                  } else if (planStartDate) {
+                    const is1x = mod.includes("1x");
+                    const durationMonths = is1x ? 2 : (planType === "Trimestral" ? 3 : planType === "Anual" ? 12 : 1);
+                    const [y, m, d] = planStartDate.split("-").map((val) => parseInt(val, 10));
+                    if (y && m && d) {
+                      const endD = new Date(y, (m - 1) + durationMonths, d);
+                      endD.setDate(endD.getDate() - 1);
+                      const endY = endD.getFullYear();
+                      const endM = String(endD.getMonth() + 1).padStart(2, "0");
+                      const endDay = String(endD.getDate()).padStart(2, "0");
+                      setPlanEndDate(`${endY}-${endM}-${endDay}`);
+                    }
                   }
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className={hasSavedSchedule ? "opacity-75 cursor-not-allowed bg-muted" : ""}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Regular (8 clases / 45 min)">
-                    Regular (8 clases / 2x sem)
+                    Regular (8 clases / 2x sem · 1 mes)
                   </SelectItem>
                   <SelectItem value="Regular 1x/sem (8 clases / 45 min)">
                     Regular 1x/sem (8 clases / 45 min · 2 meses)
                   </SelectItem>
                   <SelectItem value="Intensivo (4 clases / 90 min)">
-                    Intensivo (4 clases / 90 min)
+                    Intensivo (4 clases / 90 min · 1 mes)
                   </SelectItem>
                   <SelectItem value="Paquete Flexible (A demanda)">
                     🎒 Paquete Flexible (Clases a demanda)
                   </SelectItem>
                 </SelectContent>
               </Select>
+              {hasSavedSchedule && (
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  * Alumno con horario activo. Para cambiar de modalidad, primero retira o reestructura sus clases en la agenda.
+                </p>
+              )}
             </div>
           </div>
 
@@ -4972,42 +5027,70 @@ function ScheduleStudentForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const setStudentModality = useAppStore((s) => s.setStudentModality);
   const setStudentSchedule = useAppStore((s) => s.setStudentSchedule);
   const assignTeacher = useAppStore((s) => s.assignTeacher);
   const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
   const schedule = useAppStore((s) => s.schedule);
   const adminStudents = useAppStore((s) => s.adminStudents);
 
-  // Fecha de inicio oficial de clases (por defecto fecha registrada o 10/09/2026 para Camila)
-  const [startDate, setStartDate] = useState<string>(
-    student.planStartDate || (isMatchingStudentName(student.name, "Camila Valentina Pastor Conco") ? "2026-09-10" : "2026-09-01")
-  );
+  const liveStudent = useMemo(() => {
+    return (
+      adminStudents.find(
+        (st) =>
+          isSameStudentId(st.id, student.id) ||
+          isMatchingStudentName(st.name, student.name)
+      ) || student
+    );
+  }, [adminStudents, student]);
 
   // Clases existentes en el horario para pre-cargar su configuración real
   const existingLessons = useMemo(() => {
     return schedule.filter(
-      (l) => (isMatchingStudentName(l.student, student.name) || l.student.toLowerCase() === student.name.toLowerCase()) && l.status !== "cancelada"
+      (l) =>
+        (isMatchingStudentName(l.student, liveStudent.name) ||
+          l.student.toLowerCase() === liveStudent.name.toLowerCase()) &&
+        l.status !== "cancelada"
     );
-  }, [schedule, student.name]);
+  }, [schedule, liveStudent.name]);
+
+  // Determinar si el alumno YA tiene un horario agendado / completado previamente
+  const hasSavedSchedule = useMemo(() => {
+    const hasInAgenda = existingLessons.length > 0;
+    const hasInStudentProfile =
+      Array.isArray(liveStudent.scheduleLessons) &&
+      liveStudent.scheduleLessons.length > 0;
+    return hasInAgenda || hasInStudentProfile;
+  }, [existingLessons, liveStudent.scheduleLessons]);
+
+  // Estado reactivo de modalidad seleccionada
+  const [selectedModality, setSelectedModality] = useState<string>(
+    liveStudent.modality || "Regular (8 clases / 45 min)"
+  );
+
+  useEffect(() => {
+    if (liveStudent.modality && liveStudent.modality !== selectedModality) {
+      setSelectedModality(liveStudent.modality);
+    }
+  }, [liveStudent.modality]);
+
+  const modStr = (selectedModality || "Regular").toLowerCase();
+  const isRegular1x = modStr.includes("1x") || modStr.includes("1x/sem");
+  const isIntensive = modStr.includes("inten") || (!isRegular1x && modStr.includes("4"));
+  const isFlexible = modStr.includes("flex");
+  const isRegular2x = !isRegular1x && !isIntensive && !isFlexible;
+  const isRegular = isRegular2x; // Conservar para compatibilidad
+
+  // Fecha de inicio oficial de clases (por defecto fecha registrada o 10/09/2026 para Camila)
+  const [startDate, setStartDate] = useState<string>(
+    liveStudent.planStartDate ||
+      (isMatchingStudentName(liveStudent.name, "Camila Valentina Pastor Conco")
+        ? "2026-09-10"
+        : "2026-09-01")
+  );
 
   const existingL1 = existingLessons[0];
   const existingL2 = existingLessons.length > 1 ? existingLessons[1] : null;
-
-  // Estados de profesor, instrumento y categoría pre-poblados
-  const [teacher, setTeacher] = useState(
-    existingL1?.teacher ||
-    (student.teacher && student.teacher !== "Prof. por Asignar"
-      ? student.teacher
-      : availableTeachers.find((t) => t === "Jeremy") ?? availableTeachers[0] ?? "Prof. por Asignar")
-  );
-  const [instrument, setInstrument] = useState(
-    existingL1?.instrument || student.instrument || musicalInstruments[0] || "Piano"
-  );
-  const [category, setCategory] = useState<AgeCategory>(
-    (existingL1?.category as AgeCategory) ||
-    (student.category as AgeCategory) ||
-      (student.age >= 18 ? "ADULTO" : student.age >= 13 ? "JUVENIL" : student.age >= 7 ? "JUNIOR" : "INFANTIL")
-  );
 
   // Asignación de sala oficial por docente (ADR-0102)
   const getDefaultRoomForTeacher = (teachName: string) => {
@@ -5018,11 +5101,21 @@ function ScheduleStudentForm({
     return "Sala A";
   };
 
-  const modStr = (student.modality || "Regular").toLowerCase();
-  const isRegular1x = modStr.includes("1x") || modStr.includes("1x/sem");
-  const isIntensive = modStr.includes("inten") || (!isRegular1x && modStr.includes("4"));
-  const isRegular2x = !isRegular1x && !isIntensive;
-  const isRegular = isRegular2x; // Conservar para compatibilidad
+  // Estados de profesor, instrumento y categoría pre-poblados
+  const [teacher, setTeacher] = useState(
+    existingL1?.teacher ||
+      (liveStudent.teacher && liveStudent.teacher !== "Prof. por Asignar"
+        ? liveStudent.teacher
+        : availableTeachers.find((t) => t === "Jeremy") ?? availableTeachers[0] ?? "Prof. por Asignar")
+  );
+  const [instrument, setInstrument] = useState(
+    existingL1?.instrument || liveStudent.instrument || musicalInstruments[0] || "Piano"
+  );
+  const [category, setCategory] = useState<AgeCategory>(
+    (existingL1?.category as AgeCategory) ||
+      (liveStudent.category as AgeCategory) ||
+      (liveStudent.age >= 18 ? "ADULTO" : liveStudent.age >= 13 ? "JUVENIL" : liveStudent.age >= 7 ? "JUNIOR" : "INFANTIL")
+  );
 
   // Modo de asignación: "pareadas" (por defecto oficial) o "personalizado"
   const isPairedMatch = existingL1 && existingL2 && (
@@ -5048,7 +5141,7 @@ function ScheduleStudentForm({
   );
   const [time2, setTime2] = useState(existingL2?.time || time1 || "16:00");
   const [room2, setRoom2] = useState(
-    existingL2?.room || existingL1?.room || student.room || getDefaultRoomForTeacher(teacher)
+    existingL2?.room || existingL1?.room || liveStudent.room || getDefaultRoomForTeacher(teacher)
   );
 
   const handleTeacherChange = (newTeacher: string) => {
@@ -5103,7 +5196,7 @@ function ScheduleStudentForm({
     "14:15", "15:00", "15:45", "16:30", "17:15", "18:00",
   ];
 
-  const finalTeacher = teacher || student.teacher || availableTeachers[0] || "Prof. por Asignar";
+  const finalTeacher = teacher || liveStudent.teacher || availableTeachers[0] || "Prof. por Asignar";
 
   // Helper para evaluar ocupación, aforo y posibles cruces de sala de cualquier franja
   const getSlotDetails = useCallback(
@@ -5111,7 +5204,7 @@ function ScheduleStudentForm({
       // Ignorar al propio alumno y a alumnos inactivos/pausados para prevenir falsos cruces
       const matching = schedule.filter((l) => {
         if (l.day !== d || l.time !== t || l.status === "cancelada") return false;
-        if (isMatchingStudentName(l.student, student.name) || l.student.toLowerCase() === student.name.toLowerCase()) {
+        if (isMatchingStudentName(l.student, liveStudent.name) || l.student.toLowerCase() === liveStudent.name.toLowerCase()) {
           return false;
         }
         const stProfile = adminStudents.find(
@@ -5143,7 +5236,7 @@ function ScheduleStudentForm({
         reason: conflictReason,
       };
     },
-    [schedule, finalTeacher, student.name, adminStudents]
+    [schedule, finalTeacher, liveStudent.name, adminStudents]
   );
 
   // Diagnóstico Reactivo de Conflictos en Tiempo Real (1 Día vs 2 Días)
@@ -5228,14 +5321,19 @@ function ScheduleStudentForm({
       return;
     }
 
+    // Si la modalidad seleccionada difiere de la actual del alumno, actualizarla
+    if (selectedModality && selectedModality !== liveStudent.modality) {
+      setStudentModality(liveStudent.id, selectedModality as LessonModality);
+    }
+
     // Extraer año y mes del alumno a partir de su fecha oficial de inicio elegida
-    const startStr = startDate || student.planStartDate || "2026-09-10";
+    const startStr = startDate || liveStudent.planStartDate || "2026-09-10";
     const [yStr, mStr] = startStr.split("-");
     const lessonYear = parseInt(yStr || "2026", 10);
     const lessonMonth = parseInt(mStr || "9", 10) - 1; // 0-indexed (8 para Setiembre)
 
     // Calcular fecha de vencimiento según modalidad
-    let calculatedEndDate = student.planEndDate;
+    let calculatedEndDate = liveStudent.planEndDate;
     try {
       const d = new Date(startStr);
       if (!isNaN(d.getTime())) {
@@ -5247,7 +5345,8 @@ function ScheduleStudentForm({
     } catch {}
 
     // Sincronizar fecha de inicio y vencimiento con la ficha del alumno y PostgreSQL
-    updateStudentDetails(student.id, {
+    updateStudentDetails(liveStudent.id, {
+      modality: selectedModality as LessonModality,
       planStartDate: startStr,
       planEndDate: calculatedEndDate || undefined,
       planStartMonth: startStr.slice(0, 7),
@@ -5262,7 +5361,7 @@ function ScheduleStudentForm({
     // automáticamente todas las clases contratadas en el Kardex y en la agenda semanal.
     const lessonsToSet: Omit<ScheduledLesson, "id">[] = [
       {
-        student: student.name,
+        student: liveStudent.name,
         teacher: finalTeacher,
         instrument: instrument,
         day: day1,
@@ -5277,7 +5376,7 @@ function ScheduleStudentForm({
 
     if (isRegular2x) {
       lessonsToSet.push({
-        student: student.name,
+        student: liveStudent.name,
         teacher: finalTeacher,
         instrument: instrument,
         day: day2,
@@ -5290,14 +5389,14 @@ function ScheduleStudentForm({
       });
     }
 
-    setStudentSchedule(student.name, lessonsToSet);
+    setStudentSchedule(liveStudent.name, lessonsToSet);
 
     // Actualizar profesor en la ficha si no tenía o cambió
-    if (!student.teacher || student.teacher === "Prof. por Asignar" || student.teacher !== finalTeacher) {
-      assignTeacher(student.id, finalTeacher);
+    if (!liveStudent.teacher || liveStudent.teacher === "Prof. por Asignar" || liveStudent.teacher !== finalTeacher) {
+      assignTeacher(liveStudent.id, finalTeacher);
     }
 
-    toast.success(`🗓️ Horario de ${student.name} programado con éxito`, {
+    toast.success(`🗓️ Horario de ${liveStudent.name} programado con éxito`, {
       description: isRegular2x
         ? `Plan Regular (8 clases): ${day1} ${time1} (${room1}) y ${day2} ${time2} (${room2}) con Prof. ${finalTeacher}.`
         : isRegular1x
@@ -5311,21 +5410,71 @@ function ScheduleStudentForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden text-xs">
       <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
-      {/* Resumen del Plan del Alumno */}
-      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 space-y-2">
+      {/* Resumen del Plan del Alumno y Selector de Modalidad */}
+      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 space-y-2.5">
         <div className="flex items-center justify-between">
           <div>
-            <span className="font-bold text-sm text-foreground">{student.name}</span>
-            <p className="text-[11px] text-muted-foreground">{student.family} · {student.instrument}</p>
+            <span className="font-bold text-sm text-foreground">{liveStudent.name}</span>
+            <p className="text-[11px] text-muted-foreground">{liveStudent.family} · {instrument}</p>
           </div>
           <Badge className="bg-primary/20 text-primary border-primary/30 font-bold text-[11px]">
             {isRegular1x
-              ? "Plan Regular 1x/sem (1x semana · 8 clases · 2 meses)"
+              ? "Plan Regular 1x/sem (1x sem · 8 clases · 2 meses)"
               : isIntensive
-              ? "Plan Intensivo (1x semana · 4 clases)"
-              : "Plan Regular (2x semana · 8 clases)"}
+              ? "Plan Intensivo (1x sem · 4 clases · 90 min)"
+              : isFlexible
+              ? "Paquete Flexible (A demanda)"
+              : "Plan Regular (2x sem · 8 clases · 1 mes)"}
           </Badge>
         </div>
+
+        {/* Selector Interactivo de Modalidad (Solo si no ha guardado horario previo) */}
+        <div className="pt-2 border-t border-primary/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-foreground">Modalidad y Frecuencia:</span>
+            {hasSavedSchedule ? (
+              <Badge variant="outline" className="text-[9px] font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">
+                🔒 Horario activo
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+                Editable (Sin horario fijado)
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Select
+              value={selectedModality}
+              disabled={hasSavedSchedule}
+              onValueChange={(val) => {
+                setSelectedModality(val);
+              }}
+            >
+              <SelectTrigger className={`h-8 text-xs bg-background min-w-[240px] font-bold border-primary/30 ${hasSavedSchedule ? "opacity-75 cursor-not-allowed" : ""}`}>
+                <SelectValue placeholder="Seleccionar modalidad" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Regular (8 clases / 45 min)">
+                  Regular (8 clases / 2x sem · 1 mes)
+                </SelectItem>
+                <SelectItem value="Regular 1x/sem (8 clases / 45 min)">
+                  Regular 1x/sem (8 clases / 1x sem · 2 meses)
+                </SelectItem>
+                <SelectItem value="Intensivo (4 clases / 90 min)">
+                  Intensivo (4 clases / 1x sem · 90 min)
+                </SelectItem>
+                <SelectItem value="Paquete Flexible (A demanda)">
+                  Paquete Flexible (A demanda)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {hasSavedSchedule && (
+          <p className="text-[10px] text-muted-foreground italic">
+            * Nota: El alumno ya cuenta con un horario agendado. Para cambiar de plan/modalidad se debe reestructurar o retirar las clases previas de la agenda.
+          </p>
+        )}
       </div>
 
       {/* Selector de Fecha Oficial de Inicio de Clases (Matrícula) */}
@@ -5390,7 +5539,7 @@ function ScheduleStudentForm({
       <div className="space-y-1.5 p-3 rounded-2xl border border-border bg-muted/30">
         <div className="flex items-center justify-between">
           <label className="font-bold text-foreground">Categoría y Rango de Edad Oficial</label>
-          <span className="text-[10px] text-muted-foreground">Edad registrada: <strong>{student.age} años</strong></span>
+          <span className="text-[10px] text-muted-foreground">Edad registrada: <strong>{liveStudent.age} años</strong></span>
         </div>
         <Select value={category} onValueChange={(v) => setCategory(v as AgeCategory)}>
           <SelectTrigger className="text-xs bg-background">
@@ -5407,7 +5556,7 @@ function ScheduleStudentForm({
         </Select>
         {category === "PERSONALIZADA" && (
           <p className="text-[10px] text-primary font-semibold mt-1">
-            🩵 Clase Personalizada: Se identificará con el puntito {student.age >= 18 ? "⚫ Plomo (Adulto)" : student.age >= 13 ? "🟢 Verde (Juvenil)" : student.age >= 7 ? "🟡 Amarillo (Junior)" : "🟣 Morado (Infantil)"} en la agenda.
+            🩵 Clase Personalizada: Se identificará con el puntito {liveStudent.age >= 18 ? "⚫ Plomo (Adulto)" : liveStudent.age >= 13 ? "🟢 Verde (Juvenil)" : liveStudent.age >= 7 ? "🟡 Amarillo (Junior)" : "🟣 Morado (Infantil)"} en la agenda.
           </p>
         )}
       </div>

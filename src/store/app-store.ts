@@ -600,6 +600,8 @@ function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<
       if (mergedStudent.packUtilesNotes !== undefined) ecData.packUtilesNotes = mergedStudent.packUtilesNotes;
       if (mergedStudent.planStartDate) ecData.planStartDate = mergedStudent.planStartDate;
       if (mergedStudent.planEndDate) ecData.planEndDate = mergedStudent.planEndDate;
+      if (mergedStudent.planStartMonth) ecData.planStartMonth = mergedStudent.planStartMonth;
+      if (mergedStudent.planEndMonth) ecData.planEndMonth = mergedStudent.planEndMonth;
       if (mergedStudent.attendanceRate !== undefined) ecData.attendanceRate = mergedStudent.attendanceRate;
       if (mergedStudent.recentAttendance !== undefined) ecData.recentAttendance = mergedStudent.recentAttendance;
       if (mergedStudent.scheduleLessons !== undefined) ecData.scheduleLessons = mergedStudent.scheduleLessons;
@@ -837,8 +839,8 @@ export const useAppStore = create<AppState>()(
                   isMatchingStudentName(dbSt.name, "Jonathan Ticona Cachay") ||
                   isMatchingStudentName(dbSt.name, "Ticona Cachay, Jonathan");
 
-                const effectiveStartDate = localSt.planStartDate || dbSt.planStartDate || (isEmma ? "2026-08-28" : (isJonathan ? "2026-08-18" : "2026-08-01"));
-                const effectiveEndDate = localSt.planEndDate || dbSt.planEndDate || (isEmma ? "2026-09-27" : (isJonathan ? "2026-12-31" : "2026-09-30"));
+                const effectiveStartDate = dbSt.planStartDate || localSt.planStartDate || (isEmma ? "2026-08-28" : (isJonathan ? "2026-08-18" : "2026-08-01"));
+                const effectiveEndDate = dbSt.planEndDate || localSt.planEndDate || (isEmma ? "2026-09-27" : (isJonathan ? "2026-12-31" : "2026-09-30"));
                 const effectivePackage = isJonathan
                   ? 24
                   : (dbSt.packageTotalSessions || localSt.packageTotalSessions || (dbSt.modality?.includes("Intensivo") ? 4 : 8));
@@ -856,8 +858,8 @@ export const useAppStore = create<AppState>()(
                   id: dbSt.id,
                   status: "activo",
                   teacher: keepLocalTeacher ? localSt.teacher : (dbSt.teacher && dbSt.teacher !== "Prof. por Asignar" ? dbSt.teacher : localSt.teacher),
-                  modality: isJonathan ? "Paquete Flexible (A demanda)" : (localSt.modality || dbSt.modality),
-                  planType: isJonathan ? "Paquete Flexible" : (localSt.planType || dbSt.planType),
+                  modality: isJonathan ? "Paquete Flexible (A demanda)" : (dbSt.modality || localSt.modality || "Regular (8 clases / 45 min)"),
+                  planType: isJonathan ? "Paquete Flexible" : (dbSt.planType || localSt.planType),
                   scheduleLessons: dbSt.scheduleLessons?.length ? dbSt.scheduleLessons : localSt.scheduleLessons,
                   recentAttendance: localSt.recentAttendance?.length ? localSt.recentAttendance : dbSt.recentAttendance,
                   attendanceRate: resolvedAttendanceRate,
@@ -1713,9 +1715,30 @@ export const useAppStore = create<AppState>()(
         }),
       setStudentModality: (id, modality) =>
         set((s) => {
-          backgroundSyncStudentToDB(s.activeRole, id, { modality });
+          const target = s.adminStudents.find((st) => isSameStudentId(st.id, id));
+          let planEndDate = target?.planEndDate;
+          let planEndMonth = target?.planEndMonth;
+          if (target?.planStartDate) {
+            const is1x = modality.includes("1x");
+            const durationMonths = is1x ? 2 : 1;
+            const [y, m, d] = target.planStartDate.split("-").map((v) => parseInt(v, 10));
+            if (y && m && d) {
+              const endD = new Date(y, (m - 1) + durationMonths, d);
+              endD.setDate(endD.getDate() - 1);
+              const endY = endD.getFullYear();
+              const endM = String(endD.getMonth() + 1).padStart(2, "0");
+              const endDay = String(endD.getDate()).padStart(2, "0");
+              planEndDate = `${endY}-${endM}-${endDay}`;
+              planEndMonth = `${endY}-${endM}`;
+            }
+          }
+          const updates: Partial<AdminStudent> = {
+            modality,
+            ...(planEndDate ? { planEndDate, planEndMonth } : {}),
+          };
+          backgroundSyncStudentToDB(s.activeRole, id, updates);
           return {
-            adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, modality } : st)),
+            adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, ...updates } : st)),
             syncQueue: [...s.syncQueue, queueItem(`Modalidad actualizada · ${modality}`)],
           };
         }),
