@@ -38,3 +38,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# MCP Graph & Index Caches
+.graphify/
+.codeatlas-sa/
