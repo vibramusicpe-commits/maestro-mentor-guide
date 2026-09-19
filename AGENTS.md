@@ -173,6 +173,22 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - El Kardex de Asistencias (`StudentAttendanceKardex`) proyecta con una ventana de hasta 90 días (`maxDaysToScan = 90`) para abarcar holgadamente las 8 semanas de clases del ciclo lectivo sin truncar sesiones.
 
 ---
+
+### 12. Ciclo de Vida de Matrícula (Registro ➔ Horario ➔ Kardex) y Flexibilidad Condicional de Modalidad (ADR-0111)
+1. **Regla Estricta de Ciclo de Vida del Alumno**:
+   - El flujo administrativo oficial es: **Registro (Ficha) ➔ Horario (Agendamiento) ➔ Kardex (Asistencias)**.
+   - **Condición de Modificación de Modalidad**: La modalidad y frecuencia (`Regular 2x`, `Regular 1x/sem`, `Intensivo`, `Paquete Flexible`) **SOLO** se puede cambiar libremente si el alumno aún **NO** tiene un horario agendado / guardado en la agenda (`!hasSavedSchedule`).
+   - Una vez que el alumno cuenta con clases agendadas y activas en el horario semanal, el selector de modalidad se **bloquea con candado** (`🔒 Horario activo`). Para cambiar de modalidad en dicho estado, secretaría o dirección deben retirar o reestructurar previamente las clases en la agenda para evitar inconsistencias contractuales.
+2. **Selector Interactivo Directo en Organizador de Horario (`ScheduleStudentForm`)**:
+   - Se incorpora un selector directo de modalidad en la cabecera de `ScheduleStudentForm` que permite a secretaría ajustar la modalidad antes de agendar sin salir a la ficha ni eliminar al alumno.
+   - Al seleccionar una modalidad distinta, se recalcula dinámicamente `planEndDate` (+2 meses para 1x/sem, +1 mes para 2x o Intensivo) y al presionar "Guardar Horario" se sincroniza atómicamente la nueva modalidad y fechas con PostgreSQL.
+3. **Resolución en Vivo y Descongelamiento de Snapshot (`liveScheduleModalStudent`)**:
+   - `students-table.tsx` resuelve al alumno en vivo usando `useMemo` sobre `adminStudents` y monta `<ScheduleStudentForm>` con `key={`${liveScheduleModalStudent.id}-${liveScheduleModalStudent.modality || ''}`}` para forzar un ciclo de vida limpio y reactivo ante cualquier edición previa.
+4. **Sanitización de Enum SQL y Prioridad PostgreSQL**:
+   - La columna `modality` en PostgreSQL está restringida por el enum `lesson_modality_enum` (`'Regular (8 clases / 45 min)'` o `'Intensivo (4 clases / 90 min)'`). `setStudentModality` sanitiza automáticamente el valor hacia la columna SQL y preserva la descripción completa en `emergency_contact.modality` JSONB.
+   - `hydrateFromBackend` prioriza incondicionalmente `dbSt.modality`, `dbSt.planStartDate` y `dbSt.planEndDate` sobre cachés residuales de `localStorage`.
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)

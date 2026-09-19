@@ -229,13 +229,23 @@ export async function registerPayment(
     );
   }
 
+  const cleanMethod: PaymentMethodDB = (
+    payload.method === "Plin" || (payload.method as string)?.includes("Yape")
+      ? "Yape"
+      : payload.method === "Efectivo"
+      ? "Efectivo"
+      : (payload.method as string)?.includes("Culqi") || (payload.method as string)?.includes("Tarjeta")
+      ? "Culqi"
+      : "Transferencia"
+  );
+
   // [Anti-Fraude Gate] — PASO 1: Insertar audit log (inmutable)
   const auditLog = await postgrestInsert<DBPaymentAuditLog>("payment_audit_logs", {
     invoice_id: invoiceId,
     registered_by_user_id: userId,
     registered_by_role: userRole,
     amount: payload.amount,
-    payment_method: payload.method,
+    payment_method: cleanMethod,
     voucher_reference: payload.voucherRef ?? null,
     note: payload.note ?? "Abono registrado vía WhatsApp",
     culqi_token_id: payload.culqiTokenId ?? null,
@@ -253,7 +263,7 @@ export async function registerPayment(
     amount_paid: newAmountPaid,
     remaining_balance: newRemaining,
     status: newStatus,
-    payment_method: payload.method,
+    payment_method: cleanMethod,
   };
   if (payload.culqiChargeId) updatePayload.culqi_charge_id = payload.culqiChargeId;
 
