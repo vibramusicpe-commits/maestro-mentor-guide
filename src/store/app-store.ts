@@ -439,22 +439,23 @@ function backgroundCreateInvoiceInDB(role: Role, invoice: Invoice, student: Admi
         ? resolvedStudentUUID.replace(/^00000000-0000-0000-0002-/, "00000000-0000-0000-0001-")
         : undefined;
 
-      // 1. Asegurar registro en families si es necesario
+      // 1. Asegurar registro en families antes de crear la factura (FK estricta)
       if (familyId) {
-        import("@/lib/insforge").then(async ({ postgrestInsert, postgrestSelect }) => {
-          try {
-            const existingFamilies = await postgrestSelect("families", { id: `eq.${familyId}` });
-            if (!existingFamilies || existingFamilies.length === 0) {
-              await postgrestInsert("families", {
-                id: familyId,
-                family_name: student.family || `Familia ${student.name}`,
-                primary_guardian_name: student.name,
-                primary_guardian_phone: student.phone?.trim() || "987654321",
-                email: student.email?.trim() || `alumno_${student.id.slice(0, 8)}@vibramusic.pe`,
-              });
-            }
-          } catch {}
-        }).catch(() => {});
+        try {
+          const { postgrestInsert, postgrestSelect } = await import("@/lib/insforge");
+          const existingFamilies = await postgrestSelect("families", { id: `eq.${familyId}` });
+          if (!existingFamilies || existingFamilies.length === 0) {
+            await postgrestInsert("families", {
+              id: familyId,
+              family_name: student.family || `Familia ${student.name}`,
+              primary_guardian_name: student.emergencyContact?.name || student.name,
+              primary_guardian_phone: student.emergencyContact?.phone || student.phone?.trim() || "987654321",
+              email: student.emergencyContact?.email || student.email?.trim() || `alumno_${student.id.slice(0, 8)}@vibramusic.pe`,
+            });
+          }
+        } catch (fErr) {
+          console.warn("[Insforge Sync] Aviso al asegurar familia:", fErr);
+        }
       }
 
       // 2. Insertar factura en tabla invoices de PostgreSQL
