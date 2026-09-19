@@ -189,6 +189,17 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - `hydrateFromBackend` prioriza incondicionalmente `dbSt.modality`, `dbSt.planStartDate` y `dbSt.planEndDate` sobre cachés residuales de `localStorage`.
 
 ---
+
+### 13. Blindaje de Detección de Modalidad Regular 2x y Activación Resiliente de Alumnos Históricos (ADR-0112)
+1. **Discriminación Inequívoca de Modalidad (`modStr`)**:
+   - `isIntensive` evalúa explícitamente `modStr.includes("inten") || modStr.includes("90 min") || modStr.includes("4 clases")`.
+   - Está **TERMINANTEMENTE PROHIBIDO** verificar subcadenas ambiguas como `.includes("4")` que colisionan con el valor `"45 min"` del Plan Regular (`"Regular (8 clases / 45 min)"`).
+   - `isRegular2x` se activa cuando no es Intensivo, ni 1x/sem, ni Flexible, garantizando la renderización incondicional de los Días Pareados oficiales (`🔗 Días Pareados (Oficial)`: L-M / M-J) y de la Segunda Clase Semanal (Día 2).
+2. **Resiliencia en Activación de Alumnos Históricos (`setStudentStatus`)**:
+   - En `setStudentStatus`, `updatedInvoices` se inicializa obligatoriamente como `let updatedInvoices = s.invoices;` antes de cualquier verificación o creación de recibo en segundo plano (`backgroundCreateInvoiceInDB`), previniendo errores de tipo `ReferenceError`.
+   - Tanto `setStudentStatus` como `updateStudentDetails` cuentan con fallback de coincidencia por nombre normalizado (`isMatchingStudentName`) para resolver de forma infalible la reactivación 1 a 1 de alumnos históricos desde el panel de depuración (`student-cleanup-panel.tsx`).
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)

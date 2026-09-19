@@ -5075,9 +5075,9 @@ function ScheduleStudentForm({
   }, [liveStudent.modality]);
 
   const modStr = (selectedModality || "Regular").toLowerCase();
-  const isRegular1x = modStr.includes("1x") || modStr.includes("1x/sem");
-  const isIntensive = modStr.includes("inten") || (!isRegular1x && modStr.includes("4"));
-  const isFlexible = modStr.includes("flex");
+  const isIntensive = modStr.includes("inten") || modStr.includes("90 min") || modStr.includes("4 clases");
+  const isRegular1x = !isIntensive && (modStr.includes("1x") || modStr.includes("1x/sem") || modStr.includes("1 vez") || modStr.includes("2 meses"));
+  const isFlexible = modStr.includes("flex") || modStr.includes("demanda");
   const isRegular2x = !isRegular1x && !isIntensive && !isFlexible;
   const isRegular = isRegular2x; // Conservar para compatibilidad
 

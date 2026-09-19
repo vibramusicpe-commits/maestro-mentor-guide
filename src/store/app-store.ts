@@ -1558,10 +1558,11 @@ export const useAppStore = create<AppState>()(
       updateStudentDetails: (id, updates) =>
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, updates);
-          const targetStudent = s.adminStudents.find((st) => isSameStudentId(st.id, id));
+          const targetStudent = s.adminStudents.find((st) => isSameStudentId(st.id, id) || isMatchingStudentName(st.name, id));
           let updatedSchedule = s.schedule;
           const updatedStudents = s.adminStudents.map((st) => {
-            if (!isSameStudentId(st.id, id)) return st;
+            const isMatch = isSameStudentId(st.id, id) || (targetStudent && isMatchingStudentName(st.name, targetStudent.name));
+            if (!isMatch) return st;
             const newPrice = updates.planPrice !== undefined ? updates.planPrice : st.planPrice;
             const newPaid = updates.amountPaid !== undefined ? updates.amountPaid : st.amountPaid;
             let newBalance = updates.balance !== undefined ? updates.balance : st.balance;
@@ -1641,8 +1642,9 @@ export const useAppStore = create<AppState>()(
       setStudentStatus: (id, status) =>
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, { status });
-          const target = s.adminStudents.find((st) => isSameStudentId(st.id, id));
+          const target = s.adminStudents.find((st) => isSameStudentId(st.id, id) || isMatchingStudentName(st.name, id));
           let updatedSchedule = s.schedule;
+          let updatedInvoices = s.invoices;
           // Si pasa a activo, asegurar que sus clases oficiales (initialSchedule o scheduleLessons) estén presentes
           if (status === "activo" && target) {
             const hasExistingLessons = updatedSchedule.some(
@@ -1698,7 +1700,11 @@ export const useAppStore = create<AppState>()(
             }
           }
           return {
-            adminStudents: s.adminStudents.map((st) => (isSameStudentId(st.id, id) ? { ...st, status } : st)),
+            adminStudents: s.adminStudents.map((st) =>
+              isSameStudentId(st.id, id) || (target && isMatchingStudentName(st.name, target.name))
+                ? { ...st, status }
+                : st
+            ),
             schedule: updatedSchedule,
             invoices: updatedInvoices,
             syncQueue: [...s.syncQueue, queueItem(`Estado actualizado · ${status}`)],
