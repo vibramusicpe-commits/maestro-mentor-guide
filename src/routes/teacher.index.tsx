@@ -16,7 +16,7 @@ import { IntegratedTeacherKioskHeader } from "@/components/teacher/integrated-ki
 import { LessonNotes } from "@/components/teacher/lesson-notes";
 import { useAppStore, type ScheduledLesson, type WeekDay, type AttendanceStatus } from "@/store/app-store";
 import { getCurrentWeekIndex } from "@/lib/calendar-utils";
-import { isMatchingStudentName } from "@/lib/student-matching";
+import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/teacher/")({
@@ -105,9 +105,7 @@ export function TeacherKiosk() {
       if (sch.status === "cancelada") return false;
 
       // 🛡️ REGLA DE ORO (ADR 0098 & 0100): El kiosco solo muestra clases de alumnos con status === 'activo'
-      const studentProfile = adminStudents.find(
-        (st) => isMatchingStudentName(st.name, sch.student) || st.name.toLowerCase().trim() === sch.student.toLowerCase().trim()
-      );
+      const studentProfile = findStudentProfileByName(adminStudents, sch.student);
       if (!studentProfile || studentProfile.status !== "activo") {
         return false;
       }

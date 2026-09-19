@@ -745,70 +745,92 @@ export const useAppStore = create<AppState>()(
           const mergedStudents: AdminStudent[] = [...s.adminStudents];
 
           data.students.forEach((dbSt) => {
+            // 🛡️ REGLA: Si el registro de PostgreSQL es ACTIVO, tiene prioridad absoluta y reemplaza cualquier registro previo
+            if (dbSt.status === "activo") {
+              const existingIdx = mergedStudents.findIndex(
+                (locSt) => isSameStudentId(locSt.id, dbSt.id) || isMatchingStudentName(locSt.name, dbSt.name)
+              );
+
+              if (existingIdx >= 0) {
+                const localSt = mergedStudents[existingIdx]!;
+                const keepLocalTeacher =
+                  localSt.teacher &&
+                  localSt.teacher !== "Prof. por Asignar" &&
+                  (!dbSt.teacher || dbSt.teacher === "Prof. por Asignar");
+
+                const isEmma = isMatchingStudentName(dbSt.name, "Emma Micaela") || isMatchingStudentName(dbSt.name, "Emma Sevilla");
+                const isJonathan =
+                  isMatchingStudentName(dbSt.name, "Jonathan Ticona Cachay") ||
+                  isMatchingStudentName(dbSt.name, "Ticona Cachay, Jonathan");
+
+                const effectiveStartDate = localSt.planStartDate || dbSt.planStartDate || (isEmma ? "2026-08-28" : (isJonathan ? "2026-08-18" : "2026-08-01"));
+                const effectiveEndDate = localSt.planEndDate || dbSt.planEndDate || (isEmma ? "2026-09-27" : (isJonathan ? "2026-12-31" : "2026-09-30"));
+                const effectivePackage = isJonathan
+                  ? 24
+                  : (dbSt.packageTotalSessions || localSt.packageTotalSessions || (dbSt.modality?.includes("Intensivo") ? 4 : 8));
+
+                const hasAttendanceHistory = (localSt.recentAttendance && localSt.recentAttendance.length > 0) || (dbSt.recentAttendance && dbSt.recentAttendance.length > 0);
+                let resolvedAttendanceRate = 0;
+                if (hasAttendanceHistory) {
+                  resolvedAttendanceRate = typeof localSt.attendanceRate === "number" && localSt.attendanceRate > 0
+                    ? localSt.attendanceRate
+                    : (typeof dbSt.attendanceRate === "number" ? dbSt.attendanceRate : 0);
+                }
+
+                mergedStudents[existingIdx] = {
+                  ...dbSt,
+                  id: dbSt.id,
+                  status: "activo",
+                  teacher: keepLocalTeacher ? localSt.teacher : (dbSt.teacher && dbSt.teacher !== "Prof. por Asignar" ? dbSt.teacher : localSt.teacher),
+                  modality: isJonathan ? "Paquete Flexible (A demanda)" : (localSt.modality || dbSt.modality),
+                  planType: isJonathan ? "Paquete Flexible" : (localSt.planType || dbSt.planType),
+                  scheduleLessons: dbSt.scheduleLessons?.length ? dbSt.scheduleLessons : localSt.scheduleLessons,
+                  recentAttendance: localSt.recentAttendance?.length ? localSt.recentAttendance : dbSt.recentAttendance,
+                  attendanceRate: resolvedAttendanceRate,
+                  planStartDate: effectiveStartDate,
+                  planEndDate: effectiveEndDate,
+                  packageTotalSessions: effectivePackage,
+                  amountPaid: isJonathan ? 500 : (dbSt.amountPaid !== undefined ? dbSt.amountPaid : localSt.amountPaid),
+                  balance: isJonathan ? 0 : (dbSt.balance !== undefined ? dbSt.balance : localSt.balance),
+                  planPrice: isJonathan ? 500 : (dbSt.planPrice !== undefined ? dbSt.planPrice : localSt.planPrice),
+                  payment: isJonathan ? "al-dia" : ((dbSt.balance !== undefined && dbSt.balance > 0) ? "pendiente" : (localSt.payment || dbSt.payment || "al-dia")),
+                };
+                return;
+              } else {
+                mergedStudents.push(dbSt);
+                return;
+              }
+            }
+
+            // Para registros no activos (pausa, baja): jamás degradar un alumno que ya está activo
             const existingIdx = mergedStudents.findIndex((locSt) => {
-              // 1. Coincidencia estricta por ID
               if (isSameStudentId(locSt.id, dbSt.id)) return true;
-              // 2. Un registro en "baja" de PostgreSQL JAMÁS debe sobreescribir a un alumno "activo" local por nombre
-              if (dbSt.status === "baja" && locSt.status === "activo") return false;
-              if (dbSt.status === "activo" && locSt.status === "baja") return false;
-              // 3. Coincidencia por nombre solo si ambos comparten el mismo estado
               return isMatchingStudentName(locSt.name, dbSt.name);
             });
 
             if (existingIdx >= 0) {
-              const localSt = mergedStudents[existingIdx];
-              const keepLocalActive = localSt.status === "activo" && dbSt.status !== "baja";
-              const keepLocalTeacher =
-                localSt.teacher &&
-                localSt.teacher !== "Prof. por Asignar" &&
-                (!dbSt.teacher || dbSt.teacher === "Prof. por Asignar");
-
-              const isEmma = isMatchingStudentName(dbSt.name, "Emma Micaela") || isMatchingStudentName(dbSt.name, "Emma Sevilla");
-              const isJonathan =
-                isMatchingStudentName(dbSt.name, "Jonathan Ticona Cachay") ||
-                isMatchingStudentName(dbSt.name, "Ticona Cachay, Jonathan");
-
-              // Respetar las fechas ingresadas por el usuario en el formulario local o DB antes de recurrir a defaults históricos
-              const effectiveStartDate = localSt.planStartDate || dbSt.planStartDate || (isEmma ? "2026-08-28" : (isJonathan ? "2026-08-18" : "2026-08-01"));
-              const effectiveEndDate = localSt.planEndDate || dbSt.planEndDate || (isEmma ? "2026-09-27" : (isJonathan ? "2026-12-31" : "2026-09-30"));
-
-              const effectivePackage = isJonathan
-                ? 24
-                : (dbSt.packageTotalSessions || localSt.packageTotalSessions || (dbSt.modality?.includes("Intensivo") ? 4 : 8));
-
-              // Tasa de asistencia: si es un alumno sin clases evaluadas (recentAttendance vacío), es 0 ("Sin evaluar"), no un valor heredado
-              const hasAttendanceHistory = (localSt.recentAttendance && localSt.recentAttendance.length > 0) || (dbSt.recentAttendance && dbSt.recentAttendance.length > 0);
-              let resolvedAttendanceRate = 0;
-              if (hasAttendanceHistory) {
-                resolvedAttendanceRate = typeof localSt.attendanceRate === "number" && localSt.attendanceRate > 0
-                  ? localSt.attendanceRate
-                  : (typeof dbSt.attendanceRate === "number" ? dbSt.attendanceRate : 0);
-              }
-
-              mergedStudents[existingIdx] = {
-                ...dbSt,
-                id: localSt.id || dbSt.id,
-                status: keepLocalActive ? "activo" : dbSt.status,
-                teacher: keepLocalTeacher ? localSt.teacher : (dbSt.teacher && dbSt.teacher !== "Prof. por Asignar" ? dbSt.teacher : localSt.teacher),
-                modality: isJonathan ? "Paquete Flexible (A demanda)" : (localSt.modality || dbSt.modality),
-                planType: isJonathan ? "Paquete Flexible" : (localSt.planType || dbSt.planType),
-                recentAttendance: localSt.recentAttendance?.length ? localSt.recentAttendance : dbSt.recentAttendance,
-                attendanceRate: resolvedAttendanceRate,
-                planStartDate: effectiveStartDate,
-                planEndDate: effectiveEndDate,
-                packageTotalSessions: effectivePackage,
-                amountPaid: isJonathan ? 500 : (dbSt.amountPaid !== undefined ? dbSt.amountPaid : localSt.amountPaid),
-                balance: isJonathan ? 0 : (dbSt.balance !== undefined ? dbSt.balance : localSt.balance),
-                planPrice: isJonathan ? 500 : (dbSt.planPrice !== undefined ? dbSt.planPrice : localSt.planPrice),
-                payment: isJonathan ? "al-dia" : ((dbSt.balance !== undefined && dbSt.balance > 0) ? "pendiente" : (localSt.payment || dbSt.payment || "al-dia")),
-              };
+              const localSt = mergedStudents[existingIdx]!;
+              if (localSt.status === "activo") return; // Mantener activo, no degradar con baja
+              mergedStudents[existingIdx] = { ...localSt, ...dbSt };
             } else {
               mergedStudents.push(dbSt);
             }
           });
 
+          // Deduplicación estricta por nombre: eliminar registros en baja/pausa que tengan un homónimo activo
+          const activeNormNames = new Set(
+            mergedStudents.filter((st) => st.status === "activo").map((st) => normalizeStudentName(st.name))
+          );
+          const cleanStudents = mergedStudents.filter((st) => {
+            if (st.status === "activo") return true;
+            return !Array.from(activeNormNames).some((act) => isMatchingStudentName(act, st.name));
+          });
+
+          // Ordenar siempre los alumnos activos al inicio para que cualquier búsqueda devuelva el perfil activo
+          cleanStudents.sort((a, b) => (b.status === "activo" ? 1 : 0) - (a.status === "activo" ? 1 : 0));
+
           // Rehidratar y sincronizar el horario (schedule) con los alumnos activos
-          const activeStudents = mergedStudents.filter((st) => st.status === "activo");
+          const activeStudents = cleanStudents.filter((st) => st.status === "activo");
           const activeNames = activeStudents.map((st) => st.name);
 
           const scheduleMap = new Map<string, ScheduledLesson>();
@@ -908,7 +930,7 @@ export const useAppStore = create<AppState>()(
           const cleanSchedule = Array.from(scheduleMap.values());
 
           return {
-            adminStudents: mergedStudents,
+            adminStudents: cleanStudents,
             schedule: cleanSchedule,
             invoices: Array.isArray(data.invoices) ? data.invoices : s.invoices,
           };

@@ -4,7 +4,7 @@ import { Calendar as CalendarIcon, Clock, MapPin, User, MessageCircle, CheckCirc
 import type { Lesson, ScheduledLesson, AttendanceStatus, WeekDay } from "@/store/app-store";
 import { useAppStore } from "@/store/app-store";
 import { getMonthWeeks } from "@/lib/calendar-utils";
-import { isMatchingStudentName } from "@/lib/student-matching";
+import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { toast } from "sonner";
 
 type CalendarLessonItem = (Lesson | ScheduledLesson) & {
@@ -84,7 +84,7 @@ export function MinimalAgendaCalendar({
       // 🛡️ REGLA CRÍTICA (ADR 0100): Verificar vigencia en la fecha exacta de esta semana
       const dayInfo = currentWeekObj.days.find((day) => day.dayKey === d);
       if (dayInfo) {
-        const studentProfile = adminStudents.find((st) => isMatchingStudentName(st.name, l.student));
+        const studentProfile = findStudentProfileByName(adminStudents, l.student);
         if (studentProfile?.planStartDate && dayInfo.dateStr < studentProfile.planStartDate) {
           return;
         }

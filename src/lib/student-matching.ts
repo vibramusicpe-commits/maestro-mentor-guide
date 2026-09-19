@@ -114,3 +114,30 @@ export function isSameStudentId(
   const uuidB = resolveStudentUUID(idB);
   return Boolean(uuidA && uuidB && uuidA === uuidB);
 }
+
+/**
+ * Busca el perfil de un alumno dando prioridad absoluta a alumnos con status "activo".
+ * Esto evita que perfiles históricos o dados de baja con el mismo nombre oculten
+ * a un alumno activo y sus clases en el Horario de Clases o Kardex.
+ */
+export function findStudentProfileByName<T extends { name: string; status?: string }>(
+  students: T[],
+  queryName: string,
+): T | undefined {
+  if (!queryName || !Array.isArray(students)) return undefined;
+  const clean = queryName.trim().toLowerCase();
+
+  // 1. Prioridad: status === 'activo'
+  const activeMatch = students.find(
+    (st) =>
+      st.status === "activo" &&
+      (isMatchingStudentName(st.name, queryName) || st.name.toLowerCase() === clean),
+  );
+  if (activeMatch) return activeMatch;
+
+  // 2. Fallback: cualquier estado (pausa, baja)
+  return students.find(
+    (st) => isMatchingStudentName(st.name, queryName) || st.name.toLowerCase() === clean,
+  );
+}
+

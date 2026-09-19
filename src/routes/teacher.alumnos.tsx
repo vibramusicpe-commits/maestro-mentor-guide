@@ -9,7 +9,7 @@ import { useAppStore } from "@/store/app-store";
 import { categoryStyles } from "@/components/admin/agenda-board";
 import { teachers, type AdminStudent } from "@/store/admin-seeds";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
-import { isMatchingStudentName } from "@/lib/student-matching";
+import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 
 export const Route = createFileRoute("/teacher/alumnos")({
   head: () => ({
@@ -138,9 +138,7 @@ function TeacherStudents() {
       const words = normL.split(" ").filter((w) => w.length > 2);
 
       // Verificar si el alumno existe en adminStudents y está activo
-      const studentProfile = adminStudents.find((st) =>
-        isMatchingStudentName(st.name, l.student)
-      );
+      const studentProfile = findStudentProfileByName(adminStudents, l.student);
 
       if (!studentProfile || studentProfile.status !== "activo") {
         continue;

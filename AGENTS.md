@@ -112,7 +112,22 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - Si se edita el precio del plan (`planPrice`) o abono (`amountPaid`) desde la ficha de edición del alumno (`updateStudentDetails`), el recibo enlazado actualiza su monto, saldo y estado en tiempo real.
 3. **Control de Abonos Fraccionados y Planes Promocionales**:
    - Para planes con descuento especial (ej. Plan Trimestral de S/ 297 a S/ 261) o pagos fraccionados (ej. primer abono de reserva y segundo abono al inicio de clases), cada entrega queda registrada en `payment_audit_logs` con fecha, monto, medio de pago y referencia.
-   - El saldo pendiente (`remainingBalance`) se calcula estrictamente como `Math.max(0, amount - amountPaid)`. Un saldo en 0 marca el recibo y alumno como `pagado` / `al-dia`.
+
+---
+
+### 8. Resolución Prioritaria de Alumnos Activos y Preservación de Historial en Horario de Clases (ADR-0107)
+1. **Prioridad Absoluta de Perfiles Activos (`findStudentProfileByName`)**:
+   - Toda búsqueda o resolución de alumno en el Horario de Clases (`AgendaBoard`, `VacancyAvailabilityPanel`, `MinimalAgendaCalendar`, Kiosco Docente) debe priorizar resolver al alumno con `status: "activo"` sobre cualquier registro histórico previo en `baja` o `pausa`.
+   - Está **TERMINANTEMENTE PROHIBIDO** que un registro en `baja` de una persona elimine u oculte las clases y asistencias de su versión re-matriculada o activa en el cronograma semanal.
+2. **Deduplicación Reactiva en Hidratación (`hydrateFromBackend`)**:
+   - Si un alumno activo ingresa desde PostgreSQL, reemplaza automáticamente cualquier registro previo inactivo con el mismo nombre.
+   - La lista `adminStudents` en Zustand se deduplica descartando homónimos inactivos y ordena a todos los alumnos activos al inicio del array para garantizar que cualquier `.find` encuentre al alumno activo de forma inmediata.
+3. **Preservación Incondicional del Historial de Clases Culminadas**:
+   - Si un alumno completó el 100% de las clases contratadas de su ciclo (ej. 8 de 8 clases), sus clases asistidas o programadas deben permanecer visibles en las semanas correspondientes en que se impartieron dentro del Horario de Clases. La culminación de la cuota jamás debe borrar el historial visual de semanas pasadas o en curso.
+4. **Soporte de Exclusión y Fecha Puntual en Celdas de Horario**:
+   - Las lecciones con `dateStr` solo deben renderizarse en el día correspondiente a esa fecha exacta.
+   - Las lecciones con `excludedDates` deben omitirse en los días correspondientes a esas fechas excluidas.
+   - Las marcas de asistencia deben evaluar primero `attendanceByDate[dateStr]` para reflejar con precisión matemática el estado de asistencia real de esa fecha.
 
 ---
 ---

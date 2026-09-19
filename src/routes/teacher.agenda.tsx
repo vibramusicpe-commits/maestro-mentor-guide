@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { MinimalAgendaCalendar } from "@/components/agenda/minimal-agenda-calendar";
 import { useAppStore } from "@/store/app-store";
-import { isMatchingStudentName } from "@/lib/student-matching";
+import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 
 export const Route = createFileRoute("/teacher/agenda")({
   head: () => ({
@@ -50,9 +50,7 @@ function TeacherAgendaPage() {
       if (sch.status === "cancelada") return false;
 
       // 🛡️ REGLA DE ORO (ADR 0095, 0098 & 0100): El profesor solo ve clases de alumnos con status === 'activo'
-      const studentProfile = adminStudents.find(
-        (st) => isMatchingStudentName(st.name, sch.student) || st.name.toLowerCase().trim() === sch.student.toLowerCase().trim()
-      );
+      const studentProfile = findStudentProfileByName(adminStudents, sch.student);
       if (!studentProfile || studentProfile.status !== "activo") {
         return false;
       }

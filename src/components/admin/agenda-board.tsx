@@ -75,7 +75,7 @@ import {
   getCurrentWeekIndex,
   type CalendarWeekInfo,
 } from "@/lib/calendar-utils";
-import { isMatchingStudentName } from "@/lib/student-matching";
+import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -352,22 +352,28 @@ export function AgendaBoard() {
   const visible = useMemo(
     () =>
       schedule.filter((l) => {
-        // 1. Filtrado por estado de alumno (solo alumnos existentes en base de datos y con estado 'activo' se muestran en el horario)
-        const studentProfile = adminStudents.find(
-          (st) => isMatchingStudentName(st.name, l.student) || st.name.toLowerCase() === l.student.toLowerCase(),
-        );
+        // 1. Filtrado por estado de alumno (priorizando coincidencia con alumno ACTIVO)
+        const studentProfile = findStudentProfileByName(adminStudents, l.student);
 
         // REGLA CRÍTICA DE VIBRA MUSIC:
         // Si el alumno no existe en la base de datos oficial O su estado no es estrictamente "activo"
         // (es decir: está en 'pausa', 'baja', o no está registrado), NUNCA debe figurar en el horario activo.
         if (!studentProfile || studentProfile.status !== "activo") return false;
 
+        const lessonDayInfo = currentWeekObj.days.find((d) => d.dayKey === l.day);
+
+        // Exclusión por fecha exacta (reprogramaciones con excludedDates) o circunscripción a fecha puntual (dateStr)
+        if (lessonDayInfo) {
+          if (l.excludedDates?.includes(lessonDayInfo.dateStr)) return false;
+          if (l.dateStr && l.dateStr !== lessonDayInfo.dateStr) return false;
+        }
+
         if (l.isMakeup) {
           // Clases de recuperación son puntuales para su semana, mes y año específico
           const lYear = l.year ?? 2026;
           if (lYear !== selectedYear) return false;
-          if (l.month !== undefined && l.month !== selectedMonth) return false;
-          if (l.weekIndex !== undefined && l.weekIndex !== safeWeekIndex) return false;
+          if (l.month !== undefined && l.month !== selectedMonth && !l.dateStr) return false;
+          if (l.weekIndex !== undefined && l.weekIndex !== safeWeekIndex && !l.dateStr) return false;
         } else {
 
             // 2. Control del Ciclo Escolar y Vigencia de Planes:
@@ -405,7 +411,6 @@ export function AgendaBoard() {
           // 🛡️ REGLA CRÍTICA DE VIGENCIA DE MATRÍCULA (ADR 0100):
           // Verificar si el día lectivo de la clase en esta semana es anterior al inicio oficial de clases del alumno.
           // Ej: Camila Pastor inició el 10/09/2026; clases en Semana 1 (1 y 3 Set) y Semana 2 (8 Set) quedan excluidas.
-          const lessonDayInfo = currentWeekObj.days.find((d) => d.dayKey === l.day);
           if (lessonDayInfo) {
             const planStartDate =
               studentProfile?.planStartDate ||
@@ -517,9 +522,7 @@ export function AgendaBoard() {
           if (l.day !== d || l.time !== t) return false;
           if (l.status === "cancelada") return false;
           if (l.weekIndex !== undefined && l.weekIndex !== targetWeekIndex) return false;
-          const stProfile = adminStudents.find(
-            (st) => isMatchingStudentName(st.name, l.student) || st.name.toLowerCase() === l.student.toLowerCase(),
-          );
+          const stProfile = findStudentProfileByName(adminStudents, l.student);
           return !!(stProfile && stProfile.status === "activo");
         }
       );
@@ -1445,9 +1448,7 @@ export function AgendaBoard() {
                                           const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
                                           const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
                                           const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
-                                          const studentProfile = adminStudents.find(
-                                            (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
-                                          );
+                                          const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
 
                                           // Detección de Categoría de Edad para Clases Personalizadas
                                           const studentAgeCat =
@@ -1508,6 +1509,7 @@ export function AgendaBoard() {
                                                {/* Indicador de Asistencia Marcada por Profesor / Secretaría */}
                                                {(() => {
                                                  const cardAtt =
+                                                   lesson.attendanceByDate?.[dayInfo.dateStr] ??
                                                    lesson.attendanceByWeek?.[safeWeekIndex] ??
                                                    (lesson.weekIndex === safeWeekIndex
                                                      ? lesson.attendanceStatus
@@ -1847,9 +1849,7 @@ export function AgendaBoard() {
                                         const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
                                         const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
                                         const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
-                                        const studentProfile = adminStudents.find(
-                                          (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
-                                        );
+                                        const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
                                         
                                         // Detección de Categoría de Edad para Clases Personalizadas
                                         const studentAgeCat =
@@ -1937,7 +1937,9 @@ export function AgendaBoard() {
                                                  🎵 {lesson.instrument}
                                                </span>
                                                {(() => {
+                                                 const currentDayDateStr = currentWeekObj.days.find((d) => d.dayKey === currentDayName)?.dateStr;
                                                  const cardAtt =
+                                                   (currentDayDateStr ? lesson.attendanceByDate?.[currentDayDateStr] : undefined) ??
                                                    lesson.attendanceByWeek?.[safeWeekIndex] ??
                                                    (lesson.weekIndex === safeWeekIndex
                                                      ? lesson.attendanceStatus
@@ -2058,9 +2060,7 @@ export function AgendaBoard() {
                               const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
                               const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
                               const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
-                              const studentProfile = adminStudents.find(
-                                (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
-                              );
+                              const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
                               
                               const studentAgeCat =
                                 studentProfile?.ageCategory ||
@@ -2217,9 +2217,7 @@ export function AgendaBoard() {
                             const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
                             const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
                             const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
-                            const studentProfile = adminStudents.find(
-                              (st) => st.name.toLowerCase() === lesson.student.toLowerCase()
-                            );
+                            const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
                             
                             const studentAgeCat =
                               studentProfile?.ageCategory ||
@@ -2378,9 +2376,7 @@ export function AgendaBoard() {
                     value={selected.category || "JUNIOR"}
                     onValueChange={(v: any) => {
                       useAppStore.getState().updateLessonCategory(selected.id, v);
-                      const studentMatch = adminStudents.find(
-                        (st) => st.name.toLowerCase() === selected.student.toLowerCase()
-                      );
+                      const studentMatch = findStudentProfileByName(adminStudents, selected.student);
                       if (studentMatch) {
                         useAppStore.getState().updateStudentDetails(studentMatch.id, { ageCategory: v });
                       }
@@ -2996,12 +2992,7 @@ export function AgendaBoard() {
 
                 {/* Control y Resumen de Asistencias del Alumno en el Mes (Zona de Confort Nayeli) */}
                 {(() => {
-                  const studentData = adminStudents.find(
-                    (st) =>
-                      st.name.toLowerCase() === selected.student.toLowerCase() ||
-                      st.name.toLowerCase().includes(selected.student.toLowerCase()) ||
-                      selected.student.toLowerCase().includes(st.name.toLowerCase())
-                  );
+                  const studentData = findStudentProfileByName(adminStudents, selected.student);
 
                   const isIntensivo = studentData?.modality?.includes("Intensivo");
                   const targetLessons = isIntensivo ? 4 : 8;

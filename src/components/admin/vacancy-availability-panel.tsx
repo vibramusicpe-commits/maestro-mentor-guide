@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { musicalInstruments, availableTeachers, rooms } from "@/store/admin-seeds";
-import { isMatchingStudentName } from "@/lib/student-matching";
+import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -98,9 +98,7 @@ export function VacancyAvailabilityPanel({
             if (l.day !== day || l.time !== time) return false;
             if (!l.teacher.toLowerCase().includes(t.toLowerCase())) return false;
             if (l.status === "cancelada") return false;
-            const studentProfile = adminStudents.find(
-              (st) => isMatchingStudentName(st.name, l.student) || st.name.toLowerCase() === l.student.toLowerCase(),
-            );
+            const studentProfile = findStudentProfileByName(adminStudents, l.student);
             return !!(studentProfile && studentProfile.status === "activo");
           });
 

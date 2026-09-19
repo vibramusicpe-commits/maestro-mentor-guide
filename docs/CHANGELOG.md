@@ -4,6 +4,20 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.1] - 2026-09-18
+
+### Resolución Prioritaria de Alumnos Activos y Preservación de Historial en Horario de Clases (ADR-0107)
+- **Función `findStudentProfileByName` (`src/lib/student-matching.ts`)**:
+  - Busca perfiles priorizando siempre `status === "activo"`, evitando que duplicados en baja generados durante pruebas de eliminación/re-creación oculten las clases del alumno.
+  - Integrada en `AgendaBoard`, `VacancyAvailabilityPanel`, `MinimalAgendaCalendar` y en los módulos del portal docente (`teacher.agenda`, `teacher.alumnos`, `teacher.index`).
+- **Deduplicación e Inmunidad a Sombras Inactivas (`src/store/app-store.ts`)**:
+  - En `hydrateFromBackend`, un alumno activo de PostgreSQL sustituye automáticamente a cualquier homónimo inactivo.
+  - Se depuran registros en baja que compartan nombre con un activo y se ordenan los alumnos activos al inicio de `adminStudents`.
+- **Preservación Incondicional del Historial de Clases Culminadas (`src/components/admin/agenda-board.tsx`)**:
+  - Los alumnos que completaron sus 8 créditos lectivos mantienen visibles todas sus clases asistidas en las semanas correspondientes.
+  - Las celdas leen `attendanceByDate[dateStr]` para reflejar con exactitud las asistencias persistidas en `attendance_logs`.
+  - Soporte de exclusión por fecha (`excludedDates`) y clases puntuales (`dateStr`) en la grilla semanal.
+
 ## [2.0.0] - 2026-09-18
 
 ### Gestión Quirúrgica de Cobros, Abonos y Facturación Vinculada Exclusivamente a Alumnos Activos (ADR-0106)
