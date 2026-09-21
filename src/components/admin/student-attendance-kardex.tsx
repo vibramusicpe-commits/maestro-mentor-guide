@@ -200,11 +200,20 @@ export function StudentAttendanceKardex({
     return getMonthWeeks(selectedYear, selectedMonth);
   }, [selectedYear, selectedMonth]);
 
-  // Clases agendadas para este alumno (matching inteligente de nombres)
+  // Clases agendadas para este alumno (fusionando store central y perfil oficial en PostgreSQL)
   const studentLessons = useMemo(() => {
-    const raw = schedule.filter(
+    const rawStore = schedule.filter(
       (l) => isMatchingStudentName(l.student, liveStudent.name) && l.status !== "cancelada"
     );
+    const rawProfile = (liveStudent.scheduleLessons || []).filter(
+      (l) => l.status !== "cancelada"
+    );
+
+    const mergedMap = new Map<string, ScheduledLesson>();
+    rawStore.forEach((l) => mergedMap.set(l.id || `${l.day}-${l.time}-${l.dateStr || ""}`, l));
+    rawProfile.forEach((l) => mergedMap.set(l.id || `${l.day}-${l.time}-${l.dateStr || ""}`, l));
+    const raw = Array.from(mergedMap.values());
+
     // Deduplicar lecciones para garantizar que no haya clases repetidas en el mismo día y hora
     const deduped: ScheduledLesson[] = [];
     raw.forEach((l) => {
@@ -227,7 +236,7 @@ export function StudentAttendanceKardex({
       if (!already) deduped.push(l);
     });
     return deduped;
-  }, [schedule, liveStudent.name]);
+  }, [schedule, liveStudent.name, liveStudent.scheduleLessons]);
 
   // 🎯 Generador Exacto del Ciclo Contractual (8 clases Regular / 4 clases Intensivo)
   // Comienza estrictamente en planStartDate y abarca su cuota completa del contrato
@@ -275,15 +284,22 @@ export function StudentAttendanceKardex({
           return;
         }
 
-        // D. Si tiene semana fija (weekIndex) y no dateStr, verificar semana del ciclo
-        const curCycleWeekIndex = Math.floor(offset / 7);
-        if (!lesson.dateStr && lesson.weekIndex !== undefined && lesson.weekIndex !== curCycleWeekIndex) {
-          return;
+        // D. Si tiene semana fija (weekIndex) y no dateStr, verificar semana dentro del mes de la fecha
+        if (!lesson.dateStr && lesson.weekIndex !== undefined) {
+          const curMonthWeeks = getMonthWeeks(curY, curM);
+          const curWeekInMonth = curMonthWeeks.findIndex((w) => w.days.some((d) => d.dateStr === curDateStr));
+          if (curWeekInMonth !== -1 && lesson.weekIndex !== curWeekInMonth) {
+            return;
+          }
         }
 
-        // E. Si tiene semanas excluidas en el ciclo, omitir
-        if (lesson.excludedWeeks && lesson.excludedWeeks.includes(curCycleWeekIndex)) {
-          return;
+        // E. Si tiene semanas excluidas en el mes, omitir
+        if (!lesson.dateStr && lesson.excludedWeeks && lesson.excludedWeeks.length > 0) {
+          const curMonthWeeks = getMonthWeeks(curY, curM);
+          const curWeekInMonth = curMonthWeeks.findIndex((w) => w.days.some((d) => d.dateStr === curDateStr));
+          if (curWeekInMonth !== -1 && lesson.excludedWeeks.includes(curWeekInMonth)) {
+            return;
+          }
         }
 
         let currentStatus: StudentSessionItem["status"] = "pendiente";
@@ -702,6 +718,11 @@ export function StudentAttendanceKardex({
   };
 
   const handleConfirmAddSession = () => {
+    // Calcular la fecha exacta en el calendario para esta sesión
+    const targetWeekObj = monthWeeks[addSessionWeekIndex];
+    const targetDayObj = targetWeekObj?.days.find((d) => d.dayKey === addSessionDay);
+    const computedDateStr = targetDayObj?.dateStr;
+
     addLessonToSchedule({
       student: liveStudent.name,
       teacher: addSessionTeacher,
@@ -711,6 +732,7 @@ export function StudentAttendanceKardex({
       room: addSessionRoom,
       category: liveStudent.ageCategory || "JUNIOR",
       status: "programada",
+      dateStr: computedDateStr,
       weekIndex: addSessionWeekIndex,
       month: selectedMonth,
       year: selectedYear,
@@ -725,7 +747,7 @@ export function StudentAttendanceKardex({
     };
 
     toast.success(`Sesión agregada: ${addSessionDay} a las ${addSessionTime}`, {
-      description: `Semana ${addSessionWeekIndex + 1} (${labels[addSessionReason] || "Sesión"}) · Prof. ${addSessionTeacher}`,
+      description: `${computedDateStr ? `${computedDateStr} · ` : ""}Semana ${addSessionWeekIndex + 1} (${labels[addSessionReason] || "Sesión"}) · Prof. ${addSessionTeacher}`,
     });
 
     setIsAddSessionOpen(false);

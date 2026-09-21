@@ -11,12 +11,14 @@ import {
   Calendar,
   MessageCircle,
   UserCheck,
+  RotateCw,
 } from "lucide-react";
 import { IntegratedTeacherKioskHeader } from "@/components/teacher/integrated-kiosk-header";
 import { LessonNotes } from "@/components/teacher/lesson-notes";
 import { useAppStore, type ScheduledLesson, type WeekDay, type AttendanceStatus } from "@/store/app-store";
-import { getCurrentWeekIndex } from "@/lib/calendar-utils";
+import { getCurrentWeekIndex, getMonthWeeks } from "@/lib/calendar-utils";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
+import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/teacher/")({
@@ -63,6 +65,7 @@ export function TeacherKiosk() {
   const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
   const markLessonAttendance = useAppStore((s) => s.markLessonAttendance);
+  const { isSyncing, syncNow } = useInsforgeSync();
 
   // Determinar día actual por defecto
   const todayDayShort = useMemo<WeekDay>(() => {
@@ -72,8 +75,14 @@ export function TeacherKiosk() {
   }, []);
 
   const [selectedDay, setSelectedDay] = useState<WeekDay>(todayDayShort);
-  // Semana lectiva activa del mes actual (0-indexed)
-  const activeWeekIndex = useMemo(() => getCurrentWeekIndex(), []);
+
+  // Semanas lectivas del mes actual (Setiembre 2026)
+  const monthWeeks = useMemo(() => getMonthWeeks(2026, 8), []);
+  const activeWeekIndex = useMemo(() => getCurrentWeekIndex(2026, 8), []);
+  const safeWeekIndex = Math.min(Math.max(0, activeWeekIndex), monthWeeks.length - 1);
+  const currentWeekObj = monthWeeks[safeWeekIndex] || monthWeeks[0];
+  const targetDayInfo = currentWeekObj?.days.find((d) => d.dayKey === selectedDay);
+  const targetDateStr = targetDayInfo?.dateStr;
 
   const [adminSelectedTeacher, setAdminSelectedTeacher] = useState<string | null>(null);
 
@@ -128,22 +137,38 @@ export function TeacherKiosk() {
     });
   }, [schedule, adminStudents, teacherClean]);
 
+  // Función determinista para evaluar si una clase pertenece a un día y fecha específica (ADR-0105, ADR-0115)
+  const isLessonInDay = (lesson: ScheduledLesson, dayKey: WeekDay, dateStr?: string) => {
+    if (lesson.day !== dayKey) return false;
+    if (lesson.dateStr) {
+      return dateStr ? lesson.dateStr === dateStr : true;
+    }
+    if (dateStr && lesson.excludedDates?.includes(dateStr)) {
+      return false;
+    }
+    if (lesson.weekIndex !== undefined && lesson.weekIndex !== safeWeekIndex) {
+      return false;
+    }
+    return true;
+  };
+
   // Contadores por día de la semana para los tabs
   const countsByDay = useMemo(() => {
     const map = new Map<WeekDay, number>();
     DAYS_OF_WEEK.forEach((d) => {
-      const count = teacherScheduleLessons.filter((l) => l.day === d.short).length;
+      const dayObj = currentWeekObj?.days.find((cd) => cd.dayKey === d.short);
+      const count = teacherScheduleLessons.filter((l) => isLessonInDay(l, d.short, dayObj?.dateStr)).length;
       map.set(d.short, count);
     });
     return map;
-  }, [teacherScheduleLessons]);
+  }, [teacherScheduleLessons, currentWeekObj, safeWeekIndex]);
 
   // Clases del día seleccionado ORDENADAS CRONOLÓGICAMENTE
   const dayLessons = useMemo(() => {
     return teacherScheduleLessons
-      .filter((l) => l.day === selectedDay)
+      .filter((l) => isLessonInDay(l, selectedDay, targetDateStr))
       .sort((a, b) => a.time.localeCompare(b.time));
-  }, [teacherScheduleLessons, selectedDay]);
+  }, [teacherScheduleLessons, selectedDay, targetDateStr, safeWeekIndex]);
 
   // Agrupadas por bloque horario (e.g. 16:00, 16:45, 17:30...)
   const groupedTimeSlots = useMemo(() => {
@@ -169,21 +194,35 @@ export function TeacherKiosk() {
       {/* 🚀 CABECERA INTEGRADA: FICHAJE DE SEDE + RELOJ DE TURNO */}
       <IntegratedTeacherKioskHeader totalDayStudents={dayLessons.length} />
 
-      {/* 👨‍🏫 SELECTOR DE PROFESOR (Auditoría y Soporte) */}
-      <div className="flex items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
-        {["Fernando", "Nathaly", "Jeremy"].map((t) => (
-          <button
-            key={t}
-            onClick={() => setAdminSelectedTeacher(t)}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
-              teacherDisplayName === t
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Prof. {t}
-          </button>
-        ))}
+      {/* 👨‍🏫 SELECTOR DE PROFESOR (Auditoría y Soporte) + Botón de Sincronización en Vivo */}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
+          {["Fernando", "Nathaly", "Jeremy"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setAdminSelectedTeacher(t)}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                teacherDisplayName === t
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Prof. {t}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={async () => {
+            await syncNow();
+            toast.success("Kiosco sincronizado con la base de datos central");
+          }}
+          disabled={isSyncing}
+          title="Actualizar datos en tiempo real con PostgreSQL"
+          className="flex items-center justify-center p-2.5 rounded-2xl bg-card border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-all shadow-xs disabled:opacity-50"
+        >
+          <RotateCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : ""}`} />
+        </button>
       </div>
 
       {/* 🗓️ SELECTOR DE DÍAS EN TABS MÓVILES (LUN..SÁB) */}
@@ -275,9 +314,11 @@ export function TeacherKiosk() {
                 <div className="space-y-2">
                   {slot.lessons.map((lesson) => {
                     const status =
-                      (lesson.attendanceByWeek && lesson.attendanceByWeek[activeWeekIndex])
-                        ? lesson.attendanceByWeek[activeWeekIndex]!
-                        : lesson.attendanceStatus || "pendiente";
+                      (targetDateStr && lesson.attendanceByDate?.[targetDateStr])
+                        ? lesson.attendanceByDate[targetDateStr]!
+                        : (lesson.attendanceByWeek && lesson.attendanceByWeek[safeWeekIndex])
+                          ? lesson.attendanceByWeek[safeWeekIndex]!
+                          : lesson.attendanceStatus || "pendiente";
 
                     return (
                       <div
@@ -318,8 +359,8 @@ export function TeacherKiosk() {
                         <div className="pt-1.5 border-t border-border/40 grid grid-cols-4 gap-1.5">
                           <button
                             onClick={() => {
-                              markLessonAttendance(lesson.id, "presente", "", activeWeekIndex);
-                              toast.success(`Asistencia: ${lesson.student} PRESENTE 🟢 (Semana ${activeWeekIndex + 1})`);
+                              markLessonAttendance(lesson.id, "presente", "", safeWeekIndex, targetDateStr);
+                              toast.success(`Asistencia: ${lesson.student} PRESENTE 🟢 (${targetDateStr || `Semana ${safeWeekIndex + 1}`})`);
                             }}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
                               status === "presente"
@@ -331,7 +372,7 @@ export function TeacherKiosk() {
                           </button>
                           <button
                             onClick={() => {
-                              markLessonAttendance(lesson.id, "ausente", "", activeWeekIndex);
+                              markLessonAttendance(lesson.id, "ausente", "", safeWeekIndex, targetDateStr);
                               toast.error(`Asistencia: ${lesson.student} AUSENTE 🔴 (+1 Crédito de Recup.)`);
                             }}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
@@ -344,7 +385,7 @@ export function TeacherKiosk() {
                           </button>
                           <button
                             onClick={() => {
-                              markLessonAttendance(lesson.id, "tarde", "", activeWeekIndex);
+                              markLessonAttendance(lesson.id, "tarde", "", safeWeekIndex, targetDateStr);
                               toast.warning(`Asistencia: ${lesson.student} TARDE 🟡`);
                             }}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
@@ -357,7 +398,7 @@ export function TeacherKiosk() {
                           </button>
                           <button
                             onClick={() => {
-                              markLessonAttendance(lesson.id, "justificada", "", activeWeekIndex);
+                              markLessonAttendance(lesson.id, "justificada", "", safeWeekIndex, targetDateStr);
                               toast.info(`Asistencia: ${lesson.student} JUSTIFICADA 🔵 (+1 Crédito)`);
                             }}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${

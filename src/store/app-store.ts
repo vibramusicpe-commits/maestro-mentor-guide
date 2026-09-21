@@ -164,7 +164,8 @@ type AppState = {
     lessonId: string,
     status: "presente" | "ausente" | "tarde" | "justificada",
     notes?: string,
-    targetWeekIndex?: number
+    targetWeekIndex?: number,
+    dateStr?: string
   ) => void;
   setStudentSessionAttendance: (
     studentName: string,
@@ -991,10 +992,16 @@ export const useAppStore = create<AppState>()(
 
           const scheduleMap = new Map<string, ScheduledLesson>();
 
-          // 1. Conservar clases existentes en memoria local si corresponden a alumnos activos
+          // 1. Conservar clases existentes en memoria local SOLO si el alumno NO tiene scheduleLessons oficial en PostgreSQL
           (s.schedule || []).forEach((l) => {
-            if (l.status !== "cancelada" && activeNames.some((actName) => isMatchingStudentName(actName, l.student))) {
-              scheduleMap.set(l.id, l);
+            if (l.status !== "cancelada") {
+              const matchedStudent = activeStudents.find((actSt) => isMatchingStudentName(actSt.name, l.student));
+              if (matchedStudent) {
+                // Si el alumno no tiene scheduleLessons oficial en la BD, conservar sus clases locales
+                if (!matchedStudent.scheduleLessons || matchedStudent.scheduleLessons.length === 0) {
+                  scheduleMap.set(l.id, l);
+                }
+              }
             }
           });
 
@@ -1848,16 +1855,21 @@ export const useAppStore = create<AppState>()(
           ),
           syncQueue: [...s.syncQueue, queueItem("Crédito de recuperación utilizado")],
         })),
-      markLessonAttendance: (lessonId, status, notes = "", targetWeekIndex?: number) =>
+      markLessonAttendance: (lessonId, status, notes = "", targetWeekIndex?: number, dateStr?: string) =>
         set((s) => {
           const lesson = s.schedule.find((l) => l.id === lessonId);
           const studentName = lesson?.student;
           const isJustificada = status === "justificada";
           const weekIdx = targetWeekIndex ?? lesson?.weekIndex ?? getCurrentWeekIndex();
+          const effectiveDateStr = dateStr || lesson?.dateStr;
 
           const newSchedule = s.schedule.map((l) => {
             if (l.id === lessonId) {
               const prevByWeek = { ...(l.attendanceByWeek || {}) };
+              const prevByDate = { ...(l.attendanceByDate || {}) };
+              if (effectiveDateStr) {
+                prevByDate[effectiveDateStr] = status;
+              }
               return {
                 ...l,
                 attendanceStatus: status,
@@ -1865,6 +1877,7 @@ export const useAppStore = create<AppState>()(
                   ...prevByWeek,
                   [weekIdx]: status,
                 },
+                attendanceByDate: prevByDate,
               };
             }
             return l;
@@ -1914,6 +1927,7 @@ export const useAppStore = create<AppState>()(
                 attendanceRate: newRate,
                 recentAttendance: [status === "justificada" ? "ausente" : status, ...(st.recentAttendance || []).slice(0, 4)],
                 makeupCredits: isJustificada ? st.makeupCredits + 1 : st.makeupCredits,
+                scheduleLessons: studentLessons,
               };
             }
             return st;
@@ -1927,12 +1941,13 @@ export const useAppStore = create<AppState>()(
             backgroundSyncStudentToDB(s.activeRole, updatedStudent.id, {
               attendanceRate: newRate,
               makeupCredits: updatedStudent.makeupCredits,
+              scheduleLessons: studentLessons,
             });
             backgroundSyncAttendanceLogToDB(
               s.activeRole,
               updatedStudent.id,
               status,
-              `Semana ${weekIdx + 1} - Marcado por Profesor en Kiosco${notes ? `: ${notes}` : ""}`
+              `${effectiveDateStr ? `Fecha ${effectiveDateStr} - ` : ""}Semana ${weekIdx + 1} - Marcado por Profesor en Kiosco${notes ? `: ${notes}` : ""}`
             );
           }
 

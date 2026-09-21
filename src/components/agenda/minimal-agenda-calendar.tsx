@@ -291,7 +291,7 @@ export function MinimalAgendaCalendar({
                       <div className="pt-2 border-t border-border/40 grid grid-cols-4 gap-1.5">
                         <button
                           onClick={() => {
-                            markLessonAttendance(lesson.id, "presente");
+                            markLessonAttendance(lesson.id, "presente", "", safeWeekIndex, currentDayDateStr);
                             setAttendance(lesson.id, "presente");
                             toast.success(`Asistencia: ${lesson.student} PRESENTE 🟢`);
                           }}
@@ -305,7 +305,7 @@ export function MinimalAgendaCalendar({
                         </button>
                         <button
                           onClick={() => {
-                            markLessonAttendance(lesson.id, "ausente");
+                            markLessonAttendance(lesson.id, "ausente", "", safeWeekIndex, currentDayDateStr);
                             setAttendance(lesson.id, "ausente");
                             toast.error(`Asistencia: ${lesson.student} AUSENTE 🔴 (+1 Crédito)`);
                           }}
@@ -319,7 +319,7 @@ export function MinimalAgendaCalendar({
                         </button>
                         <button
                           onClick={() => {
-                            markLessonAttendance(lesson.id, "tarde");
+                            markLessonAttendance(lesson.id, "tarde", "", safeWeekIndex, currentDayDateStr);
                             setAttendance(lesson.id, "tarde");
                             toast.warning(`Asistencia: ${lesson.student} TARDE 🟡`);
                           }}
@@ -333,7 +333,7 @@ export function MinimalAgendaCalendar({
                         </button>
                         <button
                           onClick={() => {
-                            markLessonAttendance(lesson.id, "justificada");
+                            markLessonAttendance(lesson.id, "justificada", "", safeWeekIndex, currentDayDateStr);
                             setAttendance(lesson.id, "justificada");
                             toast.info(`Asistencia: ${lesson.student} JUSTIFICADA 🔵 (+1 Crédito)`);
                           }}

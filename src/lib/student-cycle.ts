@@ -62,10 +62,19 @@ export function computeStudentCycle(
   const [sy, sm, sd] = startStr.split("-").map(Number);
   const startDate = sy && sm && sd ? new Date(sy, sm - 1, sd) : new Date(2026, 7, 1);
 
-  // Filtrar lecciones correspondientes a este alumno
-  const studentLessons = allScheduleLessons.filter(
+  // Filtrar lecciones correspondientes a este alumno (fusionando lecciones en memoria con las guardadas en studentProfile de PostgreSQL)
+  const profileLessons = Array.isArray(studentProfile.scheduleLessons) && studentProfile.scheduleLessons.length > 0
+    ? studentProfile.scheduleLessons.filter((l) => l.status !== "cancelada")
+    : [];
+
+  const storeLessons = allScheduleLessons.filter(
     (l) => l.status !== "cancelada" && isMatchingStudentName(l.student, studentProfile.name)
   );
+
+  const mergedLessonsMap = new Map<string, ScheduledLesson>();
+  storeLessons.forEach((l) => mergedLessonsMap.set(l.id || `${l.day}-${l.time}-${l.dateStr || ""}`, l));
+  profileLessons.forEach((l) => mergedLessonsMap.set(l.id || `${l.day}-${l.time}-${l.dateStr || ""}`, l));
+  const studentLessons = Array.from(mergedLessonsMap.values());
 
   // 1. Recolectar todas las clases que ya cuentan con evaluación real
   const evaluatedSlots = new Set<string>();
@@ -212,12 +221,17 @@ export function isLessonInStudentCycle(
     return true;
   }
 
-  // C. Límites de inicio de plan
+  // C. Si la clase tiene fecha puntual exacta fijada por reprogramación/adelanto y coincide con la fecha
+  if (lesson.dateStr && lesson.dateStr === lessonDateStr) {
+    return true;
+  }
+
+  // D. Límites de inicio de plan
   if (studentProfile.planStartDate && lessonDateStr < studentProfile.planStartDate) {
     return false;
   }
 
-  // D. Validación contra el ciclo contractual calculado
+  // E. Validación contra el ciclo contractual calculado
   const cycle = computeStudentCycle(studentProfile, allScheduleLessons);
   const slotKey = `${lessonDateStr}-${lessonTime || lesson.time || "16:00"}`;
 

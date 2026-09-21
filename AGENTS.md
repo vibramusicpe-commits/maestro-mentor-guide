@@ -260,6 +260,20 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - `MinimalAgendaCalendar` aplica los mismos filtros estrictos de `dateStr`, `weekIndex` y `excludedDates` que `AgendaBoard.tsx`, garantizando que lecciones puntuales (como recuperaciones o clases contiguas) solo figuren en su fecha exacta y se reflejen idénticas entre la vista de secretaría y la vista del profesor.
 
 ---
+
+### 19. Sincronización Bidireccional PostgreSQL, Refresco Táctil en Admin/Kiosco y Resolución Multimensual de Kardex (ADR-0118)
+1. **Botón Táctil de Sincronización con PostgreSQL en Admin y Kiosco**:
+   - Se incorpora el botón de rehidratación instantánea `<RotateCw />` en la cabecera de la Agenda Administrativa (`/admin/agenda`) y en el Kiosco Docente (`/teacher`), permitiendo a directores, secretarias y profesores forzar la sincronización en vivo con PostgreSQL con un solo clic/toque en pantalla, mostrando animación de giro y confirmación toast.
+2. **Preservación Incondicional de Clases con Fecha Específica (`dateStr`)**:
+   - En `isLessonInStudentCycle` (`src/lib/student-cycle.ts`), las sesiones que cuentan con una fecha exacta asignada (`lesson.dateStr && lesson.dateStr === lessonDateStr`) se aprueban incondicionalmente (`return true;`). Esto evita que filtros de cuota mensuales oculten clases reprogramadas o recuperaciones válidas (ej. Mia Lucero Bellido y Karlitoz Pazos en Septiembre 2026).
+3. **Corrección del Escaneo Multimensual en Kardex de Asistencias**:
+   - En `student-attendance-kardex.tsx`, la validación de semana se realiza comparando `lesson.weekIndex` contra la semana dentro del mes consultado (`curWeekInMonth = weekIdx`), en vez de calcular semanas transcurridas desde `planStartDate` (`Math.floor(offset / 7)`). Esto soluciona la desaparición de clases en la previsualización del Kardex para alumnos con inicio previo al mes en curso (ej. Andrea Fernanda Meza Llallahui, cuyo plan inició en Julio).
+4. **Prioridad Absoluta de Horarios Persistidos en PostgreSQL (`emergency_contact.scheduleLessons`)**:
+   - En `hydrateFromBackend` (`app-store.ts`), las clases del horario local solo se conservan si el alumno no cuenta con clases oficiales guardadas en PostgreSQL. Al existir `scheduleLessons` en la base de datos, estas tienen prioridad total y sustituyen cualquier caché local obsoleta entre diferentes navegadores y computadoras.
+5. **Persistencia Directa de Asistencias desde Kiosco Docente hacia PostgreSQL**:
+   - `markLessonAttendance` acepta `dateStr`, registra `attendanceByDate[dateStr]`, actualiza `scheduleLessons` en el estado del alumno y persiste atómicamente hacia `emergency_contact.scheduleLessons` y `attendance_logs` en Insforge PostgreSQL, asegurando sincronización instantánea y consistente en tiempo real entre docentes y secretaría.
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)
