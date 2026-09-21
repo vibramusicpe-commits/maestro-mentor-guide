@@ -116,12 +116,14 @@ export function TeacherKiosk() {
         isMatchingStudentName("Emma Sevilla", sch.student)
       );
 
-      const schTeacher = sch.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
+      const schTeacher = (sch.teacher || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
+      const profTeacher = (studentProfile.teacher || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
       return (
         isFernandoStudent ||
         schTeacher.includes(teacherClean) ||
         teacherClean.includes(schTeacher) ||
-        sch.teacher.toLowerCase().includes(teacherClean)
+        profTeacher.includes(teacherClean) ||
+        teacherClean.includes(profTeacher)
       );
     });
   }, [schedule, adminStudents, teacherClean]);

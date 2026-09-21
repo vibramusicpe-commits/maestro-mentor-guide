@@ -392,8 +392,8 @@ export function AgendaBoard() {
               if (selectedMonth >= 7) return false; // A mediados de 2027 ya no hay clases
             }
 
-            // - En 2026: El ciclo lectivo oficial comenzó en Agosto 2026 (mes index 7).
-            if (selectedYear === 2026 && selectedMonth < 7) {
+            // - En 2026: El ciclo lectivo oficial comenzó en Julio/Agosto 2026 (mes index 6/7).
+            if (selectedYear === 2026 && selectedMonth < 6) {
               return false;
             }
 
@@ -410,11 +410,28 @@ export function AgendaBoard() {
             if (endMonth && selectedYearMonthStr > endMonth && !lessonDayInfo?.dateStr) return false;
           }
 
-          // 2. Filtro de semana específica (si aplica a semana individual o al mes completo)
-          if (l.weekIndex !== undefined && l.weekIndex !== safeWeekIndex) {
+          // 2. Filtro de semana específica y fechas puntuales (ADR-0105, ADR-0107, ADR-0115)
+          if (l.dateStr) {
+            // Lecciones con fecha exacta: deben pertenecer a la semana visualizada
+            if (!currentWeekObj.days.some((d) => d.dateStr === l.dateStr)) {
+              return false;
+            }
+          } else {
+            if (l.weekIndex !== undefined && l.weekIndex !== safeWeekIndex) {
+              return false;
+            }
+            if (l.excludedWeeks?.includes(safeWeekIndex)) {
+              return false;
+            }
+          }
+
+          // Validación de exclusión por fecha puntual
+          if (lessonDayInfo && l.excludedDates?.includes(lessonDayInfo.dateStr)) {
             return false;
           }
-          if (l.excludedWeeks?.includes(safeWeekIndex)) {
+
+          // Validación de coincidencia de fecha puntual si la celda es de otro día
+          if (lessonDayInfo && l.dateStr && l.dateStr !== lessonDayInfo.dateStr) {
             return false;
           }
 

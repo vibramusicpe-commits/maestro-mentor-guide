@@ -200,6 +200,40 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - Tanto `setStudentStatus` como `updateStudentDetails` cuentan con fallback de coincidencia por nombre normalizado (`isMatchingStudentName`) para resolver de forma infalible la reactivación 1 a 1 de alumnos históricos desde el panel de depuración (`student-cleanup-panel.tsx`).
 
 ---
+
+### 14. Soporte Integral para Paquete Flexible (A Demanda) en Horario y Kardex (ADR-0113)
+1. **Frecuencia y Duración de Sesión de Paquete Flexible**:
+   - Las clases de un Paquete Flexible son de **45 minutos** por sesión (no 90 minutos como en el Plan Intensivo).
+   - Se permite seleccionar libremente la frecuencia semanal: **1 clase por semana (45 min)** o **2 clases por semana (45 min)** en `ScheduleStudentForm`.
+   - Al seleccionar 2 clases semanales, se habilitan dos bloques de configuración independientes (`🎒 Flexible Libre`) con días y horas totalmente personalizables de lunes a sábado según disponibilidad del docente.
+2. **Preservación Incondicional de Vigencia Contractual (`planEndDate`)**:
+   - Para alumnos con Paquete Flexible, `handleSubmit` en `ScheduleStudentForm` conserva la fecha contractual previamente acordada (`liveStudent.planEndDate`), prohibiendo sobreescribirla con fórmulas fijas de +1 o +2 meses.
+3. **Proyección Dinámica Multimensual en Kardex y Ciclo de Vida (`maxDaysToScan`)**:
+   - El cálculo del ciclo del alumno (`computeStudentCycle` en `student-cycle.ts` y `StudentAttendanceKardex`) calcula dinámicamente la ventana de escaneo como `Math.max(isFlexiblePackage ? 180 : 90, daysToEnd)` días a partir de `planStartDate`.
+   - Esto garantiza que paquetes de 24 sesiones o ciclos multimensuales (ej. Julio a Octubre) proyecten y permitan marcar asistencias en todas sus clases a lo largo de los meses correspondientes sin truncamiento prematuro.
+4. **Exclusión de Facturación Recurrente Mensual (`generateMonthlyInvoices`)**:
+   - Los alumnos matriculados bajo **Paquete Flexible (A demanda)** quedan explícitamente excluidos del generador masivo de recibos mensuales del día 20 (`generateMonthlyInvoices`). Al tratarse de una bolsa cerrada de horas contratadas (ej. 24 clases a demanda), su cobro se realiza por ciclo de paquete y no por mes calendario, impidiendo la generación de recibos duplicados en el backend.
+5. **Normalización de Fechas de Nacimiento hacia PostgreSQL (`YYYY-MM-DD`)**:
+   - `backgroundCreateStudentInDB` y `performSyncStudentToDB` normalizan formatos peruanos habituales (`D/M/YYYY` o `DD/MM/YYYY`) a formato ISO estricto `YYYY-MM-DD` antes de escribir en la columna SQL `birthdate` (tipo `date`), resolviendo el problema de campos nulos en PostgreSQL y habilitando las alertas automáticas de cumpleaños en la plataforma.
+
+---
+
+### 15. Visibilidad, Resiliencia y Dinamismo en Agenda Docente y Kiosco (ADR-0114)
+1. **Cálculo Dinámico de Semana Lectiva (`MinimalAgendaCalendar`)**:
+   - En lugar de fijar una semana estática en el código (ej. semana 3), la vista de agenda calcula la semana activa del mes en tiempo real con `getCurrentWeekIndex(defaultYear, defaultMonth) + 1`.
+   - El selector de meses abarca el rango lectivo completo (incluyendo Julio y Octubre) para la correcta visualización de paquetes extendidos.
+2. **Resolución Robusta de Asignación Docente**:
+
+### 16. Sincronización e Inmutabilidad de Lecciones con Fecha Exacta en Horario y Agenda (ADR-0115)
+1. **Aislamiento de `weekIndex` en Clases con Fecha Exacta (`dateStr`)**:
+   - En `AgendaBoard`, toda lección con `dateStr` se valida exclusivamente contra los días de la semana visualizada (`currentWeekObj.days.some(d => d.dateStr === l.dateStr)`), omitiendo incondicionalmente el filtro de coincidencia fija `l.weekIndex !== safeWeekIndex`. Esto garantiza que recuperaciones y reprogramaciones puntuales (ej. Mia Lucero Bellido) se muestren en la semana de su fecha real y no sean filtradas por el índice de la clase original ausente.
+   - En `rescheduleLesson` (`app-store.ts`), al crear una reprogramación de alcance *"Solo esta sesión"* con `newDateStr`, `weekIndex` se fija en `undefined` para evitar heredar índices estáticos obsoletos.
+2. **Soporte de Fechas Excluidas en Celdas de Horario (`excludedDates`)**:
+   - `AgendaBoard` valida `l.excludedDates?.includes(lessonDayInfo.dateStr)` para ocultar la clase original en el día específico en que fue reprogramada, evitando duplicidades visuales.
+3. **Ampliación de Ventana Lectiva 2026**:
+   - El límite inferior del año 2026 en `AgendaBoard` se amplía a Julio 2026 (`selectedMonth < 6`) para permitir la renderización de paquetes flexibles y ciclos iniciados a mitad de año (ej. Andrea Fernanda Meza).
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)

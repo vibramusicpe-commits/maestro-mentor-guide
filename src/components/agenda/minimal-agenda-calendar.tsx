@@ -5,6 +5,7 @@ import type { Lesson, ScheduledLesson, AttendanceStatus, WeekDay } from "@/store
 import { useAppStore } from "@/store/app-store";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { isLessonInStudentCycle } from "@/lib/student-cycle";
+import { getMonthWeeks, getCurrentWeekIndex } from "@/lib/calendar-utils";
 import { toast } from "sonner";
 
 type CalendarLessonItem = (Lesson | ScheduledLesson) & {
@@ -58,8 +59,15 @@ export function MinimalAgendaCalendar({
   const [selectedDayIndex, setSelectedDayIndex] = useState(todayDayIndex);
   const [selectedYear, setSelectedYear] = useState<number>(defaultYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(defaultMonth); // 8 = Setiembre por defecto
-  const [selectedWeek, setSelectedWeek] = useState<number>(3); // Semana 3 por defecto
 
+  // Semana activa calculada dinámicamente según la fecha actual real
+  const initialWeek = useMemo(() => {
+    const curIdx = getCurrentWeekIndex(defaultYear, defaultMonth);
+    return Math.max(1, curIdx + 1);
+  }, [defaultYear, defaultMonth]);
+  const [selectedWeek, setSelectedWeek] = useState<number>(initialWeek);
+
+  const schedule = useAppStore((s) => s.schedule);
   const markLessonAttendance = useAppStore((s) => s.markLessonAttendance);
   const setAttendance = useAppStore((s) => s.setAttendance);
   const adminStudents = useAppStore((s) => s.adminStudents);
@@ -83,14 +91,14 @@ export function MinimalAgendaCalendar({
 
       // 🛡️ REGLA FUNDAMENTAL DE CUOTA CONTRACTUAL Y CICLO LECTIVO (ADR-0108):
       const dayInfo = currentWeekObj.days.find((day) => day.dayKey === d);
-      if (dayInfo) {
-        const studentProfile = findStudentProfileByName(adminStudents, l.student);
-        if (!studentProfile || studentProfile.status !== "activo") {
-          return;
-        }
-        if (!isLessonInStudentCycle(studentProfile, l as ScheduledLesson, dayInfo.dateStr, l.time, lessons as ScheduledLesson[])) {
-          return;
-        }
+      if (!dayInfo) return;
+
+      const studentProfile = findStudentProfileByName(adminStudents, l.student);
+      if (!studentProfile || studentProfile.status !== "activo") {
+        return;
+      }
+      if (!isLessonInStudentCycle(studentProfile, l as ScheduledLesson, dayInfo.dateStr, l.time, schedule)) {
+        return;
       }
 
       const list = map.get(d) || [];
@@ -104,7 +112,7 @@ export function MinimalAgendaCalendar({
     });
 
     return map;
-  }, [lessons, userType, currentWeekObj, adminStudents]);
+  }, [lessons, userType, currentWeekObj, adminStudents, schedule]);
 
   const currentDayLessons = lessonsByDay.get(selectedDayShort) || [];
 
@@ -120,17 +128,21 @@ export function MinimalAgendaCalendar({
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Selector de Mes */}
+          {/* Selector de Mes con soporte completo Julio - Octubre */}
           <select
             value={selectedMonth}
             onChange={(e) => {
-              setSelectedMonth(Number(e.target.value));
-              setSelectedWeek(1);
+              const newM = Number(e.target.value);
+              setSelectedMonth(newM);
+              const curW = getCurrentWeekIndex(selectedYear, newM);
+              setSelectedWeek(Math.max(1, curW + 1));
             }}
             className="bg-card px-2.5 py-1 rounded-xl border border-border text-xs font-bold text-foreground cursor-pointer shadow-xs focus:ring-1 focus:ring-primary outline-none"
           >
+            <option value={6}>Julio 2026</option>
             <option value={7}>Agosto 2026</option>
             <option value={8}>Setiembre 2026</option>
+            <option value={9}>Octubre 2026</option>
           </select>
 
           {/* Selector de Semanas del Mes Dinámico */}

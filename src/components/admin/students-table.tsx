@@ -5079,7 +5079,13 @@ function ScheduleStudentForm({
   const isRegular1x = !isIntensive && (modStr.includes("1x") || modStr.includes("1x/sem") || modStr.includes("1 vez") || modStr.includes("2 meses"));
   const isFlexible = modStr.includes("flex") || modStr.includes("demanda");
   const isRegular2x = !isRegular1x && !isIntensive && !isFlexible;
-  const isRegular = isRegular2x; // Conservar para compatibilidad
+  
+  // Frecuencia para Paquete Flexible (1 clase o 2 clases semanales · 45 min)
+  const [flexibleFrequency, setFlexibleFrequency] = useState<1 | 2>(
+    existingLessons.length >= 2 ? 2 : 1
+  );
+  const hasTwoWeeklySessions = isRegular2x || (isFlexible && flexibleFrequency === 2);
+  const isRegular = hasTwoWeeklySessions; // Conservar para compatibilidad y validación de 2 clases
 
   // Fecha de inicio oficial de clases (por defecto fecha registrada o 10/09/2026 para Camila)
   const [startDate, setStartDate] = useState<string>(
@@ -5332,17 +5338,19 @@ function ScheduleStudentForm({
     const lessonYear = parseInt(yStr || "2026", 10);
     const lessonMonth = parseInt(mStr || "9", 10) - 1; // 0-indexed (8 para Setiembre)
 
-    // Calcular fecha de vencimiento según modalidad
+    // Calcular fecha de vencimiento según modalidad (preservar ventana de vigencia acordada para Paquete Flexible)
     let calculatedEndDate = liveStudent.planEndDate;
-    try {
-      const d = new Date(startStr);
-      if (!isNaN(d.getTime())) {
-        const monthsToAdd = isRegular1x ? 2 : 1;
-        d.setMonth(d.getMonth() + monthsToAdd);
-        d.setDate(d.getDate() - 1);
-        calculatedEndDate = d.toISOString().slice(0, 10);
-      }
-    } catch {}
+    if (!isFlexible) {
+      try {
+        const d = new Date(startStr);
+        if (!isNaN(d.getTime())) {
+          const monthsToAdd = isRegular1x ? 2 : 1;
+          d.setMonth(d.getMonth() + monthsToAdd);
+          d.setDate(d.getDate() - 1);
+          calculatedEndDate = d.toISOString().slice(0, 10);
+        }
+      } catch {}
+    }
 
     // Sincronizar fecha de inicio y vencimiento con la ficha del alumno y PostgreSQL
     updateStudentDetails(liveStudent.id, {
@@ -5374,7 +5382,7 @@ function ScheduleStudentForm({
       },
     ];
 
-    if (isRegular2x) {
+    if (hasTwoWeeklySessions) {
       lessonsToSet.push({
         student: liveStudent.name,
         teacher: finalTeacher,
@@ -5397,7 +5405,9 @@ function ScheduleStudentForm({
     }
 
     toast.success(`🗓️ Horario de ${liveStudent.name} programado con éxito`, {
-      description: isRegular2x
+      description: isFlexible
+        ? `Paquete Flexible (${liveStudent.packageTotalSessions || 24} clases): ${day1} ${time1} (${room1})${flexibleFrequency === 2 ? ` y ${day2} ${time2} (${room2})` : ""} con Prof. ${finalTeacher}.`
+        : isRegular2x
         ? `Plan Regular (8 clases): ${day1} ${time1} (${room1}) y ${day2} ${time2} (${room2}) con Prof. ${finalTeacher}.`
         : isRegular1x
         ? `Plan Regular 1x/sem (8 clases · 2 meses): ${day1} ${time1} (${room1}) con Prof. ${finalTeacher}.`
@@ -5685,6 +5695,41 @@ function ScheduleStudentForm({
             Los intensivos se programan los <strong>Viernes</strong> o <strong>Sábados</strong> (oficiales) o los <strong>Jueves</strong> como opción personalizada de 90 minutos continuos sin cruces de horario.
           </p>
         </div>
+      ) : isFlexible ? (
+        <div className="p-3.5 rounded-2xl border border-purple-500/30 bg-purple-500/10 space-y-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-[11px] font-bold text-purple-600 dark:text-purple-300 flex items-center gap-1.5">
+              🎒 Paquete Flexible (Bolsa de {liveStudent.packageTotalSessions || 24} clases a demanda)
+            </span>
+            <div className="flex gap-1.5">
+              <Button
+                type="button"
+                variant={flexibleFrequency === 1 ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFlexibleFrequency(1)}
+                className={`h-6 px-2.5 text-[10px] font-bold ${
+                  flexibleFrequency === 1 ? "bg-purple-600 hover:bg-purple-700 text-white" : ""
+                }`}
+              >
+                1 Clase / semana (45 min)
+              </Button>
+              <Button
+                type="button"
+                variant={flexibleFrequency === 2 ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFlexibleFrequency(2)}
+                className={`h-6 px-2.5 text-[10px] font-bold ${
+                  flexibleFrequency === 2 ? "bg-purple-600 hover:bg-purple-700 text-white" : ""
+                }`}
+              >
+                2 Clases / semana (45 min)
+              </Button>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Configura {flexibleFrequency === 1 ? "el día semanal" : "los 2 días semanales"} según las horas disponibles con Prof. <strong>{finalTeacher}</strong> (Lun-Vie). Este horario no es rígido: en el Kardex podrás registrar asistencias en cualquier fecha exacta o agregar sesiones de corrido dentro de su vigencia ({startDate || "02/07/2026"} al {liveStudent.planEndDate || "09/10/2026"}).
+          </p>
+        </div>
       ) : null}
 
       {/* ─── DIAGNÓSTICO EN VIVO DE CONFLICTOS Y RECOMENDACIÓN DE CUPOS DISPONIBLES ─── */}
@@ -5840,15 +5885,19 @@ function ScheduleStudentForm({
         </div>
       </div>
 
-      {/* Bloque Sesión 2 (Solo si es Plan Regular 2x/sem) */}
-      {isRegular2x && (
+      {/* Bloque Sesión 2 (Si es Plan Regular 2x/sem o Paquete Flexible 2x) */}
+      {hasTwoWeeklySessions && (
         <div className="rounded-2xl border border-border p-3.5 space-y-2.5 bg-muted/20">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5" />
               Segunda Clase Semanal (Día 2)
             </span>
-            {scheduleMode === "pareadas" ? (
+            {isFlexible ? (
+              <Badge className="bg-purple-600/20 text-purple-600 dark:text-purple-300 border-purple-500/30 text-[10px] font-bold">
+                🎒 Flexible Libre ({day1} + {day2})
+              </Badge>
+            ) : scheduleMode === "pareadas" ? (
               <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-bold">
                 ✓ Pareado con Día 1 ({day1} ➔ {day2})
               </Badge>
@@ -5954,12 +6003,20 @@ function ScheduleStudentForm({
           className={`text-xs font-bold ${
             conflictReport.hasConflict
               ? "bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-75"
+              : isFlexible
+              ? "bg-purple-600 text-white hover:bg-purple-700"
               : "bg-primary text-primary-foreground hover:bg-primary/90"
           }`}
         >
           {conflictReport.hasConflict
             ? "⚠️ Resolver conflictos antes de guardar"
-            : `Guardar Horario Completo (${isRegular2x ? "2 Clases Semanales" : isRegular1x ? "1 Clase Semanal · 45 min" : "1 Clase Semanal · 90 min"})`}
+            : isFlexible
+            ? `Guardar Horario Flexible (${flexibleFrequency === 2 ? "2 Clases Semanales" : "1 Clase Semanal"} · 45 min)`
+            : isRegular2x
+            ? "Guardar Horario Completo (2 Clases Semanales · 45 min)"
+            : isRegular1x
+            ? "Guardar Horario Completo (1 Clase Semanal · 45 min)"
+            : "Guardar Horario Completo (1 Clase Semanal · 90 min)"}
         </Button>
       </div>
     </form>

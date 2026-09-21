@@ -412,8 +412,20 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
       if (assigned_teacher_id) {
         payload.assigned_teacher_id = assigned_teacher_id;
       }
-      if (student.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(student.birthdate)) {
-        payload.birthdate = student.birthdate;
+      let normalizedBirthdate: string | undefined = undefined;
+      if (student.birthdate) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(student.birthdate)) {
+          normalizedBirthdate = student.birthdate;
+        } else {
+          const dmyMatch = student.birthdate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (dmyMatch) {
+            normalizedBirthdate = `${dmyMatch[3]}-${dmyMatch[2]!.padStart(2, "0")}-${dmyMatch[1]!.padStart(2, "0")}`;
+          }
+        }
+      }
+      if (normalizedBirthdate) {
+        payload.birthdate = normalizedBirthdate;
+        ecData.birthdate = normalizedBirthdate;
       }
 
       const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";
@@ -562,9 +574,20 @@ function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<
         }
       }
 
-      // Validar formato de fecha de nacimiento (YYYY-MM-DD) para columna SQL date
-      if (mergedStudent.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(mergedStudent.birthdate)) {
-        payload.birthdate = mergedStudent.birthdate;
+      // Validar y normalizar formato de fecha de nacimiento (YYYY-MM-DD) para columna SQL date
+      let normalizedBirthdate: string | undefined = undefined;
+      if (mergedStudent.birthdate) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(mergedStudent.birthdate)) {
+          normalizedBirthdate = mergedStudent.birthdate;
+        } else {
+          const dmyMatch = mergedStudent.birthdate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (dmyMatch) {
+            normalizedBirthdate = `${dmyMatch[3]}-${dmyMatch[2]!.padStart(2, "0")}-${dmyMatch[1]!.padStart(2, "0")}`;
+          }
+        }
+      }
+      if (normalizedBirthdate) {
+        payload.birthdate = normalizedBirthdate;
       }
 
       // Persistir metadatos extendidos en columna JSONB emergency_contact
@@ -577,7 +600,7 @@ function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<
       if (mergedStudent.email) ecData.email = mergedStudent.email;
       if (mergedStudent.family) ecData.family = mergedStudent.family;
       if (mergedStudent.teacher) ecData.teacher = mergedStudent.teacher;
-      if (mergedStudent.birthdate) ecData.birthdate = mergedStudent.birthdate;
+      if (mergedStudent.birthdate) ecData.birthdate = normalizedBirthdate || mergedStudent.birthdate;
       if (mergedStudent.age !== undefined) ecData.age = mergedStudent.age;
       if (mergedStudent.ageCategory) ecData.ageCategory = mergedStudent.ageCategory;
       if (mergedStudent.fatherName !== undefined) ecData.fatherName = mergedStudent.fatherName;
@@ -1174,7 +1197,7 @@ export const useAppStore = create<AppState>()(
               teacher: newTeacher,
               room: newRoom,
               dateStr: newDateStr, // Fecha exacta YYYY-MM-DD
-              weekIndex: targetWeekIndex,
+              weekIndex: newDateStr ? undefined : targetWeekIndex,
               excludedWeeks: undefined,
               excludedDates: undefined,
               attendanceStatus: undefined,
@@ -2455,7 +2478,12 @@ export const useAppStore = create<AppState>()(
           syncQueue: [...s.syncQueue, queueItem("Recordatorio enviado")],
         })),
       generateMonthlyInvoices: (): number => {
-        const currentStudents = get().adminStudents.filter((st) => st.status === "activo");
+        const currentStudents = get().adminStudents.filter(
+          (st) =>
+            st.status === "activo" &&
+            !st.modality?.toLowerCase().includes("flexible") &&
+            st.planType !== "Paquete Flexible"
+        );
         const now = new Date();
         const dynDueDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-20`;
         const generatedInvoices: Invoice[] = currentStudents.map((st, idx) => {

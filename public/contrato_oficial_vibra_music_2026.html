@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Contrato de Prestación de Servicios de Enseñanza Musical - Vibra Music 2026</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm 10mm 8mm 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #15120F;
+      background: #FFFFFF;
+      line-height: 1.25;
+      font-size: 8.2pt;
+      width: 190mm;
+      margin: 0 auto;
+    }
+
+    /* ─── ENCABEZADO ─── */
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 6px;
+    }
+    .logo-container {
+      width: 72px;
+      text-align: center;
+      vertical-align: middle;
+    }
+    .logo-circle {
+      width: 58px;
+      height: 58px;
+      border: 2px solid #0D0B0A;
+      border-radius: 50%;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      background: #0D0B0A;
+      color: #FFF8EC;
+      text-transform: uppercase;
+      font-size: 10pt;
+      line-height: 1.05;
+    }
+    .logo-circle span.music {
+      color: #F47B20;
+      font-size: 7.5pt;
+      font-weight: 800;
+    }
+    .title-container {
+      text-align: center;
+      vertical-align: middle;
+      padding: 0 10px;
+    }
+    .title-container h1 {
+      font-size: 11.5pt;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      color: #0D0B0A;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+    .title-container p.subtitle {
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: #444;
+      letter-spacing: 0.2px;
+    }
+    .meta-container {
+      width: 165px;
+      text-align: right;
+      vertical-align: middle;
+    }
+    .meta-box {
+      border: 1.2px solid #0D0B0A;
+      border-radius: 5px;
+      padding: 4px 6px;
+      background: #FAF8F5;
+      font-size: 7.5pt;
+      text-align: left;
+    }
+    .meta-box .row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    .meta-box .row:last-child {
+      margin-bottom: 0;
+    }
+    .meta-box strong {
+      color: #0D0B0A;
+    }
+
+    /* ─── BLOQUES DE DATOS (2 COLUMNAS) ─── */
+    .data-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .section-box {
+      border: 1.2px solid #0D0B0A;
+      border-radius: 4px;
+      padding: 5px 7px;
+      background: #FFFFFF;
+    }
+    .section-title {
+      font-size: 8pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #0D0B0A;
+      background: #F4EFEA;
+      padding: 2.5px 5px;
+      margin: -5px -7px 4px -7px;
+      border-bottom: 1.2px solid #0D0B0A;
+      border-top-left-radius: 3px;
+      border-top-right-radius: 3px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .field-row {
+      margin-bottom: 3.5px;
+      font-size: 7.8pt;
+      display: flex;
+      align-items: center;
+    }
+    .field-row:last-child {
+      margin-bottom: 0;
+    }
+    .field-label {
+      font-weight: 700;
+      color: #222;
+      white-space: nowrap;
+      margin-right: 4px;
+    }
+    .dotted-line {
+      flex: 1;
+      border-bottom: 1px dotted #777;
+      height: 12px;
+      margin-left: 2px;
+    }
+    .checkbox-group {
+      display: inline-flex;
+      gap: 7px;
+      font-size: 7.5pt;
+    }
+    .check-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .box-sq {
+      width: 9px;
+      height: 9px;
+      border: 1.1px solid #15120F;
+      display: inline-block;
+      border-radius: 1.5px;
+      background: #FFF;
+    }
+
+    /* ─── CLÁUSULAS ─── */
+    .clauses-container {
+      border: 1.2px solid #0D0B0A;
+      border-radius: 4px;
+      padding: 5px 8px;
+      background: #FFFFFF;
+      margin-bottom: 6px;
+    }
+    .clauses-title {
+      font-size: 8pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #0D0B0A;
+      background: #F4EFEA;
+      padding: 2.5px 5px;
+      margin: -5px -8px 4px -8px;
+      border-bottom: 1.2px solid #0D0B0A;
+      border-top-left-radius: 3px;
+      border-top-right-radius: 3px;
+    }
+    .clause-item {
+      margin-bottom: 3.5px;
+      font-size: 7.2pt;
+      text-align: justify;
+      line-height: 1.22;
+    }
+    .clause-item:last-child {
+      margin-bottom: 0;
+    }
+    .clause-item strong {
+      color: #0D0B0A;
+      font-weight: 800;
+    }
+
+    /* ─── TABLA DE SEGUIMIENTO DE PAGOS (3 BLOQUES) ─── */
+    .payment-container {
+      border: 1.2px solid #0D0B0A;
+      border-radius: 4px;
+      padding: 5px 8px;
+      background: #FFFFFF;
+      margin-bottom: 6px;
+    }
+    .payment-header {
+      font-size: 8pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #0D0B0A;
+      background: #F4EFEA;
+      padding: 2.5px 5px;
+      margin: -5px -8px 4px -8px;
+      border-bottom: 1.2px solid #0D0B0A;
+      border-top-left-radius: 3px;
+      border-top-right-radius: 3px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .payment-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 7.3pt;
+    }
+    .payment-table th {
+      background: #F2EFEA;
+      border: 1px solid #0D0B0A;
+      padding: 3px 4px;
+      font-weight: 800;
+      text-align: center;
+      font-size: 7pt;
+      text-transform: uppercase;
+    }
+    .payment-table td {
+      border: 1px solid #0D0B0A;
+      padding: 3.5px 4.5px;
+      vertical-align: middle;
+    }
+    .block-title {
+      font-weight: 800;
+      color: #0D0B0A;
+    }
+    .block-subtitle {
+      font-size: 6.5pt;
+      color: #555;
+    }
+
+    /* ─── CONTROL INFERIOR Y OBSERVACIONES ─── */
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr 1fr;
+      gap: 5px;
+      margin-bottom: 5px;
+    }
+    .sub-box {
+      border: 1px solid #0D0B0A;
+      border-radius: 3px;
+      padding: 3px 5px;
+      font-size: 7.1pt;
+    }
+    .sub-box-title {
+      font-weight: 800;
+      text-transform: uppercase;
+      border-bottom: 1px solid #CCC;
+      padding-bottom: 1.5px;
+      margin-bottom: 2.5px;
+      font-size: 7.1pt;
+      color: #0D0B0A;
+    }
+    .obs-box {
+      border: 1px solid #0D0B0A;
+      border-radius: 3px;
+      padding: 3px 6px;
+      font-size: 7.2pt;
+      margin-bottom: 6px;
+      background: #FAFAFA;
+      min-height: 20px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* ─── FIRMAS ─── */
+    .signatures-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 10px;
+      padding: 0 12px;
+    }
+    .signature-card {
+      text-align: center;
+    }
+    .sig-line {
+      border-top: 1.2px solid #0D0B0A;
+      margin-bottom: 3px;
+      height: 1px;
+    }
+    .sig-title {
+      font-size: 8pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #0D0B0A;
+    }
+    .sig-sub {
+      font-size: 7pt;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ENCABEZADO OFICIAL VIBRA MUSIC -->
+  <table class="header-table">
+    <tr>
+      <td class="logo-container">
+        <div class="logo-circle">
+          VIBRA
+          <span class="music">MUSIC</span>
+        </div>
+      </td>
+      <td class="title-container">
+        <h1>Contrato de Prestación de Servicios de Enseñanza Musical</h1>
+        <p class="subtitle">ESCUELA DE MÚSICA VIBRA MUSIC · RUC: 20614919265 · SEDE SAN JUAN DE LURIGANCHO</p>
+      </td>
+      <td class="meta-container">
+        <div class="meta-box">
+          <div class="row">
+            <strong>FECHA EMISIÓN:</strong>
+            <span>____ / ____ / 2026</span>
+          </div>
+          <div class="row">
+            <strong>CONTRATO N°:</strong>
+            <span>VM-2026-__________</span>
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- SECCIÓN SUPERIOR: DATOS DEL ESTUDIANTE, CONTACTO Y COMPROBANTE -->
+  <div class="data-grid">
+    <!-- COLUMNA 1: DATOS DEL ESTUDIANTE Y COMPROBANTE -->
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <div class="section-box">
+        <div class="section-title">
+          <span>1. Datos del Estudiante</span>
+          <span style="font-size: 7pt; font-weight: normal; color: #555;">Ficha Oficial 2026</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Nombres Completos:</span>
+          <div class="dotted-line"></div>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Fecha de Nacimiento:</span>
+          <span style="font-size: 7.5pt;">____ / ____ / ________</span>
+          <span class="field-label" style="margin-left: 6px;">Edad:</span>
+          <span style="border-bottom: 1px dotted #666; width: 24px; display: inline-block;"></span>
+          <span class="field-label" style="margin-left: 6px;">Cat.:</span>
+          <span style="font-size: 7pt;">[ ] Infantil [ ] Junior [ ] Adulto</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Curso / Instrumento:</span>
+          <span class="checkbox-group">
+            <span class="check-item"><span class="box-sq"></span> Piano</span>
+            <span class="check-item"><span class="box-sq"></span> Canto</span>
+            <span class="check-item"><span class="box-sq"></span> Guitarra</span>
+            <span class="check-item"><span class="box-sq"></span> Batería</span>
+            <span class="check-item"><span class="box-sq"></span> Violín</span>
+          </span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Modalidad:</span>
+          <span class="checkbox-group">
+            <span class="check-item"><span class="box-sq"></span> Regular (2x/sem · 8cl)</span>
+            <span class="check-item"><span class="box-sq"></span> 1x/sem (8cl · 2m)</span>
+            <span class="check-item"><span class="box-sq"></span> Intensivo (90m)</span>
+          </span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Horario Asignado:</span>
+          <span style="font-size: 7.5pt; font-weight: 700;">Día(s):</span>
+          <span style="border-bottom: 1px dotted #666; width: 68px; display: inline-block;"></span>
+          <span style="font-size: 7.5pt; font-weight: 700; margin-left: 5px;">Hora:</span>
+          <span style="border-bottom: 1px dotted #666; width: 55px; display: inline-block;"></span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Profesor(a) / Sala:</span>
+          <span class="checkbox-group">
+            <span class="check-item"><span class="box-sq"></span> Jeremy (Sala A)</span>
+            <span class="check-item"><span class="box-sq"></span> Fernando (Sala B)</span>
+            <span class="check-item"><span class="box-sq"></span> Nathaly (Sala C)</span>
+          </span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Fecha 1ra Clase:</span>
+          <span style="font-size: 7.5pt;">____ / ____ / 2026</span>
+          <span class="field-label" style="margin-left: 8px;">Vigencia Fin:</span>
+          <span style="font-size: 7.5pt;">____ / ____ / 2026</span>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <span>3. Datos de Comprobante / Facturación</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">DNI ó RUC:</span>
+          <div class="dotted-line"></div>
+          <span class="field-label" style="margin-left: 6px;">Tipo:</span>
+          <span style="font-size: 7pt;">[ ] Boleta [ ] Factura</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Razón Social / Titular:</span>
+          <div class="dotted-line"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLUMNA 2: DATOS DE CONTACTO Y APODERADO -->
+    <div class="section-box">
+      <div class="section-title">
+        <span>2. Datos de Contacto y Apoderado(a)</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Nombre Representante:</span>
+        <div class="dotted-line"></div>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Parentesco:</span>
+        <span class="checkbox-group">
+          <span class="check-item"><span class="box-sq"></span> Mamá</span>
+          <span class="check-item"><span class="box-sq"></span> Papá</span>
+          <span class="check-item"><span class="box-sq"></span> Titular Directo</span>
+          <span class="check-item"><span class="box-sq"></span> Tutor/Apod.</span>
+        </span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Celular WhatsApp:</span>
+        <div class="dotted-line"></div>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Correo Electrónico:</span>
+        <div class="dotted-line"></div>
+      </div>
+      <div class="field-row">
+        <span class="field-label">¿Cómo nos conoció?:</span>
+        <span class="checkbox-group">
+          <span class="check-item"><span class="box-sq"></span> Redes (FB/IG/TikTok)</span>
+          <span class="check-item"><span class="box-sq"></span> Recomendación</span>
+          <span class="check-item"><span class="box-sq"></span> Sede</span>
+        </span>
+      </div>
+      <div style="border-top: 1px dashed #CCC; margin: 4px 0 3px 0;"></div>
+      <div class="field-row">
+        <span class="field-label">Contacto Adicional (Emergencia):</span>
+        <div class="dotted-line"></div>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Parentesco:</span>
+        <span style="border-bottom: 1px dotted #666; width: 80px; display: inline-block;"></span>
+        <span class="field-label" style="margin-left: 6px;">Teléfonos:</span>
+        <div class="dotted-line"></div>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Correo:</span>
+        <div class="dotted-line"></div>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Dirección / Distrito:</span>
+        <div class="dotted-line"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLÁUSULAS Y CONDICIONES DEL SERVICIO (ACTUALIZADAS VIBRA 2026 - PUNTOS 6, 7, 8 Y 9 RETIRADOS) -->
+  <div class="clauses-container">
+    <div class="clauses-title">Condiciones Oficiales del Servicio Educativo</div>
+    
+    <div class="clause-item">
+      <strong>(I) ASISTENCIA Y PUNTUALIDAD (TOLERANCIA CERO):</strong> Las clases inician y concluyen con estricta puntualidad al toque del timbre de sala (duración oficial: 45 min en Plan Regular o 90 min en Plan Intensivo). <u>No existe tolerancia de horario para extender la clase</u> ante llegadas tarde; se aprovechará únicamente el tiempo restante de su sesión para no afectar el aforo máximo de 5 alumnos por sala ni perjudicar el inicio del turno siguiente.
+    </div>
+
+    <div class="clause-item">
+      <strong>(II) POLÍTICA OFICIAL DE RECUPERACIONES (HASTA 2 CLASES EN EL MISMO MES):</strong> Bajo nuestra política institucional, se permitirá un <strong>máximo de hasta dos (02) clases de recuperación por ciclo lectivo</strong>, incluso en caso de inasistencias imprevistas o sin previo aviso (cuando no comunican). Dichas clases deben <u>tomarse obligatoriamente dentro del mismo mes lectivo / ciclo de vigencia</u>, coordinadas con recepción y sujetas a disponibilidad de vacante y aforo en sala. Al vencer el ciclo mensual contratado, las clases no recuperadas caducan automáticamente.
+    </div>
+
+    <div class="clause-item">
+      <strong>(III) VACACIONES O VIAJES TEMPORALES:</strong> Si el estudiante necesita ausentarse por viaje o fuerza mayor, debe notificar en recepción con anticipación. Podrá adelantar clases antes del viaje o coordinar sus recuperaciones dentro del ciclo mensual para mantener activa su vacante y cronograma lectivo.
+    </div>
+
+    <div class="clause-item">
+      <strong>(IV) SUSPENSIÓN POR INCUMPLIMIENTO DE PAGO:</strong> El acceso a clases se suspende automáticamente ante mensualidades vencidas o falta de abono de las cuotas pactadas. Las clases de recuperación solo aplican manteniendo la matrícula y cuotas al día. De encontrarse suspendido en el sistema, el docente no recibirá al estudiante en el aula de clases hasta regularizar su cuenta con secretaría.
+    </div>
+
+    <div class="clause-item">
+      <strong>(V) CUIDADO Y SEGURIDAD DE MENORES:</strong> Los estudiantes menores de 18 años no tienen autorización para retirarse solos y serán entregados únicamente a su apoderado o persona adulta previamente autorizada y notificada en recepción. La institución no se responsabiliza por objetos olvidados. Ante cualquier urgencia de salud, se contactará de inmediato a los números de contacto y a servicios médicos.
+    </div>
+  </div>
+
+  <!-- SEGUIMIENTO DE MÓDULOS DE PAGO EN LAS 3 PRIMERAS CLASES (FRACCIONAMIENTO) -->
+  <div class="payment-container">
+    <div class="payment-header">
+      <span>Seguimiento de Módulos de Pago y Abonos Fraccionados (3 Primeras Clases)</span>
+      <span style="font-size: 6.8pt; font-weight: normal; color: #444;">Control Exclusivo de Cobranza y Recepción</span>
+    </div>
+    <table class="payment-table">
+      <thead>
+        <tr>
+          <th style="width: 14%;">Módulo de Pago</th>
+          <th style="width: 22%;">Concepto Oficial</th>
+          <th style="width: 12%;">Fecha Pago</th>
+          <th style="width: 11%;">Monto (S/)</th>
+          <th style="width: 18%;">Medio de Pago</th>
+          <th style="width: 15%;">N° Operación / Ref.</th>
+          <th style="width: 8%;">V°B° Caja</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="block-title">BLOQUE 1</span><br/>
+            <span class="block-subtitle">Inscripción / Reserva</span>
+          </td>
+          <td>
+            <strong>Matrícula / Reserva Inicial</strong><br/>
+            <span style="font-size: 6.2pt; color: #555;">Abono previo a la 1ra clase</span>
+          </td>
+          <td style="text-align: center;">____ / ____ / 2026</td>
+          <td style="text-align: center; font-weight: 800; font-size: 7.5pt;">S/ ________</td>
+          <td>
+            <span class="check-item"><span class="box-sq"></span> Yape/Plin</span>
+            <span class="check-item" style="margin-left: 2px;"><span class="box-sq"></span> Efec</span><br/>
+            <span class="check-item"><span class="box-sq"></span> Culqi/Tarj</span>
+            <span class="check-item" style="margin-left: 2px;"><span class="box-sq"></span> Transf</span>
+          </td>
+          <td style="font-family: monospace; font-size: 6.8pt;">________________</td>
+          <td style="text-align: center;"><span class="box-sq" style="width: 11px; height: 11px;"></span></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="block-title">BLOQUE 2</span><br/>
+            <span class="block-subtitle">1ra Clase Lectiva</span>
+          </td>
+          <td>
+            <strong>1er Abono de Mensualidad</strong><br/>
+            <span style="font-size: 6.2pt; color: #555;">Pago obligatorio en Clase 1</span>
+          </td>
+          <td style="text-align: center;">____ / ____ / 2026</td>
+          <td style="text-align: center; font-weight: 800; font-size: 7.5pt;">S/ ________</td>
+          <td>
+            <span class="check-item"><span class="box-sq"></span> Yape/Plin</span>
+            <span class="check-item" style="margin-left: 2px;"><span class="box-sq"></span> Efec</span><br/>
+            <span class="check-item"><span class="box-sq"></span> Culqi/Tarj</span>
+            <span class="check-item" style="margin-left: 2px;"><span class="box-sq"></span> Transf</span>
+          </td>
+          <td style="font-family: monospace; font-size: 6.8pt;">________________</td>
+          <td style="text-align: center;"><span class="box-sq" style="width: 11px; height: 11px;"></span></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="block-title">BLOQUE 3</span><br/>
+            <span class="block-subtitle">Máx. 3ra Clase</span>
+          </td>
+          <td>
+            <strong>Saldo Final (+ Pack Libro S/ 67)</strong><br/>
+            <span style="font-size: 6.2pt; color: #555;">Cancelación total del ciclo</span>
+          </td>
+          <td style="text-align: center;">____ / ____ / 2026</td>
+          <td style="text-align: center; font-weight: 800; font-size: 7.5pt;">S/ ________</td>
+          <td>
+            <span class="check-item"><span class="box-sq"></span> Yape/Plin</span>
+            <span class="check-item" style="margin-left: 2px;"><span class="box-sq"></span> Efec</span><br/>
+            <span class="check-item"><span class="box-sq"></span> Culqi/Tarj</span>
+            <span class="check-item" style="margin-left: 2px;"><span class="box-sq"></span> Transf</span>
+          </td>
+          <td style="font-family: monospace; font-size: 6.8pt;">________________</td>
+          <td style="text-align: center;"><span class="box-sq" style="width: 11px; height: 11px;"></span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- CONTROL DE VALORES Y PROMOCIONES -->
+  <div class="bottom-grid">
+    <div class="sub-box">
+      <div class="sub-box-title">Valores Contratados</div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+        <span><strong>Matrícula:</strong> S/ _______</span>
+        <span>[ ] Promo S/30 [ ] Reg S/50</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+        <span><strong>Mensualidad:</strong> S/ _______</span>
+        <span>[ ] Regular [ ] Inten [ ] Flex</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span><strong>Pack Libro (S/ 67):</strong></span>
+        <span>[ ] Cancelado [ ] Pendiente</span>
+      </div>
+    </div>
+
+    <div class="sub-box">
+      <div class="sub-box-title">Promociones y Descuentos</div>
+      <div style="margin-bottom: 2px;">[ ] 2 Hermanos (Descuento familiar)</div>
+      <div style="margin-bottom: 2px;">[ ] 3 Hermanos (Descuento especial)</div>
+      <div>[ ] Plan Trimestral / Semestral</div>
+    </div>
+
+    <div class="sub-box">
+      <div class="sub-box-title">Estado en Plataforma Web 2026</div>
+      <div style="margin-bottom: 2px;">[ ] Ficha Registrada en Sistema</div>
+      <div style="margin-bottom: 2px;">[ ] Horario Oficial en Agenda</div>
+      <div>[ ] Recibo Aprovisionado en DB</div>
+    </div>
+  </div>
+
+  <!-- OBSERVACIONES ADMINISTRATIVAS -->
+  <div class="obs-box">
+    <strong>Observaciones:</strong>&nbsp;<span style="border-bottom: 1px dotted #777; flex: 1; height: 12px; display: inline-block;"></span>
+  </div>
+
+  <!-- SECCIÓN DE FIRMAS -->
+  <div class="signatures-grid">
+    <div class="signature-card">
+      <div style="height: 32px;"></div>
+      <div class="sig-line"></div>
+      <div class="sig-title">Dirección / Secretaría General</div>
+      <div class="sig-sub">Escuela de Música Vibra Music S.A.C.</div>
+    </div>
+
+    <div class="signature-card">
+      <div style="height: 32px;"></div>
+      <div class="sig-line"></div>
+      <div class="sig-title">Firma del Cliente / Apoderado(a)</div>
+      <div class="sig-sub">Nombres: _________________________________ · DNI: __________________</div>
+    </div>
+  </div>
+
+</body>
+</html>

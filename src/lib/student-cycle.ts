@@ -55,7 +55,7 @@ export function computeStudentCycle(
   }
 
   const isIntensivo = studentProfile.modality?.includes("Intensivo");
-  const isFlexiblePackage = studentProfile.modality?.includes("Paquete Flexible") || studentProfile.planType === "Paquete Flexible";
+  const isFlexiblePackage = studentProfile.modality?.includes("Paquete Flexible") || studentProfile.planType === "Paquete Flexible" || (studentProfile.packageTotalSessions !== undefined && studentProfile.packageTotalSessions > 8);
   const targetQuota = studentProfile.packageTotalSessions || (isFlexiblePackage ? 24 : isIntensivo ? 4 : 8);
 
   const startStr = studentProfile.planStartDate || "2026-08-01";
@@ -90,12 +90,16 @@ export function computeStudentCycle(
   const evaluatedCount = evaluatedDates.size;
   const isCycleCompleted = evaluatedCount >= targetQuota;
 
-  // 2. Proyectar candidatas pendientes desde planStartDate respetando días de la semana y horas
-  const maxDaysToScan = 90; // Escaneo de hasta 3 meses lectivos
-  const pendingCandidates: Array<{ dateStr: string; time: string; slot: string }> = [];
-
   const effectiveEndDate = studentProfile.planEndDate;
   const effectiveEndMonth = studentProfile.planEndMonth || (effectiveEndDate ? effectiveEndDate.slice(0, 7) : undefined);
+
+  // 2. Proyectar candidatas pendientes desde planStartDate respetando días de la semana y horas
+  // Escaneo dinámico: para Paquetes Flexibles o vigencias extendidas, proyectar hasta la fecha fin (mínimo 180 días)
+  const daysToEnd = effectiveEndDate
+    ? Math.max(90, Math.ceil((new Date(effectiveEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
+    : (isFlexiblePackage ? 180 : 90);
+  const maxDaysToScan = Math.max(isFlexiblePackage ? 180 : 90, daysToEnd);
+  const pendingCandidates: Array<{ dateStr: string; time: string; slot: string }> = [];
 
   if (!isCycleCompleted) {
     for (let offset = 0; offset < maxDaysToScan; offset++) {
