@@ -234,6 +234,17 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - El límite inferior del año 2026 en `AgendaBoard` se amplía a Julio 2026 (`selectedMonth < 6`) para permitir la renderización de paquetes flexibles y ciclos iniciados a mitad de año (ej. Andrea Fernanda Meza).
 
 ---
+
+### 17. Integridad Relacional en PostgreSQL (Insforge) entre Alumnos, Familias y Recibos (ADR-0116)
+1. **Garantía y Vinculación Estricta de `family_id`**:
+   - En `backgroundCreateStudentInDB`, todo alumno nuevo aprovisiona previamente su familia en `families` y persiste `family_id` en la tabla `students`. Esto garantiza que los joins PostgREST (`students?select=...,families(...)`) resuelvan en vivo con nombre del apoderado, teléfono y email sin retornar nulos.
+2. **Auto-Aprovisionamiento Universal de Recibos y Auditoría de Abonos**:
+   - Todo alumno activo cuenta exactamente con 1 recibo activo en `invoices` reflejando su plan, costo real, monto abonado y saldo.
+   - Cada abono inicial o fraccionado se audita en `payment_audit_logs` con rol responsable, fecha y método de pago.
+3. **Depuración de Recibos Obsoletos o Duplicados**:
+   - Se eliminan recibos pendientes generados de semillas antiguas que duplican perfiles ya pagados (ej. duplicado previo de Mia Bellido), asegurando que `/admin/facturacion` reporte cuentas claras y consistentes en todos los dispositivos.
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)

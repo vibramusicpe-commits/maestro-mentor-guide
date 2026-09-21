@@ -396,8 +396,32 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
           : generateUUID()
       );
 
+      const targetFamilyId = resolvedStudentUUID.startsWith("00000000-0000-0000-0002-")
+        ? resolvedStudentUUID.replace(/^00000000-0000-0000-0002-/, "00000000-0000-0000-0001-")
+        : resolvedStudentUUID;
+
+      // 🛡️ Asegurar registro en families antes de crear el alumno
+      try {
+        const { postgrestInsert, postgrestSelect } = await import("@/lib/insforge");
+        const existingFam = await postgrestSelect("families", { id: `eq.${targetFamilyId}` });
+        if (!existingFam || existingFam.length === 0) {
+          await postgrestInsert("families", {
+            id: targetFamilyId,
+            family_name: student.family || `Familia ${student.name}`,
+            primary_guardian_name: student.emergencyContact?.name || student.motherName || student.fatherName || student.name,
+            primary_guardian_phone: student.emergencyContact?.phone || student.motherPhone || student.fatherPhone || student.phone?.trim() || "987654321",
+            email: student.emergencyContact?.email || student.email?.trim() || `alumno_${resolvedStudentUUID.slice(0, 8)}@vibramusic.pe`,
+            payment_day: 1,
+            automatic_payment: false,
+          });
+        }
+      } catch (fErr) {
+        console.warn("[Insforge Sync] Aviso al asegurar familia previa:", fErr);
+      }
+
       const payload: any = {
         id: resolvedStudentUUID,
+        family_id: targetFamilyId,
         full_name: student.name,
         instrument: student.instrument || "Piano",
         level: student.level || "Nivel 1",
@@ -446,10 +470,10 @@ function backgroundCreateInvoiceInDB(role: Role, invoice: Invoice, student: Admi
     if (typeof window === "undefined") return;
 
     import("@/lib/services/invoices.service").then(async ({ createInvoice }) => {
-      const resolvedStudentUUID = resolveStudentUUID(student.id);
-      const familyId = resolvedStudentUUID
+      const resolvedStudentUUID = resolveStudentUUID(student.id) || student.id;
+      const familyId = resolvedStudentUUID.startsWith("00000000-0000-0000-0002-")
         ? resolvedStudentUUID.replace(/^00000000-0000-0000-0002-/, "00000000-0000-0000-0001-")
-        : undefined;
+        : resolvedStudentUUID;
 
       // 1. Asegurar registro en families antes de crear la factura (FK estricta)
       if (familyId) {
