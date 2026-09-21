@@ -245,6 +245,21 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - Se eliminan recibos pendientes generados de semillas antiguas que duplican perfiles ya pagados (ej. duplicado previo de Mia Bellido), asegurando que `/admin/facturacion` reporte cuentas claras y consistentes en todos los dispositivos.
 
 ---
+
+### 18. Sincronización en Tiempo Real Multi-Pestaña y Multi-Dispositivo entre Panel Administrativo y Agenda Docente (ADR-0117)
+1. **Canal de Difusión en Vivo (`DATA_SYNC_CHANNEL` vía `BroadcastChannel` y `localStorage` Heartbeat)**:
+   - Toda mutación de horario (`rescheduleLesson`, `addLessonToSchedule`, `removeLessonFromSchedule`), alumnos (`addNewStudent`, `updateStudentDetails`, `setStudentStatus`), asistencias (`markLessonAttendance`, `setAttendance`) y pagos emite una señal instantánea a través del canal `"vibra_live_data_sync"`.
+   - Todas las pestañas abiertas (Agenda del Profesor, Kiosco, Admin, Facturación) en el mismo navegador escuchan este canal y re-hidratan de inmediato su estado desde PostgreSQL sin necesidad de recargar la página.
+2. **Revalidación al Enfocar y al Cambiar de Pestaña (`visibilitychange` / `window.focus`)**:
+   - Cuando el profesor o administrador desbloquea su celular, regresa de WhatsApp o vuelve a enfocar la pestaña del navegador, `useInsforgeSync` revalida automáticamente contra PostgreSQL para asegurar que la vista esté actualizada.
+3. **Polling Activo Inteligente en Segundo Plano**:
+   - Mientras la aplicación permanezca visible, `useInsforgeSync` realiza un sondeo en segundo plano cada 20 segundos para reflejar cambios ejecutados desde otras computadoras o dispositivos móviles (Nayeli, Karla, Sergio, profesores).
+4. **Revalidación en Montaje de Rutas Docentes y Botón Táctil de Refresco**:
+   - `TeacherAgendaPage` (`src/routes/teacher.agenda.tsx`) ejecuta `useInsforgeSync()` al montar y provee un botón táctil de actualización rápida `🔄 Sincronizar` para que el docente pueda forzar la recarga de su horario con un toque en sala.
+5. **Armonización Estricta de Filtros en `MinimalAgendaCalendar`**:
+   - `MinimalAgendaCalendar` aplica los mismos filtros estrictos de `dateStr`, `weekIndex` y `excludedDates` que `AgendaBoard.tsx`, garantizando que lecciones puntuales (como recuperaciones o clases contiguas) solo figuren en su fecha exacta y se reflejen idénticas entre la vista de secretaría y la vista del profesor.
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)

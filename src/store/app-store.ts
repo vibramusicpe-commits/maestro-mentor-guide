@@ -38,6 +38,7 @@ import {
 import { getCurrentWeekIndex } from "@/lib/calendar-utils";
 import { isMatchingStudentName, resolveStudentUUID, isSameStudentId } from "@/lib/student-matching";
 import type { TeacherParentNote } from "@/lib/services/teacher-notes.service";
+import { triggerDataSyncBroadcast } from "@/lib/sync-broadcast";
 
 export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow, TeacherParentNote };
 export type {
@@ -456,9 +457,12 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
       try {
         await createStudent(syncRole, payload);
         console.log(`[Insforge Sync] Alumno nuevo ${student.name} (${payload.id}) creado exitosamente en PostgreSQL`);
+        triggerDataSyncBroadcast("student-created");
       } catch (err) {
         console.warn(`[Insforge Sync] Aviso al crear alumno ${student.name} en PostgreSQL, aplicando fallback PATCH:`, err);
-        updateStudent(syncRole, payload.id, payload).catch(() => {});
+        updateStudent(syncRole, payload.id, payload).then(() => {
+          triggerDataSyncBroadcast("student-created");
+        }).catch(() => {});
       }
     }).catch(() => {});
   } catch {}
@@ -513,6 +517,7 @@ function backgroundCreateInvoiceInDB(role: Role, invoice: Invoice, student: Admi
           payment_method: dbMethod,
         });
         console.log(`[Insforge Sync] Recibo ${invoice.id} creado en PostgreSQL`);
+        triggerDataSyncBroadcast("invoice-created");
 
         // 3. Si hubo pago inicial, persistir en payment_audit_logs
         if (invoice.amountPaid && invoice.amountPaid > 0) {
@@ -697,6 +702,9 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
   try {
     if (typeof window === "undefined") return;
 
+    // Emisión en tiempo real inter-pestañas (ADR-0117)
+    triggerDataSyncBroadcast("student-mutation");
+
     // Acumular actualizaciones en memoria mientras se escribe
     const currentPending = pendingStudentUpdates.get(studentId) || {};
     pendingStudentUpdates.set(studentId, { ...currentPending, ...updates });
@@ -711,12 +719,14 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       const accumulatedUpdates = pendingStudentUpdates.get(studentId) || updates;
       pendingStudentUpdates.delete(studentId);
       performSyncStudentToDB(role, studentId, accumulatedUpdates);
+      triggerDataSyncBroadcast("student-sync");
     }, 350);
 
     syncDebounceTimers.set(studentId, timer);
   } catch {
     // Si falla el timer, ejecución síncrona de respaldo
     performSyncStudentToDB(role, studentId, updates);
+    triggerDataSyncBroadcast("student-sync");
   }
 }
 
@@ -729,8 +739,12 @@ function backgroundDeleteStudentFromDB(role: Role, studentId: string) {
 
     import("@/lib/services/students.service").then(({ deleteStudent, updateStudent }) => {
       const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";
-      deleteStudent(syncRole, resolvedStudentId).catch(() => {
-        updateStudent(syncRole, resolvedStudentId, { status: "baja" }).catch(() => {});
+      deleteStudent(syncRole, resolvedStudentId).then(() => {
+        triggerDataSyncBroadcast("student-deleted");
+      }).catch(() => {
+        updateStudent(syncRole, resolvedStudentId, { status: "baja" }).then(() => {
+          triggerDataSyncBroadcast("student-status-baja");
+        }).catch(() => {});
       });
     }).catch(() => {});
   } catch {}
@@ -757,7 +771,10 @@ function backgroundSyncAttendanceLogToDB(
             student_id: `eq.${resolvedStudentId}`,
             note: `like.*Fecha ${dateStr}*`,
           })
-            .then(() => console.log(`[Insforge Sync] Asistencia eliminada de attendance_logs para ${resolvedStudentId} (${dateStr})`))
+            .then(() => {
+              console.log(`[Insforge Sync] Asistencia eliminada de attendance_logs para ${resolvedStudentId} (${dateStr})`);
+              triggerDataSyncBroadcast("attendance-deleted");
+            })
             .catch((err) => console.warn(`[Insforge Sync] Error eliminando attendance_log:`, err));
         }).catch(() => {});
       }
@@ -793,7 +810,10 @@ function backgroundSyncAttendanceLogToDB(
         note: dbNote || null,
         registered_at: new Date().toISOString(),
       })
-        .then(() => console.log(`[Insforge Sync] Asistencia guardada en attendance_logs para ${resolvedStudentId} (${status})`))
+        .then(() => {
+          console.log(`[Insforge Sync] Asistencia guardada en attendance_logs para ${resolvedStudentId} (${status})`);
+          triggerDataSyncBroadcast("attendance-saved");
+        })
         .catch((err) => console.warn(`[Insforge Sync] Error guardando attendance_log:`, err));
     }).catch(() => {});
   } catch {}
@@ -853,7 +873,10 @@ function backgroundSyncPaymentToDB(
         },
         invData,
       )
-        .then(() => console.log(`[Insforge Sync] Abono en recibo ${invoiceId} sincronizado en PostgreSQL (Usuario: ${userId})`))
+        .then(() => {
+          console.log(`[Insforge Sync] Abono en recibo ${invoiceId} sincronizado en PostgreSQL (Usuario: ${userId})`);
+          triggerDataSyncBroadcast("payment-synced");
+        })
         .catch((err) => console.warn(`[Insforge Sync] Error sincronizando abono ${invoiceId}:`, err));
     }).catch(() => {});
   } catch {}
@@ -1330,16 +1353,22 @@ export const useAppStore = create<AppState>()(
           };
         }),
       removeLessonFromSchedule: (id) =>
-        set((s) => ({
-          schedule: s.schedule.filter((l) => l.id !== id),
-          syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
-        })),
+        set((s) => {
+          triggerDataSyncBroadcast("lesson-removed");
+          return {
+            schedule: s.schedule.filter((l) => l.id !== id),
+            syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
+          };
+        }),
       // Alias directo para evitar "_t is not a function"
       deleteLessonFromSchedule: (id) =>
-        set((s) => ({
-          schedule: s.schedule.filter((l) => l.id !== id),
-          syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
-        })),
+        set((s) => {
+          triggerDataSyncBroadcast("lesson-removed");
+          return {
+            schedule: s.schedule.filter((l) => l.id !== id),
+            syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
+          };
+        }),
       addLessonToSchedule: (lesson) =>
         set((s) => {
           const newLesson: ScheduledLesson = {

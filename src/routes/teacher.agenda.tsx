@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 import { MinimalAgendaCalendar } from "@/components/agenda/minimal-agenda-calendar";
 import { useAppStore } from "@/store/app-store";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
+import { useInsforgeSync } from "@/hooks/use-insforge-sync";
+import { RotateCw } from "lucide-react";
 
 export const Route = createFileRoute("/teacher/agenda")({
   head: () => ({
@@ -18,6 +20,7 @@ export const Route = createFileRoute("/teacher/agenda")({
 });
 
 function TeacherAgendaPage() {
+  const { syncNow, isSyncing } = useInsforgeSync();
   const schedule = useAppStore((s) => s.schedule);
   const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
@@ -75,21 +78,32 @@ function TeacherAgendaPage() {
 
   return (
     <div className="space-y-4">
-      {/* Selector de Profesor para Auditoría */}
-      <div className="flex items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
-        {["Fernando", "Nathaly", "Jeremy"].map((t) => (
-          <button
-            key={t}
-            onClick={() => setAdminSelectedTeacher(t)}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
-              teacherDisplayName === t
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Prof. {t}
-          </button>
-        ))}
+      {/* Selector de Profesor para Auditoría + Botón de Sincronización en Vivo */}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
+          {["Fernando", "Nathaly", "Jeremy"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setAdminSelectedTeacher(t)}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                teacherDisplayName === t
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Prof. {t}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => syncNow()}
+          disabled={isSyncing}
+          title="Actualizar horario en tiempo real con la base de datos"
+          className="flex items-center justify-center p-2.5 rounded-2xl bg-card border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-all shadow-xs disabled:opacity-50"
+        >
+          <RotateCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : ""}`} />
+        </button>
       </div>
 
       <MinimalAgendaCalendar

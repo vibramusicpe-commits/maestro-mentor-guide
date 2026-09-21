@@ -97,7 +97,20 @@ export function MinimalAgendaCalendar({
       if (!studentProfile || studentProfile.status !== "activo") {
         return;
       }
-      if (!isLessonInStudentCycle(studentProfile, l as ScheduledLesson, dayInfo.dateStr, l.time, schedule)) {
+
+      const schL = l as ScheduledLesson;
+
+      // 🛡️ FILTRO ESTRICTO DE FECHA PUNTUAL Y SEMANA (ADR-0105, ADR-0115)
+      if (schL.dateStr) {
+        if (dayInfo.dateStr !== schL.dateStr) return;
+      } else {
+        if (schL.weekIndex !== undefined && schL.weekIndex !== safeWeekIndex) return;
+        if (schL.excludedWeeks?.includes(safeWeekIndex)) return;
+      }
+
+      if (schL.excludedDates?.includes(dayInfo.dateStr)) return;
+
+      if (!isLessonInStudentCycle(studentProfile, schL, dayInfo.dateStr, l.time, schedule)) {
         return;
       }
 
