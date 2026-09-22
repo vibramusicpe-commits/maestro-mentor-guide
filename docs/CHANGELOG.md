@@ -4,6 +4,28 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.6] - 2026-09-22
+
+### Fix Critico: Aislamiento de Asistencia entre Clase Regular y Clase Reprogramada (isMakeup) — Kardex
+
+**Bugs corregidos (3):**
+
+**Bug 1 — Arrastre de asistencia entre sesion regular y makeup del mismo dia:**
+- `setStudentSessionAttendance` (`src/store/app-store.ts`): lecciones recurrentes (sin `dateStr` propio) ahora escriben SOLO en `attendanceByWeek`; makeups (con `lesson.dateStr`) escriben SOLO en `attendanceByDate[lesson.dateStr]`. Sin contaminacion cruzada.
+- Kardex `allCycleSessions` (lectura de status): lecciones recurrentes leen `attendanceByWeek[semana]`; makeups leen su propio `attendanceByDate[lesson.dateStr]`. Fallback legacy para marks anteriores al fix.
+
+**Bug 2 — Boton X no eliminaba la makeup de PostgreSQL:**
+- `deleteLessonFromSchedule`: ahora actualiza `adminStudents.scheduleLessons` y llama a `backgroundSyncStudentToDB`. Antes solo filtraba `s.schedule` en memoria.
+
+**Bug 3 — Boton X no restauraba `excludedDates` de la leccion recurrente original:**
+- Nueva accion atomica `revertMakeupLesson(makeupId, recoveringLessonDate)` en el store: elimina la makeup del schedule, restaura la fecha en `excludedDates` de la leccion recurrente original, actualiza `adminStudents.scheduleLessons` y persiste todo en DB en un solo `set()`.
+- Boton X del Kardex (`student-attendance-kardex.tsx`): reemplaza logica fragil inline (`useAppStore.setState` directo) por llamada a `revertMakeupLesson`.
+
+**Flujo correcto post-fix:** Marcar Falta en sesion regular → Reprogramar → nueva makeup → si el alumno no asiste a la makeup → boton X → la clase original del dia excluido vuelve al horario → volver a reprogramar si aplica.
+
+- **Commit:** `3aaee2c`
+- **ADR:** `docs/adr/0112-makeup-attendance-isolation-revert-atomic.md`
+
 ## [2.0.5] - 2026-09-22
 
 ### Fix Critico: Import Faltante de `normalizeStudentName` — ReferenceError en `hydrateFromBackend` (ADR-0111, ADR-0119)
