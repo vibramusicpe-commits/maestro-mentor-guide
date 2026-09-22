@@ -141,7 +141,6 @@ type AppState = {
   rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number, teacher?: string, room?: string, originalDateStr?: string, newDateStr?: string) => void;
   removeLessonFromSchedule: (id: string) => void;
   deleteLessonFromSchedule: (id: string) => void;
-  revertMakeupLesson: (makeupId: string, recoveringLessonDate?: string) => void;
   addLessonToSchedule: (lesson: Omit<ScheduledLesson, "id">) => void;
   setStudentSchedule: (studentName: string, lessons: Omit<ScheduledLesson, "id">[]) => void;
   importScheduleFromCSV: (newLessons: ScheduledLesson[]) => void;
@@ -1372,65 +1371,9 @@ export const useAppStore = create<AppState>()(
       deleteLessonFromSchedule: (id) =>
         set((s) => {
           triggerDataSyncBroadcast("lesson-removed");
-          const removedLesson = s.schedule.find((l) => l.id === id);
-          const newSchedule = s.schedule.filter((l) => l.id !== id);
-          let updatedStudents = s.adminStudents;
-          if (removedLesson) {
-            const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, removedLesson.student));
-            if (targetSt) {
-              const updatedLessons = (targetSt.scheduleLessons || []).filter((l) => l.id !== id);
-              updatedStudents = s.adminStudents.map((st) =>
-                isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: updatedLessons } : st
-              );
-              backgroundSyncStudentToDB(s.activeRole, targetSt.id, { scheduleLessons: updatedLessons });
-            }
-          }
           return {
-            schedule: newSchedule,
-            adminStudents: updatedStudents,
+            schedule: s.schedule.filter((l) => l.id !== id),
             syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
-          };
-        }),
-      revertMakeupLesson: (makeupId, recoveringLessonDate) =>
-        set((s) => {
-          triggerDataSyncBroadcast("lesson-removed");
-          const makeupLesson = s.schedule.find((l) => l.id === makeupId);
-          // 1. Eliminar la makeup del schedule
-          const newSchedule = s.schedule
-            .filter((l) => l.id !== makeupId)
-            .map((l) => {
-              // 2. Restaurar excludedDates de la lección original que tenía esa fecha excluida
-              if (
-                recoveringLessonDate &&
-                l.excludedDates &&
-                l.excludedDates.includes(recoveringLessonDate) &&
-                makeupLesson &&
-                isMatchingStudentName(l.student, makeupLesson.student)
-              ) {
-                return {
-                  ...l,
-                  excludedDates: l.excludedDates.filter((d) => d !== recoveringLessonDate),
-                };
-              }
-              return l;
-            });
-          let updatedStudents = s.adminStudents;
-          if (makeupLesson) {
-            const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, makeupLesson.student));
-            if (targetSt) {
-              const updatedLessons = (newSchedule).filter(
-                (l) => isMatchingStudentName(l.student, makeupLesson.student) && l.status !== "cancelada"
-              );
-              updatedStudents = s.adminStudents.map((st) =>
-                isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: updatedLessons } : st
-              );
-              backgroundSyncStudentToDB(s.activeRole, targetSt.id, { scheduleLessons: updatedLessons });
-            }
-          }
-          return {
-            schedule: newSchedule,
-            adminStudents: updatedStudents,
-            syncQueue: [...s.syncQueue, queueItem("Clase reprogramada revertida a original")],
           };
         }),
       addLessonToSchedule: (lesson) =>
@@ -2037,21 +1980,12 @@ export const useAppStore = create<AppState>()(
               const prevByWeek = { ...(l.attendanceByWeek || {}) };
               const prevByDate = { ...(l.attendanceByDate || {}) };
 
-              // 🛡️ ADR-0112 Fix Bug1: lecciones recurrentes (sin dateStr propio) solo usan
-              // attendanceByWeek para evitar contaminar a makeups del mismo día en attendanceByDate.
-              // Lecciones makeup (con dateStr propio) solo usan attendanceByDate.
-              const isOwnDateStr = !!l.dateStr; // true = makeup/puntual
-
               if (status === "pendiente") {
-                if (!isOwnDateStr && weekIndex !== undefined) delete prevByWeek[weekIndex];
-                if (isOwnDateStr && dateStr) delete prevByDate[dateStr];
-                // Fallback: si la sesión recurrente tenía un mark previo en byDate para esta fecha, limpiar
-                if (!isOwnDateStr && dateStr) delete prevByDate[dateStr];
+                if (weekIndex !== undefined) delete prevByWeek[weekIndex];
+                if (dateStr) delete prevByDate[dateStr];
               } else {
-                if (!isOwnDateStr && weekIndex !== undefined) prevByWeek[weekIndex] = status;
-                if (isOwnDateStr && dateStr) prevByDate[dateStr] = status;
-                // Fallback legacy: si no tiene dateStr propio pero tampoco weekIndex, escribir en byDate
-                if (!isOwnDateStr && weekIndex === undefined && dateStr) prevByDate[dateStr] = status;
+                if (weekIndex !== undefined) prevByWeek[weekIndex] = status;
+                if (dateStr) prevByDate[dateStr] = status;
               }
 
               return {
