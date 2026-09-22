@@ -4,6 +4,34 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.5] - 2026-09-22
+
+### Fix Critico: Import Faltante de `normalizeStudentName` — ReferenceError en `hydrateFromBackend` (ADR-0111, ADR-0119)
+
+**Sintoma:** Agenda mostraba 0 clases en cualquier PC/navegador sin cache de
+`localStorage` (ej. Chrome limpio), mientras que Edge con snapshot antiguo mostraba
+correctamente 15 clases. Consola del dispositivo afectado mostraba en cada ciclo:
+`[Insforge Sync] Operando en fallback Zustand local: ReferenceError: normalizeStudentName is not defined`.
+
+**Causa raiz:** `src/store/app-store.ts:39` importaba
+`{ isMatchingStudentName, resolveStudentUUID, isSameStudentId }` de `@/lib/student-matching`
+pero omitia `normalizeStudentName`, que era usada en `hydrateFromBackend` para la
+deduplicacion de homonimos activos (introducida en ADR-0107/ADR-0112). El `ReferenceError`
+era tragado silenciosamente por el `catch` de `useInsforgeSync`, dejando el `schedule`
+con el snapshot de `localStorage` (vacio en dispositivos sin cache previa).
+
+**Por que el kiosco seguia activo:** `attendance.service.ts` lee `attendance_logs`
+directamente, sin pasar por `hydrateFromBackend` — ruta completamente independiente.
+
+- **Fix (`src/store/app-store.ts`, linea 39):** añadir `normalizeStudentName` al import existente. Cambio de 1 token, sin modificar logica de negocio, filtros, Kardex, facturacion ni partialize.
+- **Documentacion (`AGENTS.md`):** ADR-0119 punto 5 corregido (el desacople de `schedule`/`adminStudents`/`invoices` de `localStorage` era incorrecto; `app-store.ts:2866-2880` los persiste) + punto 6 nuevo con causa raiz confirmada y criterio de cierre.
+- **ADR generado:** `docs/adr/0111-missing-import-normalizestudentname-hydratefrombackend-referenceerror.md`
+- **Log generado:** `docs/logs/2026-09-22-normalizestudentname-referenceerror-incident.md`
+- **Commit:** `1a578ee` — push a `main`, despliegue automatico via Cloudflare Pages.
+
+**Criterio de cierre:** consola en Chrome (sin cache) muestra
+`[Insforge Sync] Sincronizacion en tiempo real exitosa` y `CLASES PROGRAMADAS: 15`.
+
 ## [2.0.4] - 2026-09-19
 
 ### Soporte Integral para Modalidad Regular 1x/sem (8 clases / 45 min · 2 meses) (ADR-0110)
