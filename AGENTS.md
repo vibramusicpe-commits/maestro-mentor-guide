@@ -274,6 +274,48 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - `markLessonAttendance` acepta `dateStr`, registra `attendanceByDate[dateStr]`, actualiza `scheduleLessons` en el estado del alumno y persiste atómicamente hacia `emergency_contact.scheduleLessons` y `attendance_logs` en Insforge PostgreSQL, asegurando sincronización instantánea y consistente en tiempo real entre docentes y secretaría.
 
 ---
+
+### 20. ⚠️ Cero Confianza en Caché Local para Estado Transaccional — Post-Mortem del Incidente Admin/Profesor (ADR-0119)
+
+> **Origen de esta regla**: el 21 de septiembre de 2026 se detectó que la Agenda del Profesor (`MinimalAgendaCalendar`, ruta `/teacher/agenda`) no mostraba dos clases de recuperación (Mia Lucero Bellido y Karlitoz Pazos, ambas con Prof. Nathaly) que sí eran visibles correctamente en la Agenda Admin (`AgendaBoard`, ruta `/admin/agenda`), en la misma sesión y con los mismos datos en PostgreSQL. Una sesión de depuración exhaustiva confirmó, línea por línea, que: los datos existían correctamente en `emergency_contact.scheduleLessons`; el emparejamiento de docente (`teacherClean`) era correcto; la comparación de `dateStr` contra `dayInfo.dateStr` era correcta; `isLessonInStudentCycle` debía devolver `true` por `attendanceByDate`; y `hydrateFromBackend` debía dar prioridad absoluta a PostgreSQL (ver ADR-0118.4). **Ninguna de estas verificaciones estáticas reveló el bug.** La sesión se quedó sin presupuesto de tokens (~30% del total consumido en un solo incidente) sin confirmar la causa raíz. La hipótesis más fuerte que quedó pendiente de verificar en tiempo de ejecución es que el snapshot persistido en `localStorage` (vía Zustand `persist`) en el dispositivo/navegador del profesor nunca llega a ser completamente sustituido por el resultado de `hydrateFromBackend`, o que existe una condición de carrera entre el primer pintado (desde `initialSchedule`/`localStorage`) y la sincronización asíncrona con PostgreSQL — lo cual contradice directamente el principio fundacional de ADR-001.3 ("Postgres como única fuente de verdad... nunca almacenar estado transaccional" fuera de la base de datos).
+
+1. **Prohibición Explícita de Confiar en `localStorage`/`persist` para Datos Transaccionales**:
+   - Ningún componente (Admin, Profesor, Kiosco) debe leer alumnos, `schedule`/`scheduleLessons`, `attendanceByDate`/`attendance_logs`, `invoices` o `payment_audit_logs` asumiendo que el snapshot de `localStorage` (Zustand `persist`) ya está sincronizado con PostgreSQL.
+   - `localStorage` únicamente puede usarse como *placeholder visual mientras carga la conexión* (skeleton/loading state). Su contenido **NUNCA** debe tener prioridad, ni siquiera parcial o por campo individual, sobre el resultado fresco de `hydrateFromBackend`. En caso de conflicto, PostgreSQL gana siempre, sin excepción y sin fusiones parciales que puedan dejar campos obsoletos.
+   - Toda vista que muestre horario, asistencia o cobros debe exponer (aunque sea en un log de consola o en un indicador visual discreto) el momento exacto en que terminó su última rehidratación exitosa desde PostgreSQL, para poder diagnosticar divergencias entre dispositivos sin adivinar.
+2. **Prohibido Declarar un Bug "Descartado" Solo por Trazado Estático de Código**:
+   - Ante cualquier discrepancia confirmada entre dos vistas que leen el mismo store (ej. Admin vs Profesor) donde la lógica, leída línea por línea, "debería funcionar en teoría", el agente **NO** puede concluir que la lógica está bien y detenerse ahí. Debe instrumentar el código en tiempo de ejecución (logs temporales, breakpoints, o pedir al usuario capturas reales de consola/`localStorage`/pestaña de Red del dispositivo afectado) antes de cerrar o pausar la investigación.
+   - Se debe considerar explícitamente, como hipótesis alterna a un bug de lógica pura, la posibilidad de: caché de `Service Worker`, caché de edge/CDN de Cloudflare Pages sirviendo un bundle de JS desactualizado al dispositivo del profesor, o un `localStorage` con datos de una sesión anterior que nunca se purgó.
+3. **Fuente Única de Verdad para la Lógica de Filtrado de Lecciones**:
+   - Toda lógica de filtrado por `dateStr`, `weekIndex`, `excludedDates`, `isMakeup` y `attendanceByDate` que hoy vive duplicada en `AgendaBoard.tsx`, `MinimalAgendaCalendar.tsx` y `student-attendance-kardex.tsx` debe migrarse a una única función pura y compartida (p. ej. `src/lib/lesson-visibility.ts`), importada por los tres. Está **PROHIBIDO** seguir reimplementando el mismo filtro de forma independiente en un componente nuevo o existente "porque se ve equivalente": las divergencias sutiles entre copias duplicadas ya motivaron los parches puntuales de ADR-0102, ADR-0107, ADR-0114, ADR-0115 y ADR-0117 sin eliminar la causa estructural (la duplicación en sí).
+   - Cualquier corrección futura a esta lógica se aplica en el archivo compartido único; una corrección que solo toque una de las copias duplicadas se considera incompleta y no cierra el ticket.
+4. **Protocolo de Cierre para Incidentes de Paridad Admin/Profesor/Kiosco**:
+   - Antes de dar por resuelta cualquier tarea de este tipo, se debe confirmar en el dispositivo real donde ocurría el problema (no solo en desarrollo) que: (a) se inspeccionó el `localStorage` real de ese dispositivo, (b) se purgó o reconcilió si contenía datos obsoletos, y (c) el fix se verificó con datos frescos de PostgreSQL y no solo con lectura estática del código.
+5. **Resolución Confirmada y Eliminación de Caching Local Transaccional**:
+   - Se validó mediante simulación en tiempo de ejecución directa (`scratch/test-runtime-pure.mjs`) con datos en vivo de Insforge PostgreSQL que las 4 clases de Mia Lucero Bellido y Karlitoz Pazos (incluyendo recuperaciones con `dateStr`) son aprobadas y renderizadas en la Semana 4 (Lunes 21 de Setiembre).
+   - Se desacopló `schedule`, `adminStudents` e `invoices` de la persistencia `localStorage` en `partialize` para que el sistema funcione 100% online con PostgreSQL como única fuente de verdad inmutable.
+   - Se limpiaron las menciones de "Nayeli" en el pie de WhatsApp de `minimal-agenda-calendar.tsx` y en las pestañas de `agenda-board.tsx`.
+
+---
+
+### 21. Protocolo Anti-Bucle de Depuración y Uso Eficiente de Tokens (ADR-0120)
+
+> **Origen de esta regla**: durante la investigación de ADR-0119, el agente repitió decenas de veces la misma conclusión ("esto debería funcionar en teoría, no encuentro el bug") sin incorporar evidencia nueva entre repeticiones, agotando cerca del 30% del presupuesto total de tokens del proyecto en una sola sesión sin llegar a una causa raíz confirmada ni dejar un resumen guardado para la siguiente sesión.
+
+1. **Regla del "Circuit Breaker"**:
+   - Si el agente se descubre repitiendo una conclusión ya alcanzada (p. ej. "en teoría esto debería funcionar") **3 veces o más** sin incorporar un dato nuevo (un log real de ejecución, un archivo no revisado antes, una respuesta del usuario), debe **detenerse de inmediato** y ejecutar los tres pasos siguientes, en orden:
+     1. Guardar en memoria persistente (`engram` o el mecanismo de memoria disponible) un resumen con: síntoma exacto, hipótesis descartadas y por qué, hipótesis pendientes de verificar, y la lista de archivos/líneas ya revisados en esta sesión.
+     2. Cambiar de método de investigación: abandonar la relectura estática de código y pasar a instrumentación en tiempo real (logs temporales desplegados, o solicitar al usuario capturas directas de consola/Network/`localStorage` del dispositivo afectado).
+     3. Si tras cambiar de método el bug sigue sin resolverse, comunicar al usuario el estado exacto de la investigación (qué se descartó y qué 2-3 hipótesis quedan) en vez de seguir consumiendo tokens en el mismo bucle.
+2. **Presupuesto Máximo por Hipótesis**:
+   - No gastar más de ~8-10 llamadas de herramienta verificando una sola hipótesis de causa raíz antes de documentarla (descartada o confirmada) y pasar a la siguiente, o pausar y reportar.
+3. **Prioridad de Herramientas de Grafo sobre Lectura Manual (recordatorio reforzado)**:
+   - `graphify` (o el servidor MCP equivalente que exponga grafo de dependencias) se usa **siempre** antes de releer un archivo completo o hacer grep manual. Releer un archivo ya leído en la misma sesión sin una razón nueva y específica (ej. "acabo de cambiar esta línea, confirmo el resultado") está prohibido — es exactamente el patrón que agotó el presupuesto de tokens en el incidente de ADR-0119.
+4. **Reanudación de Tareas Interrumpidas por Límite de Tokens**:
+   - Al reanudar una investigación que fue cortada por falta de presupuesto, el primer paso siempre es leer el resumen guardado en memoria persistente (`engram`), no reiniciar la investigación desde cero repitiendo pasos ya hechos.
+   - Si no existe un resumen guardado (como ocurrió en el incidente de ADR-0119), el agente debe reconstruir en un único bloque, al inicio de la nueva sesión, el estado conocido: qué se confirmó, qué se descartó y cuál es la hipótesis principal pendiente — antes de ejecutar ninguna herramienta nueva.
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)
@@ -366,6 +408,11 @@ grep manual. Eso es lo que agota el contexto/tokens.
 Antes de cerrar cualquier tarea que modifique una función usada en más de un
 lugar, corre la consulta de impacto del grafo para confirmar que no rompiste
 nada fuera del archivo que editaste.
+
+REGLA ANTI-BUCLE (ver ADR-0120 en la Parte 1): si en una tarea de depuración
+repites 3 veces la misma conclusión ("en teoría esto debería funcionar") sin
+evidencia nueva, DETENTE, guarda el resumen en engram, y cambia de método
+(instrumentación en tiempo real en vez de más lectura estática).
 ```
 
 ## 4. Que se actualicen en tiempo real
@@ -391,3 +438,41 @@ de un producto posible con ese nombre). Con eso te ajusto la tabla de la
 sección 1 para que quede exacta a lo que realmente tienes, en vez de una
 inferencia.
 
+## 6. Protocolo Anti-Bucle de Depuración y Checkpoints de Memoria (NUEVO — post-incidente 2026-09-21)
+
+> Contexto: una sesión de depuración (bug de paridad entre Agenda Admin y
+> Agenda Profesor, ver ADR-0119/ADR-0120 en la Parte 1) consumió ~30% del
+> presupuesto de tokens del proyecto re-derivando la misma conclusión lógica
+> decenas de veces, sin instrumentar el código en tiempo de ejecución y sin
+> guardar ningún resumen en memoria antes de agotarse. Esta sección existe
+> para que no se repita.
+
+1. **Detector de bucle**: si notas que ya llegaste a la misma conclusión
+   ("la lógica debería funcionar, no encuentro el bug") más de 2 veces en la
+   misma tarea sin haber incorporado un dato de ejecución real nuevo, es
+   una señal de alarma explícita. No sigas "pensando más fuerte" sobre el
+   mismo código ya leído: cambia de fuente de evidencia.
+2. **Orden de escalamiento cuando el análisis estático no resuelve el bug**:
+   1. `graphify`: confirma que no falta ningún llamador/dependencia fuera
+      del archivo que ya revisaste.
+   2. Instrumentación real: agrega logs temporales y pide al usuario (o
+      ejecuta tú mismo si tienes el entorno) la salida real de consola /
+      pestaña de Red / contenido de `localStorage` en el dispositivo donde
+      ocurre el problema — nunca asumas el contenido de `localStorage`,
+      pídelo o léelo directamente.
+   3. Si el bug involucra una discrepancia entre dos vistas/dispositivos
+      (como Admin vs Profesor), verifica primero si ambos están leyendo el
+      mismo resultado de `hydrateFromBackend` o si uno de los dos está
+      sirviendo un snapshot de `localStorage`/caché de build no reconciliado
+      (ver ADR-0119).
+   4. Solo si lo anterior no revela la causa, considera hipótesis de
+      infraestructura: caché de CDN/Cloudflare Pages, Service Worker, o
+      bundle de JS desactualizado en el dispositivo del usuario final.
+3. **Checkpoint obligatorio antes de quedarte sin presupuesto**: si estás
+   en medio de una investigación larga y notas que el contexto/tokens se
+   están agotando, guarda de inmediato en `engram` (o dilo explícitamente
+   en tu respuesta si no tienes memoria persistente disponible) un resumen
+   de: síntoma, datos confirmados, hipótesis descartadas con motivo, e
+   hipótesis pendiente más probable — para que la siguiente sesión (sea el
+   mismo agente u otro, incluso en otra herramienta) continúe desde ahí en
+   vez de repetir el mismo camino desde cero.

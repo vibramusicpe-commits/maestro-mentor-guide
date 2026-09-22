@@ -361,13 +361,13 @@ export function MinimalAgendaCalendar({
           ¿Necesitas reprogramar o avisar una inasistencia?
         </p>
         <a
-          href="https://wa.me/51970608367?text=Hola%20Nayeli,%20te%20escribe%20un%20profesor%20de%20Vibra%20Music%20para%20coordinar%20una%20clase."
+          href="https://wa.me/51970608367?text=Hola%20Secretar%C3%ADa,%20te%20escribe%20un%20profesor%20de%20Vibra%20Music%20para%20coordinar%20una%20clase."
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-success hover:underline"
         >
           <MessageCircle className="h-4 w-4 fill-current" />
-          Contactar a Nayeli (Secretaría) por WhatsApp →
+          Contactar a Secretaría por WhatsApp →
         </a>
       </div>
     </div>

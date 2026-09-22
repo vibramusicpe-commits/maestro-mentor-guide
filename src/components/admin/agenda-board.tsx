@@ -154,17 +154,17 @@ export function AgendaBoard() {
   // Estado del Selector de Fecha (Meses / Años / Histórico / Semanas)
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const now = new Date();
-    if (now.getFullYear() === 2026 && now.getMonth() >= 7) {
+    if (now.getFullYear() === 2026 && now.getMonth() >= 8) {
       return now;
     }
-    return new Date(2026, 7, 12);
+    return new Date(2026, 8, 21);
   });
   const [currentWeekIndex, setCurrentWeekIndex] = useState<number>(() => {
     const now = new Date();
-    if (now.getFullYear() === 2026 && now.getMonth() >= 7) {
+    if (now.getFullYear() === 2026 && now.getMonth() >= 8) {
       return getCurrentWeekIndex(now.getFullYear(), now.getMonth());
     }
-    return 1;
+    return getCurrentWeekIndex(2026, 8);
   });
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -1004,7 +1004,7 @@ export function AgendaBoard() {
                   : "text-muted-foreground hover:text-foreground font-bold"
               }`}
             >
-              📊 Vista Didáctica (Excel Nayeli)
+              📊 Vista Didáctica (Horario Pareado)
             </button>
             <button
               onClick={() => setViewMode("diario")}
@@ -1092,13 +1092,13 @@ export function AgendaBoard() {
                   <div className="pt-2 border-t text-center">
                     <button
                       onClick={() => {
-                        setSelectedDate(new Date(2026, 7, 12));
-                        setCurrentWeekIndex(1);
+                        setSelectedDate(new Date(2026, 8, 21));
+                        setCurrentWeekIndex(getCurrentWeekIndex(2026, 8));
                         setIsDatePickerOpen(false);
                       }}
                       className="text-xs font-bold text-primary hover:underline"
                     >
-                      Ir al mes actual (Agosto 2026)
+                      Ir al mes actual (Setiembre 2026)
                     </button>
                   </div>
                 </div>
