@@ -1,4 +1,4 @@
-﻿# Bitacora: Rollback Fix Makeup Attendance Isolation (commit 3aaee2c)
+# Bitacora: Rollback Fix Makeup Attendance Isolation (commit 3aaee2c)
 Fecha: 22 de Septiembre, 2026
 Hora: ~17:49 PET
 Responsable: Antigravity AI & Equipo Vibra Music
@@ -14,6 +14,44 @@ El estado actual de main (commit `a124bc5`) es equivalente a `60f8428`:
 solo incluye el fix de import `normalizeStudentName` y su documentacion.
 
 ---
+
+## Contexto de Negocio — Por que estos bugs importan
+
+Vibra Music opera bajo contratos de plan donde cada clase tiene un costo real para
+la escuela (docente, sala, tiempo). El ciclo de vida de una clase es:
+
+```
+Clase regular programada
+  -> Alumno no asiste -> se marca FALTA -> genera 1 credito de recuperacion
+    -> Se reprograma la clase (isMakeup=true, nueva fecha/hora)
+      -> CASO A: Alumno asiste a la recuperacion -> se marca PRESENTE -> credito consumido
+      -> CASO B: Alumno NO asiste a la recuperacion -> se necesita revertir
+           -> Boton X: eliminar makeup + restaurar la clase original al horario
+                -> La falta original recupera su credito disponible
+                  -> Se puede volver a reprogramar a otra fecha
+```
+
+**El Boton X (eliminar clase reprogramada y restaurar original) era el punto de entrada
+del bug.** Sin el boton X funcionando correctamente:
+
+- Si el alumno no asiste a su clase reprogramada, no hay forma de revertir el estado.
+- La clase reprogramada queda "fantasma" en el horario ocupando espacio.
+- El credito de recuperacion queda bloqueado y no se puede reutilizar.
+- No hay seguimiento real de cuantas clases se dictaron vs cuantas se deben al alumno.
+- La escuela pierde trazabilidad financiera: cada clase no dictada es un costo sin
+  recuperacion para Vibra Music.
+
+El caso concreto que origino el reporte fue **Karlitoz Pazos** con Prof. Nathaly:
+- Clase regular: Lunes y Miercoles 16:45-17:30 (Sala C).
+- Falta el Miercoles 16/09 -> se genero credito y se reprogramo al Lunes 21/09 a las 17:30-18:15.
+- Al Lunes 21/09 habia 2 sesiones: la regular (16:45) y la makeup (17:30).
+- Bug adicional: marcar asistencia en la sesion regular (16:45) arrastraba el mismo
+  estado a la sesion makeup (17:30) automaticamente — las sesiones no estaban aisladas.
+- Karlitoz tampoco asistio a la makeup del 21/09 -> se necesitaba el boton X para
+  revertir y poder reprogramar nuevamente.
+
+---
+
 
 ## Feedback del Usuario — Por que se reverto
 
