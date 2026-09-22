@@ -36,7 +36,7 @@ import {
   HISTORICAL_BASE_METADATA,
 } from "./admin-seeds";
 import { getCurrentWeekIndex } from "@/lib/calendar-utils";
-import { isMatchingStudentName, resolveStudentUUID, isSameStudentId } from "@/lib/student-matching";
+import { isMatchingStudentName, resolveStudentUUID, isSameStudentId, normalizeStudentName } from "@/lib/student-matching";
 import type { TeacherParentNote } from "@/lib/services/teacher-notes.service";
 import { triggerDataSyncBroadcast } from "@/lib/sync-broadcast";
 
