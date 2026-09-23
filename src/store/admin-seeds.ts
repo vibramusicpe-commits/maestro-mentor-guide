@@ -45,7 +45,7 @@ export function getCategoryFromAge(age: number): AgeCategory {
 }
 
 // ===== Planes Oficiales (Dossier Comunidad Vibra) =====
-export type VibraPlanType = "Mensual" | "Trimestral" | "Anual" | "Paquete Flexible" | "Paquete Especial";
+export type VibraPlanType = "Mensual" | "Trimestral" | "Anual" | "Demo Nivelación" | "Paquete Flexible" | "Paquete Especial";
 export type MatriculaType = "Regular (S/ 120)" | "Promo Demo (S/ 30)" | "Exonerada";
 
 export const VIBRA_PRICING = {
@@ -72,6 +72,14 @@ export const VIBRA_PRICING = {
     totalMonths: 12,
     totalPlan: 2851.2,
     description: "S/ 237.60 / mes (Tarifa Anual)",
+  },
+  "Demo Nivelación": {
+    name: "Demo Nivelación (Personalizada)",
+    priceMonthly: 0.0,
+    discountPct: 0,
+    totalMonths: 1,
+    totalPlan: 0.0,
+    description: "Clase de nivelación personalizada (1 alumno · 45 min con especialista · Tarifa abierta)",
   },
   "Paquete Flexible": {
     name: "Paquete Flexible (A Demanda)",
@@ -124,6 +132,7 @@ export type LessonModality =
   | "Regular (8 clases / 45 min)"
   | "Regular 1x/sem (8 clases / 45 min)"
   | "Intensivo (4 clases / 90 min)"
+  | "Demo Nivelación (1 Alumno · 45 min)"
   | "Paquete Flexible (A demanda)"
   | "Irregular (Clases a demanda / Paquete flexible)";
 

@@ -99,6 +99,14 @@ function statusBadge(status: StudentStatus) {
 }
 
 function modalityBadge(modality: LessonModality) {
+  if (modality.includes("Nivelación") || modality.includes("nivelaci")) {
+    return (
+      <Badge variant="outline" className="border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-semibold text-[11px]">
+        <Clock className="mr-1 h-3 w-3" />
+        Demo Nivelación (45m)
+      </Badge>
+    );
+  }
   if (modality.includes("Flexible") || modality.includes("Irregular")) {
     return (
       <Badge variant="outline" className="border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold text-[11px]">
@@ -179,7 +187,6 @@ export function StudentsTable() {
   const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState(ALL);
   const [teacherFilter, setTeacherFilter] = useState(ALL);
   const [modalityFilter, setModalityFilter] = useState(ALL);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -421,6 +428,10 @@ export function StudentsTable() {
 
   const filteredStudents = useMemo(() => {
     return students.filter((st) => {
+      // Regla estricta: El Directorio principal de Alumnos muestra ÚNICAMENTE alumnos activos.
+      // La base histórica/inactiva (baja, pausa) se consulta y reactiva exclusivamente en "Depuración & Reactivación 2026".
+      if (st.status !== "activo") return false;
+
       const matchSearch =
         search.trim() === "" ||
         st.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -428,16 +439,17 @@ export function StudentsTable() {
         st.instrument.toLowerCase().includes(search.toLowerCase()) ||
         st.email.toLowerCase().includes(search.toLowerCase());
 
-      const matchStatus = statusFilter === ALL || st.status === statusFilter;
       const matchTeacher = teacherFilter === ALL || st.teacher === teacherFilter;
       const matchModality =
         modalityFilter === ALL ||
         (modalityFilter === "regular" && st.modality.startsWith("Regular")) ||
-        (modalityFilter === "intensivo" && st.modality.startsWith("Intensivo"));
+        (modalityFilter === "intensivo" && st.modality.startsWith("Intensivo")) ||
+        (modalityFilter === "demo_nivelacion" && st.modality.toLowerCase().includes("nivelaci")) ||
+        (modalityFilter === "flexible" && (st.modality.toLowerCase().includes("flex") || st.modality.toLowerCase().includes("demanda")));
 
-      return matchSearch && matchStatus && matchTeacher && matchModality;
+      return matchSearch && matchTeacher && matchModality;
     });
-  }, [students, search, statusFilter, teacherFilter, modalityFilter]);
+  }, [students, search, teacherFilter, modalityFilter]);
 
   const activeCount = students.filter((s) => s.status === "activo").length;
   const inactiveCount = students.filter((s) => s.status !== "activo").length;
@@ -491,14 +503,14 @@ export function StudentsTable() {
         />
         <Tile
           icon={UserX}
-          label="Alumnos Inactivos"
+          label="Base Histórica (Depuración)"
           value={`${inactiveCount}`}
-          hint={`${students.filter((s) => s.status === "pausa").length} pausa, ${students.filter((s) => s.status === "baja").length} baja`}
+          hint="Gestionar en 'Depuración & Reactivación'"
           tone="text-warning"
         />
         {(() => {
           const evaluatedStudents = students.filter(
-            (s) => (s.recentAttendance?.length || 0) > 0 || (s.attendanceRate || 0) > 0
+            (s) => s.status === "activo" && ((s.recentAttendance?.length || 0) > 0 || (s.attendanceRate || 0) > 0)
           );
           const avgAttendance =
             evaluatedStudents.length > 0
@@ -519,9 +531,9 @@ export function StudentsTable() {
         <Tile
           icon={AlertTriangle}
           label="En Riesgo de Deserción"
-          value={`${students.filter((s) => s.risk >= 70).length}`}
-          hint="Riesgo > 70%"
-          alert={students.filter((s) => s.risk >= 70).length > 0}
+          value={`${students.filter((s) => s.status === "activo" && s.risk >= 70).length}`}
+          hint="Riesgo > 70% (Alumnos activos)"
+          alert={students.filter((s) => s.status === "activo" && s.risk >= 70).length > 0}
         />
       </div>
 
@@ -537,26 +549,22 @@ export function StudentsTable() {
           />
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[11rem]">
-            <SelectValue placeholder="Estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Estado: todos</SelectItem>
-            <SelectItem value="activo">Activos ({activeCount})</SelectItem>
-            <SelectItem value="pausa">En pausa</SelectItem>
-            <SelectItem value="baja">Bajas</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Indicador de Base Activa 2026 */}
+        <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-xs">
+          <UserCheck className="h-4 w-4" />
+          <span>Base Activa ({activeCount})</span>
+        </div>
 
         <Select value={modalityFilter} onValueChange={setModalityFilter}>
-          <SelectTrigger className="w-[12rem]">
+          <SelectTrigger className="w-[13rem]">
             <SelectValue placeholder="Modalidad" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>Modalidad: todas</SelectItem>
             <SelectItem value="regular">Regular (8 clases / 45m)</SelectItem>
             <SelectItem value="intensivo">Intensivo (4 clases / 90m)</SelectItem>
+            <SelectItem value="demo_nivelacion">🎯 Demo Nivelación (45m)</SelectItem>
+            <SelectItem value="flexible">🎒 Paquete Flexible</SelectItem>
           </SelectContent>
         </Select>
 
@@ -574,12 +582,11 @@ export function StudentsTable() {
           </SelectContent>
         </Select>
 
-        {(search || statusFilter !== ALL || teacherFilter !== ALL || modalityFilter !== ALL) && (
+        {(search || teacherFilter !== ALL || modalityFilter !== ALL) && (
           <Button
             variant="ghost"
             onClick={() => {
               setSearch("");
-              setStatusFilter(ALL);
               setTeacherFilter(ALL);
               setModalityFilter(ALL);
             }}
@@ -3196,7 +3203,9 @@ function NewStudentDialog() {
                 <CreditCard className="h-3.5 w-3.5" /> Plan Oficial del Dossier
               </span>
               <span className="text-[11px] font-bold text-primary">
-                {planType === "Anual"
+                {planType === "Demo Nivelación"
+                  ? "Tarifa Abierta (Personalizada)"
+                  : planType === "Anual"
                   ? `S/ ${VIBRA_PRICING.Anual.priceMonthly.toFixed(2)}/m`
                   : planType === "Trimestral"
                   ? `S/ ${VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)}/m`
@@ -3212,7 +3221,14 @@ function NewStudentDialog() {
                   onChange={(e) => {
                     const val = e.target.value as VibraPlanType;
                     setPlanType(val);
-                    if (val === "Paquete Flexible" || val === "Paquete Especial") {
+                    if (val === "Demo Nivelación") {
+                      setPlanPrice(0);
+                      setAmountPaid(0);
+                      setPackageTotalSessions(1);
+                      setModality("Demo Nivelación (1 Alumno · 45 min)");
+                      setIsPersonalized(true);
+                      setMatriculaType("Exonerada");
+                    } else if (val === "Paquete Flexible" || val === "Paquete Especial") {
                       setPlanPrice(500);
                       setAmountPaid(500);
                       setPackageTotalSessions(24);
@@ -3228,6 +3244,7 @@ function NewStudentDialog() {
                   <option value="Mensual">Mensual — S/ {VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)}</option>
                   <option value="Trimestral">Trimestral — S/ {VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)} (12% Dcto.)</option>
                   <option value="Anual">Anual — S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)} (20% Dcto.)</option>
+                  <option value="Demo Nivelación">🎯 Demo Nivelación (Tarifa abierta · 1 Alumno)</option>
                   <option value="Paquete Flexible">🎒 Paquete Flexible (A Demanda)</option>
                 </select>
               </div>
@@ -3272,6 +3289,23 @@ function NewStudentDialog() {
                 </div>
                 <p className="text-[10px] text-purple-700 dark:text-purple-300 font-medium leading-relaxed">
                   📌 <strong>Vigencia por clases terminadas:</strong> Este paquete no vence por mes calendario. Se completa automáticamente al registrar las {packageTotalSessions} clases asistidas.
+                </p>
+              </div>
+            )}
+
+            {/* Banner Informativo si es Demo Nivelación */}
+            {planType === "Demo Nivelación" && (
+              <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-sky-700 dark:text-sky-300 flex items-center gap-1">
+                    🎯 Modalidad Demo Nivelación (Opción C - Tarifa Abierta)
+                  </span>
+                  <Badge variant="outline" className="text-[9px] font-bold border-sky-500/40 text-sky-700 dark:text-sky-300">
+                    1 Alumno · 45 min
+                  </Badge>
+                </div>
+                <p className="text-[10px] text-sky-700 dark:text-sky-300 font-medium leading-relaxed">
+                  Clase individual de 45 minutos previa cita con docente especialista en su sala asignada. Requiere aforo exclusivo (1 alumno máx.). Digite libremente el costo y abono acordado (o S/ 0 si es cortesía/evaluación).
                 </p>
               </div>
             )}
@@ -3621,7 +3655,14 @@ function NewStudentDialog() {
               onValueChange={(v) => {
                 const mod = v as LessonModality;
                 setModality(mod);
-                if (mod === "Paquete Flexible (A demanda)") {
+                if (mod === "Demo Nivelación (1 Alumno · 45 min)") {
+                  setPlanType("Demo Nivelación");
+                  setPlanPrice(0);
+                  setAmountPaid(0);
+                  setPackageTotalSessions(1);
+                  setIsPersonalized(true);
+                  setMatriculaType("Exonerada");
+                } else if (mod === "Paquete Flexible (A demanda)") {
                   setPlanType("Paquete Flexible");
                   setPlanPrice(500);
                   setAmountPaid(500);
@@ -3641,6 +3682,9 @@ function NewStudentDialog() {
                 </SelectItem>
                 <SelectItem value="Intensivo (4 clases / 90 min)">
                   Intensivo: 4 clases/mes (1x semana, 90 min)
+                </SelectItem>
+                <SelectItem value="Demo Nivelación (1 Alumno · 45 min)">
+                  🎯 Demo Nivelación: 1 clase individual (45 min · Especialista · Tarifa abierta)
                 </SelectItem>
                 <SelectItem value="Paquete Flexible (A demanda)">
                   🎒 Paquete Flexible: Clases a demanda (Vigencia por clases terminadas)
@@ -4316,7 +4360,9 @@ function EditStudentSheetInner({
                 <CreditCard className="h-3.5 w-3.5" /> Plan Oficial del Dossier
               </span>
               <span className="text-[11px] font-bold text-primary">
-                {planType === "Anual"
+                {planType === "Demo Nivelación"
+                  ? "Tarifa Abierta (Personalizada)"
+                  : planType === "Anual"
                   ? `S/ ${VIBRA_PRICING.Anual.priceMonthly.toFixed(2)}/m`
                   : planType === "Trimestral"
                   ? `S/ ${VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)}/m`
@@ -4332,7 +4378,11 @@ function EditStudentSheetInner({
                   onChange={(e) => {
                     const newPlan = e.target.value as VibraPlanType;
                     setPlanType(newPlan);
-                    if (newPlan === "Paquete Flexible" || newPlan === "Paquete Especial") {
+                    if (newPlan === "Demo Nivelación") {
+                      if (!student.planPrice) setPlanPrice(0);
+                      setModality("Demo Nivelación (1 Alumno · 45 min)");
+                      setMatriculaType("Exonerada");
+                    } else if (newPlan === "Paquete Flexible" || newPlan === "Paquete Especial") {
                       if (!student.planPrice) setPlanPrice(500);
                       if (student.amountPaid === undefined) setAmountPaid(500);
                       setModality("Paquete Flexible (A demanda)");
@@ -4355,6 +4405,7 @@ function EditStudentSheetInner({
                   <option value="Mensual">Mensual — S/ {VIBRA_PRICING.Mensual.priceMonthly.toFixed(2)}</option>
                   <option value="Trimestral">Trimestral — S/ {VIBRA_PRICING.Trimestral.priceMonthly.toFixed(2)} (12% Dcto.)</option>
                   <option value="Anual">Anual — S/ {VIBRA_PRICING.Anual.priceMonthly.toFixed(2)} (20% Dcto.)</option>
+                  <option value="Demo Nivelación">🎯 Demo Nivelación (Tarifa abierta · 1 Alumno)</option>
                   <option value="Paquete Flexible">🎒 Paquete Flexible (A Demanda)</option>
                 </select>
               </div>
@@ -4790,7 +4841,12 @@ function EditStudentSheetInner({
                 onValueChange={(v) => {
                   const mod = v as LessonModality;
                   setModality(mod);
-                  if (mod === "Paquete Flexible (A demanda)") {
+                  if (mod === "Demo Nivelación (1 Alumno · 45 min)") {
+                    setPlanType("Demo Nivelación");
+                    if (!planPrice) setPlanPrice(0);
+                    setMatriculaType("Exonerada");
+                    setPackageTotalSessions(1);
+                  } else if (mod === "Paquete Flexible (A demanda)") {
                     setPlanType("Paquete Flexible");
                     if (!planPrice) setPlanPrice(500);
                     if (amountPaid === undefined) setAmountPaid(500);
@@ -4823,6 +4879,9 @@ function EditStudentSheetInner({
                   </SelectItem>
                   <SelectItem value="Intensivo (4 clases / 90 min)">
                     Intensivo (4 clases / 90 min · 1 mes)
+                  </SelectItem>
+                  <SelectItem value="Demo Nivelación (1 Alumno · 45 min)">
+                    🎯 Demo Nivelación (1 alumno · 45 min · Especialista)
                   </SelectItem>
                   <SelectItem value="Paquete Flexible (A demanda)">
                     🎒 Paquete Flexible (Clases a demanda)
@@ -5116,7 +5175,8 @@ function ScheduleStudentForm({
   const isIntensive = modStr.includes("inten") || modStr.includes("90 min") || modStr.includes("4 clases");
   const isRegular1x = !isIntensive && (modStr.includes("1x") || modStr.includes("1x/sem") || modStr.includes("1 vez") || modStr.includes("2 meses"));
   const isFlexible = modStr.includes("flex") || modStr.includes("demanda");
-  const isRegular2x = !isRegular1x && !isIntensive && !isFlexible;
+  const isDemoNivelacion = modStr.includes("nivelaci") || modStr.includes("demo nivel");
+  const isRegular2x = !isRegular1x && !isIntensive && !isFlexible && !isDemoNivelacion;
   
   // Frecuencia para Paquete Flexible (1 clase o 2 clases semanales · 45 min)
   const [flexibleFrequency, setFlexibleFrequency] = useState<1 | 2>(
@@ -5618,6 +5678,9 @@ function ScheduleStudentForm({
                 <SelectItem value="Intensivo (4 clases / 90 min)">
                   Intensivo (4 clases / 1x sem · 90 min)
                 </SelectItem>
+                <SelectItem value="Demo Nivelación (1 Alumno · 45 min)">
+                  🎯 Demo Nivelación (1 alumno · 45 min · Especialista)
+                </SelectItem>
                 <SelectItem value="Paquete Flexible (A demanda)">
                   Paquete Flexible (A demanda)
                 </SelectItem>
@@ -5631,6 +5694,23 @@ function ScheduleStudentForm({
           </p>
         )}
       </div>
+
+      {/* Banner Informativo si es Demo Nivelación */}
+      {isDemoNivelacion && (
+        <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-3.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-sky-700 dark:text-sky-300 flex items-center gap-1.5">
+              🎯 Modalidad Demo Nivelación (Personalizada)
+            </span>
+            <Badge variant="outline" className="text-[10px] font-bold border-sky-500/40 text-sky-700 dark:text-sky-300">
+              1 Alumno Exclusivo
+            </Badge>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Clase de nivelación individual de 45 minutos con docente especialista en su sala oficial. Requiere aforo exclusivo (1 solo alumno por sala). El horario se coordina según disponibilidad.
+          </p>
+        </div>
+      )}
 
       {/* Selector de Fecha Oficial de Inicio de Clases (Matrícula) */}
       <div className="space-y-1.5 p-3.5 rounded-2xl border border-primary/20 bg-primary/5">

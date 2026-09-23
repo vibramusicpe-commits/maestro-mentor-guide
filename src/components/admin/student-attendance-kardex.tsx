@@ -162,9 +162,13 @@ export function StudentAttendanceKardex({
     liveStudent.planType === "Paquete Flexible" ||
     liveStudent.planType === "Paquete Especial";
 
-  const packageTotal = liveStudent.packageTotalSessions || 24;
+  const isDemoNivelacion =
+    liveStudent.modality?.toLowerCase().includes("nivelaci") ||
+    liveStudent.planType === "Demo Nivelación";
+
+  const packageTotal = liveStudent.packageTotalSessions || (isDemoNivelacion ? 1 : 24);
   const isIntensivo = liveStudent.modality?.toLowerCase().includes("inten");
-  const targetQuota = isFlexiblePackage ? packageTotal : isIntensivo ? 4 : 8;
+  const targetQuota = isFlexiblePackage ? packageTotal : isDemoNivelacion ? 1 : isIntensivo ? 4 : 8;
 
   const now = new Date();
   const currentRealMonth = now.getMonth();
@@ -522,8 +526,13 @@ export function StudentAttendanceKardex({
 
   // Acción: Copiar reporte para WhatsApp
   const handleCopyWhatsapp = () => {
+    const isDemo = student.modality?.toLowerCase().includes("nivelaci") || student.planType === "Demo Nivelación";
     const isIntensivo = student.modality?.includes("Intensivo");
-    const planLabel = isIntensivo ? "Plan Intensivo (4 clases / 90m)" : "Plan Regular (8 clases / 45m)";
+    const planLabel = isDemo
+      ? "Demo Nivelación (1 clase / 45m)"
+      : isIntensivo
+      ? "Plan Intensivo (4 clases / 90m)"
+      : "Plan Regular (8 clases / 45m)";
     const monthName = MONTHS_NAME[selectedMonth] || "Agosto";
 
     let text = `📋 *HISTORIAL DE ASISTENCIA — VIBRA MUSIC*\n`;

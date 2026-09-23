@@ -4,6 +4,26 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.8] - 2026-09-23
+
+### Demo Nivelación (Tarifa Abierta), Restricción a Base Activa y Deduplicación de Leyenda (ADR-0122)
+- **Modalidad y Plan "Demo Nivelación" (Opción C - Tarifa Abierta)**:
+  - Adición de `Demo Nivelación` a `VibraPlanType` y `VIBRA_PRICING` con precio por defecto S/ 0 (editable libremente por secretaría según lo acordado con el cliente).
+  - Adición de `Demo Nivelación (1 Alumno · 45 min)` a `LessonModality`.
+  - Tratamiento como aforo exclusivo individual (1 solo alumno por sala) en `evaluateSlotPedagogicalCompatibility` (`src/lib/room-compatibility.ts`).
+  - Asignación de cuota contractual objetivo `targetQuota = 1` en `computeStudentCycle` (`student-cycle.ts`) y `student-attendance-kardex.tsx`.
+  - Soporte completo en `AddNewStudentDialog`, `EditStudentDialog` y `ScheduleStudentForm` con matrícula exonerada y banner informativo.
+- **Directorio de Alumnos (`/admin/alumnos`) — Exclusividad de Alumnos Activos**:
+  - Restricción estricta en `filteredStudents`: la tabla principal renderiza **únicamente** alumnos con `status === "activo"`.
+  - Los alumnos de la base histórica inactiva (`baja`, `pausa`) se aíslan para su gestión y reactivación 1 a 1 en el panel dedicado "Depuración & Reactivación 2026" (`StudentCleanupPanel`).
+  - Actualización de tiles de métricas y barra de filtros con badge oficial `🟢 Base Activa`.
+- **Libreta de Asistencias y Plan (`agenda-board.tsx`)**:
+  - `filteredLedgerList`: filtra estrictamente alumnos activos (`st.status === "activo"`), impidiendo la mezcla con alumnos dados de baja o en pausa.
+  - Soporte de filtro para clases de Nivelación / Personalizada.
+- **Leyenda del Horario de Clases (`agenda-board.tsx`)**:
+  - Creación de `legendCategoryStyles` filtrando la clave técnica `ADULTO`.
+  - Eliminación definitiva de la etiqueta duplicada `● CATEGORÍA MASTER (18 a +)` en las vistas Excel, Diario y Semanal, preservando la compatibilidad de lookup en base de datos.
+
 ## [2.0.7] - 2026-09-23
 
 ### Matriz Pedagógica Oficial, Aforos de Salas y Reglas de Convivencia (ADR-0121)

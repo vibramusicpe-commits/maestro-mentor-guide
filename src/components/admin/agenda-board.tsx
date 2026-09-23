@@ -126,6 +126,8 @@ export const categoryStyles: Record<string, { bg: string; text: string; border: 
   PERSONALIZADA: { bg: "bg-[#B2EBF2]", text: "text-[#006064] font-bold", border: "border-[#80DEEA]", label: "CLASES PERSONALIZADAS" },
 };
 
+export const legendCategoryStyles = Object.entries(categoryStyles).filter(([key]) => key !== "ADULTO");
+
 function toneFor(instrument: string) {
   return instrumentTone[instrument] ?? "border-border bg-muted text-foreground";
 }
@@ -1305,7 +1307,7 @@ export function AgendaBoard() {
           <div className="flex flex-wrap items-center justify-between gap-2 bg-card p-2.5 rounded-2xl border border-border text-xs">
             <span className="font-black text-foreground">Leyenda de Categorías:</span>
             <div className="flex flex-wrap items-center gap-1.5">
-              {Object.entries(categoryStyles).map(([key, style]) => (
+              {legendCategoryStyles.map(([key, style]) => (
                 <span
                   key={key}
                   className={`px-2 py-0.5 rounded-md text-[10px] ${style.bg} ${style.text} border ${style.border} font-bold`}
@@ -1704,7 +1706,7 @@ export function AgendaBoard() {
           <div className="flex flex-wrap items-center justify-between gap-2 bg-card p-3 rounded-2xl border border-border text-xs">
             <span className="font-bold text-foreground">Leyenda de Categorías:</span>
             <div className="flex flex-wrap items-center gap-2">
-              {Object.entries(categoryStyles).map(([key, style]) => (
+              {legendCategoryStyles.map(([key, style]) => (
                 <span
                   key={key}
                   className={`px-2.5 py-1 rounded-lg text-[10px] ${style.bg} ${style.text} border ${style.border}`}
@@ -2009,7 +2011,7 @@ export function AgendaBoard() {
           <div className="flex flex-wrap items-center justify-between gap-2 bg-card p-3 rounded-2xl border border-border text-xs">
             <span className="font-bold text-foreground">Leyenda de Categorías:</span>
             <div className="flex flex-wrap items-center gap-2">
-              {Object.entries(categoryStyles).map(([key, style]) => (
+              {legendCategoryStyles.map(([key, style]) => (
                 <span
                   key={key}
                   className={`px-2.5 py-1 rounded-lg text-[10px] ${style.bg} ${style.text} border ${style.border}`}
@@ -4968,6 +4970,9 @@ export function AgendaBoard() {
               const cleanSearch = ledgerSearchQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
               const filteredLedgerList = adminStudents.filter((st) => {
+                // Solo alumnos activos en tiempo real (excluye base histórica en baja o pausa)
+                if (st.status !== "activo") return false;
+
                 const nameNorm = st.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 const matchesSearch = !cleanSearch || nameNorm.includes(cleanSearch);
                 const matchesTeacher = ledgerTeacherFilter === "all" || st.teacher === ledgerTeacherFilter;
@@ -4975,7 +4980,7 @@ export function AgendaBoard() {
                   ledgerPlanFilter === "all" ||
                   (ledgerPlanFilter === "Regular" && (!st.planType || st.planType === "Mensual" || st.planType === "Trimestral" || st.planType === "Anual")) ||
                   (ledgerPlanFilter === "Intensivo" && st.modality?.includes("Intensivo")) ||
-                  (ledgerPlanFilter === "Personalizada" && st.ageCategory === "PERSONALIZADA");
+                  (ledgerPlanFilter === "Personalizada" && (st.ageCategory === "PERSONALIZADA" || st.modality?.toLowerCase().includes("nivelaci") || st.planType === "Demo Nivelación"));
 
                 return matchesSearch && matchesTeacher && matchesPlan;
               });

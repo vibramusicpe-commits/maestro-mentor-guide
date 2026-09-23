@@ -180,7 +180,8 @@ export function evaluateSlotPedagogicalCompatibility({
 } {
   const warnings: PedagogicalConflict[] = [];
   const proposedDuration = getDurationMinutesFromModality(modality);
-  const proposedCat = isPersonalized ? "PERSONALIZADA" : normalizeCategory(category);
+  const isSingle = isPersonalized || (modality || "").toLowerCase().includes("nivelaci");
+  const proposedCat = isSingle ? "PERSONALIZADA" : normalizeCategory(category);
 
   // Filtrar clases activas de otros alumnos en esta misma sala
   const otherLessonsInRoom = existingRoomLessons.filter((l) => {
@@ -207,24 +208,26 @@ export function evaluateSlotPedagogicalCompatibility({
     };
   }
 
-  // 1. Regla de Alumno Único (Personalizada)
-  if (proposedCat === "PERSONALIZADA") {
+  // 1. Regla de Alumno Único (Personalizada o Demo Nivelación)
+  if (isSingle || proposedCat === "PERSONALIZADA") {
     warnings.push({
       type: "single_student_conflict",
       title: "Aforo Exclusivo Requerido",
-      message: `La clase Personalizada de ${studentName} requiere aforo exclusivo (1 alumno máx.). La sala ya cuenta con ${otherLessonsInRoom.length} alumno(s).`,
+      message: `La clase Personalizada / Demo Nivelación de ${studentName} requiere aforo exclusivo (1 alumno máx.). La sala ya cuenta con ${otherLessonsInRoom.length} alumno(s).`,
       studentName,
     });
   }
 
   const existingPersonalized = otherLessonsInRoom.find(
-    (l) => normalizeCategory(l.category) === "PERSONALIZADA"
+    (l) =>
+      normalizeCategory(l.category) === "PERSONALIZADA" ||
+      (l.modality || "").toLowerCase().includes("nivelaci")
   );
   if (existingPersonalized) {
     warnings.push({
       type: "single_student_conflict",
-      title: "Sala con Alumno Personalizado",
-      message: `La sala ya tiene a ${existingPersonalized.student} en Clase Personalizada (aforo exclusivo de 1 alumno).`,
+      title: "Sala con Alumno Personalizado / Nivelación",
+      message: `La sala ya tiene a ${existingPersonalized.student} en Clase Personalizada / Demo Nivelación (aforo exclusivo de 1 alumno).`,
       studentName,
       conflictingStudentName: existingPersonalized.student,
     });

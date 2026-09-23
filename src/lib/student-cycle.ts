@@ -54,9 +54,10 @@ export function computeStudentCycle(
     return cached.result;
   }
 
+  const isDemoNivelacion = studentProfile.modality?.toLowerCase().includes("nivelaci") || studentProfile.planType === "Demo Nivelación";
   const isIntensivo = studentProfile.modality?.includes("Intensivo");
   const isFlexiblePackage = studentProfile.modality?.includes("Paquete Flexible") || studentProfile.planType === "Paquete Flexible" || (studentProfile.packageTotalSessions !== undefined && studentProfile.packageTotalSessions > 8);
-  const targetQuota = studentProfile.packageTotalSessions || (isFlexiblePackage ? 24 : isIntensivo ? 4 : 8);
+  const targetQuota = studentProfile.packageTotalSessions || (isDemoNivelacion ? 1 : isFlexiblePackage ? 24 : isIntensivo ? 4 : 8);
 
   const startStr = studentProfile.planStartDate || "2026-08-01";
   const [sy, sm, sd] = startStr.split("-").map(Number);

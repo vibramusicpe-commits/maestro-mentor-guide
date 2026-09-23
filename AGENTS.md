@@ -504,3 +504,20 @@ inferencia.
    hipótesis pendiente más probable — para que la siguiente sesión (sea el
    mismo agente u otro, incluso en otra herramienta) continúe desde ahí en
    vez de repetir el mismo camino desde cero.
+
+---
+
+### 24. Demo Nivelación (Tarifa Abierta), Restricción a Base Activa y Deduplicación de Leyenda (ADR-0122)
+1. **Modalidad y Plan "Demo Nivelación" (Opción C - Tarifa Abierta)**:
+   - Duración: exactamente **45 minutos** por sesión.
+   - Aforo: **1 solo alumno** (exclusivo). No comparte sala con ningún otro alumno ni admite múltiples alumnos simultáneos en ese turno.
+   - Costo: **Tarifa abierta / libre** (Opción C seleccionada por dirección). El valor por defecto en catálogo es S/ 0.00 y la secretaría digita libremente el monto acordado.
+   - Matrícula: Exonerada (S/ 0.00).
+   - Cuota contractual objetivo: **1 clase** (`targetQuota = 1`).
+2. **Directorio de Alumnos (`/admin/alumnos`) — Base Activa Exclusiva**:
+   - La tabla principal del Directorio muestra **únicamente alumnos activos** (`status: "activo"`).
+   - Los alumnos históricos inactivos (`baja`, `pausa`) jamás deben contaminar la vista del directorio principal ni cargarse por defecto. Su consulta y reactivación 1 a 1 se realiza exclusivamente en el panel modal "Depuración & Reactivación 2026" (`StudentCleanupPanel`).
+3. **Libreta de Asistencias y Plan (`agenda-board.tsx`)**:
+   - `filteredLedgerList` filtra con condición innegociable `st.status === "activo"`. Ningún alumno inactivo o dado de baja debe figurar en el control de asistencias y plan.
+4. **Leyenda de Categorías en Horario de Clases**:
+   - En la interfaz gráfica del horario semanal, diario y vista didáctica Excel, las etiquetas de leyenda se renderizan a través de `legendCategoryStyles`, excluyendo el alias de compatibilidad técnica `ADULTO`. La categoría `MASTER` se renderiza exactamente una sola vez.
