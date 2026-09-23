@@ -6,6 +6,8 @@ graph LR
     subgraph UI_Layer ["Capa de Interfaz de Usuario"]
         AgendaBoardComp["agenda-board.tsx"]
         StudentsTableComp["students-table.tsx"]
+        StudentAttendanceKardexComp["student-attendance-kardex.tsx"]
+        StudentCleanupPanelComp["student-cleanup-panel.tsx (Depuración 2026)"]
         DeletionPanelComp["deletion-requests-panel.tsx"]
         AlertsPanelComp["alerts-panel.tsx"]
         RiskFamiliesComp["risk-families-table.tsx"]
@@ -19,6 +21,8 @@ graph LR
     subgraph State_Layer ["Capa de Estado y Lógica Local"]
         Store["app-store.ts (Zustand + Persist v8)"]
         Seeds["admin-seeds.ts & official-seeds.ts"]
+        RoomComp["room-compatibility.ts (ADR-0121 & ADR-0122)"]
+        StudentCycle["student-cycle.ts (ADR-0108 & ADR-0122)"]
     end
 
     %% Audio & Media
@@ -45,7 +49,14 @@ graph LR
 
     %% Relaciones
     AgendaBoardComp --> Store
+    AgendaBoardComp --> RoomComp
     StudentsTableComp --> Store
+    StudentsTableComp --> RoomComp
+    StudentsTableComp --> StudentCycle
+    StudentsTableComp --> StudentCleanupPanelComp
+    StudentsTableComp --> StudentAttendanceKardexComp
+    StudentAttendanceKardexComp --> Store
+    StudentAttendanceKardexComp --> StudentCycle
     DeletionPanelComp --> Store
     AlertsPanelComp --> Store
     RiskFamiliesComp --> Store
@@ -54,6 +65,7 @@ graph LR
     InvitacionesComp --> InvitationsSvc
     FacturacionComp --> InvoicesSvc
     StudentsTableComp --> WhatsApp
+    StudentAttendanceKardexComp --> WhatsApp
     RiskFamiliesComp --> WhatsApp
     FacturacionComp --> WhatsApp
 
