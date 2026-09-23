@@ -4,6 +4,40 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.7] - 2026-09-23
+
+### Matriz Pedagógica Oficial, Aforos de Salas y Reglas de Convivencia (ADR-0121)
+- **Módulo Puro de Compatibilidad (`src/lib/room-compatibility.ts`)**:
+  - `checkAgeCompatibility`: validación matemática de compatibilidad de categorías por rangos de edad.
+    - `ESTIMULACION` (4 a 5 años): requiere aislamiento estricto de sala (Sala D con Prof. Claudia). No comparte con ninguna otra categoría.
+    - `INFANTIL` (5 a 6 años): requiere aislamiento estricto de sala (Sala C con Prof. Nathaly). No comparte con ninguna otra categoría.
+    - `JUNIOR` (7 a 12 años): comparte exclusivamente con `JUNIOR` o `JUVENIL`. **PROHIBIDO compartir con `MASTER`**.
+    - `JUVENIL` (13 a 17 años): comparte con `JUNIOR`, `JUVENIL` o `MASTER`.
+    - `MASTER` (18+ años): comparte con `JUVENIL` o `MASTER`. **PROHIBIDO compartir con `JUNIOR`**.
+    - `PERSONALIZADA`: regla de alumno único (aforo exclusivo de 1 alumno). Jamás comparte sala con ningún otro alumno.
+  - `checkDurationCompatibility`: impide la convivencia en la misma sala y turno entre clases de 45 min y clases de 90 min (Plan Intensivo).
+  - `getOfficialTeacherRoom`: asignación oficial garantizada por docente (Jeremy $\rightarrow$ Sala A, Fernando $\rightarrow$ Sala B, Nathaly $\rightarrow$ Sala C, Claudia $\rightarrow$ Sala D).
+  - `evaluateSlotPedagogicalCompatibility`: diagnóstico completo y reactivo de advertencias pedagógicas en tiempo real.
+- **Semillas y Catálogo Central (`src/store/admin-seeds.ts`)**:
+  - Incorporación de `ESTIMULACION` y `MASTER` en el tipo `AgeCategory`, manteniendo `ADULTO` como alias transparente de base de datos PostgreSQL.
+  - Adición de Prof. Claudia a `teachers` y `defaultTeacherRooms` en Sala D para Estimulación Musical y Demos de Principiantes.
+  - Adición de `Estimulación Musical` al listado oficial de cursos (`musicalInstruments`).
+  - Actualización de `getCategoryFromAge(age)`: mapeo automático para 4-5 años (`ESTIMULACION`), 5-6 años (`INFANTIL`), 7-12 (`JUNIOR`), 13-17 (`JUVENIL`) y 18+ (`MASTER`).
+- **Visualización en Horario de Clases (`src/components/admin/agenda-board.tsx`)**:
+  - Nuevos badges y estilos en `categoryStyles`:
+    - `ESTIMULACION`: Rosa pedagógico (`#F48FB1`, `#EC407A`).
+    - `MASTER`: Gris plata distinguido (`#78909C`, `#546E7A`).
+    - `ADULTO`: Mapeado con idéntico estilo visual que `MASTER` para retrocompatibilidad total con registros históricos de PostgreSQL.
+  - Select de categoría oficial actualizado en modal de programación manual.
+- **Matrícula y Organizador de Horario (`src/components/admin/students-table.tsx`)**:
+  - `AddNewStudentDialog`:
+    - Incorporación de `Estimulación Musical` y `Piano Infantil` con autoselección inteligente de docente y sala por edad.
+    - Opciones de categoría en interfaz: `🌸 Estimulación`, `🟣 Infantil`, `🟡 Junior`, `🟢 Juvenil`, `⚫ Master` y `⭐ Personalizada`.
+  - `ScheduleStudentForm`:
+    - Diagnóstico reactivo de convivencia pedagógica en vivo para Sesión 1 y Sesión 2.
+    - **Alerta visual preventiva (ámbar/roja)** con casilla de confirmación explícita para secretaría: `[ ] Comprendo la incompatibilidad pedagógica y deseo confirmar este turno excepcionalmente`.
+    - Bloqueo duro preservado exclusivamente para aforo completo (>5 alumnos) o cruce de dos docentes en la misma sala.
+
 ## [2.0.6] - 2026-09-23
 
 ### Aislamiento de Asistencia en Clases Makeup y Reversión Atómica en Kardex (ADR-0112)

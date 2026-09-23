@@ -114,12 +114,14 @@ const instrumentTone: Record<string, string> = {
   Canto: "border-chart-2/40 bg-chart-2/15 text-foreground",
 };
 
-// Colores exactos del Excel de Nayeli
+// Colores exactos del Excel de Nayeli y Matriz Oficial (ADR-0121)
 export const categoryStyles: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  ESTIMULACION: { bg: "bg-[#F48FB1]", text: "text-white font-bold", border: "border-[#EC407A]", label: "ESTIMULACIÓN MUSICAL (4 a 5)" },
+  INFANTIL: { bg: "bg-[#B388FF]", text: "text-white font-bold", border: "border-[#7C4DFF]", label: "CATEGORÍA INFANTIL (5 y 6)" },
   JUNIOR: { bg: "bg-[#FFF2B2]", text: "text-[#8A6D00]", border: "border-[#FFE57F]", label: "CATEGORÍA JUNIOR (7 a 12)" },
   JUVENIL: { bg: "bg-[#4CAF50]", text: "text-white font-bold", border: "border-[#388E3C]", label: "CATEGORÍA JUVENIL (13 a 17)" },
-  ADULTO: { bg: "bg-[#9E9E9E]", text: "text-white font-bold", border: "border-[#757575]", label: "CATEGORÍA ADULTO (18 a +)" },
-  INFANTIL: { bg: "bg-[#B388FF]", text: "text-white font-bold", border: "border-[#7C4DFF]", label: "CATEGORÍA INFANTIL (5 y 6)" },
+  MASTER: { bg: "bg-[#78909C]", text: "text-white font-bold", border: "border-[#546E7A]", label: "CATEGORÍA MASTER (18 a +)" },
+  ADULTO: { bg: "bg-[#78909C]", text: "text-white font-bold", border: "border-[#546E7A]", label: "CATEGORÍA MASTER (18 a +)" },
   RECUPERACION: { bg: "bg-[#EF4444]", text: "text-white font-black", border: "border-[#DC2626]", label: "RECUPERACIÓN DE CLASES" },
   PERSONALIZADA: { bg: "bg-[#B2EBF2]", text: "text-[#006064] font-bold", border: "border-[#80DEEA]", label: "CLASES PERSONALIZADAS" },
 };
@@ -4441,12 +4443,13 @@ export function AgendaBoard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="ESTIMULACION">🌸 Estimulación (4 a 5)</SelectItem>
+                    <SelectItem value="INFANTIL">🟣 Infantil (5 a 6)</SelectItem>
                     <SelectItem value="JUNIOR">🟡 Junior (7 a 12)</SelectItem>
                     <SelectItem value="JUVENIL">🟢 Juvenil (13 a 17)</SelectItem>
-                    <SelectItem value="ADULTO">⚫ Adulto (18 a +)</SelectItem>
-                    <SelectItem value="INFANTIL">🟣 Infantil (5 y 6)</SelectItem>
+                    <SelectItem value="MASTER">⚫ Master (18 a +)</SelectItem>
                     <SelectItem value="RECUPERACION">🔴 Recuperación</SelectItem>
-                    <SelectItem value="PERSONALIZADA">🔵 Personalizada (S/ 50)</SelectItem>
+                    <SelectItem value="PERSONALIZADA">🔵 Personalizada (1 Alumno)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

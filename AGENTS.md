@@ -319,6 +319,30 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - Al reanudar una investigación que fue cortada por falta de presupuesto, el primer paso siempre es leer el resumen guardado en memoria persistente (`engram`), no reiniciar la investigación desde cero repitiendo pasos ya hechos.
    - Si no existe un resumen guardado (como ocurrió en el incidente de ADR-0119), el agente debe reconstruir en un único bloque, al inicio de la nueva sesión, el estado conocido: qué se confirmó, qué se descartó y cuál es la hipótesis principal pendiente — antes de ejecutar ninguna herramienta nueva.
 
+### 22. Matriz Pedagógica de Cursos, Salas Oficiales, Aforos y Reglas de Convivencia (ADR-0121)
+1. **Asignación Oficial de Salas por Especialidad Docente**:
+   - **Prof. Jeremy** $\rightarrow$ **Sala "A"**: Batería y Guitarra.
+   - **Prof. Fernando** $\rightarrow$ **Sala "B"**: Violín y Piano (estándar, Juvenil y Master).
+   - **Prof. Nathaly** $\rightarrow$ **Sala "C"**: Piano Infantil (5 a 6 años) y Canto.
+   - **Prof. Claudia** $\rightarrow$ **Sala "D"**: Estimulación Musical (4 a 5 años) y Clases Demo de Principiantes exclusivamente.
+   - **Clases Demo de Nivelación**: Se dictan exclusivamente con el **Profesor Especialista** en su respectiva sala (A, B o C). Prohibido asignarlas a Sala D.
+2. **Aforos y Reglas de Convivencia por Categoría de Edad**:
+   - **Estimulación Musical (4 a 5 años)**: Sala D exclusiva con Claudia. Aforo máx: hasta 5 alumnos homogéneos de su misma categoría. Prohibido mezclar con otras edades.
+   - **Infantil (5 a 6 años)**: Sala C exclusiva con Nathaly. Aforo máx: hasta 5 alumnos homogéneos de su misma categoría. Prohibido mezclar con otras edades.
+   - **Junior (7 a 12 años)**: Aforo máx: hasta 5. Puede compartir sala con **Juvenil (13-17)**. **PROHIBIDO compartir sala con Master (18+)**.
+   - **Juvenil (13 a 17 años)**: Aforo máx: hasta 5. Puede compartir sala con Junior o con Master.
+   - **Master (18+ años)**: Aforo máx: hasta 5. Puede compartir sala con Juvenil. **PROHIBIDO compartir sala con Junior**. En base de datos se preserva compatibilidad con `ADULTO`.
+   - **Personalizado**: Aforo estricto = **1 alumno máx**. Sesión de 45 min. Prohibido compartir sala con cualquier otro alumno.
+   - **Clase Demo Principiante**: Aforo = **1 alumno máx**. Sala D exclusiva con Claudia.
+   - **Clase Demo Nivelación**: Aforo = **1 alumno máx**. Con profesor especialista en su sala.
+3. **Convivencia por Duración de Sesión (45 min vs. 90 min)**:
+   - Sesiones de **45 minutos** (Regular Normal, Regular Extenso, Paquete Flexible) pueden convivir en la misma sala hasta el aforo de 5 si respetan la compatibilidad de edad.
+   - Sesiones de **45 minutos** y **90 minutos** (Plan Intensivo) **NO** pueden compartir sala.
+   - *Excepción:* Paquete Flexible con sesión de 90 min declarada **SÍ** puede compartir sala con Plan Intensivo (90 min).
+   - Personalizado y Demo Nivelación jamás comparten sala con ningún otro plan.
+4. **Validación Preventiva en Agenda**:
+   - Ante cualquier incompatibilidad de edad, duración o aforo individual, la agenda emite una **Alerta Visual Preventiva (Amarillo/Rojo) con Opción de Confirmación** para no bloquear la operativa de secretaría en excepciones justificadas.
+
 ---
 ---
 

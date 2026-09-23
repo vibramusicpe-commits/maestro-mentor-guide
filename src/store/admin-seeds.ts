@@ -11,6 +11,7 @@ export const teachers: string[] = [
   "Jeremy",
   "Fernando",
   "Nathaly",
+  "Claudia",
   "Demo",
 ];
 export const availableTeachers = teachers;
@@ -18,25 +19,28 @@ export const defaultTeacherRooms: Array<{ name: string; room: string; instrument
   { name: "Jeremy", room: "Sala A", instrumentHint: "Guitarra y Batería" },
   { name: "Fernando", room: "Sala B", instrumentHint: "Violín y Piano" },
   { name: "Nathaly", room: "Sala C", instrumentHint: "Canto y Piano Infantil" },
+  { name: "Claudia", room: "Sala D", instrumentHint: "Estimulación Musical y Demos Principiantes" },
   { name: "Demo", room: "Sala D", instrumentHint: "Demos y Proyección" },
 ];
 
 export const musicalInstruments = [
   "Batería",
   "Canto",
+  "Estimulación Musical",
   "Guitarra",
   "Piano",
   "Piano Infantil",
   "Violín",
 ];
 
-export type AgeCategory = "JUNIOR" | "JUVENIL" | "ADULTO" | "INFANTIL" | "RECUPERACION" | "PERSONALIZADA";
+export type AgeCategory = "ESTIMULACION" | "INFANTIL" | "JUNIOR" | "JUVENIL" | "MASTER" | "ADULTO" | "RECUPERACION" | "PERSONALIZADA";
 
 export function getCategoryFromAge(age: number): AgeCategory {
+  if (age >= 4 && age <= 5) return "ESTIMULACION";
   if (age >= 5 && age <= 6) return "INFANTIL";
   if (age >= 7 && age <= 12) return "JUNIOR";
   if (age >= 13 && age <= 17) return "JUVENIL";
-  if (age >= 18) return "ADULTO";
+  if (age >= 18) return "MASTER";
   return "JUNIOR";
 }
 

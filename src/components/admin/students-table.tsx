@@ -40,6 +40,11 @@ import {
   type DeletedStudentLog,
 } from "@/store/app-store";
 import { teachers, musicalInstruments, VIBRA_PRICING } from "@/store/admin-seeds";
+import {
+  evaluateSlotPedagogicalCompatibility,
+  getOfficialTeacherRoom,
+  type PedagogicalConflict,
+} from "@/lib/room-compatibility";
 import { categoryStyles } from "@/components/admin/agenda-board";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
 import { DeletedStudentsTrashModal } from "@/components/admin/deleted-students-trash-modal";
@@ -2822,6 +2827,29 @@ function NewStudentDialog() {
   const [age, setAge] = useState<number>(8);
   const [selectedCategory, setSelectedCategory] = useState<AgeCategory | "AUTO">("AUTO");
   const [isPersonalized, setIsPersonalized] = useState(false);
+
+  const handleInstrumentChange = (newInst: string) => {
+    setInstrument(newInst);
+    const instLower = newInst.toLowerCase();
+    if (instLower.includes("estimul")) {
+      const claudia = availableTeachers.find((t) => t.toLowerCase().includes("claudia")) || "Claudia";
+      setTeacher(claudia);
+      setSelectedCategory("ESTIMULACION");
+    } else if (instLower.includes("infantil")) {
+      const nathaly = availableTeachers.find((t) => t.toLowerCase().includes("nathaly")) || "Nathaly";
+      setTeacher(nathaly);
+      setSelectedCategory("INFANTIL");
+    } else if (instLower.includes("guitarra") || instLower.includes("batería") || instLower.includes("bateria")) {
+      const jeremy = availableTeachers.find((t) => t.toLowerCase().includes("jeremy")) || "Jeremy";
+      setTeacher(jeremy);
+    } else if (instLower.includes("violín") || instLower.includes("violin")) {
+      const fernando = availableTeachers.find((t) => t.toLowerCase().includes("fernando")) || "Fernando";
+      setTeacher(fernando);
+    } else if (instLower.includes("canto")) {
+      const nathaly = availableTeachers.find((t) => t.toLowerCase().includes("nathaly")) || "Nathaly";
+      setTeacher(nathaly);
+    }
+  };
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [birthdate, setBirthdate] = useState("15/05/2015");
@@ -2906,7 +2934,9 @@ function NewStudentDialog() {
     : selectedCategory !== "AUTO"
     ? selectedCategory
     : isAdult || age >= 18
-    ? "ADULTO"
+    ? "MASTER"
+    : age <= 4 || (age === 5 && instrument.includes("Estimul"))
+    ? "ESTIMULACION"
     : age >= 5 && age <= 6
     ? "INFANTIL"
     : age >= 7 && age <= 12
@@ -2922,7 +2952,7 @@ function NewStudentDialog() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const isAdultStudent = isAdult || effectiveCategory === "ADULTO" || age >= 18;
+    const isAdultStudent = isAdult || effectiveCategory === "ADULTO" || effectiveCategory === "MASTER" || age >= 18;
 
     if (!name.trim()) {
       toast.error("Ingresa el nombre completo del alumno.");
@@ -2969,7 +2999,7 @@ function NewStudentDialog() {
       level: "Principiante",
       teacher,
       modality,
-      ageCategory: effectiveCategory,
+      ageCategory: effectiveCategory === "MASTER" ? "ADULTO" : effectiveCategory,
       age: isAdultStudent ? Math.max(18, age) : age,
       status: "activo",
       attendanceRate: 0,
@@ -3139,21 +3169,22 @@ function NewStudentDialog() {
                 onChange={(e) => {
                   const val = e.target.value as AgeCategory;
                   setSelectedCategory(val);
-                  if (val === "ADULTO" && !isAdult) {
+                  if ((val === "MASTER" || val === "ADULTO") && !isAdult) {
                     setIsAdult(true);
                     if (age < 18) setAge(25);
-                  } else if (val !== "ADULTO" && isAdult) {
+                  } else if (val !== "MASTER" && val !== "ADULTO" && isAdult) {
                     setIsAdult(false);
                     if (age >= 18) setAge(8);
                   }
                 }}
                 className="w-full h-9 rounded-lg border border-border bg-background px-2 text-xs font-bold"
               >
-                <option value="INFANTIL">🟣 Infantil (5 y 6)</option>
+                <option value="ESTIMULACION">🌸 Estimulación (4 a 5)</option>
+                <option value="INFANTIL">🟣 Infantil (5 a 6)</option>
                 <option value="JUNIOR">🟡 Junior (7 a 12)</option>
                 <option value="JUVENIL">🟢 Juvenil (13 a 17)</option>
-                <option value="ADULTO">⚫ Adulto (18 a +)</option>
-                <option value="PERSONALIZADA">⭐ Personalizada</option>
+                <option value="MASTER">⚫ Master (18 a +)</option>
+                <option value="PERSONALIZADA">⭐ Personalizada (1 alumno)</option>
               </select>
             </div>
           </div>
@@ -3549,12 +3580,14 @@ function NewStudentDialog() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold mb-1">Instrumento</label>
-              <Select value={instrument} onValueChange={setInstrument}>
+              <Select value={instrument} onValueChange={handleInstrumentChange}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Piano">Piano</SelectItem>
+                  <SelectItem value="Piano Infantil">Piano Infantil</SelectItem>
+                  <SelectItem value="Estimulación Musical">Estimulación Musical</SelectItem>
                   <SelectItem value="Guitarra clásica">Guitarra clásica</SelectItem>
                   <SelectItem value="Guitarra eléctrica">Guitarra eléctrica</SelectItem>
                   <SelectItem value="Violín">Violín</SelectItem>
@@ -3980,7 +4013,9 @@ function EditStudentSheetInner({
     : selectedCategory !== "AUTO"
     ? selectedCategory
     : isAdult || age >= 18
-    ? "ADULTO"
+    ? "MASTER"
+    : age <= 4 || (age === 5 && instrument.includes("Estimul"))
+    ? "ESTIMULACION"
     : age >= 5 && age <= 6
     ? "INFANTIL"
     : age >= 7 && age <= 12
@@ -3989,7 +4024,7 @@ function EditStudentSheetInner({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const isAdultStudent = isAdult || effectiveCategory === "ADULTO" || age >= 18;
+    const isAdultStudent = isAdult || effectiveCategory === "ADULTO" || effectiveCategory === "MASTER" || age >= 18;
 
     if (!name.trim()) {
       toast.error("Ingresa el nombre completo del alumno.");
@@ -4015,7 +4050,7 @@ function EditStudentSheetInner({
       level,
       teacher,
       modality,
-      ageCategory: effectiveCategory,
+      ageCategory: effectiveCategory === "MASTER" ? "ADULTO" : effectiveCategory,
       age: isAdultStudent ? Math.max(18, age) : age,
       email: email || student.email,
       phone: phone || student.phone,
@@ -4254,21 +4289,22 @@ function EditStudentSheetInner({
                 onChange={(e) => {
                   const val = e.target.value as AgeCategory;
                   setSelectedCategory(val);
-                  if (val === "ADULTO" && !isAdult) {
+                  if ((val === "MASTER" || val === "ADULTO") && !isAdult) {
                     setIsAdult(true);
                     if (age < 18) setAge(25);
-                  } else if (val !== "ADULTO" && isAdult) {
+                  } else if (val !== "MASTER" && val !== "ADULTO" && isAdult) {
                     setIsAdult(false);
                     if (age >= 18) setAge(8);
                   }
                 }}
                 className="w-full h-9 rounded-lg border border-border bg-background px-2 text-xs font-bold"
               >
-                <option value="INFANTIL">🟣 Infantil (5 y 6)</option>
+                <option value="ESTIMULACION">🌸 Estimulación (4 a 5)</option>
+                <option value="INFANTIL">🟣 Infantil (5 a 6)</option>
                 <option value="JUNIOR">🟡 Junior (7 a 12)</option>
                 <option value="JUVENIL">🟢 Juvenil (13 a 17)</option>
-                <option value="ADULTO">⚫ Adulto (18 a +)</option>
-                <option value="PERSONALIZADA">⭐ Personalizada</option>
+                <option value="MASTER">⚫ Master (18 a +)</option>
+                <option value="PERSONALIZADA">⭐ Personalizada (1 alumno)</option>
               </select>
             </div>
           </div>
@@ -4692,6 +4728,8 @@ function EditStudentSheetInner({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Piano">Piano</SelectItem>
+                  <SelectItem value="Piano Infantil">Piano Infantil</SelectItem>
+                  <SelectItem value="Estimulación Musical">Estimulación Musical</SelectItem>
                   <SelectItem value="Guitarra clásica">Guitarra clásica</SelectItem>
                   <SelectItem value="Guitarra eléctrica">Guitarra eléctrica</SelectItem>
                   <SelectItem value="Violín">Violín</SelectItem>
@@ -5099,12 +5137,9 @@ function ScheduleStudentForm({
   const existingL2 = existingLessons.length > 1 ? existingLessons[1] : null;
 
   // Asignación de sala oficial por docente (ADR-0102)
+  // Asignación de sala oficial por docente (ADR-0102 y ADR-0121)
   const getDefaultRoomForTeacher = (teachName: string) => {
-    const t = (teachName || "").toLowerCase();
-    if (t.includes("nathaly")) return "Sala C";
-    if (t.includes("fernando")) return "Sala B";
-    if (t.includes("jeremy")) return "Sala A";
-    return "Sala A";
+    return getOfficialTeacherRoom(teachName);
   };
 
   // Estados de profesor, instrumento y categoría pre-poblados
@@ -5120,7 +5155,16 @@ function ScheduleStudentForm({
   const [category, setCategory] = useState<AgeCategory>(
     (existingL1?.category as AgeCategory) ||
       (liveStudent.category as AgeCategory) ||
-      (liveStudent.age >= 18 ? "ADULTO" : liveStudent.age >= 13 ? "JUVENIL" : liveStudent.age >= 7 ? "JUNIOR" : "INFANTIL")
+      (liveStudent.ageCategory as AgeCategory) ||
+      (liveStudent.age >= 18
+        ? "MASTER"
+        : liveStudent.age <= 4
+        ? "ESTIMULACION"
+        : liveStudent.age <= 6
+        ? "INFANTIL"
+        : liveStudent.age <= 12
+        ? "JUNIOR"
+        : "JUVENIL")
   );
 
   // Modo de asignación: "pareadas" (por defecto oficial) o "personalizado"
@@ -5317,12 +5361,113 @@ function ScheduleStudentForm({
     return suggestions.slice(0, 3);
   }, [getSlotDetails, day1, day2, room1, room2, isRegular, saturdayTimes, weekdayTimes]);
 
+  // Helper para obtener las clases activas en una sala y turno específico (ADR-0121)
+  const getRoomActiveLessons = useCallback(
+    (d: string, t: string, r: string) => {
+      return schedule
+        .filter((l) => {
+          if (l.day !== d || l.time !== t || l.room !== r || l.status === "cancelada") return false;
+          if (
+            isMatchingStudentName(l.student, liveStudent.name) ||
+            l.student.toLowerCase() === liveStudent.name.toLowerCase()
+          ) {
+            return false;
+          }
+          const stProfile = adminStudents.find(
+            (st) =>
+              isMatchingStudentName(st.name, l.student) ||
+              st.name.toLowerCase() === l.student.toLowerCase()
+          );
+          return stProfile ? stProfile.status === "activo" : false;
+        })
+        .map((l) => {
+          const stProfile = adminStudents.find(
+            (st) =>
+              isMatchingStudentName(st.name, l.student) ||
+              st.name.toLowerCase() === l.student.toLowerCase()
+          );
+          return {
+            ...l,
+            category: (l.category || stProfile?.ageCategory || stProfile?.category) as AgeCategory,
+            modality: stProfile?.modality,
+          };
+        });
+    },
+    [schedule, liveStudent.name, adminStudents]
+  );
+
+  // Diagnóstico Reactivo de Compatibilidad Pedagógica y Convivencia de Salas (ADR-0121)
+  const [pedagogicalOverrideConfirmed, setPedagogicalOverrideConfirmed] = useState(false);
+
+  // Resetear confirmación si cambia cualquier parámetro del horario
+  useEffect(() => {
+    setPedagogicalOverrideConfirmed(false);
+  }, [day1, time1, room1, day2, time2, room2, teacher, category]);
+
+  const pedagogicalReport = useMemo(() => {
+    const isPersonalized = category === "PERSONALIZADA";
+    const lessons1 = getRoomActiveLessons(day1, time1, room1);
+    const diag1 = evaluateSlotPedagogicalCompatibility({
+      studentName: liveStudent.name,
+      category,
+      modality: selectedModality,
+      isPersonalized,
+      teacher: finalTeacher,
+      room: room1,
+      existingRoomLessons: lessons1,
+    });
+
+    let diag2 = { hasWarning: false, warnings: [] as PedagogicalConflict[] };
+    if (isRegular) {
+      const lessons2 = getRoomActiveLessons(day2, time2, room2);
+      diag2 = evaluateSlotPedagogicalCompatibility({
+        studentName: liveStudent.name,
+        category,
+        modality: selectedModality,
+        isPersonalized,
+        teacher: finalTeacher,
+        room: room2,
+        existingRoomLessons: lessons2,
+      });
+    }
+
+    const allWarnings = [
+      ...diag1.warnings.map((w) => ({ ...w, session: 1, day: day1, time: time1, room: room1 })),
+      ...diag2.warnings.map((w) => ({ ...w, session: 2, day: day2, time: time2, room: room2 })),
+    ];
+
+    return {
+      hasWarning: allWarnings.length > 0,
+      warnings: allWarnings,
+    };
+  }, [
+    getRoomActiveLessons,
+    day1,
+    time1,
+    room1,
+    day2,
+    time2,
+    room2,
+    isRegular,
+    liveStudent.name,
+    category,
+    selectedModality,
+    finalTeacher,
+  ]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (conflictReport.hasConflict) {
       toast.error("No se puede guardar: El horario presenta conflictos de aforo o sala.", {
         description: "Por favor selecciona una de las franjas recomendadas disponibles.",
+      });
+      return;
+    }
+
+    if (pedagogicalReport.hasWarning && !pedagogicalOverrideConfirmed) {
+      toast.warning("Incompatibilidad pedagógica detectada.", {
+        description: "Por favor revisa la advertencia de convivencia y marca la casilla de confirmación para guardar como excepción.",
       });
       return;
     }
@@ -5556,11 +5701,12 @@ function ScheduleStudentForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="ESTIMULACION">🌸 Estimulación Musical (4 a 5 años) — #EC407A</SelectItem>
+            <SelectItem value="INFANTIL">🟣 Infantil (5 a 6 años) — #7C4DFF</SelectItem>
             <SelectItem value="JUNIOR">🟡 Junior (7 a 12 años) — #FBC02D</SelectItem>
             <SelectItem value="JUVENIL">🟢 Juvenil (13 a 17 años) — #4CAF50</SelectItem>
-            <SelectItem value="ADULTO">⚫ Adulto (18 a + años) — #757575</SelectItem>
-            <SelectItem value="INFANTIL">🟣 Infantil (5 y 6 años) — #7C4DFF</SelectItem>
-            <SelectItem value="PERSONALIZADA">🔵 Clase Personalizada (S/ 50)</SelectItem>
+            <SelectItem value="MASTER">⚫ Master (18 a + años) — #546E7A</SelectItem>
+            <SelectItem value="PERSONALIZADA">🔵 Clase Personalizada (1 Alumno Máx.)</SelectItem>
             <SelectItem value="RECUPERACION">🔴 Clase de Recuperación</SelectItem>
           </SelectContent>
         </Select>
@@ -5800,11 +5946,49 @@ function ScheduleStudentForm({
             </div>
           )}
         </div>
+      ) : pedagogicalReport.hasWarning ? (
+        <div
+          data-tour="pedagogical-warning-banner"
+          className="rounded-2xl border border-amber-500/50 bg-amber-500/10 p-3.5 space-y-3 shadow-sm"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="space-y-1.5 text-xs flex-1">
+              <p className="font-bold text-amber-700 dark:text-amber-400 text-sm flex items-center gap-1.5">
+                ⚠️ Advertencia de Convivencia Pedagógica (Matriz Oficial):
+              </p>
+              <ul className="space-y-1 text-xs text-foreground font-medium list-disc list-inside">
+                {pedagogicalReport.warnings.map((w, idx) => (
+                  <li key={idx}>
+                    <strong>{w.session === 1 ? `Sesión 1 (${w.day} ${w.time} · ${w.room})` : `Sesión 2 (${w.day} ${w.time} · ${w.room})`}</strong>:{" "}
+                    <span className="text-amber-800 dark:text-amber-300 font-semibold">{w.message}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-amber-500/30 flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="override-pedagogical-check"
+              checked={pedagogicalOverrideConfirmed}
+              onChange={(e) => setPedagogicalOverrideConfirmed(e.target.checked)}
+              className="h-4 w-4 rounded border-amber-500 text-amber-600 focus:ring-amber-500 cursor-pointer"
+            />
+            <label
+              htmlFor="override-pedagogical-check"
+              className="text-xs font-bold text-amber-900 dark:text-amber-200 cursor-pointer select-none"
+            >
+              Comprendo la incompatibilidad pedagógica y deseo confirmar este turno excepcionalmente
+            </label>
+          </div>
+        </div>
       ) : (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-200">
           <span className="flex items-center gap-2 font-bold">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            Horario Disponible sin Conflictos
+            Horario Disponible y 100% Compatible
           </span>
           <span className="text-[11px] font-semibold text-muted-foreground bg-background/80 px-2 py-0.5 rounded-lg border border-emerald-500/20">
             {5 - conflictReport.session1.enrolled} vacantes en {day1}
@@ -5997,11 +6181,11 @@ function ScheduleStudentForm({
         </Button>
         <Button
           type="submit"
-          disabled={conflictReport.hasConflict}
+          disabled={conflictReport.hasConflict || (pedagogicalReport.hasWarning && !pedagogicalOverrideConfirmed)}
           data-tour="schedule-submit-btn"
           size="sm"
           className={`text-xs font-bold ${
-            conflictReport.hasConflict
+            conflictReport.hasConflict || (pedagogicalReport.hasWarning && !pedagogicalOverrideConfirmed)
               ? "bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-75"
               : isFlexible
               ? "bg-purple-600 text-white hover:bg-purple-700"
@@ -6010,6 +6194,8 @@ function ScheduleStudentForm({
         >
           {conflictReport.hasConflict
             ? "⚠️ Resolver conflictos antes de guardar"
+            : pedagogicalReport.hasWarning && !pedagogicalOverrideConfirmed
+            ? "⚠️ Confirmar excepción pedagógica para guardar"
             : isFlexible
             ? `Guardar Horario Flexible (${flexibleFrequency === 2 ? "2 Clases Semanales" : "1 Clase Semanal"} · 45 min)`
             : isRegular2x
