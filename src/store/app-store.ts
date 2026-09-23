@@ -141,6 +141,7 @@ type AppState = {
   rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number, teacher?: string, room?: string, originalDateStr?: string, newDateStr?: string) => void;
   removeLessonFromSchedule: (id: string) => void;
   deleteLessonFromSchedule: (id: string) => void;
+  revertMakeupLesson: (makeupId: string, recoveringLessonDate?: string) => void;
   addLessonToSchedule: (lesson: Omit<ScheduledLesson, "id">) => void;
   setStudentSchedule: (studentName: string, lessons: Omit<ScheduledLesson, "id">[]) => void;
   importScheduleFromCSV: (newLessons: ScheduledLesson[]) => void;
@@ -763,17 +764,24 @@ function backgroundSyncAttendanceLogToDB(
     const resolvedStudentId = resolveStudentUUID(studentId);
     const dateMatch = note?.match(/Fecha\s+(\d{4}-\d{2}-\d{2})/i);
     const dateStr = dateMatch ? dateMatch[1] : undefined;
+    const lessonMatch = note?.match(/\[lesson:([^\]]+)\]/);
+    const timeMatch = note?.match(/\[hora:([^\]]+)\]/);
 
-    // Si se restablece a "pendiente", limpiar los logs de esa fecha en PostgreSQL
+    // Si se restablece a "pendiente", limpiar los logs de esa lección o fecha en PostgreSQL
     if (status === "pendiente") {
-      if (dateStr) {
+      const deleteCondition = lessonMatch
+        ? { student_id: `eq.${resolvedStudentId}`, note: `like.*lesson:${lessonMatch[1]}*` }
+        : timeMatch && dateStr
+        ? { student_id: `eq.${resolvedStudentId}`, note: `like.*Fecha ${dateStr}*hora:${timeMatch[1]}*` }
+        : dateStr
+        ? { student_id: `eq.${resolvedStudentId}`, note: `like.*Fecha ${dateStr}*` }
+        : undefined;
+
+      if (deleteCondition) {
         import("@/lib/insforge").then(({ postgrestDelete }) => {
-          postgrestDelete("attendance_logs", {
-            student_id: `eq.${resolvedStudentId}`,
-            note: `like.*Fecha ${dateStr}*`,
-          })
+          postgrestDelete("attendance_logs", deleteCondition)
             .then(() => {
-              console.log(`[Insforge Sync] Asistencia eliminada de attendance_logs para ${resolvedStudentId} (${dateStr})`);
+              console.log(`[Insforge Sync] Asistencia eliminada de attendance_logs para ${resolvedStudentId} (${dateStr || note})`);
               triggerDataSyncBroadcast("attendance-deleted");
             })
             .catch((err) => console.warn(`[Insforge Sync] Error eliminando attendance_log:`, err));
@@ -797,8 +805,18 @@ function backgroundSyncAttendanceLogToDB(
     }
 
     import("@/lib/insforge").then(async ({ postgrestInsert, postgrestDelete }) => {
-      // Si tiene fecha exacta, primero eliminar cualquier log previo de esa misma fecha para evitar duplicados
-      if (dateStr) {
+      // Si tiene lección o fecha exacta, primero eliminar cualquier log previo específico para evitar duplicados
+      if (lessonMatch) {
+        await postgrestDelete("attendance_logs", {
+          student_id: `eq.${resolvedStudentId}`,
+          note: `like.*lesson:${lessonMatch[1]}*`,
+        }).catch(() => {});
+      } else if (timeMatch && dateStr) {
+        await postgrestDelete("attendance_logs", {
+          student_id: `eq.${resolvedStudentId}`,
+          note: `like.*Fecha ${dateStr}*hora:${timeMatch[1]}*`,
+        }).catch(() => {});
+      } else if (dateStr) {
         await postgrestDelete("attendance_logs", {
           student_id: `eq.${resolvedStudentId}`,
           note: `like.*Fecha ${dateStr}*`,
@@ -1077,8 +1095,19 @@ export const useAppStore = create<AppState>()(
                     attStatus = "presente";
                   }
 
+                  const logLessonMatch = log.note?.match(/\[lesson:([^\]]+)\]/);
+                  const logTimeMatch = log.note?.match(/\[hora:([^\]]+)\]/);
+
                   scheduleMap.forEach((lesson, lId) => {
                     if (isMatchingStudentName(lesson.student, matchedStudent.name)) {
+                      // Si el log especifica lección u hora, solo aplicar a la que coincida
+                      if (logLessonMatch && logLessonMatch[1] !== lesson.id) return;
+                      if (logTimeMatch && logTimeMatch[1] !== lesson.time) return;
+
+                      // Si es log legacy (sin tags) y el alumno tiene múltiples lecciones en esa fecha:
+                      // NO sobreescribir la lección makeup con el log genérico
+                      if (!logLessonMatch && !logTimeMatch && lesson.isMakeup) return;
+
                       const prevByDate = { ...(lesson.attendanceByDate || {}) };
                       prevByDate[dateStr] = attStatus;
                       scheduleMap.set(lId, {
@@ -1090,6 +1119,10 @@ export const useAppStore = create<AppState>()(
 
                   if (Array.isArray(matchedStudent.scheduleLessons)) {
                     matchedStudent.scheduleLessons = matchedStudent.scheduleLessons.map((l) => {
+                      if (logLessonMatch && logLessonMatch[1] !== l.id) return l;
+                      if (logTimeMatch && logTimeMatch[1] !== l.time) return l;
+                      if (!logLessonMatch && !logTimeMatch && l.isMakeup) return l;
+
                       const prevByDate = { ...(l.attendanceByDate || {}) };
                       prevByDate[dateStr] = attStatus;
                       return {
@@ -1371,9 +1404,95 @@ export const useAppStore = create<AppState>()(
       deleteLessonFromSchedule: (id) =>
         set((s) => {
           triggerDataSyncBroadcast("lesson-removed");
+          const removedLesson = s.schedule.find((l) => l.id === id);
+          const newSchedule = s.schedule.filter((l) => l.id !== id);
+          let updatedStudents = s.adminStudents;
+          if (removedLesson) {
+            const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, removedLesson.student));
+            if (targetSt) {
+              const updatedLessons = (targetSt.scheduleLessons || []).filter((l) => l.id !== id);
+              updatedStudents = s.adminStudents.map((st) =>
+                isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: updatedLessons } : st
+              );
+              backgroundSyncStudentToDB(s.activeRole, targetSt.id, { scheduleLessons: updatedLessons });
+            }
+          }
           return {
-            schedule: s.schedule.filter((l) => l.id !== id),
+            schedule: newSchedule,
+            adminStudents: updatedStudents,
             syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
+          };
+        }),
+      revertMakeupLesson: (makeupId, recoveringLessonDate) =>
+        set((s) => {
+          triggerDataSyncBroadcast("lesson-removed");
+          const makeupLesson =
+            s.schedule.find((l) => l.id === makeupId) ||
+            s.adminStudents.flatMap((st) => st.scheduleLessons || []).find((l) => l.id === makeupId);
+
+          const studentName = makeupLesson?.student;
+
+          // 1. Eliminar la makeup del schedule y limpiar excludedDates en la original
+          const newSchedule = s.schedule
+            .filter((l) => l.id !== makeupId)
+            .map((l) => {
+              if (
+                recoveringLessonDate &&
+                l.excludedDates &&
+                l.excludedDates.includes(recoveringLessonDate) &&
+                studentName &&
+                isMatchingStudentName(l.student, studentName)
+              ) {
+                return {
+                  ...l,
+                  excludedDates: l.excludedDates.filter((d) => d !== recoveringLessonDate),
+                };
+              }
+              return l;
+            });
+
+          // 2. Actualizar adminStudents.scheduleLessons y devolver crédito de recuperación
+          let updatedStudents = s.adminStudents;
+          if (studentName) {
+            const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, studentName));
+            if (targetSt) {
+              const updatedLessons = (targetSt.scheduleLessons || [])
+                .filter((l) => l.id !== makeupId)
+                .map((l) => {
+                  if (
+                    recoveringLessonDate &&
+                    l.excludedDates &&
+                    l.excludedDates.includes(recoveringLessonDate)
+                  ) {
+                    return {
+                      ...l,
+                      excludedDates: l.excludedDates.filter((d) => d !== recoveringLessonDate),
+                    };
+                  }
+                  return l;
+                });
+
+              // Restaurar crédito (+1)
+              const restoredCredits = (targetSt.makeupCredits || 0) + 1;
+
+              updatedStudents = s.adminStudents.map((st) =>
+                isSameStudentId(st.id, targetSt.id)
+                  ? { ...st, scheduleLessons: updatedLessons, makeupCredits: restoredCredits }
+                  : st
+              );
+
+              // 3. Persistir atómicamente a PostgreSQL
+              backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
+                scheduleLessons: updatedLessons,
+                makeupCredits: restoredCredits,
+              });
+            }
+          }
+
+          return {
+            schedule: newSchedule,
+            adminStudents: updatedStudents,
+            syncQueue: [...s.syncQueue, queueItem(`Clase reprogramada revertida (${studentName || "Alumno"})`)],
           };
         }),
       addLessonToSchedule: (lesson) =>
@@ -2079,11 +2198,16 @@ export const useAppStore = create<AppState>()(
               makeupCredits: updatedStudent.makeupCredits,
               scheduleLessons: targetLessons,
             });
+            const lessonTime = targetLesson?.time || "";
+            const noteDetail = dateStr
+              ? `Fecha ${dateStr}${lessonTime ? ` [hora:${lessonTime}]` : ""} [lesson:${lessonId}] - Regularización Kardex`
+              : `Semana ${(weekIndex ?? 0) + 1} [lesson:${lessonId}] - Regularización Kardex`;
+
             backgroundSyncAttendanceLogToDB(
               s.activeRole,
               updatedStudent.id,
               status,
-              dateStr ? `Fecha ${dateStr} - Regularización Kardex` : `Semana ${(weekIndex ?? 0) + 1} - Regularización Kardex`
+              noteDetail
             );
           }
 
@@ -2196,6 +2320,10 @@ export const useAppStore = create<AppState>()(
 
           const recentList = allMarked.length > 0 ? allMarked.slice(-5) : [];
 
+          const targetLessons = newSchedule.filter(
+            (l) => (isMatchingStudentName(l.student, studentName) || l.student.toLowerCase() === studentName.toLowerCase()) && l.status !== "cancelada"
+          );
+
           const newStudents = s.adminStudents.map((st) => {
             if (isMatchingStudentName(st.name, studentName)) {
               return {
@@ -2203,6 +2331,7 @@ export const useAppStore = create<AppState>()(
                 attendanceRate: newRate,
                 recentAttendance: recentList,
                 makeupCredits: st.makeupCredits + extraCredits,
+                scheduleLessons: targetLessons,
               };
             }
             return st;
@@ -2214,14 +2343,20 @@ export const useAppStore = create<AppState>()(
               attendanceRate: newRate,
               recentAttendance: recentList,
               makeupCredits: updatedStudent.makeupCredits,
+              scheduleLessons: targetLessons,
             });
-            attendances.forEach(({ weekIndex, status: attStatus, dateStr }) => {
+            attendances.forEach(({ lessonId, weekIndex, status: attStatus, dateStr }) => {
               if (attStatus !== "pendiente") {
+                const targetL = newSchedule.find((l) => l.id === lessonId);
+                const lTime = targetL?.time || "";
+                const noteDetail = dateStr
+                  ? `Fecha ${dateStr}${lTime ? ` [hora:${lTime}]` : ""} [lesson:${lessonId}] - Regularización Masiva Kardex`
+                  : `Semana ${weekIndex + 1} [lesson:${lessonId}] - Regularización Masiva Kardex`;
                 backgroundSyncAttendanceLogToDB(
                   s.activeRole,
                   updatedStudent.id,
                   attStatus,
-                  dateStr ? `Fecha ${dateStr} - Regularización Masiva Kardex` : `Semana ${weekIndex + 1} - Regularización Masiva Kardex`
+                  noteDetail
                 );
               }
             });

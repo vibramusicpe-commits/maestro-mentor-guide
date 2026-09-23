@@ -4,6 +4,24 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.6] - 2026-09-23
+
+### Aislamiento de Asistencia en Clases Makeup y Reversión Atómica en Kardex (ADR-0112)
+- **Aislamiento en Escritura de Asistencia (`src/store/app-store.ts`)**:
+  - `setStudentSessionAttendance` y `bulkRegularizeStudentAttendance`: etiquetan los logs de bitácora en PostgreSQL con `[hora:HH:mm] [lesson:id]`.
+  - `backgroundSyncAttendanceLogToDB`: elimina únicamente los registros previos correspondientes a la lección específica, evitando el borrado o sobreescritura cruzada en días con múltiples sesiones.
+  - `hydrateFromBackend`: valida `[lesson:id]` y `[hora:HH:mm]` antes de aplicar marcas de asistencia, y protege a las lecciones `isMakeup` contra contaminación por logs legacy sin tags.
+- **Acción Atómica `revertMakeupLesson` en Zustand (`src/store/app-store.ts`)**:
+  - Elimina de forma atómica la clase makeup de `schedule` y `adminStudents.scheduleLessons`.
+  - Restaura la fecha excluida (`recoveringLessonDate`) del array `excludedDates` de la lección regular original.
+  - Devuelve el crédito de recuperación (`makeupCredits + 1`).
+  - Sincroniza atómicamente con PostgreSQL vía `backgroundSyncStudentToDB` y emite `triggerDataSyncBroadcast("lesson-removed")`.
+- **Persistencia en `deleteLessonFromSchedule` (`src/store/app-store.ts`)**:
+  - Garantiza que cualquier eliminación de lección actualice `adminStudents.scheduleLessons` y persista en PostgreSQL vía `backgroundSyncStudentToDB`.
+- **Kardex de Asistencias (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - El botón X invoca de forma limpia `revertMakeupLesson(item.lessonId, item.recoveringLessonDate)` con notificación explicativa y restauración inmediata en el horario.
+  - `allCycleSessions` permanece 100% inalterada, blindando el historial de alumnos con ciclo completado (ej. Emma Sevilla).
+
 ## [2.0.5] - 2026-09-22
 
 ### Fix Critico: Import Faltante de `normalizeStudentName` — ReferenceError en `hydrateFromBackend` (ADR-0111, ADR-0119)

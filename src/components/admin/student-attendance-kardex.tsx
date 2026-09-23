@@ -114,6 +114,7 @@ export function StudentAttendanceKardex({
   const rescheduleLesson = useAppStore((s) => s.rescheduleLesson);
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
   const deleteLessonFromSchedule = useAppStore((s) => s.deleteLessonFromSchedule);
+  const revertMakeupLesson = useAppStore((s) => s.revertMakeupLesson);
   const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
 
   // 🎛️ Selector Dual de Modo de Vista: Ciclo Activo Vigente (8 clases) vs Por Mes Calendario
@@ -1305,19 +1306,12 @@ export function StudentAttendanceKardex({
                             size="sm"
                             variant="ghost"
                             onClick={() => {
-                              deleteLessonFromSchedule(item.lessonId);
-                              if (item.recoveringLessonDate) {
-                                const origDate = item.recoveringLessonDate;
-                                const studentLessons = schedule.filter((l) => isMatchingStudentName(l.student, liveStudent.name));
-                                studentLessons.forEach((l) => {
-                                  if (l.excludedDates && l.excludedDates.includes(origDate)) {
-                                    const updatedExcluded = l.excludedDates.filter((d) => d !== origDate);
-                                    const updatedSchedule = schedule.map((sl) => sl.id === l.id ? { ...sl, excludedDates: updatedExcluded } : sl);
-                                    useAppStore.setState({ schedule: updatedSchedule });
-                                  }
-                                });
-                              }
-                              toast.success("Sesión reprogramada eliminada / revertida");
+                              revertMakeupLesson(item.lessonId, item.recoveringLessonDate);
+                              toast.success("Clase reprogramada revertida", {
+                                description: item.recoveringLessonDate
+                                  ? `La clase del ${item.recoveringLessonDate} vuelve al horario original (+1 crédito restaurado).`
+                                  : "Sesión eliminada y sincronizada.",
+                              });
                             }}
                             className="h-7 px-1.5 text-[11px] text-rose-500 hover:text-rose-700 hover:bg-rose-500/10 rounded-lg"
                             title="Eliminar esta clase reprogramada y restaurar original"
