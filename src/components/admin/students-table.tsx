@@ -746,7 +746,7 @@ export function StudentsTable() {
                     }
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedStudentIds(filteredStudents.map((s) => s.id));
+                        setSelectedStudentIds(Array.from(new Set(filteredStudents.map((s) => s.id))));
                       } else {
                         setSelectedStudentIds([]);
                       }
@@ -787,7 +787,7 @@ export function StudentsTable() {
                         checked={selectedStudentIds.includes(st.id)}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedStudentIds((prev) => [...prev, st.id]);
+                            setSelectedStudentIds((prev) => Array.from(new Set([...prev, st.id])));
                           } else {
                             setSelectedStudentIds((prev) => prev.filter((id) => id !== st.id));
                           }
@@ -2416,16 +2416,62 @@ export function StudentsTable() {
 
           <div className="space-y-4 py-2 text-xs">
             {/* Resumen de los alumnos a eliminar */}
-            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 space-y-1">
-              <p className="font-bold text-foreground">
-                {studentsToDelete.length === 1
-                  ? `Alumno: ${studentsToDelete[0].name}`
-                  : `Se eliminarán ${studentsToDelete.length} alumnos seleccionados`}
-              </p>
-              {studentsToDelete.length === 1 && (
-                <p className="text-[11px] text-muted-foreground">
-                  {studentsToDelete[0].family} · {studentsToDelete[0].instrument} · Prof. {studentsToDelete[0].teacher}
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="font-bold text-foreground">
+                  {studentsToDelete.length === 1
+                    ? `Alumno: ${studentsToDelete[0].name}`
+                    : `Se eliminarán ${studentsToDelete.length} alumnos seleccionados:`}
                 </p>
+                {studentsToDelete.length > 1 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    Verifica la lista antes de proceder
+                  </span>
+                )}
+              </div>
+
+              {studentsToDelete.length === 1 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {studentsToDelete[0].family} · {studentsToDelete[0].instrument} · Prof. {studentsToDelete[0].teacher} · {studentsToDelete[0].modality}
+                </p>
+              ) : (
+                <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                  {studentsToDelete.map((st) => (
+                    <div
+                      key={st.id}
+                      className="flex items-center justify-between bg-card/90 p-2 rounded-lg border border-border/60 text-[11px]"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-foreground truncate">{st.name}</span>
+                          <span className="text-[9px] px-1.5 py-0 rounded bg-muted text-muted-foreground font-mono">
+                            {st.id.slice(0, 8)}...
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {st.family} · {st.instrument} · Prof. {st.teacher}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setStudentsToDelete((prev) => {
+                            const updated = prev.filter((item) => item.id !== st.id);
+                            if (updated.length === 0) setDeleteModalOpen(false);
+                            return updated;
+                          });
+                          setSelectedStudentIds((prev) => prev.filter((id) => id !== st.id));
+                        }}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md shrink-0 text-xs"
+                        title="Quitar este alumno de la lista a eliminar"
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
@@ -2826,6 +2872,15 @@ function NewStudentDialog() {
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [allowDuplicateConfirmed, setAllowDuplicateConfirmed] = useState(false);
+
+  // 🛡️ Detección reactiva de alumno existente (activo o histórico)
+  const duplicateMatch = useMemo(() => {
+    const cleanName = name.trim();
+    if (!cleanName || cleanName.length < 3) return null;
+    return students.find((st) => isMatchingStudentName(st.name, cleanName));
+  }, [students, name]);
+
   const [family, setFamily] = useState("");
   const [isAdult, setIsAdult] = useState(false);
   const [instrument, setInstrument] = useState("Piano");
@@ -2966,6 +3021,14 @@ function NewStudentDialog() {
       return;
     }
 
+    // 🛡️ Blindaje contra duplicados accidentales
+    if (duplicateMatch && duplicateMatch.status === "activo" && !allowDuplicateConfirmed) {
+      toast.error("⚠️ Alumno ya existente en el sistema", {
+        description: `Ya existe un alumno activo registrado como "${duplicateMatch.name}". Si realmente es un homónimo, marca la casilla de confirmación para continuar.`,
+      });
+      return;
+    }
+
     if (!isAdultStudent) {
       if (!family.trim()) {
         toast.error("Ingresa los apellidos de la familia.");
@@ -3074,6 +3137,7 @@ function NewStudentDialog() {
     setAmountPaid(297);
     setPackageTotalSessions(24);
     setCustomPriceReason("");
+    setAllowDuplicateConfirmed(false);
   };
 
   return (
@@ -3127,10 +3191,71 @@ function NewStudentDialog() {
               data-tour="input-student-name"
               placeholder="Ej. Mateo García"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setAllowDuplicateConfirmed(false);
+              }}
               required
             />
           </div>
+
+          {/* 🛡️ Alerta Reactiva: Detección de Alumno Ya Existente */}
+          {duplicateMatch && (
+            <div
+              className={`rounded-xl border p-3 space-y-2 animate-in fade-in ${
+                duplicateMatch.status === "activo"
+                  ? "border-amber-500/50 bg-amber-500/10 text-amber-950 dark:text-amber-100"
+                  : "border-blue-500/50 bg-blue-500/10 text-blue-950 dark:text-blue-100"
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold text-xs">
+                <AlertTriangle
+                  className={`h-4 w-4 shrink-0 ${
+                    duplicateMatch.status === "activo"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-blue-600 dark:text-blue-400"
+                  }`}
+                />
+                <span>
+                  {duplicateMatch.status === "activo"
+                    ? "⚠️ Estás agregando un alumno que ya existe"
+                    : "ℹ️ Este alumno ya figura en la base histórica"}
+                </span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                Ya existe un registro con el nombre <strong>{duplicateMatch.name}</strong> en estado{" "}
+                <Badge
+                  variant={duplicateMatch.status === "activo" ? "default" : "outline"}
+                  className="text-[10px] uppercase font-bold py-0 h-4 px-1.5"
+                >
+                  {duplicateMatch.status}
+                </Badge>{" "}
+                ({duplicateMatch.instrument} · Prof. {duplicateMatch.teacher} · {duplicateMatch.modality}).
+              </p>
+              {duplicateMatch.status === "activo" ? (
+                <div className="space-y-2 pt-1 border-t border-amber-500/20 text-[11px]">
+                  <p className="text-amber-800 dark:text-amber-300 font-medium">
+                    ⛔ Si continúas, se generará un duplicado en el Directorio y en la Facturación. Si deseas asignarle o modificar su horario, utiliza el botón <strong>"+ Horario"</strong> en su fila del Directorio.
+                  </p>
+                  <label className="flex items-center gap-2 pt-1 cursor-pointer font-bold text-amber-900 dark:text-amber-200">
+                    <input
+                      type="checkbox"
+                      checked={allowDuplicateConfirmed}
+                      onChange={(e) => setAllowDuplicateConfirmed(e.target.checked)}
+                      className="h-4 w-4 rounded border-border text-primary cursor-pointer"
+                    />
+                    <span>Confirmo que es un alumno distinto (homónimo real) y deseo continuar</span>
+                  </label>
+                </div>
+              ) : (
+                <div className="pt-1 border-t border-blue-500/20 text-[11px] text-blue-800 dark:text-blue-300">
+                  <p>
+                    💡 <strong>Recomendación:</strong> Puedes reactivar a este alumno desde el botón <strong>"Depuración & Reactivación 2026"</strong> para preservar todo su historial y asistencias sin crear un registro duplicado.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold mb-1">

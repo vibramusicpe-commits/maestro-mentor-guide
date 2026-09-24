@@ -1704,9 +1704,17 @@ export const useAppStore = create<AppState>()(
             studentSnapshot: { ...studentToDelete },
           };
 
+          const remainingStudents = s.adminStudents.filter((st) => !isSameStudentId(st.id, id));
+          // 🛡️ REGLA: Si aún queda otro alumno activo con el mismo nombre, preservar sus clases en el horario
+          const hasOtherActive = remainingStudents.some(
+            (st) => st.status === "activo" && isMatchingStudentName(st.name, studentName)
+          );
+
           return {
-            adminStudents: s.adminStudents.filter((st) => !isSameStudentId(st.id, id)),
-            schedule: s.schedule.filter((l) => !isMatchingStudentName(l.student, studentName)),
+            adminStudents: remainingStudents,
+            schedule: hasOtherActive
+              ? s.schedule
+              : s.schedule.filter((l) => !isMatchingStudentName(l.student, studentName)),
             deletedStudents: [logEntry, ...(s.deletedStudents || [])],
             syncQueue: [...s.syncQueue, queueItem(`Alumno ${studentName} movido a papelera [${reasonCategory}]`)],
           };
@@ -1732,11 +1740,19 @@ export const useAppStore = create<AppState>()(
             studentSnapshot: { ...st },
           }));
 
+          const remainingStudents = s.adminStudents.filter((st) => !ids.some((id) => isSameStudentId(st.id, id)));
+
           return {
-            adminStudents: s.adminStudents.filter((st) => !ids.some((id) => isSameStudentId(st.id, id))),
-            schedule: s.schedule.filter(
-              (l) => !namesToDelete.some((n) => isMatchingStudentName(n, l.student)),
-            ),
+            adminStudents: remainingStudents,
+            schedule: s.schedule.filter((l) => {
+              const isDeletedName = namesToDelete.some((n) => isMatchingStudentName(n, l.student));
+              if (!isDeletedName) return true;
+              // 🛡️ REGLA: Si aún queda otro alumno activo con el mismo nombre, preservar sus clases en el horario
+              const hasRemainingActive = remainingStudents.some(
+                (st) => st.status === "activo" && isMatchingStudentName(st.name, l.student)
+              );
+              return hasRemainingActive;
+            }),
             deletedStudents: [...newLogs, ...(s.deletedStudents || [])],
             syncQueue: [...s.syncQueue, queueItem(`${ids.length} alumnos movidos a papelera [${reasonCategory}]`)],
           };
@@ -1762,10 +1778,13 @@ export const useAppStore = create<AppState>()(
       updateStudentDetails: (id, updates) =>
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, updates);
-          const targetStudent = s.adminStudents.find((st) => isSameStudentId(st.id, id) || isMatchingStudentName(st.name, id));
+          const exactMatch = s.adminStudents.find((st) => isSameStudentId(st.id, id));
+          const targetStudent = exactMatch || s.adminStudents.find((st) => isMatchingStudentName(st.name, id));
           let updatedSchedule = s.schedule;
           const updatedStudents = s.adminStudents.map((st) => {
-            const isMatch = isSameStudentId(st.id, id) || (targetStudent && isMatchingStudentName(st.name, targetStudent.name));
+            const isMatch = exactMatch
+              ? isSameStudentId(st.id, id)
+              : (targetStudent && isMatchingStudentName(st.name, targetStudent.name));
             if (!isMatch) return st;
             const newPrice = updates.planPrice !== undefined ? updates.planPrice : st.planPrice;
             const newPaid = updates.amountPaid !== undefined ? updates.amountPaid : st.amountPaid;
@@ -1846,7 +1865,8 @@ export const useAppStore = create<AppState>()(
       setStudentStatus: (id, status) =>
         set((s) => {
           backgroundSyncStudentToDB(s.activeRole, id, { status });
-          const target = s.adminStudents.find((st) => isSameStudentId(st.id, id) || isMatchingStudentName(st.name, id));
+          const exactTarget = s.adminStudents.find((st) => isSameStudentId(st.id, id));
+          const target = exactTarget || s.adminStudents.find((st) => isMatchingStudentName(st.name, id));
           let updatedSchedule = s.schedule;
           let updatedInvoices = s.invoices;
           // Si pasa a activo, asegurar que sus clases oficiales (initialSchedule o scheduleLessons) estén presentes
@@ -1904,11 +1924,12 @@ export const useAppStore = create<AppState>()(
             }
           }
           return {
-            adminStudents: s.adminStudents.map((st) =>
-              isSameStudentId(st.id, id) || (target && isMatchingStudentName(st.name, target.name))
-                ? { ...st, status }
-                : st
-            ),
+            adminStudents: s.adminStudents.map((st) => {
+              const isMatch = exactTarget
+                ? isSameStudentId(st.id, id)
+                : (target && isMatchingStudentName(st.name, target.name));
+              return isMatch ? { ...st, status } : st;
+            }),
             schedule: updatedSchedule,
             invoices: updatedInvoices,
             syncQueue: [...s.syncQueue, queueItem(`Estado actualizado · ${status}`)],

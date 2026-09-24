@@ -543,3 +543,18 @@ inferencia.
    - `filteredLedgerList` filtra con condición innegociable `st.status === "activo"`. Ningún alumno inactivo o dado de baja debe figurar en el control de asistencias y plan.
 4. **Leyenda de Categorías en Horario de Clases**:
    - En la interfaz gráfica del horario semanal, diario y vista didáctica Excel, las etiquetas de leyenda se renderizan a través de `legendCategoryStyles`, excluyendo el alias de compatibilidad técnica `ADULTO`. La categoría `MASTER` se renderiza exactamente una sola vez.
+
+---
+
+### 25. Aislamiento Estricto por ID en Eliminación por Checkbox, Detección de Duplicados y Preservación de Horario (ADR-0125)
+1. **Detección Reactiva de Duplicados al Matricular (`NewStudentDialog`)**:
+   - En el formulario de matrícula ("Matricular Nuevo Alumno"), la entrada del nombre se coteja reactivamente en tiempo real (`isMatchingStudentName`) contra todos los perfiles de `adminStudents`.
+   - Si coincide con un alumno activo: despliega una alerta prominente (*"⚠️ Estás agregando un alumno que ya existe"*) y bloquea la matrícula a menos que secretaría confirme conscientemente mediante checkbox que se trata de un homónimo real.
+   - Si coincide con un alumno inactivo (baja o pausa): despliega un aviso informativo (*"ℹ️ Este alumno ya figura en la base histórica"*) recomendando reactivarlo desde el panel *"Depuración & Reactivación 2026"* para preservar su historial y asistencias.
+2. **Preservación Incondicional del Horario ante Eliminación de Copias/Duplicados**:
+   - Al ejecutar `deleteStudent` o `deleteStudents`, el store verifica si tras remover el alumno con `id` **aún existe otro alumno ACTIVO con el mismo nombre**.
+   - Si aún queda un alumno activo con ese nombre, **las clases del horario (`schedule`) no se tocan ni eliminan**, protegiendo el cronograma del alumno legítimo.
+3. **Aislamiento Estricto por ID en Mutaciones de Estado y Ficha**:
+   - En `updateStudentDetails` y `setStudentStatus`, si se encuentra coincidencia exacta por ID (`isSameStudentId`), se actualiza únicamente ese registro específico. El fallback por coincidencia de nombre solo opera si no existe ningún registro coincidente por ID (migración de semillas heredadas), impidiendo mutaciones en cascada sobre homónimos.
+4. **Modal de Eliminación Múltiple Detallado**:
+   - El diálogo de confirmación de eliminación múltiple (`deleteModalOpen`) muestra un listado interactivo con el nombre, ID truncado, familia, profesor e instrumento de cada alumno seleccionado, permitiendo remover individualmente a cualquier alumno (`✕`) de la cola de eliminación antes de confirmar.
