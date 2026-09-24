@@ -244,7 +244,7 @@ export function MinimalAgendaCalendar({
                 const currentDayDateStr = currentWeekObj.days.find((d) => d.dayKey === selectedDayShort)?.dateStr;
                 const effectiveStatus =
                   (currentDayDateStr ? (lesson as ScheduledLesson).attendanceByDate?.[currentDayDateStr] : undefined) ||
-                  (lesson as ScheduledLesson).attendanceStatus ||
+                  ((lesson as ScheduledLesson).weekIndex !== undefined ? (lesson as ScheduledLesson).attendanceStatus : undefined) ||
                   lesson.status ||
                   "programada";
 

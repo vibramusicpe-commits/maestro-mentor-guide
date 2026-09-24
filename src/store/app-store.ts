@@ -163,7 +163,7 @@ type AppState = {
   consumeStudentCredit: (id: string) => void;
   markLessonAttendance: (
     lessonId: string,
-    status: "presente" | "ausente" | "tarde" | "justificada",
+    status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente",
     notes?: string,
     targetWeekIndex?: number,
     dateStr?: string
@@ -762,31 +762,33 @@ function backgroundSyncAttendanceLogToDB(
   try {
     if (typeof window === "undefined") return;
     const resolvedStudentId = resolveStudentUUID(studentId);
-    const dateMatch = note?.match(/Fecha\s+(\d{4}-\d{2}-\d{2})/i);
+    const dateMatch = note?.match(/Fecha\s+(\d{4}-\d{2}-\d{2})/i) || note?.match(/(\d{4}-\d{2}-\d{2})/);
     const dateStr = dateMatch ? dateMatch[1] : undefined;
     const lessonMatch = note?.match(/\[lesson:([^\]]+)\]/);
     const timeMatch = note?.match(/\[hora:([^\]]+)\]/);
 
     // Si se restablece a "pendiente", limpiar los logs de esa lección o fecha en PostgreSQL
     if (status === "pendiente") {
-      const deleteCondition = lessonMatch
-        ? { student_id: `eq.${resolvedStudentId}`, note: `like.*lesson:${lessonMatch[1]}*` }
-        : timeMatch && dateStr
-        ? { student_id: `eq.${resolvedStudentId}`, note: `like.*Fecha ${dateStr}*hora:${timeMatch[1]}*` }
-        : dateStr
-        ? { student_id: `eq.${resolvedStudentId}`, note: `like.*Fecha ${dateStr}*` }
-        : undefined;
-
-      if (deleteCondition) {
-        import("@/lib/insforge").then(({ postgrestDelete }) => {
-          postgrestDelete("attendance_logs", deleteCondition)
-            .then(() => {
-              console.log(`[Insforge Sync] Asistencia eliminada de attendance_logs para ${resolvedStudentId} (${dateStr || note})`);
-              triggerDataSyncBroadcast("attendance-deleted");
-            })
-            .catch((err) => console.warn(`[Insforge Sync] Error eliminando attendance_log:`, err));
-        }).catch(() => {});
-      }
+      import("@/lib/insforge").then(async ({ postgrestDelete }) => {
+        if (dateStr) {
+          await postgrestDelete("attendance_logs", {
+            student_id: `eq.${resolvedStudentId}`,
+            note: `like.*Fecha ${dateStr}*`,
+          }).catch(() => {});
+          await postgrestDelete("attendance_logs", {
+            student_id: `eq.${resolvedStudentId}`,
+            note: `like.*Fecha${dateStr}*`,
+          }).catch(() => {});
+        }
+        if (lessonMatch) {
+          await postgrestDelete("attendance_logs", {
+            student_id: `eq.${resolvedStudentId}`,
+            note: `like.*lesson:${lessonMatch[1]}*`,
+          }).catch(() => {});
+        }
+        console.log(`[Insforge Sync] Asistencia eliminada de attendance_logs para ${resolvedStudentId} (${dateStr || note})`);
+        triggerDataSyncBroadcast("attendance-deleted");
+      }).catch((err) => console.warn(`[Insforge Sync] Error eliminando attendance_log:`, err));
       return;
     }
 
@@ -805,21 +807,17 @@ function backgroundSyncAttendanceLogToDB(
     }
 
     import("@/lib/insforge").then(async ({ postgrestInsert, postgrestDelete }) => {
-      // Si tiene lección o fecha exacta, primero eliminar cualquier log previo específico para evitar duplicados
+      // Eliminar cualquier log previo de la misma fecha o lección para evitar duplicados en PostgreSQL
+      if (dateStr) {
+        await postgrestDelete("attendance_logs", {
+          student_id: `eq.${resolvedStudentId}`,
+          note: `like.*Fecha ${dateStr}*`,
+        }).catch(() => {});
+      }
       if (lessonMatch) {
         await postgrestDelete("attendance_logs", {
           student_id: `eq.${resolvedStudentId}`,
           note: `like.*lesson:${lessonMatch[1]}*`,
-        }).catch(() => {});
-      } else if (timeMatch && dateStr) {
-        await postgrestDelete("attendance_logs", {
-          student_id: `eq.${resolvedStudentId}`,
-          note: `like.*Fecha ${dateStr}*hora:${timeMatch[1]}*`,
-        }).catch(() => {});
-      } else if (dateStr) {
-        await postgrestDelete("attendance_logs", {
-          student_id: `eq.${resolvedStudentId}`,
-          note: `like.*Fecha ${dateStr}*`,
         }).catch(() => {});
       }
       postgrestInsert("attendance_logs", {
@@ -1073,7 +1071,10 @@ export const useAppStore = create<AppState>()(
 
           // 4. Rehidratar asistencias reales históricas desde attendance_logs en PostgreSQL
           if (data.attendanceLogs && data.attendanceLogs.length > 0) {
-            data.attendanceLogs.forEach((log: any) => {
+            const sortedAttendanceLogs = [...data.attendanceLogs].sort((a: any, b: any) =>
+              (a.registered_at || "").localeCompare(b.registered_at || "")
+            );
+            sortedAttendanceLogs.forEach((log: any) => {
               if (!log.student_id) return;
               const matchedStudent = cleanStudents.find(
                 (st) =>
@@ -1987,15 +1988,22 @@ export const useAppStore = create<AppState>()(
               const prevByWeek = { ...(l.attendanceByWeek || {}) };
               const prevByDate = { ...(l.attendanceByDate || {}) };
               if (effectiveDateStr) {
-                prevByDate[effectiveDateStr] = status;
+                if (status === "pendiente") {
+                  delete prevByDate[effectiveDateStr];
+                } else {
+                  prevByDate[effectiveDateStr] = status;
+                }
+              }
+              if (status === "pendiente") {
+                delete prevByWeek[weekIdx];
+              } else {
+                prevByWeek[weekIdx] = status;
               }
               return {
                 ...l,
-                attendanceStatus: status,
-                attendanceByWeek: {
-                  ...prevByWeek,
-                  [weekIdx]: status,
-                },
+                // 🛡️ REGLA DE ORO ADR 0099: NO sobreescribir attendanceStatus global en lecciones recurrentes
+                attendanceStatus: l.weekIndex !== undefined ? (status === "pendiente" ? undefined : status) : undefined,
+                attendanceByWeek: prevByWeek,
                 attendanceByDate: prevByDate,
               };
             }

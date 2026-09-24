@@ -4,6 +4,27 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.9] - 2026-09-23
+
+### Matrícula Demo Nivelación, Erradicación de Asistencia Fantasma y Control en Agenda (ADR-0122)
+- **Matrícula Oficial en Demo Nivelación**:
+  - Eliminación de la exoneración forzada al registrar o editar alumnos en modalidad `Demo Nivelación`.
+  - Configuración inicial en **`Promo Demo (S/ 30)`** (descuento promocional del 75% sobre los S/ 120 regulares), con libertad para que secretaría seleccione `Regular (S/ 120)` o `Exonerada (S/ 0)`.
+- **Erradicación de Asistencias Fantasma en Horario de Clases**:
+  - Remoción definitiva del fallback `(safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined)` en las vistas Excel, Semanal, Diario, Sábado y Modal de `agenda-board.tsx`.
+  - Las lecciones recurrentes sin evaluación explícita en `attendanceByDate` ni `attendanceByWeek` se renderizan estrictamente como pendientes.
+  - Protección de plantilla recurrente: `markLessonAttendance` no sobreescribe la propiedad global `attendanceStatus` en lecciones con `weekIndex === undefined`.
+- **Botón Interactivo de Restablecimiento en Modal de Clase**:
+  - Adición del botón `⚪ Restablecer a Pendiente / Sin marcar` con `RotateCcw` en el modal de clase de la agenda.
+  - Conexión del parámetro de fecha (`selectedDayDateStr`) como 5° argumento en todas las operaciones del modal.
+- **Widget "Control de Asistencias del Alumno"**:
+  - Recálculo matemático basado en las fechas reales de `attendanceByDate` y la cuota contractual correcta (4 para Intensivo/1x, 8 para Regular 2x, 1 para Demo Nivelación).
+  - Eliminación de falsas alarmas de clases por agendar y soporte para alumnos con ciclo activo completo (ej. Flavia Nicole Concepción con 4 de 4 clases: 3 Pres. y 1 Justificada).
+- **Idempotencia y Sincronización en PostgreSQL**:
+  - `backgroundSyncAttendanceLogToDB`: borrado idempotente por fecha calendario (`like.*Fecha ${dateStr}*`) al restablecer a pendiente o antes de insertar nueva asistencia, evitando duplicados en `attendance_logs`.
+  - `hydrateFromBackend`: ordenamiento cronológico (`registered_at ASC`) de logs de asistencia para garantizar la prevalencia del evento más reciente.
+  - Depuración del log de prueba del 25/09 y completitud del log del 18/09 para Flavia Nicole Concepción en PostgreSQL.
+
 ## [2.0.8] - 2026-09-23
 
 ### Demo Nivelación (Tarifa Abierta), Restricción a Base Activa y Deduplicación de Leyenda (ADR-0122)

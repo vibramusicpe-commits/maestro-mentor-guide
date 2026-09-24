@@ -3227,7 +3227,7 @@ function NewStudentDialog() {
                       setPackageTotalSessions(1);
                       setModality("Demo Nivelación (1 Alumno · 45 min)");
                       setIsPersonalized(true);
-                      setMatriculaType("Exonerada");
+                      setMatriculaType("Promo Demo (S/ 30)");
                     } else if (val === "Paquete Flexible" || val === "Paquete Especial") {
                       setPlanPrice(500);
                       setAmountPaid(500);
@@ -4381,7 +4381,7 @@ function EditStudentSheetInner({
                     if (newPlan === "Demo Nivelación") {
                       if (!student.planPrice) setPlanPrice(0);
                       setModality("Demo Nivelación (1 Alumno · 45 min)");
-                      setMatriculaType("Exonerada");
+                      setMatriculaType(student.matriculaType || "Promo Demo (S/ 30)");
                     } else if (newPlan === "Paquete Flexible" || newPlan === "Paquete Especial") {
                       if (!student.planPrice) setPlanPrice(500);
                       if (student.amountPaid === undefined) setAmountPaid(500);

@@ -318,7 +318,7 @@ export function TeacherKiosk() {
                         ? lesson.attendanceByDate[targetDateStr]!
                         : (lesson.attendanceByWeek && lesson.attendanceByWeek[safeWeekIndex])
                           ? lesson.attendanceByWeek[safeWeekIndex]!
-                          : lesson.attendanceStatus || "pendiente";
+                          : (lesson.weekIndex !== undefined && lesson.attendanceStatus ? lesson.attendanceStatus : "pendiente");
 
                     return (
                       <div

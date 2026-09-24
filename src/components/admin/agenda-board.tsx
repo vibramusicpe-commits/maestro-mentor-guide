@@ -1528,7 +1528,7 @@ export function AgendaBoard() {
                                                    lesson.attendanceByWeek?.[safeWeekIndex] ??
                                                    (lesson.weekIndex === safeWeekIndex
                                                      ? lesson.attendanceStatus
-                                                     : (safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined));
+                                                     : undefined);
                                                  if (!cardAtt) return null;
                                                  return (
                                                    <div
@@ -1958,7 +1958,7 @@ export function AgendaBoard() {
                                                    lesson.attendanceByWeek?.[safeWeekIndex] ??
                                                    (lesson.weekIndex === safeWeekIndex
                                                      ? lesson.attendanceStatus
-                                                     : (safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined));
+                                                     : undefined);
                                                  if (!cardAtt) {
                                                    return (
                                                      <span className={`font-bold ${catStyle.text} opacity-80 text-[8.5px] group-hover:opacity-100 group-hover:underline`}>
@@ -2155,7 +2155,7 @@ export function AgendaBoard() {
                                           lesson.attendanceByWeek?.[safeWeekIndex] ??
                                           (lesson.weekIndex === safeWeekIndex
                                             ? lesson.attendanceStatus
-                                            : (safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined));
+                                            : undefined);
                                         if (!cardAtt) return null;
                                         return (
                                           <span
@@ -2314,7 +2314,7 @@ export function AgendaBoard() {
                                         lesson.attendanceByWeek?.[safeWeekIndex] ??
                                         (lesson.weekIndex === safeWeekIndex
                                           ? lesson.attendanceStatus
-                                          : (safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined));
+                                          : undefined);
                                       if (!cardAtt) return null;
                                       return (
                                         <span
@@ -2426,7 +2426,7 @@ export function AgendaBoard() {
                     selected.attendanceByWeek?.[safeWeekIndex] ??
                     (selected.weekIndex === safeWeekIndex
                       ? selected.attendanceStatus
-                      : (safeWeekIndex === currentWeekIndex ? selected.attendanceStatus : undefined));
+                      : undefined);
                   return (
                     <div className="space-y-3 rounded-2xl border-2 border-primary/20 p-4 bg-card shadow-xs">
                       <div className="flex items-center justify-between">
@@ -2464,7 +2464,7 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "presente", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex);
+                            markLessonAttendance(selected.id, "presente", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex, selectedDayDateStr);
                             toast.success(
                               `Asistencia (${selectedDayDateStr || `Semana ${safeWeekIndex + 1}`}): ${selected.student} PRESENTE 🟢`,
                             );
@@ -2481,7 +2481,7 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "ausente", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex);
+                            markLessonAttendance(selected.id, "ausente", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex, selectedDayDateStr);
                             toast.error(
                               `Asistencia (${selectedDayDateStr || `Semana ${safeWeekIndex + 1}`}): ${selected.student} AUSENTE 🔴`,
                             );
@@ -2498,7 +2498,7 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "tarde", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex);
+                            markLessonAttendance(selected.id, "tarde", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex, selectedDayDateStr);
                             toast.warning(
                               `Asistencia (${selectedDayDateStr || `Semana ${safeWeekIndex + 1}`}): ${selected.student} TARDE 🟡`,
                             );
@@ -2515,7 +2515,7 @@ export function AgendaBoard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            markLessonAttendance(selected.id, "justificada", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex);
+                            markLessonAttendance(selected.id, "justificada", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex, selectedDayDateStr);
                             toast.info(
                               `Asistencia (${selectedDayDateStr || `Semana ${safeWeekIndex + 1}`}): ${selected.student} JUSTIFICADA 🔵 (+1 Crédito)`,
                             );
@@ -2527,6 +2527,22 @@ export function AgendaBoard() {
                           }`}
                         >
                           🔵 Justificada (+1 Créd)
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            markLessonAttendance(selected.id, "pendiente", selectedDayDateStr ? `Fecha ${selectedDayDateStr}` : "", safeWeekIndex, selectedDayDateStr);
+                            toast.info(
+                              `Asistencia (${selectedDayDateStr || `Semana ${safeWeekIndex + 1}`}): ${selected.student} RESTABLECIDA a Sin marcar ⚪`,
+                            );
+                          }}
+                          className="h-9 font-bold text-xs gap-1.5 text-muted-foreground hover:text-foreground border border-dashed border-border/80 col-span-2 sm:col-span-4 transition-all hover:bg-muted/40"
+                          title="Restablecer asistencia de esta clase a pendiente / sin marcar"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          ⚪ Restablecer a Pendiente / Sin marcar
                         </Button>
                       </div>
                     </div>
@@ -3017,23 +3033,75 @@ export function AgendaBoard() {
                 {(() => {
                   const studentData = findStudentProfileByName(adminStudents, selected.student);
 
-                  const isIntensivo = studentData?.modality?.includes("Intensivo");
-                  const targetLessons = isIntensivo ? 4 : 8;
+                  const isDemoNivelacion = studentData?.modality?.toLowerCase().includes("nivelaci") || studentData?.planType === "Demo Nivelación";
+                  const isIntensivo = studentData?.modality?.includes("Intensivo") || (studentData?.modality?.includes("90 min") && !studentData?.modality?.includes("45 min"));
+                  const isRegular1x = studentData?.modality?.includes("1x/sem");
+                  const isFlexiblePackage = studentData?.modality?.includes("Paquete Flexible") || studentData?.planType === "Paquete Flexible" || ((studentData?.packageTotalSessions ?? 0) > 8);
+                  const targetLessons = studentData?.packageTotalSessions || (isDemoNivelacion ? 1 : isIntensivo ? 4 : isRegular1x ? 4 : 8);
 
-                  const studentLessons = schedule.filter(
-                    (l) =>
-                      l.student.toLowerCase() === selected.student.toLowerCase() ||
-                      (studentData && (
-                        l.student.toLowerCase().includes(studentData.name.toLowerCase()) ||
-                        studentData.name.toLowerCase().includes(l.student.toLowerCase())
-                      ))
-                  );
+                  const allStudentLessons = [
+                    ...schedule.filter((l) => isMatchingStudentName(l.student, selected.student)),
+                    ...(studentData?.scheduleLessons || []).filter((l) => isMatchingStudentName(l.student, selected.student)),
+                  ];
+                  const dedupedLessonsMap = new Map<string, ScheduledLesson>();
+                  allStudentLessons.forEach((l) => dedupedLessonsMap.set(l.id || `${l.day}-${l.time}-${l.dateStr || ""}`, l));
+                  const studentLessons = Array.from(dedupedLessonsMap.values());
 
-                  const scheduledCount = studentLessons.length;
-                  const presentes = studentLessons.filter((l) => l.attendanceStatus === "presente").length;
-                  const ausentes = studentLessons.filter((l) => l.attendanceStatus === "ausente").length;
-                  const tardes = studentLessons.filter((l) => l.attendanceStatus === "tarde").length;
-                  const justificadas = studentLessons.filter((l) => l.attendanceStatus === "justificada").length;
+                  // Mapear asistencias por fecha única del alumno
+                  const monthPrefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
+                  const dateAttendanceMap = new Map<string, "presente" | "ausente" | "tarde" | "justificada">();
+
+                  studentLessons.forEach((l) => {
+                    if (l.attendanceByDate) {
+                      Object.entries(l.attendanceByDate).forEach(([dStr, st]) => {
+                        if (st && st !== "pendiente") {
+                          if (dStr.startsWith(monthPrefix) || !dStr.includes("-")) {
+                            dateAttendanceMap.set(dStr, st);
+                          }
+                        }
+                      });
+                    }
+                  });
+
+                  if (dateAttendanceMap.size === 0) {
+                    studentLessons.forEach((l) => {
+                      if (l.attendanceByWeek) {
+                        Object.entries(l.attendanceByWeek).forEach(([wIdx, st]) => {
+                          if (st && st !== "pendiente") {
+                            dateAttendanceMap.set(`semana-${wIdx}`, st);
+                          }
+                        });
+                      }
+                    });
+                  }
+
+                  let presentes = 0;
+                  let ausentes = 0;
+                  let tardes = 0;
+                  let justificadas = 0;
+
+                  dateAttendanceMap.forEach((st) => {
+                    if (st === "presente") presentes++;
+                    else if (st === "ausente") ausentes++;
+                    else if (st === "tarde") tardes++;
+                    else if (st === "justificada") justificadas++;
+                  });
+
+                  const evaluatedTotal = presentes + ausentes + tardes + justificadas;
+                  const weeklySlots = studentLessons.filter((l) => l.weekIndex === undefined && !l.dateStr).length;
+
+                  let scheduledCount = evaluatedTotal;
+                  if (isDemoNivelacion) {
+                    scheduledCount = Math.max(evaluatedTotal, weeklySlots > 0 ? 1 : 0);
+                  } else if (isIntensivo || isRegular1x) {
+                    scheduledCount = Math.min(targetLessons, Math.max(evaluatedTotal, weeklySlots > 0 ? 4 : 0));
+                  } else if (isFlexiblePackage) {
+                    scheduledCount = Math.min(targetLessons, Math.max(evaluatedTotal, studentLessons.length));
+                  } else {
+                    const projected = weeklySlots >= 2 ? 8 : weeklySlots === 1 ? 4 : 0;
+                    scheduledCount = Math.min(targetLessons, Math.max(evaluatedTotal, projected));
+                  }
+
                   const isComplete = scheduledCount >= targetLessons;
                   const pending = Math.max(0, targetLessons - scheduledCount);
                   const credits = studentData?.makeupCredits ?? 0;
@@ -5029,7 +5097,9 @@ export function AgendaBoard() {
                           if (lesson.excludedWeeks && lesson.excludedWeeks.includes(week.weekIndex)) return;
 
                           const status =
-                            lesson.attendanceByWeek && lesson.attendanceByWeek[week.weekIndex]
+                            (lesson.attendanceByDate && dayInfo.dateStr && lesson.attendanceByDate[dayInfo.dateStr])
+                              ? lesson.attendanceByDate[dayInfo.dateStr]!
+                              : (lesson.attendanceByWeek && lesson.attendanceByWeek[week.weekIndex])
                               ? lesson.attendanceByWeek[week.weekIndex]!
                               : lesson.weekIndex === week.weekIndex && lesson.attendanceStatus
                               ? lesson.attendanceStatus

@@ -344,6 +344,28 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - Ante cualquier incompatibilidad de edad, duración o aforo individual, la agenda emite una **Alerta Visual Preventiva (Amarillo/Rojo) con Opción de Confirmación** para no bloquear la operativa de secretaría en excepciones justificadas.
 
 ---
+
+### 23. Matrícula en Demo Nivelación, Erradicación de Asistencia Fantasma, Control de Asistencias en Modal e Idempotencia en PostgreSQL (ADR-0122)
+1. **Regla de Matrícula en Demo Nivelación (No asumir costo cero)**:
+   - Todo plan contratado contempla matrícula por defecto. Al seleccionar `Demo Nivelación`, el sistema inicializa la matrícula en **`Promo Demo (S/ 30)`** (75% de descuento sobre la matrícula regular de S/ 120).
+   - Queda **TERMINANTEMENTE PROHIBIDO** forzar automáticamente `setMatriculaType("Exonerada")`. La opción de exoneración existe en el dropdown, pero debe ser una decisión explícita de secretaría o dirección.
+2. **Prohibición de Fallback de Template en Semanas Activas (Fin de Asistencia Fantasma)**:
+   - En las vistas del Horario de Clases (`Excel`, `Semanal`, `Diario`, `Sábado` y `Modal`), queda **TERMINANTEMENTE PROHIBIDO** evaluar fallbacks del tipo:
+     `(safeWeekIndex === currentWeekIndex ? lesson.attendanceStatus : undefined)`.
+   - Si una clase recurrente no tiene fecha registrada en `attendanceByDate` ni semana en `attendanceByWeek`, su estado visual es estrictamente **pendiente (`undefined`)**, evitando que clases de semanas en curso (ej. viernes 25 de Setiembre) aparezcan marcadas como presentes sin haber sido evaluadas.
+   - En `markLessonAttendance`, las plantillas recurrentes (`weekIndex === undefined`) no deben mutar `attendanceStatus` global.
+3. **Botón Interactivo de Restablecimiento en Modal de Clase**:
+   - El modal de asistencia rápida de clase (`agenda-board.tsx`) debe incorporar siempre el botón **`⚪ Restablecer a Pendiente / Sin marcar`** con icono `RotateCcw`, permitiendo al usuario deshacer marcas accidentales o de prueba.
+   - Todas las llamadas de asistencia en este modal deben enviar `selectedDayDateStr` como 5° parámetro (`dateStr`).
+4. **Cálculo Exacto en Widget "Control de Asistencias del Alumno"**:
+   - El widget del modal de clase debe consolidar todas las asistencias registradas en `attendanceByDate` del alumno (presentes, ausentes, tardes, justificadas) y proyectar la cuota mensual contratada (4 para Intensivo/1x, 8 para Regular 2x, 1 para Demo Nivelación).
+   - Prohibido contar `studentLessons.length` (que solo mide plantillas de franja) ni evaluar únicamente `l.attendanceStatus`, evitando falsas alertas de "Faltan clases por agendar".
+5. **Idempotencia y Borrado Preciso en `attendance_logs` de PostgreSQL**:
+   - Al registrar `status === "pendiente"`, `backgroundSyncAttendanceLogToDB` busca prioritariamente por fecha calendario (`like.*Fecha ${dateStr}*`), eliminando cualquier registro previo en esa fecha sin importar si fue creado por Kiosco, Agenda o Kardex.
+   - Al insertar un nuevo registro con fecha, se elimina de antemano cualquier log existente de esa misma fecha para garantizar 0 duplicados en la base de datos.
+   - En `hydrateFromBackend`, se ordenan cronológicamente (`registered_at ASC`) los logs antes de procesar, garantizando que el registro más reciente prevalezca siempre.
+
+---
 ---
 
 # Guía de uso de servidores MCP (pegar al inicio del proyecto / AGENTS.md)

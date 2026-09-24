@@ -37,14 +37,16 @@ import type { Role } from "@/store/app-store";
 // Configuración base
 // ---------------------------------------------------------------
 const envUrl =
-  import.meta.env.VITE_INSFORGE_URL ||
+  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_INSFORGE_URL) ||
+  (typeof process !== "undefined" && process.env?.VITE_INSFORGE_URL) ||
   "https://pdey9yma.us-east.insforge.app/api/database/records";
 const resolvedBaseUrl = envUrl.replace(/\/rest\/v1\/?$/, "/api/database/records");
 
 export const INSFORGE_CONFIG = {
   baseUrl: resolvedBaseUrl,
   anonKey:
-    import.meta.env.VITE_INSFORGE_ANON_KEY ||
+    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_INSFORGE_ANON_KEY) ||
+    (typeof process !== "undefined" && process.env?.VITE_INSFORGE_ANON_KEY) ||
     "anon_897abc3685c27a2e113b8022caaf12a8dc8233b25aa9ce5397c83ffa88362804",
   isConfigured: true,
 };
