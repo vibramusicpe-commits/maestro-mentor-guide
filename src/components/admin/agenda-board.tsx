@@ -142,9 +142,39 @@ export function AgendaBoard() {
   const importScheduleFromCSV = useAppStore((s) => s.importScheduleFromCSV);
   const clearSchedule = useAppStore((s) => s.clearSchedule);
 
+  // Detección automática del día y par actual al abrir el sistema (ADR-0127)
+  // Inicializa determinísticamente en el día y par de hoy (ej. Viernes -> Par 2 "Viernes y Sábado", día "Vie")
+  // Importante: No se bloquea el cambio manual; el usuario puede cambiar libremente entre vistas y pestañas.
+  const initialScheduleDayState = useMemo(() => {
+    const now = new Date();
+    const dow = now.getDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
+    let pairIdx = 0;
+    let dayIdx = 0;
+
+    if (dow === 5 || dow === 6) {
+      // Viernes (5) o Sábado (6) -> Par "Viernes y Sábado" (Índice 2)
+      pairIdx = 2;
+      dayIdx = dow === 5 ? 4 : 5; // 4=Vie, 5=Sáb
+    } else if (dow === 2 || dow === 4) {
+      // Martes (2) o Jueves (4) -> Par "Martes y Jueves" (Índice 1)
+      pairIdx = 1;
+      dayIdx = dow === 2 ? 1 : 3; // 1=Mar, 3=Jue
+    } else if (dow === 1 || dow === 3) {
+      // Lunes (1) o Miércoles (3) -> Par "Lunes y Miércoles" (Índice 0)
+      pairIdx = 0;
+      dayIdx = dow === 1 ? 0 : 2; // 0=Lun, 2=Mié
+    } else {
+      // Domingo (0) -> default Lunes (Índice 0)
+      pairIdx = 0;
+      dayIdx = 0;
+    }
+
+    return { dayIdx, pairIdx };
+  }, []);
+
   const [viewMode, setViewMode] = useState<"semanal" | "diario" | "excel">("excel");
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0); // Lunes por defecto
-  const [selectedPairIndex, setSelectedPairIndex] = useState(0); // Par 0: Lunes - Miércoles por defecto
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => initialScheduleDayState.dayIdx);
+  const [selectedPairIndex, setSelectedPairIndex] = useState(() => initialScheduleDayState.pairIdx);
   const [teacher, setTeacher] = useState(ALL);
   const [room, setRoom] = useState(ALL);
   const [instrument, setInstrument] = useState(ALL);
@@ -190,7 +220,7 @@ export function AgendaBoard() {
 
   // Sub-modo de Vista Didáctica: "pareado" (2x2) | "individual" (1x1)
   const [excelSubMode, setExcelSubMode] = useState<"pareado" | "individual">("pareado");
-  const [excelSingleDayIndex, setExcelSingleDayIndex] = useState(0); // 0=Lun, 1=Mar, 2=Mié, 3=Jue, 4=Vie, 5=Sáb
+  const [excelSingleDayIndex, setExcelSingleDayIndex] = useState(() => initialScheduleDayState.dayIdx); // Inicializa en el día actual (ADR-0127)
 
   // Estados de Programar Nueva Clase individual
   const addLessonToSchedule = useAppStore((s) => s.addLessonToSchedule);
@@ -1096,13 +1126,17 @@ export function AgendaBoard() {
                   <div className="pt-2 border-t text-center">
                     <button
                       onClick={() => {
-                        setSelectedDate(new Date(2026, 8, 21));
-                        setCurrentWeekIndex(getCurrentWeekIndex(2026, 8));
+                        const now = new Date();
+                        setSelectedDate(now);
+                        setCurrentWeekIndex(getCurrentWeekIndex(now.getFullYear(), now.getMonth()));
+                        setSelectedPairIndex(initialScheduleDayState.pairIdx);
+                        setSelectedDayIndex(initialScheduleDayState.dayIdx);
+                        setExcelSingleDayIndex(initialScheduleDayState.dayIdx);
                         setIsDatePickerOpen(false);
                       }}
                       className="text-xs font-bold text-primary hover:underline"
                     >
-                      Ir al mes actual (Setiembre 2026)
+                      Ir al mes actual ({MONTHS_NAME[new Date().getMonth()]} {new Date().getFullYear()})
                     </button>
                   </div>
                 </div>

@@ -30,6 +30,7 @@ import {
   Moon,
   FileSpreadsheet,
   Sparkles,
+  LogOut,
 } from "lucide-react";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { Button } from "@/components/ui/button";
@@ -98,11 +99,30 @@ function AdminLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const activeRole = useAppStore((s) => s.activeRole);
   const currentUser = useAppStore((s) => s.currentUser);
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const logout = useAppStore((s) => s.logout);
   const adminStudents = useAppStore((s) => s.adminStudents);
   const invoices = useAppStore((s) => s.invoices);
   const chimeSettings = useAppStore((s) => s.chimeSettings);
   const playOfficialChime = useAppStore((s) => s.playOfficialChime);
   const lastChimedMinuteRef = useRef<string>("");
+
+  // Redirección reactiva infalible al cerrar sesión o invalidar credenciales (ADR-0127)
+  useEffect(() => {
+    if (!isAuthenticated && typeof window !== "undefined") {
+      window.location.href = "/";
+    }
+  }, [isAuthenticated]);
+
+  const handleLogout = () => {
+    logout();
+    try {
+      sessionStorage.clear();
+    } catch {}
+    if (typeof window !== "undefined") {
+      window.location.href = "/";
+    }
+  };
 
   // Estado y Toggle Global de Modo Noche / Modo Día
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
@@ -316,12 +336,27 @@ function AdminLayout() {
         </nav>
 
         {!isCollapsed ? (
-          <div className="border-t border-sidebar-border p-3.5 text-[11px] text-sidebar-foreground/60">
-            Sede SJL (Las Flores) · {activeRole === "staff" ? (currentUser?.name || "Staff") : "Super Admin"}
+          <div className="border-t border-sidebar-border p-3 space-y-2">
+            <div className="text-[11px] text-sidebar-foreground/60 truncate">
+              Sede SJL (Las Flores) · {activeRole === "staff" ? (currentUser?.name || "Staff") : "Super Admin"}
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              <span>Cerrar Sesión</span>
+            </button>
           </div>
         ) : (
-          <div className="border-t border-sidebar-border py-3 flex justify-center text-[10px] font-bold text-primary">
-            VM
+          <div className="border-t border-sidebar-border py-3 flex flex-col items-center gap-2">
+            <button
+              onClick={handleLogout}
+              className="h-8 w-8 flex items-center justify-center rounded-xl text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
+              title="Cerrar Sesión"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         )}
       </aside>
@@ -398,10 +433,12 @@ function AdminLayout() {
           </button>
 
           <button
-            onClick={() => useAppStore.getState().logout()}
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+            onClick={handleLogout}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 sm:px-3 py-1 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shadow-2xs"
+            title="Cerrar Sesión"
           >
-            Cerrar Sesión
+            <LogOut className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Cerrar Sesión</span>
           </button>
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-primary/15 text-xs font-bold text-primary">

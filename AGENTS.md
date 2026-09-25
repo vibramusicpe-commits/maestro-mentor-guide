@@ -575,4 +575,23 @@ inferencia.
    - Ambas cabeceras docentes (`teacher.index.tsx` y `teacher.agenda.tsx`) exponen una píldora visual en vivo (`🟢 En vivo · Sincronizado hace Xs`) conectada a `lastSyncTime` y el botón táctil `🔄`.
    - Si un profesor no tiene clases el día seleccionado (ej. Jeremy los viernes), el estado vacío muestra de inmediato atajos directos a los días en que sí dicta (ej. `Mar (3)`, `Jue (4)`), evitando falsas alarmas de horario perdido durante auditorías.
 5. **Paridad Total en Métodos de Eliminación de Clases**:
-   - Tanto `removeLessonFromSchedule` como `deleteLessonFromSchedule` actualizan de forma atómica el horario local, las `scheduleLessons` del alumno y disparan la sincronización persistente hacia PostgreSQL con `backgroundSyncStudentToDB`.
+   - Tanto `removeLessonFromSchedule` como `deleteLessonFromSchedule` actualizan de forma atómica el horario local, las `scheduleLessons` del alumno y disparan la sincronización persistente hacia PostgreSQL con `backgroundSyncStudentToDB`.
+
+---
+
+### 27. Navegación Determinista a Días Pareados y Cierre de Sesión Resiliente (ADR-0127)
+1. **Inicialización Determinista sin Bloqueo Manual en Horario (`agenda-board.tsx`)**:
+   - Al iniciar la jornada y abrir el sistema, `AgendaBoard` calcula el par y día por defecto evaluando `new Date().getDay()`:
+     - **Viernes (5) / Sábado (6)**: `selectedPairIndex = 2` ("Viernes y Sábado"), `selectedDayIndex = 4` (Vie) / `5` (Sáb).
+     - **Martes (2) / Jueves (4)**: `selectedPairIndex = 1` ("Martes y Jueves"), `selectedDayIndex = 1` (Mar) / `3` (Jue).
+     - **Lunes (1) / Miércoles (3)**: `selectedPairIndex = 0` ("Lunes y Miércoles"), `selectedDayIndex = 0` (Lun) / `2` (Mié).
+     - **Domingo (0)**: `selectedPairIndex = 0`, `selectedDayIndex = 0`.
+   - **Prohibición de `useEffect` Restrictivos**: Queda **TERMINANTEMENTE PROHIBIDO** colocar un `useEffect` que sobreescriba o fuerce estos índices ante re-renders. Los selectores se inicializan exclusivamente mediante callbacks lazy de `useState(() => ...)`. El usuario debe poder alternar libremente y de forma manual entre días, pares y las 3 vistas (**📊 Vista Didáctica**, **📱 Vista por Día** y **🗓️ Rejilla Semanal**) sin experimentar bloqueos o regresiones forzadas.
+   - **Sincronización del Botón de Reinicio**: El botón de "Ir al mes actual" reinicializa fecha, semana, par y día con los valores de la fecha en curso.
+2. **Cierre de Sesión Infalible y Redirección Dura (`admin.tsx`, `role-switcher.tsx`)**:
+   - Está **TERMINANTEMENTE PROHIBIDO** invocar `logout()` sin acompañarlo de una redirección forzada a `window.location.href = "/"`.
+   - TanStack Router no re-evalúa `Route.beforeLoad` mientras el usuario permanece en la misma ruta. Todo layout autenticado (`AdminLayout`, `TeacherLayout`, `FamilyLayout`) debe incorporar un guardián reactivo `useEffect(() => { if (!isAuthenticated) window.location.href = "/"; }, [isAuthenticated])`.
+   - `handleLogout` debe limpiar `sessionStorage` para no arrastrar estados de auditoría docente (`vibra_audit_teacher`), ejecutar `logout()` y redirigir inmediatamente a `/`.
+3. **Accesibilidad Universal y Responsive del Botón de Salida**:
+   - El botón de cierre de sesión en `admin.tsx` debe ser accesible en **todas las resoluciones de pantalla**, mostrando el ícono `LogOut` en dispositivos móviles (`< 640px`) y texto completo en pantallas de escritorio.
+   - En la barra lateral (`<aside>`), el pie debe contar con un botón dedicado de "Cerrar Sesión" tanto en modo expandido como colapsado y en el drawer de móviles.

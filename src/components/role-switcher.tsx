@@ -45,8 +45,17 @@ export function RoleSwitcher({ className = "" }: { className?: string }) {
         );
       })}
       <button
-        onClick={() => logout()}
-        className="ml-1 text-[11px] font-semibold text-destructive hover:bg-destructive/10 px-2 py-1 rounded-full transition-colors"
+        onClick={() => {
+          logout();
+          try {
+            sessionStorage.clear();
+          } catch {}
+          if (typeof window !== "undefined") {
+            window.location.href = "/";
+          }
+        }}
+        className="ml-1 text-[11px] font-semibold text-destructive hover:bg-destructive/10 px-2 py-1 rounded-full transition-colors cursor-pointer"
+        title="Cerrar sesión y volver al inicio"
       >
         Salir
       </button>

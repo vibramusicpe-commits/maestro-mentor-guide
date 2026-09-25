@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, Link, redirect } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Cloud, CloudOff, ClipboardList, Users2, Wallet, CalendarDays } from "lucide-react";
+import { Cloud, CloudOff, ClipboardList, Users2, Wallet, CalendarDays, LogOut } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { RoleSwitcher } from "@/components/role-switcher";
@@ -49,6 +49,15 @@ function TeacherLayout() {
   const activeRole = useAppStore((s) => s.activeRole);
   const setActiveRole = useAppStore((s) => s.setActiveRole);
   const currentUser = useAppStore((s) => s.currentUser);
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const logout = useAppStore((s) => s.logout);
+
+  // Redirección reactiva infalible al cerrar sesión (ADR-0127)
+  useEffect(() => {
+    if (!isAuthenticated && typeof window !== "undefined") {
+      window.location.href = "/";
+    }
+  }, [isAuthenticated]);
 
   // Sincronizar alumnos en vivo desde PostgreSQL para que el portal docente refleje datos limpios
   useInsforgeSync();
@@ -67,6 +76,17 @@ function TeacherLayout() {
             <p className="truncate text-sm font-semibold">{currentUser?.name ?? "Profesor/a Vibra"}</p>
             <p className="truncate text-xs text-muted-foreground">Sede SJL (Las Flores) · Hoy</p>
           </div>
+          <button
+            onClick={() => {
+              logout();
+              try { sessionStorage.clear(); } catch {}
+              if (typeof window !== "undefined") window.location.href = "/";
+            }}
+            className="p-1.5 rounded-full border border-border bg-card/60 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+            title="Cerrar Sesión"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
           <span
             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
               syncing ? "bg-warning/15 text-warning" : "bg-success/15 text-success"

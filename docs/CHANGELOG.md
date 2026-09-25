@@ -4,6 +4,24 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.12] - 2026-09-25
+
+### Navegación Automática a Días Pareados y Cierre de Sesión Resiliente (ADR-0127)
+- **Navegación Determinista al Abrir Webapp (`agenda-board.tsx`)**:
+  - Detección automática del día actual con `new Date().getDay()` para inicializar el par de días y día correspondiente:
+    - Viernes (5) / Sábado (6) $\rightarrow$ Par `2` ("Viernes y Sábado"), día `4` (Vie) / `5` (Sáb).
+    - Martes (2) / Jueves (4) $\rightarrow$ Par `1` ("Martes y Jueves"), día `1` (Mar) / `3` (Jue).
+    - Lunes (1) / Miércoles (3) $\rightarrow$ Par `0` ("Lunes y Miércoles"), día `0` (Lun) / `2` (Mié).
+    - Domingo (0) $\rightarrow$ Par `0`, día `0`.
+  - Inicialización exclusiva vía `useState(() => ...)` sin efectos restrictivos colaterales, permitiendo el cambio manual completamente desbloqueado en las 3 vistas (**📊 Vista Didáctica**, **📱 Vista por Día** y **🗓️ Rejilla Semanal**).
+  - Sincronización del botón "Ir al mes actual" para restablecer fecha, semana y par de hoy.
+- **Cierre de Sesión Infalible y Multi-Dispositivo (`admin.tsx`, `role-switcher.tsx`)**:
+  - Implementación de `handleLogout` que limpia `sessionStorage`, ejecuta `logout()` y fuerza la redirección instantánea a `window.location.href = "/"`.
+  - Guardián reactivo `useEffect` en `AdminLayout`, `TeacherLayout` y `FamilyLayout` para redirigir automáticamente si `isAuthenticated` se anula.
+  - Botón de cierre de sesión con ícono `LogOut` visible en la cabecera tanto en pantallas móviles como de escritorio.
+  - Botón dedicado de salida en el pie de la barra lateral (`<aside>`) tanto en modo colapsado como expandido y en el menú drawer de teléfonos.
+  - Corrección del botón "Salir" en `RoleSwitcher` para garantizar la salida limpia al login.
+
 ## [2.0.11] - 2026-09-25
 
 ### Sincronización en Tiempo Real Docente, Cola en Vuelo y Persistencia de Auditoría (ADR-0126)

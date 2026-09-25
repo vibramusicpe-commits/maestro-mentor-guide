@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, Link, redirect } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Music4, Ticket } from "lucide-react";
+import { Music4, Ticket, LogOut } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { RoleSwitcher } from "@/components/role-switcher";
 
@@ -43,6 +43,15 @@ export const Route = createFileRoute("/family")({
 function FamilyLayout() {
   const credits = useAppStore((s) => s.kids.reduce((a, k) => a + k.makeupCredits, 0));
   const setActiveRole = useAppStore((s) => s.setActiveRole);
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const logout = useAppStore((s) => s.logout);
+
+  // Redirección reactiva infalible al cerrar sesión (ADR-0127)
+  useEffect(() => {
+    if (!isAuthenticated && typeof window !== "undefined") {
+      window.location.href = "/";
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     setActiveRole("family");
@@ -61,6 +70,17 @@ function FamilyLayout() {
             </span>
           </Link>
           <div className="flex-1" />
+          <button
+            onClick={() => {
+              logout();
+              try { sessionStorage.clear(); } catch {}
+              if (typeof window !== "undefined") window.location.href = "/";
+            }}
+            className="p-1.5 rounded-full border border-border bg-card/60 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+            title="Cerrar Sesión"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-info/15 px-2.5 py-1 text-[11px] font-semibold text-info">
             <Ticket className="h-3.5 w-3.5" />
             {credits} créditos de recuperación
