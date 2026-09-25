@@ -557,4 +557,22 @@ inferencia.
 3. **Aislamiento Estricto por ID en Mutaciones de Estado y Ficha**:
    - En `updateStudentDetails` y `setStudentStatus`, si se encuentra coincidencia exacta por ID (`isSameStudentId`), se actualiza únicamente ese registro específico. El fallback por coincidencia de nombre solo opera si no existe ningún registro coincidente por ID (migración de semillas heredadas), impidiendo mutaciones en cascada sobre homónimos.
 4. **Modal de Eliminación Múltiple Detallado**:
-   - El diálogo de confirmación de eliminación múltiple (`deleteModalOpen`) muestra un listado interactivo con el nombre, ID truncado, familia, profesor e instrumento de cada alumno seleccionado, permitiendo remover individualmente a cualquier alumno (`✕`) de la cola de eliminación antes de confirmar.
+   - El diálogo de confirmación de eliminación múltiple (`deleteModalOpen`) muestra un listado interactivo con el nombre, ID truncado, familia, profesor e instrumento de cada alumno seleccionado, permitiendo remover individualmente a cualquier alumno (`✕`) de la cola de eliminación antes de confirmar.
+
+---
+
+### 26. Sincronización en Tiempo Real Docente, Cola de Peticiones en Vuelo y Persistencia de Auditoría (ADR-0126)
+1. **Cola de Revalidación en Vuelo (`queuedSyncRef`) en `useInsforgeSync`**:
+   - Está **TERMINANTEMENTE PROHIBIDO** descartar silenciosamente señales de `BroadcastChannel`, `StorageEvent` o recarga forzada cuando una petición HTTP a PostgreSQL ya se encuentra en curso (`inFlightRef.current === true`).
+   - El hook encola la solicitud entrante mediante `queuedSyncRef.current = true` y la ejecuta de inmediato en el bloque `finally` con retardo de 80 ms, impidiendo que las vistas docentes queden congeladas con snapshots antiguos tras guardados en administración.
+2. **Emisión Atómica Exclusivamente Post-Escritura en PostgreSQL**:
+   - Está **TERMINANTEMENTE PROHIBIDO** emitir señales de sincronización inter-pestañas (`triggerDataSyncBroadcast`) de forma anticipada antes o durante timers de debounce (`setTimeout`), ya que provocan que los clientes remotos lean datos obsoletos antes de la escritura física.
+   - En `backgroundSyncStudentToDB` y `performSyncStudentToDB`, la señal `triggerDataSyncBroadcast("student-sync")` se emite **únicamente dentro del `.then` confirmatorio** de `updateStudent(...)` en PostgreSQL.
+3. **Persistencia de Sesión para Auditoría Docente (`sessionStorage`)**:
+   - El selector de profesor para auditoría (`adminSelectedTeacher`) se almacena en `sessionStorage` (`vibra_audit_teacher`).
+   - Al alternar entre el Kiosco Docente (`/teacher`) y la Agenda Semanal (`/teacher/agenda`), se preserva de forma continua el docente inspeccionado (Jeremy, Nathaly o Fernando) sin resetear a Fernando.
+4. **Indicador Visual de Estado en Vivo y Atajos en Días Vacíos**:
+   - Ambas cabeceras docentes (`teacher.index.tsx` y `teacher.agenda.tsx`) exponen una píldora visual en vivo (`🟢 En vivo · Sincronizado hace Xs`) conectada a `lastSyncTime` y el botón táctil `🔄`.
+   - Si un profesor no tiene clases el día seleccionado (ej. Jeremy los viernes), el estado vacío muestra de inmediato atajos directos a los días en que sí dicta (ej. `Mar (3)`, `Jue (4)`), evitando falsas alarmas de horario perdido durante auditorías.
+5. **Paridad Total en Métodos de Eliminación de Clases**:
+   - Tanto `removeLessonFromSchedule` como `deleteLessonFromSchedule` actualizan de forma atómica el horario local, las `scheduleLessons` del alumno y disparan la sincronización persistente hacia PostgreSQL con `backgroundSyncStudentToDB`.

@@ -235,9 +235,31 @@ export function MinimalAgendaCalendar({
             className="space-y-2.5"
           >
             {currentDayLessons.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-xs space-y-1">
-                <p className="text-sm font-bold text-foreground">Sin clases programadas para este día</p>
+              <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-xs space-y-2">
+                <p className="text-sm font-bold text-foreground">Sin clases programadas para el {selectedDayName}</p>
                 <p className="text-xs text-muted-foreground">Disfruta tu día libre o coordina con Secretaría para agregar alumnos.</p>
+                {DAYS_OF_WEEK.some((d) => (lessonsByDay.get(d.short) || []).length > 0) && (
+                  <div className="pt-2 flex flex-col items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Ver días con clases esta semana:</span>
+                    <div className="flex flex-wrap items-center justify-center gap-1.5">
+                      {DAYS_OF_WEEK
+                        .filter((d) => (lessonsByDay.get(d.short) || []).length > 0)
+                        .map((d) => {
+                          const count = (lessonsByDay.get(d.short) || []).length;
+                          const actualIdx = DAYS_OF_WEEK.findIndex((x) => x.short === d.short);
+                          return (
+                            <button
+                              key={d.short}
+                              onClick={() => setSelectedDayIndex(actualIdx)}
+                              className="px-2.5 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold transition-all shadow-2xs"
+                            >
+                              {d.full} ({count})
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               currentDayLessons.map((lesson) => {

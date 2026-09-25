@@ -65,7 +65,7 @@ export function TeacherKiosk() {
   const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
   const markLessonAttendance = useAppStore((s) => s.markLessonAttendance);
-  const { isSyncing, syncNow } = useInsforgeSync();
+  const { isSyncing, syncNow, lastSyncTime } = useInsforgeSync();
 
   // Determinar día actual por defecto
   const todayDayShort = useMemo<WeekDay>(() => {
@@ -84,7 +84,19 @@ export function TeacherKiosk() {
   const targetDayInfo = currentWeekObj?.days.find((d) => d.dayKey === selectedDay);
   const targetDateStr = targetDayInfo?.dateStr;
 
-  const [adminSelectedTeacher, setAdminSelectedTeacher] = useState<string | null>(null);
+  const [adminSelectedTeacher, setAdminSelectedTeacher] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("vibra_audit_teacher");
+    }
+    return null;
+  });
+
+  const handleSelectTeacher = (t: string) => {
+    setAdminSelectedTeacher(t);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("vibra_audit_teacher", t);
+    }
+  };
 
   // Extraer el nombre del profesor logueado de forma inteligente (por email o nombre)
   const teacherClean = useMemo(() => {
@@ -195,12 +207,12 @@ export function TeacherKiosk() {
       <IntegratedTeacherKioskHeader totalDayStudents={dayLessons.length} />
 
       {/* 👨‍🏫 SELECTOR DE PROFESOR (Auditoría y Soporte) + Botón de Sincronización en Vivo */}
-      <div className="flex items-center gap-2">
-        <div className="flex flex-1 items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-1 min-w-[240px] items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
           {["Fernando", "Nathaly", "Jeremy"].map((t) => (
             <button
               key={t}
-              onClick={() => setAdminSelectedTeacher(t)}
+              onClick={() => handleSelectTeacher(t)}
               className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
                 teacherDisplayName === t
                   ? "bg-primary text-primary-foreground shadow-xs"
@@ -212,17 +224,27 @@ export function TeacherKiosk() {
           ))}
         </div>
 
-        <button
-          onClick={async () => {
-            await syncNow();
-            toast.success("Kiosco sincronizado con la base de datos central");
-          }}
-          disabled={isSyncing}
-          title="Actualizar datos en tiempo real con PostgreSQL"
-          className="flex items-center justify-center p-2.5 rounded-2xl bg-card border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-all shadow-xs disabled:opacity-50"
-        >
-          <RotateCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : ""}`} />
-        </button>
+        {/* 🟢 Indicador en vivo + Botón Sincronizar */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-card border border-border shadow-xs text-[11px] font-bold text-muted-foreground">
+          <span className="relative flex h-2 w-2">
+            <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${isSyncing ? "bg-amber-400 animate-ping" : "bg-emerald-400 animate-ping"}`}></span>
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${isSyncing ? "bg-amber-500" : "bg-emerald-500"}`}></span>
+          </span>
+          <span className="hidden sm:inline">
+            {isSyncing ? "Sincronizando..." : lastSyncTime ? `En vivo · ${new Date(lastSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : "En vivo"}
+          </span>
+          <button
+            onClick={async () => {
+              await syncNow();
+              toast.success("Kiosco sincronizado con la base de datos central");
+            }}
+            disabled={isSyncing}
+            title="Actualizar datos en tiempo real con PostgreSQL"
+            className="ml-1 text-muted-foreground hover:text-primary transition-all disabled:opacity-50"
+          >
+            <RotateCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin text-primary" : ""}`} />
+          </button>
+        </div>
       </div>
 
       {/* 🗓️ SELECTOR DE DÍAS EN TABS MÓVILES (LUN..SÁB) */}
@@ -274,14 +296,32 @@ export function TeacherKiosk() {
       {/* 📋 LISTA CRONOLÓGICA DE BLOQUES HORARIOS */}
       <div className="space-y-3">
         {groupedTimeSlots.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-xs space-y-1.5">
+          <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-xs space-y-2">
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mx-auto text-xl">
               🏖️
             </div>
             <p className="text-sm font-bold text-foreground">Sin clases programadas para el {selectedDayFull}</p>
             <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              No tienes alumnos asignados este día en la sede. Puedes cambiar de día arriba para ver el resto de tu semana.
+              {teacherDisplayName} no tiene alumnos asignados los {selectedDayFull}s en sala.
             </p>
+            {Array.from(countsByDay.entries()).some(([_, c]) => c > 0) && (
+              <div className="pt-2 flex flex-col items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-muted-foreground">Ver días con clases activas:</span>
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                  {Array.from(countsByDay.entries())
+                    .filter(([_, c]) => c > 0)
+                    .map(([dayShort, c]) => (
+                      <button
+                        key={dayShort}
+                        onClick={() => setSelectedDay(dayShort)}
+                        className="px-2.5 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold transition-all shadow-2xs"
+                      >
+                        {dayShort} ({c} {c === 1 ? "alumno" : "alumnos"})
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-3">

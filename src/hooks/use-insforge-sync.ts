@@ -15,13 +15,21 @@ export function useInsforgeSync() {
   const activeRole = useAppStore((s) => s.activeRole);
   const hydrateFromBackend = useAppStore((s) => s.hydrateFromBackend);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const inFlightRef = useRef(false);
+  const queuedSyncRef = useRef(false);
   const lastSyncTimestampRef = useRef(0);
 
   const syncBackendData = useCallback(async (forced = false) => {
+    // 🛡️ REGLA: Si ya hay una petición en vuelo, encolar una revalidación automática
+    // para que jamás se descarte una señal de mutación en tiempo real (ADR-0126)
+    if (inFlightRef.current) {
+      queuedSyncRef.current = true;
+      return;
+    }
+
     // Throttling: Evitar peticiones concurrentes o con menos de 2 segundos de separación salvo forzado
     const now = Date.now();
-    if (inFlightRef.current) return;
     if (!forced && now - lastSyncTimestampRef.current < 2000) return;
 
     inFlightRef.current = true;
@@ -63,7 +71,9 @@ export function useInsforgeSync() {
             invoices: mappedInvoices,
             attendanceLogs: dbAttendance,
           });
-          lastSyncTimestampRef.current = Date.now();
+          const syncDoneAt = Date.now();
+          lastSyncTimestampRef.current = syncDoneAt;
+          setLastSyncTime(syncDoneAt);
           console.log("[Insforge Sync] Sincronización en tiempo real exitosa:", {
             role: activeRole,
             students: mappedStudents?.length || 0,
@@ -78,6 +88,13 @@ export function useInsforgeSync() {
     } finally {
       inFlightRef.current = false;
       setIsSyncing(false);
+      // 🛡️ REGLA: Si llegaron eventos mientras se procesaba la petición anterior, ejecutar inmediatamente la sincronización encolada
+      if (queuedSyncRef.current) {
+        queuedSyncRef.current = false;
+        setTimeout(() => {
+          syncBackendData(true);
+        }, 80);
+      }
     }
   }, [activeRole, hydrateFromBackend]);
 
@@ -157,5 +174,6 @@ export function useInsforgeSync() {
   return {
     syncNow: () => syncBackendData(true),
     isSyncing,
+    lastSyncTime,
   };
 }

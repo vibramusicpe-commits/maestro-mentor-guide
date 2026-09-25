@@ -4,6 +4,34 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.11] - 2026-09-25
+
+### Sincronización en Tiempo Real Docente, Cola en Vuelo y Persistencia de Auditoría (ADR-0126)
+- **Eliminación de Condición de Carrera en `BroadcastChannel` y `Debounce`**:
+  - Eliminación de la emisión anticipada `triggerDataSyncBroadcast("student-mutation")` a $t = 0\text{ ms}$ en `backgroundSyncStudentToDB`.
+  - `triggerDataSyncBroadcast("student-sync")` se emite estrictamente tras la resolución exitosa de `updateStudent(...)` en PostgreSQL.
+- **Cola de Revalidación en Vuelo (`queuedSyncRef`) en `useInsforgeSync`**:
+  - Si llega una señal de sincronización mientras una petición HTTP a PostgreSQL ya está en curso, se encola la solicitud y se ejecuta de inmediato en el bloque `finally` con retardo de 80 ms, impidiendo la pérdida de eventos entre pestañas.
+- **Persistencia de Selección de Auditoría Docente (`sessionStorage`)**:
+  - `adminSelectedTeacher` se guarda y recupera de `sessionStorage` (`vibra_audit_teacher`), manteniendo la selección de Jeremy, Nathaly o Fernando al alternar entre Kiosco (`/teacher`) y Agenda (`/teacher/agenda`).
+- **Indicador Visual de Sincronización en Vivo y Atajos en Días Vacíos**:
+  - Incorporación de píldora visual en cabecera docente: `🟢 En vivo · Sincronizado hace Xs` con pulsación activa y botón de refresco `🔄`.
+  - En Kiosco y Agenda, las tarjetas de día vacío ahora muestran atajos interactivos hacia los días en que el docente sí tiene clases programadas (ej. Martes o Jueves para Prof. Jeremy).
+- **Paridad en Métodos de Eliminación de Clases**:
+  - `removeLessonFromSchedule` actualiza tanto el store en memoria como `emergency_contact.scheduleLessons` en PostgreSQL vía `backgroundSyncStudentToDB`.
+
+## [2.0.10] - 2026-09-24
+
+### Aislamiento Estricto en Eliminación por Checkbox y Detección Reactiva de Duplicados (ADR-0125)
+- **Aislamiento Estricto por ID en Eliminación por Lotes**:
+  - `deleteMultipleStudents`: eliminación circunscrita al conjunto exacto de IDs seleccionados (`isSameStudentId`), preservando el homónimo activo original si se elimina un duplicado.
+  - El horario semanal solo remueve clases si el alumno no cuenta con otro perfil activo con el mismo nombre.
+- **Detección Reactiva de Homónimos en Registro (`AddNewStudentDialog`)**:
+  - Banner de advertencia visual en vivo al detectar coincidencia difusa con un alumno ya matriculado (`isMatchingStudentName`).
+  - Alerta confirmatoria con `confirm()` antes de crear el registro duplicado.
+- **Diálogo Detallado de Confirmación de Borrado**:
+  - Desglose ítem por ítem con nombre del alumno, estado (`🟢 Activo`, `⚪ Baja`) y motivo de baja individual.
+
 ## [2.0.9] - 2026-09-23
 
 ### Matrícula Demo Nivelación, Erradicación de Asistencia Fantasma y Control en Agenda (ADR-0122)

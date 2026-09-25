@@ -20,11 +20,23 @@ export const Route = createFileRoute("/teacher/agenda")({
 });
 
 function TeacherAgendaPage() {
-  const { syncNow, isSyncing } = useInsforgeSync();
+  const { syncNow, isSyncing, lastSyncTime } = useInsforgeSync();
   const schedule = useAppStore((s) => s.schedule);
   const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
-  const [adminSelectedTeacher, setAdminSelectedTeacher] = useState<string | null>(null);
+  const [adminSelectedTeacher, setAdminSelectedTeacher] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("vibra_audit_teacher");
+    }
+    return null;
+  });
+
+  const handleSelectTeacher = (t: string) => {
+    setAdminSelectedTeacher(t);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("vibra_audit_teacher", t);
+    }
+  };
 
   // Extraer nombre del profesor logueado de forma inteligente (por email o nombre)
   const teacherClean = useMemo(() => {
@@ -79,12 +91,12 @@ function TeacherAgendaPage() {
   return (
     <div className="space-y-4">
       {/* Selector de Profesor para Auditoría + Botón de Sincronización en Vivo */}
-      <div className="flex items-center gap-2">
-        <div className="flex flex-1 items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-1 min-w-[240px] items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
           {["Fernando", "Nathaly", "Jeremy"].map((t) => (
             <button
               key={t}
-              onClick={() => setAdminSelectedTeacher(t)}
+              onClick={() => handleSelectTeacher(t)}
               className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
                 teacherDisplayName === t
                   ? "bg-primary text-primary-foreground shadow-xs"
@@ -96,14 +108,24 @@ function TeacherAgendaPage() {
           ))}
         </div>
 
-        <button
-          onClick={() => syncNow()}
-          disabled={isSyncing}
-          title="Actualizar horario en tiempo real con la base de datos"
-          className="flex items-center justify-center p-2.5 rounded-2xl bg-card border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-all shadow-xs disabled:opacity-50"
-        >
-          <RotateCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : ""}`} />
-        </button>
+        {/* 🟢 Indicador en vivo + Botón Sincronizar */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-card border border-border shadow-xs text-[11px] font-bold text-muted-foreground">
+          <span className="relative flex h-2 w-2">
+            <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${isSyncing ? "bg-amber-400 animate-ping" : "bg-emerald-400 animate-ping"}`}></span>
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${isSyncing ? "bg-amber-500" : "bg-emerald-500"}`}></span>
+          </span>
+          <span className="hidden sm:inline">
+            {isSyncing ? "Sincronizando..." : lastSyncTime ? `En vivo · ${new Date(lastSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : "En vivo"}
+          </span>
+          <button
+            onClick={() => syncNow()}
+            disabled={isSyncing}
+            title="Actualizar horario en tiempo real con PostgreSQL"
+            className="ml-1 text-muted-foreground hover:text-primary transition-all disabled:opacity-50"
+          >
+            <RotateCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin text-primary" : ""}`} />
+          </button>
+        </div>
       </div>
 
       <MinimalAgendaCalendar

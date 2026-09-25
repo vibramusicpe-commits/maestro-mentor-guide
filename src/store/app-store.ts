@@ -672,6 +672,8 @@ function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<
             }
           } else {
             console.log(`[Insforge Sync] Alumno ${resolvedStudentId} (${mergedStudent.name}) sincronizado en PostgreSQL`);
+            // 🛡️ REGLA (ADR-0126): Emitir broadcast ÚNICAMENTE cuando la persistencia en PostgreSQL haya finalizado
+            triggerDataSyncBroadcast("student-sync");
           }
         })
         .catch((err) => {
@@ -704,9 +706,6 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
   try {
     if (typeof window === "undefined") return;
 
-    // Emisión en tiempo real inter-pestañas (ADR-0117)
-    triggerDataSyncBroadcast("student-mutation");
-
     // Acumular actualizaciones en memoria mientras se escribe
     const currentPending = pendingStudentUpdates.get(studentId) || {};
     pendingStudentUpdates.set(studentId, { ...currentPending, ...updates });
@@ -721,14 +720,12 @@ function backgroundSyncStudentToDB(role: Role, studentId: string, updates: Parti
       const accumulatedUpdates = pendingStudentUpdates.get(studentId) || updates;
       pendingStudentUpdates.delete(studentId);
       performSyncStudentToDB(role, studentId, accumulatedUpdates);
-      triggerDataSyncBroadcast("student-sync");
     }, 350);
 
     syncDebounceTimers.set(studentId, timer);
   } catch {
     // Si falla el timer, ejecución síncrona de respaldo
     performSyncStudentToDB(role, studentId, updates);
-    triggerDataSyncBroadcast("student-sync");
   }
 }
 
@@ -1396,8 +1393,22 @@ export const useAppStore = create<AppState>()(
       removeLessonFromSchedule: (id) =>
         set((s) => {
           triggerDataSyncBroadcast("lesson-removed");
+          const removedLesson = s.schedule.find((l) => l.id === id);
+          const newSchedule = s.schedule.filter((l) => l.id !== id);
+          let updatedStudents = s.adminStudents;
+          if (removedLesson) {
+            const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, removedLesson.student));
+            if (targetSt) {
+              const updatedLessons = (targetSt.scheduleLessons || []).filter((l) => l.id !== id);
+              updatedStudents = s.adminStudents.map((st) =>
+                isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: updatedLessons } : st
+              );
+              backgroundSyncStudentToDB(s.activeRole, targetSt.id, { scheduleLessons: updatedLessons });
+            }
+          }
           return {
-            schedule: s.schedule.filter((l) => l.id !== id),
+            schedule: newSchedule,
+            adminStudents: updatedStudents,
             syncQueue: [...s.syncQueue, queueItem("Clase removida permanentemente del horario")],
           };
         }),
