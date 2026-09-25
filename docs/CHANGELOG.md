@@ -4,6 +4,16 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.13] - 2026-09-25
+
+### Sincronización Estricta entre Kiosco Docente y Agenda mediante Validación de Ciclo Contractual (ADR-0128)
+- **Unificación de Motor de Filtrado en Kiosco (`teacher.index.tsx`)**:
+  - `isLessonInDay` integra `isLessonInStudentCycle(studentProfile, lesson, dateStr, lesson.time, schedule)` y verificación de `excludedWeeks`, garantizando que Kiosco (`/teacher`) y Agenda (`/teacher/agenda`, `/admin/agenda`) apliquen exactamente las mismas reglas de cuota y fechas.
+  - Eliminación de clases "fantasma" pendientes en días donde la sesión ya fue reprogramada/adelantada a otra fecha (caso Mia Lucero Bellido Alvan, cuya clase del viernes 25 fue adelantada al jueves 24 y asistida con 🟢 PRESENTE).
+  - Eliminación de duplicidad de semillas obsoletas en Martes (Sasha Contreras `sch-34` a las 17:30 descartada en favor de la lección real a las 18:15).
+  - Reactividad de `countsByDay` y `dayLessons` ante mutaciones en `adminStudents` y `schedule`.
+  - Resolución de estado de asistencia en tarjetas de sesión evaluando prioritariamente `studentProfile.scheduleLessons` desde PostgreSQL.
+
 ## [2.0.12] - 2026-09-25
 
 ### Navegación Automática a Días Pareados y Cierre de Sesión Resiliente (ADR-0127)

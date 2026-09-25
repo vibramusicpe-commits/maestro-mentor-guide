@@ -594,4 +594,17 @@ inferencia.
    - `handleLogout` debe limpiar `sessionStorage` para no arrastrar estados de auditoría docente (`vibra_audit_teacher`), ejecutar `logout()` y redirigir inmediatamente a `/`.
 3. **Accesibilidad Universal y Responsive del Botón de Salida**:
    - El botón de cierre de sesión en `admin.tsx` debe ser accesible en **todas las resoluciones de pantalla**, mostrando el ícono `LogOut` en dispositivos móviles (`< 640px`) y texto completo en pantallas de escritorio.
-   - En la barra lateral (`<aside>`), el pie debe contar con un botón dedicado de "Cerrar Sesión" tanto en modo expandido como colapsado y en el drawer de móviles.
+   - En la barra lateral (`<aside>`), el pie debe contar con un botón dedicado de "Cerrar Sesión" tanto en modo expandido como colapsado y en el drawer de móviles.
+
+---
+
+### 28. Sincronización Estricta entre Kiosco Docente y Agenda mediante Validación de Ciclo Contractual (ADR-0128)
+1. **Unificación Innegociable del Motor de Filtrado en Kiosco (`teacher.index.tsx`)**:
+   - El Kiosco Docente (`/teacher`) y las Agendas (`/teacher/agenda`, `/admin/agenda`) deben compartir **el mismo motor determinista de ciclo contractual**.
+   - `isLessonInDay` en `teacher.index.tsx` **DEBE** invocar obligatoriamente `isLessonInStudentCycle(studentProfile, lesson, dateStr, lesson.time, schedule)` y verificar `excludedWeeks` además de `excludedDates`.
+2. **Erradicación de Clases "Fantasma" en Sesiones Reprogramadas o Adelantadas**:
+   - Si una clase puntual fue justificada y adelantada a otro día de la semana (ej. Mia Lucero Bellido Alvan, cuya clase del viernes 25 se adelantó al jueves 24 y fue asistida con `🟢 PRESENTE`), la sesión original **NO DEBE** figurar como pendiente en el Kiosco ni sumar al contador del día original.
+3. **Erradicación de Semillas Obsoletas Duplicadas**:
+   - Si un alumno activo cuenta con clases oficiales persistidas en `studentProfile.scheduleLessons`, cualquier semilla antigua residual (ej. Sasha Contreras `sch-34` a las 17:30) debe ser invalidada por `isLessonInStudentCycle`, asegurando que el Kiosco y la Agenda muestren exactamente la misma cantidad de clases (ej. 1 sola clase a las 18:15 en Martes).
+4. **Resolución de Asistencia Prioritaria desde Ficha Oficial**:
+   - Al renderizar el estado de asistencia (`status`) en la tarjeta del Kiosco, se debe consultar prioritariamente `studentProfile.scheduleLessons` para que cualquier marca guardada en Kardex o rehidratada de PostgreSQL se refleje instantáneamente sin depender de la rehidratación asíncrona de `schedule`.

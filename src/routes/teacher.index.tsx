@@ -18,6 +18,7 @@ import { LessonNotes } from "@/components/teacher/lesson-notes";
 import { useAppStore, type ScheduledLesson, type WeekDay, type AttendanceStatus } from "@/store/app-store";
 import { getCurrentWeekIndex, getMonthWeeks } from "@/lib/calendar-utils";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
+import { isLessonInStudentCycle } from "@/lib/student-cycle";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { toast } from "sonner";
 
@@ -149,18 +150,33 @@ export function TeacherKiosk() {
     });
   }, [schedule, adminStudents, teacherClean]);
 
-  // Función determinista para evaluar si una clase pertenece a un día y fecha específica (ADR-0105, ADR-0115)
+  // Función determinista para evaluar si una clase pertenece a un día y fecha específica (ADR-0105, ADR-0108, ADR-0128)
   const isLessonInDay = (lesson: ScheduledLesson, dayKey: WeekDay, dateStr?: string) => {
     if (lesson.day !== dayKey) return false;
+
+    // 1. Filtro estricto de fecha puntual o semana
     if (lesson.dateStr) {
-      return dateStr ? lesson.dateStr === dateStr : true;
+      if (dateStr && lesson.dateStr !== dateStr) return false;
+    } else {
+      if (lesson.weekIndex !== undefined && lesson.weekIndex !== safeWeekIndex) return false;
+      if (lesson.excludedWeeks?.includes(safeWeekIndex)) return false;
     }
+
+    // 2. Validación de exclusión por fecha puntual (reprogramaciones con fecha aislada)
     if (dateStr && lesson.excludedDates?.includes(dateStr)) {
       return false;
     }
-    if (lesson.weekIndex !== undefined && lesson.weekIndex !== safeWeekIndex) {
-      return false;
+
+    // 3. 🛡️ REGLA FUNDAMENTAL DE CUOTA Y VIGENCIA (ADR-0108 & ADR-0128):
+    // El Kiosco y la Agenda comparten el mismo motor determinista de ciclo contractual.
+    // Esto previene mostrar clases 'fantasma' en días donde la sesión ya fue reprogramada/adelantada.
+    if (dateStr) {
+      const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
+      if (studentProfile && !isLessonInStudentCycle(studentProfile, lesson, dateStr, lesson.time, schedule)) {
+        return false;
+      }
     }
+
     return true;
   };
 
@@ -173,14 +189,14 @@ export function TeacherKiosk() {
       map.set(d.short, count);
     });
     return map;
-  }, [teacherScheduleLessons, currentWeekObj, safeWeekIndex]);
+  }, [teacherScheduleLessons, currentWeekObj, safeWeekIndex, adminStudents, schedule]);
 
   // Clases del día seleccionado ORDENADAS CRONOLÓGICAMENTE
   const dayLessons = useMemo(() => {
     return teacherScheduleLessons
       .filter((l) => isLessonInDay(l, selectedDay, targetDateStr))
       .sort((a, b) => a.time.localeCompare(b.time));
-  }, [teacherScheduleLessons, selectedDay, targetDateStr, safeWeekIndex]);
+  }, [teacherScheduleLessons, selectedDay, targetDateStr, safeWeekIndex, adminStudents, schedule]);
 
   // Agrupadas por bloque horario (e.g. 16:00, 16:45, 17:30...)
   const groupedTimeSlots = useMemo(() => {
@@ -353,9 +369,19 @@ export function TeacherKiosk() {
                 {/* Lista de Alumnos en este Bloque Horario */}
                 <div className="space-y-2">
                   {slot.lessons.map((lesson) => {
+                    const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
+                    const profileLesson = studentProfile?.scheduleLessons?.find(
+                      (pl) =>
+                        pl.id === lesson.id ||
+                        (pl.day === lesson.day &&
+                         pl.time === lesson.time &&
+                         (pl.dateStr === lesson.dateStr || (!pl.dateStr && !lesson.dateStr)))
+                    );
+                    const effectiveAttendanceByDate = profileLesson?.attendanceByDate || lesson.attendanceByDate;
+
                     const status =
-                      (targetDateStr && lesson.attendanceByDate?.[targetDateStr])
-                        ? lesson.attendanceByDate[targetDateStr]!
+                      (targetDateStr && effectiveAttendanceByDate?.[targetDateStr])
+                        ? effectiveAttendanceByDate[targetDateStr]!
                         : (lesson.attendanceByWeek && lesson.attendanceByWeek[safeWeekIndex])
                           ? lesson.attendanceByWeek[safeWeekIndex]!
                           : (lesson.weekIndex !== undefined && lesson.attendanceStatus ? lesson.attendanceStatus : "pendiente");
