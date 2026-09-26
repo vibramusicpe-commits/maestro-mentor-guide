@@ -464,15 +464,12 @@ export function AgendaBoard() {
             return false;
           }
 
-          // Validación de vigencia limitada por transición (effectiveUntil / effectiveFrom) para sesiones no evaluadas
-          const isEvaluatedOnDate = lessonDayInfo && l.attendanceByDate?.[lessonDayInfo.dateStr] && l.attendanceByDate[lessonDayInfo.dateStr] !== "pendiente";
-          if (!isEvaluatedOnDate) {
-            if (lessonDayInfo && l.effectiveUntil && lessonDayInfo.dateStr > l.effectiveUntil) {
-              return false;
-            }
-            if (lessonDayInfo && l.effectiveFrom && lessonDayInfo.dateStr < l.effectiveFrom) {
-              return false;
-            }
+          // 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
+          if (lessonDayInfo && l.effectiveFrom && lessonDayInfo.dateStr < l.effectiveFrom) {
+            return false;
+          }
+          if (lessonDayInfo && l.effectiveUntil && lessonDayInfo.dateStr > l.effectiveUntil) {
+            return false;
           }
 
           // Validación de coincidencia de fecha puntual si la celda es de otro día

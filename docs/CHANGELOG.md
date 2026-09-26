@@ -4,6 +4,25 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.17] - 2026-09-26
+
+### Aislamiento de Vigencias de Transición, Deduplicación Estricta y Reversión Quirúrgica de Curso (ADR-0131)
+- **Barreras Temporales Absolutas (`effectiveFrom` y `effectiveUntil`)**:
+  - En `student-attendance-kardex.tsx`, `agenda-board.tsx`, `minimal-agenda-calendar.tsx` y `teacher.index.tsx`, se retiró el antipatrón `if (!isAlreadyEvaluated)` que envolvía los límites de transición.
+  - Las lecciones con `effectiveFrom: <fecha_corte>` se descartan de forma absoluta e incondicional en fechas anteriores a la fecha de corte, y las lecciones con `effectiveUntil: <fecha_corte - 1>` se descartan después de la fecha de corte.
+- **Blindaje contra Sangrado de Asistencias en Hidratación (`isLessonEligibleForDate`)**:
+  - En `hydrateFromBackend` (`app-store.ts`), se introdujo la guarda `isLessonEligibleForDate` tanto para `scheduleMap` como para `matchedStudent.scheduleLessons`.
+  - Los logs de `attendance_logs` ya no pueden inyectarse en lecciones fuera de su rango de vigencia (`effectiveFrom` / `effectiveUntil`), en fechas excluidas (`excludedDates`) o en lecciones de días de la semana distintos (`lesson.day !== logDayKey`).
+  - Esto resolvió la sobre-proyección en el Kardex de Sasha Contreras, devolviendo la cuota matemática exacta: exactamente 8 clases (5 históricas con Prof. Nathaly en Canto: 3 asistidas y 2 faltas + 3 pendientes con Prof. Jeremy en Guitarra; 2 créditos de falta preservados íntegramente).
+- **Deduplicación Resiliente de Períodos de Transición**:
+  - En `studentLessons` (`student-attendance-kardex.tsx`), se garantiza que clases con vigencias de transición distintas (`effectiveUntil !== l.effectiveUntil` o `effectiveFrom !== l.effectiveFrom`) no se descarten como duplicadas entre sí.
+- **Acción y Botón de Reversión Quirúrgica (`revertStudentCourseTransition`)**:
+  - Incorporación de `revertStudentCourseTransition` en `app-store.ts`.
+  - Agregado el botón interactivo `[🔄 Deshacer Transición / Volver al Curso Anterior]` en el banner de estado activo del Kardex y en el cuerpo/pie de `CourseTransitionDialog`.
+  - Al revertir, se eliminan quirúrgicamente las lecciones nuevas creadas en la transición, se retira `effectiveUntil` de las clases del curso anterior, se restituye el instrumento, profesor y sala originales y se sincroniza con PostgreSQL sin alterar las asistencias históricas ni recibos.
+- **Identificación de Instrumento en Fila de Sesión del Kardex**:
+  - En la tabla de sesiones del Kardex, cada fila muestra explícitamente el instrumento junto a la hora, sala y docente (ej. `Canto • Sala C • Prof. Nathaly` vs `Guitarra • Sala A • Prof. Jeremy`).
+
 ## [2.0.16] - 2026-09-26
 
 ### Alineación Estricta con el Horario Oficial de Vibra Music y Erradicación de Horarios Inválidos (ADR-0130)

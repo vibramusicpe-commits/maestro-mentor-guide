@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   DoorOpen,
   UserCheck,
+  RotateCcw,
 } from "lucide-react";
 import {
   useAppStore,
@@ -61,6 +62,7 @@ export function CourseTransitionDialog({
   const adminStudents = useAppStore((s) => s.adminStudents);
   const schedule = useAppStore((s) => s.schedule);
   const transitionStudentCourse = useAppStore((s) => s.transitionStudentCourse);
+  const revertStudentCourseTransition = useAppStore((s) => s.revertStudentCourseTransition);
 
   const liveStudent = useMemo(() => {
     return (
@@ -86,6 +88,22 @@ export function CourseTransitionDialog({
         l.status !== "cancelada"
     );
   }, [liveStudent.scheduleLessons, liveStudent.name, schedule]);
+
+  // Detección de transición de curso activa
+  const hasActiveTransition = useMemo(() => {
+    return existingLessons.some((l) => Boolean(l.effectiveFrom) || Boolean(l.effectiveUntil));
+  }, [existingLessons]);
+
+  const activeTransitionDetails = useMemo(() => {
+    if (!hasActiveTransition) return null;
+    const oldLesson = existingLessons.find((l) => l.effectiveUntil);
+    const newLesson = existingLessons.find((l) => l.effectiveFrom);
+    return {
+      oldCourse: oldLesson ? `${oldLesson.instrument} (Prof. ${oldLesson.teacher})` : "Curso anterior",
+      newCourse: newLesson ? `${newLesson.instrument} (Prof. ${newLesson.teacher})` : "Nuevo curso",
+      effectiveFrom: newLesson?.effectiveFrom || oldLesson?.effectiveUntil || "",
+    };
+  }, [hasActiveTransition, existingLessons]);
 
   // Contar clases pasadas evaluadas
   const pastEvaluatedCount = useMemo(() => {
@@ -264,6 +282,15 @@ export function CourseTransitionDialog({
     onClose();
   };
 
+  // Reversión quirúrgica del cambio de curso (ADR-0131)
+  const handleRevert = () => {
+    revertStudentCourseTransition(liveStudent.id);
+    toast.success(`🔄 Transición revertida con éxito`, {
+      description: `${liveStudent.name} ha retornado a su curso anterior sin pérdida de asistencias ni pagos.`,
+    });
+    onClose();
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="w-[94vw] max-w-2xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 bg-card border-border shadow-2xl rounded-2xl">
@@ -304,6 +331,31 @@ export function CourseTransitionDialog({
               )}
             </div>
           </div>
+
+          {/* Banner de Transición Activa y Reversión */}
+          {hasActiveTransition && activeTransitionDetails && (
+            <div className="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+              <div className="space-y-1 min-w-0 flex-1">
+                <span className="font-black text-amber-800 dark:text-amber-200 flex items-center gap-1.5 text-xs">
+                  <RotateCcw className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  Transición de Curso Activa en el Historial
+                </span>
+                <p className="text-[11px] text-amber-900/90 dark:text-amber-100/90">
+                  El alumno pasó de <strong>{activeTransitionDetails.oldCourse}</strong> a <strong>{activeTransitionDetails.newCourse}</strong> con entrada en vigencia desde el <strong>{activeTransitionDetails.effectiveFrom}</strong>.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRevert}
+                className="text-xs font-bold text-red-600 border-red-500/40 hover:bg-red-500/15 gap-1.5 rounded-xl h-8 shrink-0 shadow-2xs"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Deshacer Transición / Volver al Curso Anterior</span>
+              </Button>
+            </div>
+          )}
 
           {/* 1. Selector de Nuevo Instrumento y Docente */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -539,9 +591,23 @@ export function CourseTransitionDialog({
         </div>
 
         <DialogFooter className="pt-2 border-t border-border/60 flex flex-wrap items-center justify-between gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} className="text-xs">
-            Cancelar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose} className="text-xs">
+              Cancelar
+            </Button>
+            {hasActiveTransition && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleRevert}
+                className="text-xs font-bold text-red-600 hover:bg-red-500/10 gap-1.5 rounded-xl"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Deshacer Transición</span>
+              </Button>
+            )}
+          </div>
           <Button
             size="sm"
             onClick={handleConfirm}

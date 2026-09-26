@@ -167,11 +167,10 @@ export function TeacherKiosk() {
       return false;
     }
 
-    // 2.1 Validación de límites por transición de curso para sesiones no evaluadas
-    const isEvaluated = dateStr && lesson.attendanceByDate?.[dateStr] && lesson.attendanceByDate[dateStr] !== "pendiente";
-    if (!isEvaluated && dateStr) {
-      if (lesson.effectiveUntil && dateStr > lesson.effectiveUntil) return false;
+    // 2.1 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
+    if (dateStr) {
       if (lesson.effectiveFrom && dateStr < lesson.effectiveFrom) return false;
+      if (lesson.effectiveUntil && dateStr > lesson.effectiveUntil) return false;
     }
 
     // 3. 🛡️ REGLA FUNDAMENTAL DE CUOTA Y VIGENCIA (ADR-0108 & ADR-0128):

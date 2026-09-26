@@ -642,4 +642,24 @@ inferencia.
    - **No existen clases los sábados en la tarde** ni horarios nocturnos que inicien después de las 19:00.
 2. **Prohibición de Arreglos Locales y Horarios Ficticios**:
    - Todo selector de horario en la plataforma (`CourseTransitionDialog`, `ScheduleStudentForm`, `VacancyAvailabilityPanel`, `StudentAttendanceKardex`) DEBE consumir obligatoriamente las constantes canónicas `timeSlotsWeekday` y `timeSlotsSaturday` de `@/store/admin-seeds`.
-   - Está **TERMINANTEMENTE PROHIBIDO** hardcodear listas locales con horarios fuera de rango (`17:40`, `18:25`, `19:45` como inicio, `20:30`, `21:15` o tardes de sábado de `14:15` a `18:00`) o etiquetas fijas personalizadas en elementos de selección general.
+   - Está **TERMINANTEMENTE PROHIBIDO** hardcodear listas locales con horarios fuera de rango (`17:40`, `18:25`, `19:45` como inicio, `20:30`, `21:15` o tardes de sábado de `14:15` a `18:00`) o etiquetas fijas personalizadas en elementos de selección general.
+
+---
+
+### 31. Aislamiento de Vigencias de Transición, Deduplicación Estricta y Reversión Quirúrgica de Curso (ADR-0131)
+1. **Barreras Temporales Absolutas (`effectiveFrom` y `effectiveUntil`)**:
+   - `effectiveFrom` y `effectiveUntil` son barreras temporales deterministas y absolutas. Una lección con `effectiveFrom: <fecha_corte>` **NO EXISTE** antes de dicha fecha. Del mismo modo, una lección con `effectiveUntil: <fecha_corte - 1>` **NO EXISTE** después de dicha fecha.
+   - Queda **TERMINANTEMENTE PROHIBIDO** condicionar estas barreras a si la sesión fue evaluada (`if (!isAlreadyEvaluated)`). Dicho antipatrón provocaba que marcas de asistencia previas proyectaran lecciones futuras en semanas pasadas, duplicando la cuota del contrato (ej. 9 clases en lugar de 8, y 5 asistidas / 4 faltas).
+2. **Blindaje de Rehidratación de Asistencias (`isLessonEligibleForDate`)**:
+   - Al hidratar asistencias históricas desde `attendance_logs` en `hydrateFromBackend` (`app-store.ts`), toda marca debe validar rigurosamente la elegibilidad de la lección antes de inyectar el estado en `attendanceByDate`:
+     1. Si `dateStr < lesson.effectiveFrom`, se descarta.
+     2. Si `dateStr > lesson.effectiveUntil`, se descarta.
+     3. Si `lesson.excludedDates.includes(dateStr)`, se descarta.
+     4. Si la lección es semanal recurrente (sin `dateStr`), el día de la semana (`lesson.day`) debe coincidir exactamente con el día de la fecha del log (`dateStr`).
+   - Esto erradica el sangrado (*cross-contamination bleeding*) de asistencias pasadas hacia lecciones de cursos nuevos o hacia días distintos de la semana.
+3. **Deduplicación Resiliente de Períodos de Transición**:
+   - En `studentLessons` (`student-attendance-kardex.tsx`), dos lecciones no se consideran duplicadas si sus vigencias de corte (`effectiveUntil` o `effectiveFrom`) son distintas, garantizando la coexistencia armónica de la lección previa con la lección posterior aun cuando compartan el mismo día y hora en salas o docentes distintos.
+4. **Capacidad de Reversión Quirúrgica de Transición (`revertStudentCourseTransition`)**:
+   - Se incorpora la acción `revertStudentCourseTransition(studentId)` en el store central (`app-store.ts`) y el botón interactivo:
+     👉 **`[🔄 Deshacer Transición / Volver al Curso Anterior]`** tanto en el banner de estado de `StudentAttendanceKardex` como en el pie y cuerpo de `CourseTransitionDialog`.
+   - La reversión elimina de forma quirúrgica las lecciones del nuevo curso (`effectiveFrom`), retira el candado `effectiveUntil` de las lecciones del curso anterior, restituye el instrumento, docente y sala originales del alumno y persiste los cambios en PostgreSQL mediante `backgroundSyncStudentToDB`, preservando el 100% de los logs de auditoría y asistencias históricas.

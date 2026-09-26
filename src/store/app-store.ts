@@ -173,6 +173,7 @@ type AppState = {
     newTime2?: string;
     hasTwoWeeklySessions: boolean;
   }) => void;
+  revertStudentCourseTransition: (studentId: string) => void;
   markLessonAttendance: (
     lessonId: string,
     status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente",
@@ -1080,6 +1081,36 @@ export const useAppStore = create<AppState>()(
 
           // 4. Rehidratar asistencias reales históricas desde attendance_logs en PostgreSQL
           if (data.attendanceLogs && data.attendanceLogs.length > 0) {
+            const normalizeDay = (d: string) =>
+              d
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .slice(0, 3);
+            const jsDays = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"];
+
+            const isLessonEligibleForDate = (lesson: ScheduledLesson, dStr: string) => {
+              // A. Barreras temporales de transición
+              if (lesson.effectiveFrom && dStr < lesson.effectiveFrom) return false;
+              if (lesson.effectiveUntil && dStr > lesson.effectiveUntil) return false;
+
+              // B. Fechas excluidas (reprogramada fuera de este día)
+              if (lesson.excludedDates && lesson.excludedDates.includes(dStr)) return false;
+
+              // C. Si la lección tiene fecha fija, debe coincidir exactamente
+              if (lesson.dateStr && lesson.dateStr !== dStr) return false;
+
+              // D. Si es lección semanal recurrente (sin dateStr), debe coincidir el día de la semana
+              if (!lesson.dateStr && lesson.day) {
+                const [ly, lm, ld] = dStr.split("-").map(Number);
+                const jsDay = new Date(ly, lm - 1, ld).getDay();
+                const logDayNorm = jsDays[jsDay];
+                if (logDayNorm && normalizeDay(lesson.day) !== logDayNorm) return false;
+              }
+
+              return true;
+            };
+
             const sortedAttendanceLogs = [...data.attendanceLogs].sort((a: any, b: any) =>
               (a.registered_at || "").localeCompare(b.registered_at || "")
             );
@@ -1118,6 +1149,9 @@ export const useAppStore = create<AppState>()(
                       // NO sobreescribir la lección makeup con el log genérico
                       if (!logLessonMatch && !logTimeMatch && lesson.isMakeup) return;
 
+                      // 🛡️ REGLA (ADR-0131): Blindar vigencias y día de semana para evitar sangrado de asistencias
+                      if (!isLessonEligibleForDate(lesson, dateStr)) return;
+
                       const prevByDate = { ...(lesson.attendanceByDate || {}) };
                       prevByDate[dateStr] = attStatus;
                       scheduleMap.set(lId, {
@@ -1132,6 +1166,9 @@ export const useAppStore = create<AppState>()(
                       if (logLessonMatch && logLessonMatch[1] !== l.id) return l;
                       if (logTimeMatch && logTimeMatch[1] !== l.time) return l;
                       if (!logLessonMatch && !logTimeMatch && l.isMakeup) return l;
+
+                      // 🛡️ REGLA (ADR-0131): Blindar vigencias y día de semana para evitar sangrado de asistencias
+                      if (!isLessonEligibleForDate(l, dateStr)) return l;
 
                       const prevByDate = { ...(l.attendanceByDate || {}) };
                       prevByDate[dateStr] = attStatus;
@@ -1694,6 +1731,79 @@ export const useAppStore = create<AppState>()(
               ...s.syncQueue,
               queueItem(
                 `Transición de curso: ${targetSt.name} a ${newInstrument} con Prof. ${newTeacher} desde ${effectiveDate}`
+              ),
+            ],
+          };
+        }),
+      revertStudentCourseTransition: (studentId: string) =>
+        set((s) => {
+          const targetSt = s.adminStudents.find(
+            (st) => isSameStudentId(st.id, studentId) || isMatchingStudentName(st.name, studentId)
+          );
+          if (!targetSt) return s;
+
+          const existingLessons =
+            Array.isArray(targetSt.scheduleLessons) && targetSt.scheduleLessons.length > 0
+              ? targetSt.scheduleLessons
+              : s.schedule.filter(
+                  (l) => isMatchingStudentName(l.student, targetSt.name) && l.status !== "cancelada"
+                );
+
+          // Identificar lecciones del curso anterior (las que NO tienen effectiveFrom)
+          // Y removerles la restricción effectiveUntil
+          const restoredPreviousLessons: ScheduledLesson[] = existingLessons
+            .filter((l) => !l.effectiveFrom)
+            .map((l) => {
+              const copy = { ...l };
+              delete copy.effectiveUntil;
+              return copy;
+            });
+
+          if (restoredPreviousLessons.length === 0) {
+            return s;
+          }
+
+          // Tomar instrumento, profesor y sala originales de la primera lección restaurada
+          const restoredInstrument = restoredPreviousLessons[0].instrument || targetSt.instrument;
+          const restoredTeacher = restoredPreviousLessons[0].teacher || targetSt.teacher;
+          const restoredRoom = restoredPreviousLessons[0].room || targetSt.room;
+
+          // Reemplazar lecciones del alumno en el horario global
+          const otherScheduleLessons = s.schedule.filter(
+            (l) => !isMatchingStudentName(l.student, targetSt.name)
+          );
+          const finalSchedule = [...otherScheduleLessons, ...restoredPreviousLessons];
+
+          // Actualizar ficha del alumno
+          const updatedStudents = s.adminStudents.map((st) =>
+            isSameStudentId(st.id, targetSt.id)
+              ? {
+                  ...st,
+                  instrument: restoredInstrument,
+                  teacher: restoredTeacher,
+                  room: restoredRoom,
+                  scheduleLessons: restoredPreviousLessons,
+                }
+              : st
+          );
+
+          // Sincronizar con PostgreSQL
+          backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
+            instrument: restoredInstrument,
+            teacher: restoredTeacher,
+            room: restoredRoom,
+            scheduleLessons: restoredPreviousLessons,
+          });
+
+          playSyntheticBellChime();
+
+          return {
+            adminStudents: updatedStudents,
+            schedule: finalSchedule,
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(
+                `Transición revertida: ${targetSt.name} retornó a ${restoredInstrument} con Prof. ${restoredTeacher}`
               ),
             ],
           };

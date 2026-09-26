@@ -234,6 +234,10 @@ export function StudentAttendanceKardex({
         if (ex.dateStr && l.dateStr && ex.dateStr === l.dateStr) {
           return ex.time === l.time;
         }
+        // Si tienen vigencias de transición distintas (ej. lección anterior hasta corte y lección nueva desde corte), NO son duplicados
+        if (ex.effectiveUntil !== l.effectiveUntil || ex.effectiveFrom !== l.effectiveFrom) {
+          return false;
+        }
         // Para lecciones recurrentes semanales abiertas (sin dateStr):
         return (
           ex.day === l.day &&
@@ -245,6 +249,11 @@ export function StudentAttendanceKardex({
     });
     return deduped;
   }, [schedule, liveStudent.name, liveStudent.scheduleLessons]);
+
+  // Detección de transición de curso activa en el historial del alumno
+  const hasActiveTransition = useMemo(() => {
+    return studentLessons.some((l) => Boolean(l.effectiveFrom) || Boolean(l.effectiveUntil));
+  }, [studentLessons]);
 
   // 🎯 Generador Exacto del Ciclo Contractual (8 clases Regular / 4 clases Intensivo)
   // Comienza estrictamente en planStartDate y abarca su cuota completa del contrato
@@ -292,15 +301,12 @@ export function StudentAttendanceKardex({
           return;
         }
 
-        // C.1. Si tiene vigencia limitada por transición (effectiveUntil / effectiveFrom) para sesiones no evaluadas
-        const isAlreadyEvaluated = lesson.attendanceByDate && lesson.attendanceByDate[curDateStr] && lesson.attendanceByDate[curDateStr] !== "pendiente";
-        if (!isAlreadyEvaluated) {
-          if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
-            return;
-          }
-          if (lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) {
-            return;
-          }
+        // C.1. 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
+        if (lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) {
+          return;
+        }
+        if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
+          return;
         }
 
         // D. Si tiene semana fija (weekIndex) y no dateStr, verificar semana dentro del mes de la fecha
@@ -989,6 +995,32 @@ export function StudentAttendanceKardex({
         </div>
       )}
 
+      {/* 🎸 Banner Informativo de Transición de Curso */}
+      {hasActiveTransition && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div className="space-y-0.5 min-w-0 flex-1">
+            <p className="text-xs font-black text-foreground flex items-center gap-1.5">
+              <Music className="h-4 w-4 text-amber-500 shrink-0" />
+              <span>🎸 Transición de Curso Activa</span>
+            </p>
+            <p className="text-[11px] text-muted-foreground font-medium">
+              El alumno cuenta con un cambio de instrumento/docente programado. Las clases anteriores se preservan con sus asistencias históricas y las nuevas rigen a partir de su fecha de corte.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsTransitionModalOpen(true)}
+              className="h-8 text-xs font-bold border-amber-500/40 text-amber-800 dark:text-amber-200 hover:bg-amber-500/10 rounded-xl"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1 text-amber-600" />
+              Gestionar o Revertir Transición
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Tarjetas de Métricas de Asistencia */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 min-w-0">
         <div className="p-2.5 sm:p-3 rounded-xl border border-border bg-card text-center min-w-0">
@@ -1222,6 +1254,8 @@ export function StudentAttendanceKardex({
                           <Clock className="h-3 w-3 text-primary" />
                           {item.time} - {item.timeEnd}
                         </span>
+                        <span>•</span>
+                        <span className="font-semibold text-foreground/80">{item.instrument}</span>
                         <span>•</span>
                         <span>{item.room}</span>
                         <span>•</span>
