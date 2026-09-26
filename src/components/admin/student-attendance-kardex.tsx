@@ -780,17 +780,17 @@ export function StudentAttendanceKardex({
   const targetLessons = targetQuota;
 
   const content = (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full max-w-full min-w-0">
       {/* Encabezado con datos del Alumno */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl border border-border bg-card/80">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-black text-foreground">{liveStudent.name}</h3>
-            <Badge variant="outline" className="text-xs font-bold border-primary/30 text-primary bg-primary/10">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl border border-border bg-card/80">
+        <div className="space-y-1.5 min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base sm:text-lg font-black text-foreground">{liveStudent.name}</h3>
+            <Badge variant="outline" className="text-xs font-bold border-primary/30 text-primary bg-primary/10 shrink-0">
               {liveStudent.instrument}
             </Badge>
             {liveStudent.isReentry && (
-              <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-0 text-[10px] font-black">
+              <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-0 text-[10px] font-black shrink-0">
                 🔄 Reingreso
               </Badge>
             )}
@@ -798,7 +798,7 @@ export function StudentAttendanceKardex({
               size="sm"
               variant="outline"
               onClick={() => setIsTransitionModalOpen(true)}
-              className="h-7 text-xs font-bold gap-1.5 border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-100 rounded-xl shadow-xs"
+              className="h-7 text-xs font-bold gap-1.5 border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-100 rounded-xl shadow-xs shrink-0"
               title="Transición de curso o cambio de instrumento/profesor manteniendo asistencias"
             >
               <Music className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
@@ -957,16 +957,16 @@ export function StudentAttendanceKardex({
       {/* 💡 Banner Filosofía Vibra: "La clase no se pierde, se recupera" */}
       {liveStudent.makeupCredits > 0 && (
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 min-w-0 flex-1">
             <p className="text-xs font-black text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
-              <Sparkles className="h-4 w-4 text-amber-500" />
-              💡 Filosofía Vibra: {liveStudent.makeupCredits} clase(s) pendiente(s) por recuperar
+              <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+              <span>💡 Filosofía Vibra: {liveStudent.makeupCredits} clase(s) pendiente(s) por recuperar</span>
             </p>
             <p className="text-[11px] text-muted-foreground font-medium">
               "La clase no se pierde, se recupera". Puedes reprogramar en la fila de la falta o extender la vigencia del plan para completar sus {targetLessons} clases.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <Button
               size="sm"
               variant="outline"
@@ -985,62 +985,52 @@ export function StudentAttendanceKardex({
               <PlusCircle className="h-3.5 w-3.5 mr-1" />
               Programar Recuperación
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsTransitionModalOpen(true)}
-              className="h-8 text-xs font-bold border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-100 rounded-xl shadow-xs"
-              title="Transición de curso o cambio de instrumento/docente manteniendo asistencias"
-            >
-              <Music className="h-3.5 w-3.5 mr-1 text-amber-600 dark:text-amber-400" />
-              🎸 Cambiar Instrumento / Docente
-            </Button>
           </div>
         </div>
       )}
 
       {/* Tarjetas de Métricas de Asistencia */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-        <div className="p-3 rounded-xl border border-border bg-card text-center">
-          <p className="text-[10px] uppercase font-bold text-muted-foreground">Programadas</p>
-          <p className="text-xl font-black text-foreground mt-0.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 min-w-0">
+        <div className="p-2.5 sm:p-3 rounded-xl border border-border bg-card text-center min-w-0">
+          <p className="text-[10px] uppercase font-bold text-muted-foreground truncate">Programadas</p>
+          <p className="text-lg sm:text-xl font-black text-foreground mt-0.5">
             {stats.total} <span className="text-xs text-muted-foreground font-normal">/ {targetLessons}</span>
           </p>
         </div>
-        <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-center">
-          <p className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">🟢 Asistidas</p>
-          <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{stats.asistidasTotal}</p>
+        <div className="p-2.5 sm:p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-center min-w-0">
+          <p className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 truncate">🟢 Asistidas</p>
+          <p className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{stats.asistidasTotal}</p>
         </div>
-        <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/5 text-center">
-          <p className="text-[10px] uppercase font-bold text-red-600 dark:text-red-400">🔴 Faltas</p>
-          <p className="text-xl font-black text-red-600 dark:text-red-400 mt-0.5">{stats.ausentes}</p>
+        <div className="p-2.5 sm:p-3 rounded-xl border border-red-500/30 bg-red-500/5 text-center min-w-0">
+          <p className="text-[10px] uppercase font-bold text-red-600 dark:text-red-400 truncate">🔴 Faltas</p>
+          <p className="text-lg sm:text-xl font-black text-red-600 dark:text-red-400 mt-0.5">{stats.ausentes}</p>
         </div>
-        <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center">
-          <p className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400">🟡 Tardanzas</p>
-          <p className="text-xl font-black text-amber-600 dark:text-amber-400 mt-0.5">{stats.tardes}</p>
+        <div className="p-2.5 sm:p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center min-w-0">
+          <p className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 truncate">🟡 Tardanzas</p>
+          <p className="text-lg sm:text-xl font-black text-amber-600 dark:text-amber-400 mt-0.5">{stats.tardes}</p>
         </div>
-        <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 text-center">
-          <p className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400">🔵 Justificadas</p>
-          <p className="text-xl font-black text-blue-600 dark:text-blue-400 mt-0.5">{stats.justificadas}</p>
+        <div className="p-2.5 sm:p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 text-center min-w-0">
+          <p className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 truncate">🔵 Justificadas</p>
+          <p className="text-lg sm:text-xl font-black text-blue-600 dark:text-blue-400 mt-0.5">{stats.justificadas}</p>
         </div>
-        <div className="p-3 rounded-xl border border-border bg-card text-center">
-          <p className="text-[10px] uppercase font-bold text-muted-foreground">⚪ Pendientes</p>
-          <p className={`text-xl font-black mt-0.5 ${stats.pendientes > 0 ? "text-amber-500" : "text-muted-foreground"}`}>
+        <div className="p-2.5 sm:p-3 rounded-xl border border-border bg-card text-center min-w-0">
+          <p className="text-[10px] uppercase font-bold text-muted-foreground truncate">⚪ Pendientes</p>
+          <p className={`text-lg sm:text-xl font-black mt-0.5 ${stats.pendientes > 0 ? "text-amber-500" : "text-muted-foreground"}`}>
             {stats.pendientes}
           </p>
         </div>
-        <div className="p-3 rounded-xl border border-primary/30 bg-primary/5 text-center">
-          <p className="text-[10px] uppercase font-bold text-primary">Tasa Global</p>
-          <p className="text-xl font-black text-primary mt-0.5">
+        <div className="p-2.5 sm:p-3 rounded-xl border border-primary/30 bg-primary/5 text-center min-w-0 col-span-2 sm:col-span-1">
+          <p className="text-[10px] uppercase font-bold text-primary truncate">Tasa Global</p>
+          <p className="text-lg sm:text-xl font-black text-primary mt-0.5">
             {stats.rate !== null ? `${stats.rate}%` : "—"}
           </p>
         </div>
       </div>
 
       {/* Barra de Progreso y Acciones Rápidas de Secretaría */}
-      <div className="p-3.5 rounded-2xl border border-border bg-card/60 flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1.5 flex-1 min-w-[220px]">
-          <div className="flex justify-between text-xs font-bold">
+      <div className="p-3 sm:p-3.5 rounded-2xl border border-border bg-card/60 flex flex-col md:flex-row md:items-center justify-between gap-3 min-w-0">
+        <div className="space-y-1.5 w-full md:w-auto md:flex-1 min-w-[200px]">
+          <div className="flex flex-wrap justify-between gap-1 text-xs font-bold">
             <span className="text-foreground">
               {viewTab === "cycle"
                 ? "Cumplimiento del Ciclo Oficial:"
@@ -1066,7 +1056,7 @@ export function StudentAttendanceKardex({
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           {isEditMode && stats.pendientes > 0 && (
             <Button
               size="sm"
@@ -1074,32 +1064,32 @@ export function StudentAttendanceKardex({
               className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl shadow-xs"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              ⚡ Regularizar todo como Presente ({stats.pendientes})
+              ⚡ Regularizar todo ({stats.pendientes})
             </Button>
           )}
 
           {!isEditMode ? (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-bold shadow-xs">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-bold shadow-xs">
               <Lock className="h-3.5 w-3.5 shrink-0" />
               <span>Modo Consulta</span>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setIsEditMode(true)}
-                className="h-6 px-2 text-[11px] font-black underline hover:bg-amber-500/20 text-amber-900 dark:text-amber-100 rounded-md"
+                className="h-6 px-1.5 text-[11px] font-black underline hover:bg-amber-500/20 text-amber-900 dark:text-amber-100 rounded-md"
               >
-                ✏️ Desbloquear Edición
+                ✏️ Editar
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold shadow-xs">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold shadow-xs">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-              <span>Modo Edición Rápida</span>
+              <span>Edición Rápida</span>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setIsEditMode(false)}
-                className="h-6 px-2 text-[10px] font-semibold text-muted-foreground hover:bg-emerald-500/20 rounded-md"
+                className="h-6 px-1.5 text-[10px] font-semibold text-muted-foreground hover:bg-emerald-500/20 rounded-md"
               >
                 🔒 Bloquear
               </Button>
@@ -1114,7 +1104,7 @@ export function StudentAttendanceKardex({
             title="Agregar una sesión puntual, adelanto o clase extra al cronograma"
           >
             <PlusCircle className="h-3.5 w-3.5" />
-            <span>➕ Agregar Sesión / Adelanto</span>
+            <span>➕ Agregar Sesión</span>
           </Button>
 
           <Button
@@ -1135,7 +1125,7 @@ export function StudentAttendanceKardex({
             className="text-xs font-bold gap-1.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 rounded-xl"
           >
             {copiedWhatsapp ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-            {copiedWhatsapp ? "¡Copiado!" : "Copiar Reporte WhatsApp"}
+            {copiedWhatsapp ? "¡Copiado!" : "Copiar WhatsApp"}
           </Button>
 
           <Button
@@ -1204,7 +1194,7 @@ export function StudentAttendanceKardex({
                   }`}
                 >
                   {/* Info de Fecha y Hora */}
-                  <div className="flex items-start gap-3 min-w-[240px]">
+                  <div className="flex items-start gap-3 min-w-[200px] flex-1">
                     <div className="flex flex-col items-center justify-center w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary shrink-0">
                       <span className="text-[9px] font-black uppercase leading-none">{item.dayKey}</span>
                       <span className="text-sm font-black leading-tight">{item.dayNum}</span>
@@ -1241,7 +1231,7 @@ export function StudentAttendanceKardex({
                   </div>
 
                   {/* Estado Actual y Acciones en 1 Clic */}
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     {/* Badge Estado Actual */}
                     <Badge
                       className={`text-xs px-2.5 py-1 font-bold border-0 ${
@@ -1776,7 +1766,7 @@ export function StudentAttendanceKardex({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose?.()}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-6 rounded-3xl bg-card border-border overflow-hidden">
+      <DialogContent className="w-[96vw] max-w-5xl max-h-[92vh] flex flex-col p-4 sm:p-6 rounded-3xl bg-card border-border overflow-hidden shadow-2xl">
         <DialogHeader className="pb-3 border-b border-border shrink-0">
           <DialogTitle className="text-lg font-black flex items-center gap-2 text-foreground">
             <BookOpen className="h-5 w-5 text-primary" />
@@ -1787,7 +1777,7 @@ export function StudentAttendanceKardex({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto py-2 pr-1">{content}</div>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 pr-1 min-w-0 w-full max-w-full">{content}</div>
 
         <div className="pt-3 border-t border-border flex justify-between items-center text-xs shrink-0">
           <span className="text-muted-foreground text-[11px]">

@@ -246,7 +246,7 @@ export function CourseTransitionDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto p-6 bg-card border-border shadow-2xl rounded-2xl">
+      <DialogContent className="w-[94vw] max-w-2xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 bg-card border-border shadow-2xl rounded-2xl">
         <DialogHeader className="space-y-1.5 pb-2 border-b border-border/60">
           <div className="flex items-center gap-2 text-primary">
             <Music className="h-5 w-5 text-amber-500" />
