@@ -28,6 +28,8 @@ import {
 } from "@/lib/insforge";
 import type { Role } from "@/store/app-store";
 import { isMatchingStudentName } from "@/lib/student-matching";
+import { calculateAgeFromBirthdate } from "@/lib/calendar-utils";
+import { getCategoryFromAge } from "@/store/admin-seeds";
 
 // ---------------------------------------------------------------
 // Tipos de la capa de servicio (reflejan el schema SQL)
@@ -119,8 +121,28 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     teacherNote: db.notes || ec.notes || (isJonathanDB ? "Ex-alumno Alex. Paquete Flexible 24 clases a demanda por S/ 500 pagado el 20/08/2026." : ""),
     email: ecEmail,
     phone: ecPhone,
-    age: typeof ec.age === "number" ? ec.age : undefined,
-    ageCategory: ec.ageCategory || (isJonathanDB ? "ADULTO" : undefined),
+    age: (() => {
+      const rawAge = typeof ec.age === "number"
+        ? ec.age
+        : (typeof ec.age === "string" && !isNaN(parseInt(ec.age, 10)) ? parseInt(ec.age, 10) : undefined);
+      const birthAge = db.birthdate ? calculateAgeFromBirthdate(db.birthdate) : null;
+      return rawAge !== undefined && rawAge > 0 ? rawAge : (birthAge !== null && birthAge > 0 ? birthAge : undefined);
+    })(),
+    ageCategory: (() => {
+      const rawAge = typeof ec.age === "number"
+        ? ec.age
+        : (typeof ec.age === "string" && !isNaN(parseInt(ec.age, 10)) ? parseInt(ec.age, 10) : undefined);
+      const birthAge = db.birthdate ? calculateAgeFromBirthdate(db.birthdate) : null;
+      const effectiveAge = rawAge !== undefined && rawAge > 0 ? rawAge : (birthAge !== null && birthAge > 0 ? birthAge : undefined);
+      let cat = ec.ageCategory === "ADULTO" ? "MASTER" : ec.ageCategory;
+      if (!cat) {
+        if (isJonathanDB) return "MASTER";
+        if (effectiveAge !== undefined) return getCategoryFromAge(effectiveAge);
+      } else if (effectiveAge !== undefined && effectiveAge >= 18) {
+        return "MASTER";
+      }
+      return cat || "JUNIOR";
+    })(),
     fatherName: ec.fatherName || undefined,
     fatherPhone: ec.fatherPhone || undefined,
     motherName: ec.motherName || undefined,

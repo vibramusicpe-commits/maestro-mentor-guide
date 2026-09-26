@@ -146,3 +146,38 @@ export function getCurrentWeekIndex(year = new Date().getFullYear(), monthIndex 
   return 0;
 }
 
+/**
+ * Calcula la edad exacta en años a partir de una fecha de nacimiento (DD/MM/AAAA o YYYY-MM-DD).
+ */
+export function calculateAgeFromBirthdate(birthdateStr: string): number | null {
+  if (!birthdateStr) return null;
+  let y = 0,
+    m = 0,
+    d = 0;
+  const trimmed = birthdateStr.trim();
+  const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    d = parseInt(dmyMatch[1]!, 10);
+    m = parseInt(dmyMatch[2]!, 10);
+    y = parseInt(dmyMatch[3]!, 10);
+  } else {
+    const ymdMatch = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (ymdMatch) {
+      y = parseInt(ymdMatch[1]!, 10);
+      m = parseInt(ymdMatch[2]!, 10);
+      d = parseInt(ymdMatch[3]!, 10);
+    }
+  }
+
+  if (!y || !m || !d) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  const monthDiff = today.getMonth() + 1 - m;
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d)) {
+    age--;
+  }
+  return age >= 0 ? age : null;
+}
+
+

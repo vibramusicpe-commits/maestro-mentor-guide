@@ -29,6 +29,7 @@ import {
   RotateCcw,
   Pencil,
   Sparkles,
+  Music,
 } from "lucide-react";
 import {
   useAppStore,
@@ -39,7 +40,8 @@ import {
   type DeletionReasonCategory,
   type DeletedStudentLog,
 } from "@/store/app-store";
-import { teachers, musicalInstruments, VIBRA_PRICING } from "@/store/admin-seeds";
+import { teachers, musicalInstruments, VIBRA_PRICING, getCategoryFromAge } from "@/store/admin-seeds";
+import { calculateAgeFromBirthdate } from "@/lib/calendar-utils";
 import {
   evaluateSlotPedagogicalCompatibility,
   getOfficialTeacherRoom,
@@ -802,16 +804,18 @@ export function StudentsTable() {
                         if (!cat) {
                           const birthYear = st.birthdate ? parseInt(st.birthdate.split(/[-/]/)[0] || st.birthdate.split(/[-/]/)[2] || "0") : 0;
                           const age = st.age || (birthYear > 1900 ? 2026 - birthYear : 20);
-                          cat = age >= 18 ? "ADULTO" : age >= 13 ? "JUVENIL" : age >= 7 ? "JUNIOR" : "INFANTIL";
+                          cat = age >= 18 ? "MASTER" : age >= 13 ? "JUVENIL" : age >= 7 ? "JUNIOR" : "INFANTIL";
                         }
-                        // Obtener nombre simple de categoría: JUNIOR, ADULTO, JUVENIL, INFANTIL, etc.
+                        // Obtener nombre simple de categoría: JUNIOR, MASTER, JUVENIL, INFANTIL, etc.
                         const simpleCat = cat === "RECUPERACION"
                           ? "RECUPERACIÓN"
                           : cat === "PERSONALIZADA"
                           ? "PERSONALIZADA"
+                          : (cat === "ADULTO" || cat === "MASTER")
+                          ? "MASTER"
                           : cat;
 
-                        const cs = categoryStyles[cat] || categoryStyles.ADULTO;
+                        const cs = categoryStyles[cat] || categoryStyles.MASTER;
 
                         return (
                           <div className="space-y-0.5">
@@ -2994,16 +2998,10 @@ function NewStudentDialog() {
   const effectiveCategory: AgeCategory = isPersonalized
     ? "PERSONALIZADA"
     : selectedCategory !== "AUTO"
-    ? selectedCategory
+    ? (selectedCategory === "ADULTO" ? "MASTER" : selectedCategory)
     : isAdult || age >= 18
     ? "MASTER"
-    : age <= 4 || (age === 5 && instrument.includes("Estimul"))
-    ? "ESTIMULACION"
-    : age >= 5 && age <= 6
-    ? "INFANTIL"
-    : age >= 7 && age <= 12
-    ? "JUNIOR"
-    : "JUVENIL";
+    : getCategoryFromAge(age);
 
   const catStyle = categoryStyles[effectiveCategory] ?? {
     bg: "bg-[#FFF2B2]",
@@ -3069,7 +3067,7 @@ function NewStudentDialog() {
       level: "Principiante",
       teacher,
       modality,
-      ageCategory: effectiveCategory === "MASTER" ? "ADULTO" : effectiveCategory,
+      ageCategory: effectiveCategory === "ADULTO" ? "MASTER" : effectiveCategory,
       age: isAdultStudent ? Math.max(18, age) : age,
       status: "activo",
       attendanceRate: 0,
@@ -3175,7 +3173,7 @@ function NewStudentDialog() {
                 setIsAdult(checked);
                 if (checked) {
                   if (age < 18) setAge(25);
-                  setSelectedCategory("ADULTO");
+                  setSelectedCategory("MASTER");
                 } else {
                   if (age >= 18) setAge(8);
                   setSelectedCategory("AUTO");
@@ -3282,9 +3280,9 @@ function NewStudentDialog() {
                 onChange={(e) => {
                   const newAge = parseInt(e.target.value) || 7;
                   setAge(newAge);
-                  if (newAge >= 18 && !isAdult) {
+                  if (newAge >= 18) {
                     setIsAdult(true);
-                    setSelectedCategory("ADULTO");
+                    setSelectedCategory("MASTER");
                   } else if (newAge < 18 && isAdult) {
                     setIsAdult(false);
                     setSelectedCategory("AUTO");
@@ -3297,11 +3295,11 @@ function NewStudentDialog() {
             <div>
               <label className="block text-xs font-semibold mb-1">Categoría Asignada</label>
               <select
-                value={selectedCategory === "AUTO" ? effectiveCategory : selectedCategory}
+                value={selectedCategory === "ADULTO" ? "MASTER" : selectedCategory === "AUTO" ? effectiveCategory : selectedCategory}
                 onChange={(e) => {
                   const val = e.target.value as AgeCategory;
                   setSelectedCategory(val);
-                  if ((val === "MASTER" || val === "ADULTO") && !isAdult) {
+                  if (val === "MASTER" || val === "ADULTO") {
                     setIsAdult(true);
                     if (age < 18) setAge(25);
                   } else if (val !== "MASTER" && val !== "ADULTO" && isAdult) {
@@ -3946,7 +3944,21 @@ function NewStudentDialog() {
                   <Input
                     placeholder="DD/MM/AAAA"
                     value={birthdate}
-                    onChange={(e) => setBirthdate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBirthdate(val);
+                      const calcAge = calculateAgeFromBirthdate(val);
+                      if (calcAge !== null && calcAge > 0) {
+                        setAge(calcAge);
+                        if (calcAge >= 18) {
+                          setIsAdult(true);
+                          setSelectedCategory("MASTER");
+                        } else {
+                          setIsAdult(false);
+                          setSelectedCategory("AUTO");
+                        }
+                      }
+                    }}
                   />
                 </div>
                 <div>
@@ -3979,7 +3991,21 @@ function NewStudentDialog() {
                   <Input
                     placeholder="DD/MM/AAAA"
                     value={birthdate}
-                    onChange={(e) => setBirthdate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBirthdate(val);
+                      const calcAge = calculateAgeFromBirthdate(val);
+                      if (calcAge !== null && calcAge > 0) {
+                        setAge(calcAge);
+                        if (calcAge >= 18) {
+                          setIsAdult(true);
+                          setSelectedCategory("MASTER");
+                        } else {
+                          setIsAdult(false);
+                          setSelectedCategory("AUTO");
+                        }
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -4080,9 +4106,15 @@ function EditStudentSheetInner({
   const [status, setStatus] = useState<StudentStatus>(student.status || "activo");
   const [attendanceRate, setAttendanceRate] = useState<number>(student.attendanceRate ?? 0);
   const [family, setFamily] = useState(student.family.replace(/^Familia\s+/i, ""));
-  const [isAdult, setIsAdult] = useState(
-    student.ageCategory === "ADULTO" || (student.age || 0) >= 18 || student.family.toLowerCase().includes("titular")
-  );
+  const initialCalcAge = student.birthdate ? calculateAgeFromBirthdate(student.birthdate) : null;
+  const initialAge = (initialCalcAge !== null && initialCalcAge > 0) ? initialCalcAge : (student.age || 8);
+  const initialIsAdult =
+    student.ageCategory === "ADULTO" ||
+    student.ageCategory === "MASTER" ||
+    initialAge >= 18 ||
+    (student.age || 0) >= 18 ||
+    student.family.toLowerCase().includes("titular");
+  const [isAdult, setIsAdult] = useState(initialIsAdult);
   const [instrument, setInstrument] = useState(student.instrument || "Piano");
   const [level, setLevel] = useState(student.level || "Principiante");
   const [teacher, setTeacher] = useState(student.teacher || availableTeachers[0] || "Prof. por Asignar");
@@ -4099,8 +4131,12 @@ function EditStudentSheetInner({
       (Array.isArray(student.scheduleLessons) && student.scheduleLessons.length > 0)
     );
   }, [schedule, student.name, student.scheduleLessons]);
-  const [age, setAge] = useState<number>(student.age || 8);
-  const [selectedCategory, setSelectedCategory] = useState<AgeCategory | "AUTO">(student.ageCategory || "AUTO");
+  const [age, setAge] = useState<number>(initialAge);
+  const rawCat =
+    student.ageCategory === "ADULTO" || initialAge >= 18 || (student.age || 0) >= 18
+      ? "MASTER"
+      : (student.ageCategory || (initialIsAdult ? "MASTER" : "AUTO"));
+  const [selectedCategory, setSelectedCategory] = useState<AgeCategory | "AUTO">(rawCat === "ADULTO" ? "MASTER" : rawCat);
   const [isPersonalized, setIsPersonalized] = useState(student.ageCategory === "PERSONALIZADA");
   const [email, setEmail] = useState(student.email || "");
   const [phone, setPhone] = useState(student.phone || "");
@@ -4180,16 +4216,10 @@ function EditStudentSheetInner({
   const effectiveCategory: AgeCategory = isPersonalized
     ? "PERSONALIZADA"
     : selectedCategory !== "AUTO"
-    ? selectedCategory
+    ? (selectedCategory === "ADULTO" ? "MASTER" : selectedCategory)
     : isAdult || age >= 18
     ? "MASTER"
-    : age <= 4 || (age === 5 && instrument.includes("Estimul"))
-    ? "ESTIMULACION"
-    : age >= 5 && age <= 6
-    ? "INFANTIL"
-    : age >= 7 && age <= 12
-    ? "JUNIOR"
-    : "JUVENIL";
+    : getCategoryFromAge(age);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -4219,7 +4249,7 @@ function EditStudentSheetInner({
       level,
       teacher,
       modality,
-      ageCategory: effectiveCategory === "MASTER" ? "ADULTO" : effectiveCategory,
+      ageCategory: effectiveCategory === "ADULTO" ? "MASTER" : effectiveCategory,
       age: isAdultStudent ? Math.max(18, age) : age,
       email: email || student.email,
       phone: phone || student.phone,
@@ -4294,7 +4324,7 @@ function EditStudentSheetInner({
                 setIsAdult(checked);
                 if (checked) {
                   if (age < 18) setAge(25);
-                  setSelectedCategory("ADULTO");
+                  setSelectedCategory("MASTER");
                 } else {
                   if (age >= 18) setAge(8);
                   setSelectedCategory("AUTO");
@@ -4439,9 +4469,9 @@ function EditStudentSheetInner({
                 onChange={(e) => {
                   const newAge = parseInt(e.target.value) || 7;
                   setAge(newAge);
-                  if (newAge >= 18 && !isAdult) {
+                  if (newAge >= 18) {
                     setIsAdult(true);
-                    setSelectedCategory("ADULTO");
+                    setSelectedCategory("MASTER");
                   } else if (newAge < 18 && isAdult) {
                     setIsAdult(false);
                     setSelectedCategory("AUTO");
@@ -4454,11 +4484,11 @@ function EditStudentSheetInner({
             <div>
               <label className="block text-xs font-semibold mb-1">Categoría Asignada</label>
               <select
-                value={selectedCategory === "AUTO" ? effectiveCategory : selectedCategory}
+                value={selectedCategory === "ADULTO" ? "MASTER" : selectedCategory === "AUTO" ? effectiveCategory : selectedCategory}
                 onChange={(e) => {
                   const val = e.target.value as AgeCategory;
-                  setSelectedCategory(val);
-                  if ((val === "MASTER" || val === "ADULTO") && !isAdult) {
+                  setSelectedCategory(val === "ADULTO" ? "MASTER" : val);
+                  if (val === "MASTER" || val === "ADULTO") {
                     setIsAdult(true);
                     if (age < 18) setAge(25);
                   } else if (val !== "MASTER" && val !== "ADULTO" && isAdult) {
@@ -5021,6 +5051,33 @@ function EditStudentSheetInner({
             </div>
           </div>
 
+          {/* 🎸 Banner de Transición Oficial de Instrumento o Docente */}
+          {hasSavedSchedule && onOpenKardex && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 flex items-center justify-between gap-3 shadow-xs">
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-amber-900 dark:text-amber-100 flex items-center gap-1.5">
+                  <Music className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  ¿Cambio de Instrumento o Docente?
+                </span>
+                <p className="text-[11px] text-muted-foreground">
+                  Migra de instrumento (ej. Canto a Guitarra) manteniendo asistencias previas y reprogramaciones desde el Kardex.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  onOpenChange(false);
+                  onOpenKardex(student);
+                }}
+                className="h-7 text-xs font-bold shrink-0 border-amber-500/50 bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 rounded-lg shadow-xs"
+              >
+                Abrir en Kardex 🎸
+              </Button>
+            </div>
+          )}
+
           {!isAdult ? (
             /* Bloque: Datos Completos de los Padres (Papá y Mamá) */
             <div className="space-y-3 rounded-2xl border border-primary/30 bg-primary/5 p-3.5">
@@ -5148,7 +5205,21 @@ function EditStudentSheetInner({
                   <Input
                     placeholder="DD/MM/AAAA"
                     value={birthdate}
-                    onChange={(e) => setBirthdate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBirthdate(val);
+                      const calculatedAge = calculateAgeFromBirthdate(val);
+                      if (calculatedAge !== null && calculatedAge > 0) {
+                        setAge(calculatedAge);
+                        if (calculatedAge >= 18) {
+                          setIsAdult(true);
+                          setSelectedCategory("MASTER");
+                        } else {
+                          setIsAdult(false);
+                          setSelectedCategory("AUTO");
+                        }
+                      }
+                    }}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -5193,7 +5264,21 @@ function EditStudentSheetInner({
                   <Input
                     placeholder="DD/MM/AAAA"
                     value={birthdate}
-                    onChange={(e) => setBirthdate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBirthdate(val);
+                      const calculatedAge = calculateAgeFromBirthdate(val);
+                      if (calculatedAge !== null && calculatedAge > 0) {
+                        setAge(calculatedAge);
+                        if (calculatedAge >= 18) {
+                          setIsAdult(true);
+                          setSelectedCategory("MASTER");
+                        } else {
+                          setIsAdult(false);
+                          setSelectedCategory("AUTO");
+                        }
+                      }
+                    }}
                   />
                 </div>
                 <div>

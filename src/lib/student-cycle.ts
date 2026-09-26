@@ -140,6 +140,14 @@ export function computeStudentCycle(
           return;
         }
 
+        // Validación de vigencia limitada por transición (effectiveUntil / effectiveFrom)
+        if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
+          return;
+        }
+        if (lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) {
+          return;
+        }
+
         const slot = `${curDateStr}-${lesson.time || "16:00"}`;
         // Si ya está evaluada, no duplicar como pendiente
         if (evaluatedSlots.has(slot) || evaluatedDates.has(curDateStr)) {
@@ -220,6 +228,14 @@ export function isLessonInStudentCycle(
   const evaluatedAtt = lesson.attendanceByDate?.[lessonDateStr];
   if (evaluatedAtt && evaluatedAtt !== "pendiente") {
     return true;
+  }
+
+  // B.1. Límites de vigencia por transición de curso para sesiones no evaluadas
+  if (lesson.effectiveUntil && lessonDateStr > lesson.effectiveUntil) {
+    return false;
+  }
+  if (lesson.effectiveFrom && lessonDateStr < lesson.effectiveFrom) {
+    return false;
   }
 
   // C. Si la clase tiene fecha puntual exacta fijada por reprogramación/adelanto y coincide con la fecha

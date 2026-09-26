@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.14] - 2026-09-25
+
+### Transición de Curso e Instrumento con Interfaz Manual en Kardex y Aislamiento de Asistencias (ADR-0129)
+- **Modal Interactivo `CourseTransitionDialog`**:
+  - Incorporación del componente modal para transición manual de curso e instrumento, con selectores de nuevo instrumento, docente sugerido, asignación oficial de sala (ADR-0102), selector de fecha de corte ("Próxima sesión programada" vs "Fecha personalizada / Mismo día"), selector de horario (ej. 17:40 para turno previo) y verificación en vivo de aforo/vacantes en sala (máx 5 alumnos).
+  - Panel informativo de auditoría: "La clase no se pierde, se recupera", detallando clases pasadas conservadas, créditos acumulados transferidos y clases pendientes reasignadas.
+- **Botón `[🎸 Cambiar Instrumento / Docente]` en `StudentAttendanceKardex`**:
+  - Integrado de forma prominente en el banner de Filosofía Vibra y en la barra de acciones rápidas superior del Kardex.
+- **Aislamiento Temporal de Sesiones (`effectiveUntil` y `effectiveFrom`)**:
+  - Soporte de `effectiveUntil` y `effectiveFrom` en `ScheduledLesson`, `student-cycle.ts`, `student-attendance-kardex.tsx`, `agenda-board.tsx`, `minimal-agenda-calendar.tsx` y `teacher.index.tsx`.
+  - Las clases anteriores a la fecha de corte conservan su instrumento, docente, sala y marcas de asistencia inmutables. Las clases a partir de la fecha de corte se proyectan con el nuevo instrumento y horario.
+- **Acción Segura en Store `transitionStudentCourse`**:
+  - Actualización atómica en Zustand y persistencia estándar en segundo plano vía `backgroundSyncStudentToDB` (con debounce y auditoría en PostgreSQL).
+  - Cero mutaciones vía scripts automatizados no supervisados (STOP & VERIFY).
+
 ## [2.0.13] - 2026-09-25
 
 ### Sincronización Estricta entre Kiosco Docente y Agenda mediante Validación de Ciclo Contractual (ADR-0128)

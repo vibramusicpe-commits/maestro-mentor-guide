@@ -607,4 +607,21 @@ inferencia.
 3. **Erradicación de Semillas Obsoletas Duplicadas**:
    - Si un alumno activo cuenta con clases oficiales persistidas en `studentProfile.scheduleLessons`, cualquier semilla antigua residual (ej. Sasha Contreras `sch-34` a las 17:30) debe ser invalidada por `isLessonInStudentCycle`, asegurando que el Kiosco y la Agenda muestren exactamente la misma cantidad de clases (ej. 1 sola clase a las 18:15 en Martes).
 4. **Resolución de Asistencia Prioritaria desde Ficha Oficial**:
-   - Al renderizar el estado de asistencia (`status`) en la tarjeta del Kiosco, se debe consultar prioritariamente `studentProfile.scheduleLessons` para que cualquier marca guardada en Kardex o rehidratada de PostgreSQL se refleje instantáneamente sin depender de la rehidratación asíncrona de `schedule`.
+   - Al renderizar el estado de asistencia (`status`) en la tarjeta del Kiosco, se debe consultar prioritariamente `studentProfile.scheduleLessons` para que cualquier marca guardada en Kardex o rehidratada de PostgreSQL se refleje instantáneamente sin depender de la rehidratación asíncrona de `schedule`.
+
+---
+
+### 29. Transición de Curso e Instrumento con Interfaz Manual en Kardex y Aislamiento de Asistencias (ADR-0129)
+1. **Gobernanza Exclusiva por Interfaz de Usuario (STOP & VERIFY)**:
+   - **PROHIBIDO** ejecutar scripts automatizados o consultas directas de mutación (`UPDATE students`) sobre la base de datos de producción para cambios de curso o instrumento. Toda transición debe ser ejecutada de manera interactiva y consciente por el personal administrativo (Secretaría / Dirección) desde la interfaz web.
+2. **Botón Oficial en Kardex de Asistencias (`StudentAttendanceKardex`)**:
+   - En la barra de acciones superior del Kardex, junto a `[+ Programar Recuperación]` y `[➕ Agregar Sesión / Adelanto]`, se ubica el botón de acceso directo:
+     👉 **`[🎸 Cambiar Instrumento / Docente]`**
+   - Este botón abre el diálogo interactivo `CourseTransitionDialog`.
+3. **Aislamiento Temporal de Historial y Clases Futuras (`effectiveUntil` y `effectiveFrom`)**:
+   - Las sesiones impartidas o evaluadas previas a la fecha de corte conservan inmutablemente su instrumento, sala, docente y asistencias registradas en `attendanceByDate` y `attendance_logs`.
+   - Las sesiones posteriores a la fecha de corte se asignan al nuevo instrumento, docente y sala (cumpliendo estrictamente la especialidad docente ADR-0102: Jeremy -> Sala A, Fernando -> Sala B, Nathaly -> Sala C).
+4. **Preservación Incondicional de Créditos de Recuperación ("La clase no se pierde, se recupera")**:
+   - Las faltas acumuladas por inasistencias médicas o justificadas en el curso anterior (ej. las 2 faltas de salud de Sasha en Canto) se trasladan íntegramente como créditos de recuperación disponibles para ser programados en el nuevo instrumento con el nuevo docente.
+5. **Persistencia Estándar vía `backgroundSyncStudentToDB`**:
+   - La acción `transitionStudentCourse` actualiza el store de Zustand y delega la sincronización con PostgreSQL al pipeline estándar con debounce de 350ms, garantizando la consistencia transaccional y la emisión limpia de eventos inter-pestañas post-escritura.

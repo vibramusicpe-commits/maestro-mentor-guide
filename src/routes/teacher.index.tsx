@@ -167,6 +167,13 @@ export function TeacherKiosk() {
       return false;
     }
 
+    // 2.1 Validación de límites por transición de curso para sesiones no evaluadas
+    const isEvaluated = dateStr && lesson.attendanceByDate?.[dateStr] && lesson.attendanceByDate[dateStr] !== "pendiente";
+    if (!isEvaluated && dateStr) {
+      if (lesson.effectiveUntil && dateStr > lesson.effectiveUntil) return false;
+      if (lesson.effectiveFrom && dateStr < lesson.effectiveFrom) return false;
+    }
+
     // 3. 🛡️ REGLA FUNDAMENTAL DE CUOTA Y VIGENCIA (ADR-0108 & ADR-0128):
     // El Kiosco y la Agenda comparten el mismo motor determinista de ciclo contractual.
     // Esto previene mostrar clases 'fantasma' en días donde la sesión ya fue reprogramada/adelantada.

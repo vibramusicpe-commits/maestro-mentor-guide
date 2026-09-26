@@ -464,6 +464,17 @@ export function AgendaBoard() {
             return false;
           }
 
+          // Validación de vigencia limitada por transición (effectiveUntil / effectiveFrom) para sesiones no evaluadas
+          const isEvaluatedOnDate = lessonDayInfo && l.attendanceByDate?.[lessonDayInfo.dateStr] && l.attendanceByDate[lessonDayInfo.dateStr] !== "pendiente";
+          if (!isEvaluatedOnDate) {
+            if (lessonDayInfo && l.effectiveUntil && lessonDayInfo.dateStr > l.effectiveUntil) {
+              return false;
+            }
+            if (lessonDayInfo && l.effectiveFrom && lessonDayInfo.dateStr < l.effectiveFrom) {
+              return false;
+            }
+          }
+
           // Validación de coincidencia de fecha puntual si la celda es de otro día
           if (lessonDayInfo && l.dateStr && l.dateStr !== lessonDayInfo.dateStr) {
             return false;

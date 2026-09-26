@@ -22,7 +22,9 @@ import {
   CalendarSync,
   PlusCircle,
   Layers,
+  Music,
 } from "lucide-react";
+import { CourseTransitionDialog } from "@/components/admin/course-transition-dialog";
 import { toast } from "sonner";
 import {
   useAppStore,
@@ -199,6 +201,7 @@ export function StudentAttendanceKardex({
   const [addSessionTeacher, setAddSessionTeacher] = useState<string>("");
   const [addSessionRoom, setAddSessionRoom] = useState<string>("Sala B");
   const [addSessionReason, setAddSessionReason] = useState<string>("adelanto");
+  const [isTransitionModalOpen, setIsTransitionModalOpen] = useState(false);
 
   // Semanas del mes seleccionado
   const monthWeeks = useMemo(() => {
@@ -287,6 +290,17 @@ export function StudentAttendanceKardex({
         // C. Si la lección tiene fechas excluidas (reprogramada fuera de este día), omitir
         if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
           return;
+        }
+
+        // C.1. Si tiene vigencia limitada por transición (effectiveUntil / effectiveFrom) para sesiones no evaluadas
+        const isAlreadyEvaluated = lesson.attendanceByDate && lesson.attendanceByDate[curDateStr] && lesson.attendanceByDate[curDateStr] !== "pendiente";
+        if (!isAlreadyEvaluated) {
+          if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
+            return;
+          }
+          if (lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) {
+            return;
+          }
         }
 
         // D. Si tiene semana fija (weekIndex) y no dateStr, verificar semana dentro del mes de la fecha
@@ -780,6 +794,16 @@ export function StudentAttendanceKardex({
                 🔄 Reingreso
               </Badge>
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsTransitionModalOpen(true)}
+              className="h-7 text-xs font-bold gap-1.5 border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-100 rounded-xl shadow-xs"
+              title="Transición de curso o cambio de instrumento/profesor manteniendo asistencias"
+            >
+              <Music className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span>🎸 Cambiar Instrumento / Docente</span>
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-3">
             <span className="flex items-center gap-1">
@@ -961,6 +985,16 @@ export function StudentAttendanceKardex({
               <PlusCircle className="h-3.5 w-3.5 mr-1" />
               Programar Recuperación
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsTransitionModalOpen(true)}
+              className="h-8 text-xs font-bold border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-100 rounded-xl shadow-xs"
+              title="Transición de curso o cambio de instrumento/docente manteniendo asistencias"
+            >
+              <Music className="h-3.5 w-3.5 mr-1 text-amber-600 dark:text-amber-400" />
+              🎸 Cambiar Instrumento / Docente
+            </Button>
           </div>
         </div>
       )}
@@ -1081,6 +1115,17 @@ export function StudentAttendanceKardex({
           >
             <PlusCircle className="h-3.5 w-3.5" />
             <span>➕ Agregar Sesión / Adelanto</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsTransitionModalOpen(true)}
+            className="text-xs font-bold gap-1.5 border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20 rounded-xl shadow-xs"
+            title="Transición de curso o cambio de instrumento/profesor manteniendo asistencias"
+          >
+            <Music className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+            <span>🎸 Cambiar Instrumento / Docente</span>
           </Button>
 
           <Button
@@ -1715,6 +1760,13 @@ export function StudentAttendanceKardex({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Transición de Curso e Instrumento (ADR-0129) */}
+      <CourseTransitionDialog
+        student={liveStudent}
+        isOpen={isTransitionModalOpen}
+        onClose={() => setIsTransitionModalOpen(false)}
+      />
     </div>
   );
 

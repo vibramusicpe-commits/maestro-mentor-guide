@@ -161,6 +161,18 @@ type AppState = {
   assignTeacher: (id: string, teacher: string) => void;
   addStudentCredit: (id: string) => void;
   consumeStudentCredit: (id: string) => void;
+  transitionStudentCourse: (params: {
+    studentId: string;
+    newInstrument: string;
+    newTeacher: string;
+    newRoom: string;
+    effectiveDate: string;
+    newDay1: WeekDay;
+    newTime1: string;
+    newDay2?: WeekDay;
+    newTime2?: string;
+    hasTwoWeeklySessions: boolean;
+  }) => void;
   markLessonAttendance: (
     lessonId: string,
     status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente",
@@ -1565,6 +1577,124 @@ export const useAppStore = create<AppState>()(
             syncQueue: [
               ...s.syncQueue,
               queueItem(`Horario actualizado para ${studentName}: ${newLessons.length} clases programadas`),
+            ],
+          };
+        }),
+      transitionStudentCourse: ({
+        studentId,
+        newInstrument,
+        newTeacher,
+        newRoom,
+        effectiveDate,
+        newDay1,
+        newTime1,
+        newDay2,
+        newTime2,
+        hasTwoWeeklySessions,
+      }) =>
+        set((s) => {
+          const targetSt = s.adminStudents.find(
+            (st) => isSameStudentId(st.id, studentId) || isMatchingStudentName(st.name, studentId)
+          );
+          if (!targetSt) return s;
+
+          // Calcular día anterior a la fecha de corte
+          const [ey, em, ed] = effectiveDate.split("-").map(Number);
+          const cutDate = new Date(ey || 2026, (em || 9) - 1, ed || 1);
+          cutDate.setDate(cutDate.getDate() - 1);
+          const dayBeforeEffectiveDate = `${cutDate.getFullYear()}-${String(cutDate.getMonth() + 1).padStart(2, "0")}-${String(cutDate.getDate()).padStart(2, "0")}`;
+
+          // Extraer lecciones previas del alumno (de studentProfile o de schedule)
+          const existingLessons =
+            Array.isArray(targetSt.scheduleLessons) && targetSt.scheduleLessons.length > 0
+              ? targetSt.scheduleLessons
+              : s.schedule.filter(
+                  (l) => isMatchingStudentName(l.student, targetSt.name) && l.status !== "cancelada"
+                );
+
+          // Ajustar lecciones previas para que no se proyecten a partir de effectiveDate
+          const preservedPreviousLessons: ScheduledLesson[] = existingLessons.map((l) => ({
+            ...l,
+            effectiveUntil: l.effectiveUntil && l.effectiveUntil < dayBeforeEffectiveDate
+              ? l.effectiveUntil
+              : dayBeforeEffectiveDate,
+          }));
+
+          // Crear las nuevas lecciones a partir de effectiveDate
+          const nowMs = Date.now();
+          const newLessons: ScheduledLesson[] = [
+            {
+              id: `sch-${nowMs}-1-${Math.random().toString(36).slice(2, 6)}`,
+              student: targetSt.name,
+              teacher: newTeacher,
+              instrument: newInstrument,
+              room: newRoom,
+              day: newDay1,
+              time: newTime1,
+              category: (targetSt.category || targetSt.ageCategory || "ADULTO") as AgeCategory,
+              sessionNumber: 1,
+              status: "programada",
+              year: ey || 2026,
+              effectiveFrom: effectiveDate,
+            },
+          ];
+
+          if (hasTwoWeeklySessions && newDay2 && newTime2) {
+            newLessons.push({
+              id: `sch-${nowMs}-2-${Math.random().toString(36).slice(2, 6)}`,
+              student: targetSt.name,
+              teacher: newTeacher,
+              instrument: newInstrument,
+              room: newRoom,
+              day: newDay2,
+              time: newTime2,
+              category: (targetSt.category || targetSt.ageCategory || "ADULTO") as AgeCategory,
+              sessionNumber: 2,
+              status: "programada",
+              year: ey || 2026,
+              effectiveFrom: effectiveDate,
+            });
+          }
+
+          const combinedStudentLessons = [...preservedPreviousLessons, ...newLessons];
+
+          // Reemplazar clases del alumno en el horario global
+          const otherScheduleLessons = s.schedule.filter(
+            (l) => !isMatchingStudentName(l.student, targetSt.name)
+          );
+          const finalSchedule = [...otherScheduleLessons, ...combinedStudentLessons];
+
+          // Actualizar ficha del alumno
+          const updatedStudents = s.adminStudents.map((st) =>
+            isSameStudentId(st.id, targetSt.id)
+              ? {
+                  ...st,
+                  instrument: newInstrument,
+                  teacher: newTeacher,
+                  room: newRoom,
+                  scheduleLessons: combinedStudentLessons,
+                }
+              : st
+          );
+
+          // Sincronizar con PostgreSQL
+          backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
+            instrument: newInstrument,
+            teacher: newTeacher,
+            room: newRoom,
+            scheduleLessons: combinedStudentLessons,
+          });
+
+          playSyntheticBellChime();
+
+          return {
+            adminStudents: updatedStudents,
+            schedule: finalSchedule,
+            syncQueue: [
+              ...s.syncQueue,
+              queueItem(
+                `Transición de curso: ${targetSt.name} a ${newInstrument} con Prof. ${newTeacher} desde ${effectiveDate}`
+              ),
             ],
           };
         }),

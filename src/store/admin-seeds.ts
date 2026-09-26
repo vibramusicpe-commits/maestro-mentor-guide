@@ -36,11 +36,11 @@ export const musicalInstruments = [
 export type AgeCategory = "ESTIMULACION" | "INFANTIL" | "JUNIOR" | "JUVENIL" | "MASTER" | "ADULTO" | "RECUPERACION" | "PERSONALIZADA";
 
 export function getCategoryFromAge(age: number): AgeCategory {
-  if (age >= 4 && age <= 5) return "ESTIMULACION";
-  if (age >= 5 && age <= 6) return "INFANTIL";
-  if (age >= 7 && age <= 12) return "JUNIOR";
-  if (age >= 13 && age <= 17) return "JUVENIL";
   if (age >= 18) return "MASTER";
+  if (age >= 13) return "JUVENIL";
+  if (age >= 7) return "JUNIOR";
+  if (age >= 5) return "INFANTIL";
+  if (age >= 4) return "ESTIMULACION";
   return "JUNIOR";
 }
 
@@ -124,6 +124,8 @@ export type ScheduledLesson = {
   recoveringLessonDate?: string;
   dateStr?: string; // Fecha exacta YYYY-MM-DD si es una sesión única o reprogramada
   excludedDates?: string[]; // Fechas específicas YYYY-MM-DD excluidas de una lección recurrente
+  effectiveUntil?: string; // Fecha límite YYYY-MM-DD hasta la cual esta lección es válida
+  effectiveFrom?: string; // Fecha de inicio YYYY-MM-DD a partir de la cual esta lección es válida
 };
 
 export type StudentStatus = "activo" | "pausa" | "baja";

@@ -110,6 +110,12 @@ export function MinimalAgendaCalendar({
 
       if (schL.excludedDates?.includes(dayInfo.dateStr)) return;
 
+      const isEvaluated = schL.attendanceByDate?.[dayInfo.dateStr] && schL.attendanceByDate[dayInfo.dateStr] !== "pendiente";
+      if (!isEvaluated) {
+        if (schL.effectiveUntil && dayInfo.dateStr > schL.effectiveUntil) return;
+        if (schL.effectiveFrom && dayInfo.dateStr < schL.effectiveFrom) return;
+      }
+
       if (!isLessonInStudentCycle(studentProfile, schL, dayInfo.dateStr, l.time, schedule)) {
         return;
       }
