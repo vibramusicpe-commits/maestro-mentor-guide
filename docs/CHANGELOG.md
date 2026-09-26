@@ -4,6 +4,20 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.15] - 2026-09-26
+
+### Corrección de Desfase de Proporciones y Adaptabilidad Responsiva en Kardex (ADR-0129)
+- **Eliminación de Desbordamiento Horizontal en Modal Kardex (`StudentAttendanceKardex`)**:
+  - Ampliación del ancho del diálogo a `w-[96vw] max-w-5xl max-h-[92vh] overflow-hidden` y contenedor interno de scroll con `overflow-x-hidden min-w-0 w-full max-w-full`.
+  - Corrección de la barra de acciones de secretaría a `flex flex-col md:flex-row md:items-center justify-between gap-3 min-w-0` y remoción de `shrink-0` de los botones para habilitar el acomodo fluido sin desbordar el modal.
+  - Simplificación de etiquetas en botones (`➕ Agregar Sesión`, `Copiar WhatsApp`, `✏️ Editar`) y remoción del botón duplicado de transición en el banner de Filosofía Vibra.
+  - Rejilla responsiva de tarjetas métricas con `grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 min-w-0` y texto truncado para evitar descalibres.
+  - Reducción del ancho mínimo de la fila horaria a `min-w-[200px] flex-1` y liberación de `shrink-0` en los botones de asistencia para que se adapten con gracia en resoluciones reducidas.
+- **Normalización de Diálogos Radix/Tailwind (`dialog.tsx`, `alert-dialog.tsx`)**:
+  - Sustitución de sintaxis arbitraria por las clases estándar de Tailwind CSS `-translate-x-1/2 -translate-y-1/2` con `left-1/2 top-1/2`.
+- **Cálculo Automático de Categoría MASTER para Alumnos de 18+ Años (`AddNewStudentDialog`)**:
+  - Detección precisa de edad a partir de la fecha de nacimiento (`birthdate`): si la edad calculada es $\ge 18$, se asigna y selecciona automáticamente la categoría `"MASTER"`.
+
 ## [2.0.14] - 2026-09-25
 
 ### Transición de Curso e Instrumento con Interfaz Manual en Kardex y Aislamiento de Asistencias (ADR-0129)

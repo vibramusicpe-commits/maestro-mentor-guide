@@ -624,4 +624,11 @@ inferencia.
 4. **Preservación Incondicional de Créditos de Recuperación ("La clase no se pierde, se recupera")**:
    - Las faltas acumuladas por inasistencias médicas o justificadas en el curso anterior (ej. las 2 faltas de salud de Sasha en Canto) se trasladan íntegramente como créditos de recuperación disponibles para ser programados en el nuevo instrumento con el nuevo docente.
 5. **Persistencia Estándar vía `backgroundSyncStudentToDB`**:
-   - La acción `transitionStudentCourse` actualiza el store de Zustand y delega la sincronización con PostgreSQL al pipeline estándar con debounce de 350ms, garantizando la consistencia transaccional y la emisión limpia de eventos inter-pestañas post-escritura.
+   - La acción `transitionStudentCourse` actualiza el store de Zustand y delega la sincronización con PostgreSQL al pipeline estándar con debounce de 350ms, garantizando la consistencia transaccional y la emisión limpia de eventos inter-pestañas post-escritura.
+6. **Eliminación de Desbordamiento Horizontal y Proporciones Responsivas en Kardex**:
+   - El contenedor `DialogContent` en `StudentAttendanceKardex` se amplía a `w-[96vw] max-w-5xl max-h-[92vh] overflow-hidden` y su contenedor de scroll cuenta obligatoriamente con `overflow-x-hidden min-w-0 w-full max-w-full`.
+   - La barra de acciones de secretaría adopta `flex flex-col md:flex-row md:items-center justify-between gap-3 min-w-0` y se retira `shrink-0` de la agrupación de botones, evitando que una fila con 6+ botones empuje el modal horizontalmente fuera del viewport.
+   - En `course-transition-dialog.tsx`, el diálogo se acota a `w-[94vw] max-w-2xl max-h-[92vh] overflow-y-auto overflow-x-hidden`.
+   - Centrado estándar de Tailwind CSS: los componentes de diálogo (`dialog.tsx`, `alert-dialog.tsx`) deben usar `left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`.
+7. **Asignación Automática de Categoría MASTER para Alumnos de 18+ Años (`AddNewStudentDialog`)**:
+   - Al seleccionar o ingresar una fecha de nacimiento que corresponda a 18 años o más, la categoría del alumno debe seleccionarse y calcularse automáticamente como `"MASTER"` (no Estimulación ni Infantil), respetando las directrices de categorización por edad de Vibra Music.
