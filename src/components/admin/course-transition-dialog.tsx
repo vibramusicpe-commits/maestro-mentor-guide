@@ -7,6 +7,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -255,13 +265,21 @@ export function CourseTransitionDialog({
   const slot1Occ = useMemo(() => getSlotOccupancy(day1, time1, newRoom), [schedule, day1, time1, newRoom, liveStudent.name, adminStudents]);
   const slot2Occ = useMemo(() => getSlotOccupancy(day2, time2, newRoom), [schedule, day2, time2, newRoom, liveStudent.name, adminStudents]);
 
-  // Manejar guardado
-  const handleConfirm = () => {
+  // Estados para diálogos de confirmación con advertencia
+  const [isConfirmTransitionOpen, setIsConfirmTransitionOpen] = useState(false);
+  const [isConfirmRevertOpen, setIsConfirmRevertOpen] = useState(false);
+
+  // Solicitar confirmación previa a aplicar transición
+  const handleRequestConfirm = () => {
     if (!effectiveDate) {
       toast.error("Selecciona una fecha válida de entrada en vigencia");
       return;
     }
+    setIsConfirmTransitionOpen(true);
+  };
 
+  // Ejecución real de la transición tras confirmación consciente
+  const executeConfirmTransition = () => {
     transitionStudentCourse({
       studentId: liveStudent.id,
       newInstrument,
@@ -279,20 +297,28 @@ export function CourseTransitionDialog({
       description: `${liveStudent.name} iniciará ${newInstrument} con Prof. ${newTeacher} (${newRoom}) a partir del ${effectiveDate} a las ${time1}.`,
     });
 
+    setIsConfirmTransitionOpen(false);
     onClose();
   };
 
-  // Reversión quirúrgica del cambio de curso (ADR-0131)
-  const handleRevert = () => {
+  // Solicitar confirmación previa a revertir transición
+  const handleRequestRevert = () => {
+    setIsConfirmRevertOpen(true);
+  };
+
+  // Ejecución real de la reversión tras confirmación consciente
+  const executeRevertTransition = () => {
     revertStudentCourseTransition(liveStudent.id);
     toast.success(`🔄 Transición revertida con éxito`, {
       description: `${liveStudent.name} ha retornado a su curso anterior sin pérdida de asistencias ni pagos.`,
     });
+    setIsConfirmRevertOpen(false);
     onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="w-[94vw] max-w-2xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 bg-card border-border shadow-2xl rounded-2xl">
         <DialogHeader className="space-y-1.5 pb-2 border-b border-border/60">
           <div className="flex items-center gap-2 text-primary">
@@ -348,7 +374,7 @@ export function CourseTransitionDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleRevert}
+                onClick={handleRequestRevert}
                 className="text-xs font-bold text-red-600 border-red-500/40 hover:bg-red-500/15 gap-1.5 rounded-xl h-8 shrink-0 shadow-2xs"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -600,7 +626,7 @@ export function CourseTransitionDialog({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={handleRevert}
+                onClick={handleRequestRevert}
                 className="text-xs font-bold text-red-600 hover:bg-red-500/10 gap-1.5 rounded-xl"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -610,7 +636,7 @@ export function CourseTransitionDialog({
           </div>
           <Button
             size="sm"
-            onClick={handleConfirm}
+            onClick={handleRequestConfirm}
             className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white gap-1.5 rounded-xl shadow-xs"
           >
             <CheckCircle2 className="h-4 w-4" />
@@ -619,5 +645,112 @@ export function CourseTransitionDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* ⚠️ Diálogo de Confirmación con Advertencia para Aplicar Transición */}
+    <AlertDialog open={isConfirmTransitionOpen} onOpenChange={setIsConfirmTransitionOpen}>
+      <AlertDialogContent className="w-[92vw] max-w-md bg-card border-border shadow-2xl rounded-2xl">
+        <AlertDialogHeader>
+          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <AlertDialogTitle className="text-base font-black">
+              Confirmar Transición de Curso e Instrumento
+            </AlertDialogTitle>
+          </div>
+          <AlertDialogDescription asChild>
+            <div className="text-xs text-muted-foreground space-y-2.5 pt-2">
+              <p>
+                Estás a punto de reasignar el curso de <strong className="text-foreground">{liveStudent.name}</strong>:
+              </p>
+              <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-1.5 text-foreground">
+                <p className="font-bold flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground font-normal">Nuevo curso:</span>
+                  <span>{newInstrument} · Prof. {newTeacher} ({newRoom})</span>
+                </p>
+                <p className="font-bold flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground font-normal">Entrada en vigencia:</span>
+                  <span className="font-mono text-primary font-black">{effectiveDate}</span>
+                </p>
+                <p className="font-bold flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground font-normal">Nuevo horario:</span>
+                  <span>{day1} {time1}{hasTwoWeeklySessions ? ` y ${day2} ${time2}` : ""}</span>
+                </p>
+              </div>
+              <ul className="text-[11px] space-y-1 list-disc list-inside text-muted-foreground">
+                <li>Las <strong>{pastEvaluatedCount} clases impartidas</strong> y sus asistencias históricas se mantendrán 100% inmutables.</li>
+                <li>Los <strong>{liveStudent.makeupCredits} créditos de inasistencia</strong> se conservarán íntegros para recuperarse con el nuevo profesor.</li>
+                <li>A partir del <strong>{effectiveDate}</strong>, sus clases semanales quedarán asignadas al nuevo horario.</li>
+              </ul>
+              <p className="font-bold text-foreground pt-1">
+                ¿Confirmas que deseas aplicar esta transición de curso?
+              </p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="gap-2 sm:gap-0 pt-2">
+          <AlertDialogCancel className="text-xs font-bold rounded-xl">
+            Volver y Revisar
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={executeConfirmTransition}
+            className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow-xs"
+          >
+            Sí, Aplicar Transición
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* ⚠️ Diálogo de Confirmación con Advertencia para Revertir Transición */}
+    <AlertDialog open={isConfirmRevertOpen} onOpenChange={setIsConfirmRevertOpen}>
+      <AlertDialogContent className="w-[92vw] max-w-md bg-card border-border shadow-2xl rounded-2xl">
+        <AlertDialogHeader>
+          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+            <RotateCcw className="h-5 w-5 shrink-0" />
+            <AlertDialogTitle className="text-base font-black">
+              Confirmar Reversión de Transición
+            </AlertDialogTitle>
+          </div>
+          <AlertDialogDescription asChild>
+            <div className="text-xs text-muted-foreground space-y-2.5 pt-2">
+              <p>
+                Estás a punto de anular la transición de curso para <strong className="text-foreground">{liveStudent.name}</strong>:
+              </p>
+              <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 space-y-1 text-foreground">
+                <p className="text-xs text-red-700 dark:text-red-300 font-bold">
+                  ⚠️ Advertencia de Reversión
+                </p>
+                <p className="text-[11px] text-red-800 dark:text-red-200">
+                  Se eliminarán las clases futuras del nuevo curso y el alumno retornará a su instrumento, docente y sala original.
+                </p>
+                {activeTransitionDetails && (
+                  <p className="text-[11px] text-muted-foreground pt-0.5">
+                    Retornará a: <strong>{activeTransitionDetails.oldCourse}</strong>
+                  </p>
+                )}
+              </div>
+              <ul className="text-[11px] space-y-1 list-disc list-inside text-muted-foreground">
+                <li>Todas las marcas de asistencias pasadas y clases impartidas se preservan al 100%.</li>
+                <li>Los pagos, recibos y créditos de recuperación permanecen sin alteraciones.</li>
+              </ul>
+              <p className="font-bold text-red-700 dark:text-red-300 pt-1">
+                ¿Confirmas que deseas revertir este cambio y volver al curso anterior?
+              </p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="gap-2 sm:gap-0 pt-2">
+          <AlertDialogCancel className="text-xs font-bold rounded-xl">
+            Cancelar
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={executeRevertTransition}
+            className="text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-xs"
+          >
+            Sí, Revertir al Curso Anterior
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>
   );
 }

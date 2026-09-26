@@ -22,6 +22,10 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
   - Al revertir, se eliminan quirúrgicamente las lecciones nuevas creadas en la transición, se retira `effectiveUntil` de las clases del curso anterior, se restituye el instrumento, profesor y sala originales y se sincroniza con PostgreSQL sin alterar las asistencias históricas ni recibos.
 - **Identificación de Instrumento en Fila de Sesión del Kardex**:
   - En la tabla de sesiones del Kardex, cada fila muestra explícitamente el instrumento junto a la hora, sala y docente (ej. `Canto • Sala C • Prof. Nathaly` vs `Guitarra • Sala A • Prof. Jeremy`).
+- **Modales de Confirmación y Advertencia Anti-Error (ADR-0131)**:
+  - En `CourseTransitionDialog`, tanto la acción de aplicar transición como la de revertir transición solicitan confirmación explícita mediante `<AlertDialog>` antes de mutar el estado o la base de datos PostgreSQL.
+  - La ventana de confirmación detalla el nombre del alumno, nuevo instrumento, docente, sala, fecha efectiva, nuevos turnos y enfatiza que las asistencias pasadas e historial contable permanecen intactos, protegiendo al sistema contra clics accidentales de secretaría o dirección.
+
 
 ## [2.0.16] - 2026-09-26
 
