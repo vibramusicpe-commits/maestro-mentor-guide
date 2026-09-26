@@ -13,7 +13,13 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
-import { musicalInstruments, availableTeachers, rooms } from "@/store/admin-seeds";
+import {
+  musicalInstruments,
+  availableTeachers,
+  rooms,
+  timeSlotsWeekday,
+  timeSlotsSaturday,
+} from "@/store/admin-seeds";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,11 +45,8 @@ const MAX_CAPACITY = 5; // Aforo máximo por clase / profesor / sala: 5 alumnos
 export type WeekDay = "Lun" | "Mar" | "Mié" | "Jue" | "Vie" | "Sáb";
 
 const WEEK_DAYS: WeekDay[] = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const WEEKDAY_TIMES = ["16:00", "16:45", "17:30", "18:15", "19:00", "19:45", "20:30", "21:15"];
-const SATURDAY_TIMES = [
-  "09:00", "09:45", "10:30", "11:15", "12:00", "12:45", "13:30",
-  "14:15", "15:00", "15:45", "16:30", "17:15", "18:00",
-];
+const WEEKDAY_TIMES = timeSlotsWeekday;
+const SATURDAY_TIMES = timeSlotsSaturday;
 
 interface VacancySlot {
   day: WeekDay;

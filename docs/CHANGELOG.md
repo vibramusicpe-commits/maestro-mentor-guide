@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.16] - 2026-09-26
+
+### Alineación Estricta con el Horario Oficial de Vibra Music y Erradicación de Horarios Inválidos (ADR-0130)
+- **Erradicación de Horarios Fantasma y Etiquetas en `CourseTransitionDialog`**:
+  - Eliminación total de la hora inexistente `17:40` y de la etiqueta repetitiva `(1 turno antes: 17:40)`.
+  - Reemplazo de listas locales por `timeSlotsWeekday` (`["16:00", "16:45", "17:30", "18:15", "19:00"]`) y `timeSlotsSaturday` (`["09:00", "09:45", "10:30", "11:15", "12:00", "12:45"]`).
+  - Dinamismo de selector: al alternar entre días entre semana y sábado, se conmuta automáticamente el catálogo de turnos oficiales y se sincroniza la hora seleccionada.
+  - Para Sasha Contreras, la hora inicial se toma de su lección actual (`18:15`), permitiendo seleccionar con 1 clic su turno previo real de 45 min (`17:30`) con Prof. Jeremy en Sala A.
+- **Sincronización de Horarios en Organizador (`ScheduleStudentForm` en `students-table.tsx`)**:
+  - Sustitución de listas hardcodeadas que contenían horarios nocturnos (`19:45`, `20:30`, `21:15`) y tardes de sábado (`14:15` a `18:00`) por los turnos oficiales canónicos de `admin-seeds.ts`.
+- **Alineación de Matriz de Disponibilidad (`VacancyAvailabilityPanel`)**:
+  - `WEEKDAY_TIMES` y `SATURDAY_TIMES` enlazados estrictamente a `timeSlotsWeekday` y `timeSlotsSaturday`, eliminando vacantes falsas fuera del horario operativo de la academia.
+- **Limpieza de Turnos Demo (`AdminDemosPage`)**:
+  - Remoción de `"19:45"` como hora de inicio en `DEMO_TIME_SLOTS`, fijando el último turno a las `19:00`.
+
 ## [2.0.15] - 2026-09-26
 
 ### Corrección de Desfase de Proporciones y Adaptabilidad Responsiva en Kardex (ADR-0129)

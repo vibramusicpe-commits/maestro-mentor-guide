@@ -78,7 +78,6 @@ const DEMO_TIME_SLOTS = [
   "17:30",
   "18:15",
   "19:00",
-  "19:45",
 ];
 
 // Profesores oficiales de planta para clases regulares

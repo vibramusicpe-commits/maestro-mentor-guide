@@ -631,4 +631,15 @@ inferencia.
    - En `course-transition-dialog.tsx`, el diálogo se acota a `w-[94vw] max-w-2xl max-h-[92vh] overflow-y-auto overflow-x-hidden`.
    - Centrado estándar de Tailwind CSS: los componentes de diálogo (`dialog.tsx`, `alert-dialog.tsx`) deben usar `left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`.
 7. **Asignación Automática de Categoría MASTER para Alumnos de 18+ Años (`AddNewStudentDialog`)**:
-   - Al seleccionar o ingresar una fecha de nacimiento que corresponda a 18 años o más, la categoría del alumno debe seleccionarse y calcularse automáticamente como `"MASTER"` (no Estimulación ni Infantil), respetando las directrices de categorización por edad de Vibra Music.
+   - Al seleccionar o ingresar una fecha de nacimiento que corresponda a 18 años o más, la categoría del alumno debe seleccionarse y calcularse automáticamente como `"MASTER"` (no Estimulación ni Infantil), respetando las directrices de categorización por edad de Vibra Music.
+
+---
+
+### 30. Alineación Estricta con el Horario Oficial de Vibra Music y Erradicación de Horarios Inválidos (ADR-0130)
+1. **Horario Oficial Canónico de la Escuela (Fuente de Verdad)**:
+   - **Lunes a Viernes (Turno Tarde)**: De 4:00 pm a 7:45 pm (16:00 a 19:45). Turnos de 45 minutos que inician estrictamente en: `["16:00", "16:45", "17:30", "18:15", "19:00"]`. La última clase inicia a las 19:00 y concluye puntualmente a las 19:45.
+   - **Sábados (Turno Mañana)**: De 9:00 am a 1:30 pm (09:00 a 13:30). Turnos de 45 minutos que inician estrictamente en: `["09:00", "09:45", "10:30", "11:15", "12:00", "12:45"]`. La última clase inicia a las 12:45 y concluye a las 13:30.
+   - **No existen clases los sábados en la tarde** ni horarios nocturnos que inicien después de las 19:00.
+2. **Prohibición de Arreglos Locales y Horarios Ficticios**:
+   - Todo selector de horario en la plataforma (`CourseTransitionDialog`, `ScheduleStudentForm`, `VacancyAvailabilityPanel`, `StudentAttendanceKardex`) DEBE consumir obligatoriamente las constantes canónicas `timeSlotsWeekday` y `timeSlotsSaturday` de `@/store/admin-seeds`.
+   - Está **TERMINANTEMENTE PROHIBIDO** hardcodear listas locales con horarios fuera de rango (`17:40`, `18:25`, `19:45` como inicio, `20:30`, `21:15` o tardes de sábado de `14:15` a `18:00`) o etiquetas fijas personalizadas en elementos de selección general.

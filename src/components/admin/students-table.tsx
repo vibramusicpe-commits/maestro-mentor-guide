@@ -40,7 +40,14 @@ import {
   type DeletionReasonCategory,
   type DeletedStudentLog,
 } from "@/store/app-store";
-import { teachers, musicalInstruments, VIBRA_PRICING, getCategoryFromAge } from "@/store/admin-seeds";
+import {
+  teachers,
+  musicalInstruments,
+  VIBRA_PRICING,
+  getCategoryFromAge,
+  timeSlotsWeekday,
+  timeSlotsSaturday,
+} from "@/store/admin-seeds";
 import { calculateAgeFromBirthdate } from "@/lib/calendar-utils";
 import {
   evaluateSlotPedagogicalCompatibility,
@@ -5510,11 +5517,8 @@ function ScheduleStudentForm({
     setRoom2(room1);
   };
 
-  const weekdayTimes = ["16:00", "16:45", "17:30", "18:15", "19:00", "19:45", "20:30", "21:15"];
-  const saturdayTimes = [
-    "09:00", "09:45", "10:30", "11:15", "12:00", "12:45", "13:30",
-    "14:15", "15:00", "15:45", "16:30", "17:15", "18:00",
-  ];
+  const weekdayTimes = timeSlotsWeekday;
+  const saturdayTimes = timeSlotsSaturday;
 
   const finalTeacher = teacher || liveStudent.teacher || availableTeachers[0] || "Prof. por Asignar";
 

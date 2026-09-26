@@ -35,7 +35,12 @@ import {
   type WeekDay,
   type ScheduledLesson,
 } from "@/store/app-store";
-import { teachers, musicalInstruments } from "@/store/admin-seeds";
+import {
+  teachers,
+  musicalInstruments,
+  timeSlotsWeekday,
+  timeSlotsSaturday,
+} from "@/store/admin-seeds";
 import { getOfficialTeacherRoom } from "@/lib/room-compatibility";
 import { isSameStudentId, isMatchingStudentName } from "@/lib/student-matching";
 import { toast } from "sonner";
@@ -45,18 +50,6 @@ interface CourseTransitionDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const WEEKDAY_TIMES = [
-  "16:00",
-  "16:45",
-  "17:30",
-  "17:40",
-  "18:15",
-  "18:25",
-  "19:00",
-  "19:45",
-  "20:30",
-];
 
 const WEEKDAYS: WeekDay[] = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -199,9 +192,36 @@ export function CourseTransitionDialog({
   const [day1, setDay1] = useState<WeekDay>(l1?.day || "Mar");
   const [day2, setDay2] = useState<WeekDay>(l2?.day || "Jue");
 
-  // Para Sasha: 1 turno antes (17:40 en vez de 18:15)
-  const [time1, setTime1] = useState<string>("17:40");
-  const [time2, setTime2] = useState<string>("17:40");
+  // Helper para resolver los turnos oficiales de la escuela (L-V tarde: 16:00 a 19:00, Sáb mañana: 09:00 a 12:45)
+  const getSlotsForDay = (d: WeekDay) => (d === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday);
+
+  // Inicializar con la hora existente del alumno si es un turno oficial válido para ese día
+  const resolveInitialTime = (lesson: ScheduledLesson | null | undefined, d: WeekDay) => {
+    const slots = getSlotsForDay(d);
+    if (lesson?.time && slots.includes(lesson.time)) {
+      return lesson.time;
+    }
+    return slots[0];
+  };
+
+  const [time1, setTime1] = useState<string>(() => resolveInitialTime(l1, l1?.day || "Mar"));
+  const [time2, setTime2] = useState<string>(() => resolveInitialTime(l2 || l1, l2?.day || "Jue"));
+
+  const handleDay1Change = (newD: WeekDay) => {
+    setDay1(newD);
+    const validSlots = getSlotsForDay(newD);
+    if (!validSlots.includes(time1)) {
+      setTime1(validSlots[0]);
+    }
+  };
+
+  const handleDay2Change = (newD: WeekDay) => {
+    setDay2(newD);
+    const validSlots = getSlotsForDay(newD);
+    if (!validSlots.includes(time2)) {
+      setTime2(validSlots[0]);
+    }
+  };
 
   // Helper para verificar aforo de la sala con el nuevo profesor
   const getSlotOccupancy = (d: WeekDay, t: string, r: string) => {
@@ -414,7 +434,7 @@ export function CourseTransitionDialog({
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label className="text-[10px] text-muted-foreground">Día:</Label>
-                    <Select value={day1} onValueChange={(v) => setDay1(v as WeekDay)}>
+                    <Select value={day1} onValueChange={(v) => handleDay1Change(v as WeekDay)}>
                       <SelectTrigger className="h-8 text-xs font-bold">
                         <SelectValue />
                       </SelectTrigger>
@@ -434,9 +454,9 @@ export function CourseTransitionDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {WEEKDAY_TIMES.map((t) => (
+                        {getSlotsForDay(day1).map((t) => (
                           <SelectItem key={t} value={t}>
-                            {t} (1 turno antes: 17:40)
+                            {t}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -464,7 +484,7 @@ export function CourseTransitionDialog({
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-[10px] text-muted-foreground">Día:</Label>
-                      <Select value={day2} onValueChange={(v) => setDay2(v as WeekDay)}>
+                      <Select value={day2} onValueChange={(v) => handleDay2Change(v as WeekDay)}>
                         <SelectTrigger className="h-8 text-xs font-bold">
                           <SelectValue />
                         </SelectTrigger>
@@ -484,7 +504,7 @@ export function CourseTransitionDialog({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {WEEKDAY_TIMES.map((t) => (
+                          {getSlotsForDay(day2).map((t) => (
                             <SelectItem key={t} value={t}>
                               {t}
                             </SelectItem>
