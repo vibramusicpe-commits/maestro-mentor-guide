@@ -7,8 +7,8 @@
 | **Documento** | Especificación de Requisitos de Software (SRS) |
 |---|---|
 | **Proyecto** | Vibra Music Staff — Webapp Integral |
-| **Versión** | 2.1.0 (Producción / Blueprint Maestro) |
-| **Fecha de Emisión** | Setiembre 2026 |
+| **Versión** | 2.1.1 (Producción / MVP Consolidado) |
+| **Fecha de Emisión** | 26 de Setiembre 2026 (Actualización de Producción) |
 | **Autor Institucional** | Equipo de Ingeniería de Software & Arquitectura de Sistemas |
 | **Cliente / Institución** | Escuela de Música Vibra Music (Tacna, Perú) |
 | **Estado del Documento** | Aprobado para Operación y Auditoría |
@@ -36,7 +36,7 @@
 4. [CAPA 3: INFORMACIÓN DEL DOMINIO DEL PROBLEMA](#4-capa-3-información-del-dominio-del-problema)
    - 4.1. Introducción al Dominio de la Educación Musical Personalizada
    - 4.2. Problemática histórica de gestión en Vibra Music (El Excel de Nayeli y cuadernos físicos)
-   - 4.3. Restricciones Físicas y Acústicas de Salas
+   - 4.3. Restricciones Físicas, Acústicas de Salas y Horarios Oficiales Institucionales
    - 4.4. Glosario Exhaustivo de Funciones, Componentes y Utilidades del Sistema
 5. [CAPA 4: NECESIDADES DE NEGOCIO Y MODELOS TARIFARIOS A IMPLANTAR](#5-capa-4-necesidades-de-negocio-y-modelos-tarifarios-a-implantar)
    - 5.1. Objetivos de Negocio de los Clientes (Familias, Apoderados y Alumnos)
@@ -61,6 +61,7 @@
    - 6.7. Proceso de Cierre Estricto de Ciclo Contractual (Resolución de Cuota)
    - 6.8. Proceso de Facturación, Emisión de Recibos y Abonos Fraccionados
    - 6.9. Proceso de Prospección y Captación Automatizada por WhatsApp Cloud API
+   - 6.10. Proceso de Transición Quirúrgica de Curso, Preservación Histórica y Reversión Anti-Error
 7. [CAPA 6: CASOS DE USO DEL NEGOCIO Y ESPECIFICACIÓN DE ESCENARIOS](#7-capa-6-casos-de-uso-del-negocio-y-especificación-de-escenarios)
    - 7.1. Matriz de Actores del Negocio
    - 7.2. Catálogo Detallado de Casos de Uso del Negocio (CUN-01 al CUN-12)
@@ -76,10 +77,10 @@
 9. [CAPA 8: REQUISITOS FUNCIONALES DEL SISTEMA (RF)](#9-capa-8-requisitos-funcionales-del-sistema-rf)
    - 9.1. Módulo 1: Agenda, Calendario y Horarios (RF-01 al RF-12)
    - 9.2. Módulo 2: Fichas de Alumnos y Familias (RF-13 al RF-24)
-   - 9.3. Módulo 3: Kardex de Asistencias y Reprogramaciones (RF-25 al RF-36)
-   - 9.4. Módulo 4: Kiosco Docente y Terminales de Sala (RF-37 al RF-44)
-   - 9.5. Módulo 5: Facturación, Recibos y Caja Chica (RF-45 al RF-54)
-   - 9.6. Módulo 6: Bot Oficial de WhatsApp Cloud API (RF-55 al RF-60)
+   - 9.3. Módulo 3: Kardex de Asistencias y Reprogramaciones (RF-25 al RF-41)
+   - 9.4. Módulo 4: Kiosco Docente y Terminales de Sala (RF-42 al RF-49)
+   - 9.5. Módulo 5: Facturación, Recibos y Caja Chica (RF-50 al RF-59)
+   - 9.6. Módulo 6: Bot Oficial de WhatsApp Cloud API (RF-60 al RF-65)
 10. [CAPA 9: REQUISITOS NO FUNCIONALES DEL SISTEMA (RNF)](#10-capa-9-requisitos-no-funcionales-del-sistema-rnf)
     - 10.1. Rendimiento y Latencia (RNF-01 a RNF-04)
     - 10.2. Seguridad, Autenticación y Control de Acceso (RNF-05 a RNF-08)
@@ -104,7 +105,7 @@
     - 15.1. Acuerdos de Nivel de Servicio (SLA) y Severidades de Incidencia
     - 15.2. Procedimientos de Respaldo y Recuperación ante Desastres (DRP)
     - 15.3. Modelo Operativo de Mantenimiento Preventivo, Correctivo y Evolutivo
-16. [ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0128)](#16-anexo-historial-de-decisiones-arquitectónicas-adr-001-al-adr-0128)
+16. [ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0131)](#16-anexo-historial-de-decisiones-arquitectónicas-adr-001-al-adr-0131)
 
 ---
 
@@ -219,7 +220,7 @@ Este método presentaba vulnerabilidades operativas críticas:
 3. **Ambigüedad en Reprogramaciones**: Las clases recuperadas se anotaban al margen con notas de texto desordenadas, provocando que se dictaran más clases de las 8 contratadas.
 4. **Desfase en Cobranzas**: Los pagos fraccionados quedaban anotados en cuadernos físicos, dificultando saber con certeza si un alumno que entraba a clase tenía saldo pendiente de pago.
 
-## 4.3. Restricciones Físicas y Acústicas de Salas
+## 4.3. Restricciones Físicas, Acústicas de Salas y Horarios Oficiales Institucionales
 La sede institucional cuenta con 3 salas formativas con acondicionamiento específico:
 
 ```
@@ -237,6 +238,14 @@ La sede institucional cuenta con 3 salas formativas con acondicionamiento espec�
 
 * **Principio de Aislamiento Acústico**: Batería y Guitarra Eléctrica generan una presión sonora elevada que no puede convivir en la misma sala con instrumentos de arco o cuerda frotada como el Violín.
 * **Principio de Pedagogía por Edad**: Los niños de 4 a 8 años requieren mobiliario adaptado, juegos rítmicos y acompañamiento de voz lírica/infantil (Sala C), mientras que jóvenes y adultos requieren lectura técnica y teoría en teclado estándar (Sala B).
+* **Horarios Operativos Oficiales Canónicos de Vibra Music (ADR-0130)**:
+  * **Lunes a Viernes (Turno Tarde)**: De 4:00 pm a 7:45 pm. Las 5 franjas pedagógicas oficiales de 45 minutos son:
+    `16:00 - 16:45` · `16:45 - 17:30` · `17:30 - 18:15` · `18:15 - 19:00` · `19:00 - 19:45`.
+    La última clase termina estrictamente a las 7:45 pm (19:45).
+  * **Sábados (Turno Mañana)**: De 9:00 am a 1:30 pm. Las 6 franjas pedagógicas oficiales de 45 minutos son:
+    `09:00 - 09:45` · `09:45 - 10:30` · `10:30 - 11:15` · `11:15 - 12:00` · `12:00 - 12:45` · `12:45 - 13:30`.
+    La última clase de sábado finaliza estrictamente a la 1:30 pm (13:30). Por regla institucional, la escuela no opera en tardes de sábado.
+  * **Erradicación de Horarios Inválidos y Fantasma**: Queda terminantemente prohibido incorporar o renderizar turnos nocturnos fuera de franja (como `19:45` como hora de inicio, `20:30` o `21:15`), turnos en tardes de sábado (`14:15` a `18:00`) o inicios arbitrarios no escalonados a 45 minutos (ej. `17:40` o `18:25`).
 
 ## 4.4. Glosario Exhaustivo de Funciones, Componentes y Utilidades del Sistema
 
@@ -247,7 +256,13 @@ La sede institucional cuenta con 3 salas formativas con acondicionamiento espec�
   * Par 2 (`V-S`): Viernes y Sábado.
 * **Navegación Automática Determinista**: Función de inicialización reactiva que inspecciona el día en curso (`new Date().getDay()`) al cargar la aplicación y posiciona automáticamente el selector en la semana actual y en el par de días correspondiente (ej. si hoy es Viernes, se posiciona en el Par 2 `V-S` y en el día Viernes), permitiendo luego la libre navegación manual sin bloqueos.
 * **Kiosco Docente (`TeacherKiosk`)**: Modo operativo simplificado diseñado para tablets táctiles de sala, que filtra las clases mostrando únicamente las del profesor autenticado, permitiendo el pase de lista de asistencia con botones de alto contraste táctil.
-* **`StudentAttendanceKardex`**: Panel de auditoría cronológica del alumno que desglosa sesión por sesión del mes lectivo, computando asistencias evaluadas, pendientes, recuperaciones y cuota contractual.
+* **`StudentAttendanceKardex`**: Panel de auditoría cronológica del alumno que desglosa sesión por sesión del mes lectivo, computando asistencias evaluadas, pendientes, recuperaciones y cuota contractual, con diseño responsivo anti-desbordamiento horizontal.
+* **`CourseTransitionDialog`**: Componente modal de gestión administrativa que permite a secretaría efectuar la reasignación de instrumento y docente de un alumno en marcha, programando la fecha de corte, los nuevos turnos y garantizando el principio de "La clase no se pierde, se recupera".
+* **Barreras Temporales de Transición (`effectiveFrom` y `effectiveUntil`)**: Límites cronológicos absolutos y deterministas en lecciones. Una clase con `effectiveFrom: <fecha>` no existe ni se proyecta antes de esa fecha; una clase con `effectiveUntil: <fecha>` no existe después de dicha fecha.
+* **Elegibilidad Estricta de Asistencia (`isLessonEligibleForDate`)**: Guarda de validación en la hidratación de datos que restringe la inyección de marcas de `attendance_logs` únicamente a lecciones vigentes en esa fecha exacta y en su día correspondiente de la semana, erradicando el sangrado de asistencias pasadas a cursos nuevos.
+* **Reversión Quirúrgica de Curso (`revertStudentCourseTransition`)**: Acción atómica del store que deshace una transición, retira las clases futuras del nuevo curso, restituye el instrumento, docente, sala y horarios originales, preservando el 100% de las marcas de asistencia y los recibos de pago.
+* **Categoría Pedagógica MASTER**: Clasificación formativa institucional asignada automáticamente a estudiantes mayores de 18 años a partir del cálculo de su edad desde la fecha de nacimiento (`birthdate`).
+* **Modal de Confirmación Anti-Error (`AlertDialog`)**: Diálogo de interrupción deliberada con resumen de cambios y advertencia explícita que impide la ejecución involuntaria de transiciones o reversiones de curso con un solo clic.
 * **Reprogramación Puntual con Aislamiento por Fecha**: Algoritmo mediante el cual una lección semanal recurrente que no pudo dictarse se mueve a una fecha fija (`dateStr: YYYY-MM-DD`). La lección original incorpora dicha fecha a su arreglo `excludedDates`, evitando que se cree una clase recurrente abierta y protegiendo el cronograma futuro.
 * **Clase Consecutiva de Corrido (`+45m`)**: Utilidad que permite a un alumno tomar dos turnos pedagógicos continuos (90 minutos) en un día específico. La lección extra queda vinculada exclusivamente a esa fecha exacta mediante `dateStr`.
 * **Cuota Contractual (`targetQuota`)**: Límite matemático inquebrantable de clases asignadas a un ciclo lectivo (8 para planes regulares, 4 para intensivos y 24 para flexible).
@@ -420,6 +435,26 @@ Para prevenir inconsistencias entre el contrato financiero y la ocupación de sa
   * Si es joven o adulto, consulta la disponibilidad de Fernando o Jeremy.
   * Si no hay cupos con el docente correspondiente, **nunca** ofrece al docente incompatible; en su lugar, transfiere la conversación a secretaría humana en estado `en_evaluacion`.
 
+## 6.10. Proceso de Transición Quirúrgica de Curso, Preservación Histórica y Reversión Anti-Error
+* **Paso 1 (Iniciación)**: Cuando un alumno activo solicita cambiar de instrumento o especialidad (ej. de Canto con Prof. Nathaly a Guitarra con Prof. Jeremy), secretaría abre el diálogo `CourseTransitionDialog` desde el Kardex o la ficha del alumno.
+* **Paso 2 (Configuración Pedagógica y de Sala)**:
+  * Secretaría selecciona el nuevo instrumento. El sistema asigna automáticamente la sala oficial y el docente especialista conforme a la regla ADR-0102 (Prof. Jeremy en Sala A para Guitarra/Batería; Prof. Fernando en Sala B para Piano estándar/Violín; Prof. Nathaly en Sala C para Piano Infantil/Canto).
+  * Se selecciona la fecha de corte (`effectiveDate`): "Próxima sesión programada" o "Fecha personalizada / Mismo día".
+  * Se eligen los nuevos días y horarios semanales verificando en tiempo real que el aforo no supere el límite estricto de 5 alumnos.
+* **Paso 3 (Auditoría de Créditos e Historial — "La clase no se pierde, se recupera")**:
+  * El sistema calcula y exhibe las clases dictadas pasadas (que permanecerán inmutables).
+  * Los créditos de inasistencia acumulados (`makeupCredits`) se transfieren íntegros al nuevo curso para recuperarse con el nuevo profesor.
+  * Se proyectan las clases restantes que completarán la cuota contractual estricta pactada (ej. 8 clases en Regular).
+* **Paso 4 (Confirmación Intermedia con Advertencia Anti-Error)**:
+  * Al presionar "Confirmar y Asignar Nuevo Curso", el sistema no ejecuta el cambio de forma inmediata; despliega un modal `AlertDialog` con advertencia destacada resumiendo el alumno, nuevo curso, docente, sala, fecha de vigencia y garantías de inmutabilidad histórica.
+* **Paso 5 (Persistencia y Barreras Temporales Deterministas)**:
+  * Tras la confirmación, el sistema asigna `effectiveUntil: effectiveDate - 1` a las lecciones del curso anterior y crea las lecciones del nuevo curso con `effectiveFrom: effectiveDate`.
+  * La base de datos PostgreSQL persiste atómicamente la transición y los logs de auditoría en `emergency_contact.courseTransitions`.
+* **Paso 6 (Mecanismo de Reversión Quirúrgica)**:
+  * Si secretaría o dirección requieren revertir el cambio (por error de agendamiento o desistimiento del alumno), disponen del botón `[🔄 Deshacer Transición / Volver al Curso Anterior]`.
+  * Se despliega un modal de advertencia crítica para confirmar la reversión.
+  * Al confirmar, se eliminan las lecciones creadas del curso nuevo, se retira la restricción `effectiveUntil` del curso original y se restituyen el instrumento, docente y sala previos sin alterar las asistencias pasadas ni los pagos registrados.
+
 ---
 
 # 7. CAPA 6: CASOS DE USO DEL NEGOCIO Y ESPECIFICACIÓN DE ESCENARIOS
@@ -541,6 +576,31 @@ Para prevenir inconsistencias entre el contrato financiero y la ocupación de sa
   2. El sistema totaliza los cobros del día agrupados por Efectivo, Yape, Plin y Transferencia.
   3. Contrasta con los N° de operación registrados.
   4. Se emite el reporte consolidado de cierre de caja.
+
+### CUN-11: Transición Manual de Curso e Instrumento con Transferencia de Créditos y Advertencia Anti-Error
+* **Actor Principal**: `ACT-02` (Secretaría) o `ACT-01` (Dirección General).
+* **Precondición**: El alumno se encuentra en estado `activo` y requiere cambiar de instrumento o docente durante su ciclo formativo en curso.
+* **Flujo Principal**:
+  1. Secretaría localiza al alumno en el directorio o abre su Kardex mensual y pulsa el botón `🔄 Cambiar Instrumento / Docente`.
+  2. Se abre el diálogo interactivo `CourseTransitionDialog` presentando el curso actual, docente y sala de origen.
+  3. Secretaría selecciona el nuevo instrumento formativo (ej. Guitarra). El sistema asigna automáticamente la sala oficial y docente especialista conforme al ADR-0102 (Prof. Jeremy en Sala A).
+  4. Define la fecha de entrada en vigencia (`effectiveDate`) y los nuevos turnos semanales verificando en tiempo real que el aforo no supere el límite de 5 alumnos.
+  5. Revisa el balance auditado: clases dictadas pasadas conservadas, créditos de inasistencia acumulados transferidos y clases pendientes restantes para cumplir la cuota del contrato.
+  6. Pulsa "Confirmar y Asignar Nuevo Curso".
+  7. El sistema interrumpe el flujo desplegando un diálogo de confirmación `AlertDialog` con advertencia destacada.
+  8. Secretaría valida el resumen y confirma pulsando "Sí, Aplicar Transición".
+  9. El sistema asigna `effectiveUntil: effectiveDate - 1` a las lecciones del curso previo, crea las lecciones del nuevo curso con `effectiveFrom: effectiveDate`, actualiza el perfil del alumno y persiste la auditoría en PostgreSQL.
+* **Postcondición**: El alumno asiste a su nuevo instrumento a partir de la fecha de corte, sus asistencias históricas se mantienen 100% inmutables y la cuota total del ciclo se preserva intacta.
+
+### CUN-12: Reversión Quirúrgica de Transición de Curso y Retorno a Itinerario Anterior
+* **Actor Principal**: `ACT-02` (Secretaría) o `ACT-01` (Dirección General).
+* **Precondición**: El alumno cuenta con una transición de curso activa registrada en su perfil.
+* **Flujo Principal**:
+  1. En el Kardex del alumno o en el diálogo de transición, el usuario observa el banner de transición activa y pulsa `🔄 Deshacer Transición / Volver al Curso Anterior`.
+  2. El sistema despliega un modal `AlertDialog` con advertencia crítica de impacto, resumiendo el curso de origen al cual retornará.
+  3. El usuario confirma la operación pulsando "Sí, Revertir al Curso Anterior".
+  4. El sistema elimina quirúrgicamente las lecciones creadas para el nuevo curso, retira la barrera `effectiveUntil` de las clases del curso previo, restablece el instrumento, profesor y sala originales y sincroniza con PostgreSQL.
+* **Postcondición**: El alumno recupera de inmediato su cronograma anterior sin pérdida de asistencias históricas ni alteraciones en recibos de pago.
 
 ---
 
@@ -835,7 +895,7 @@ erDiagram
 * **RF-18 (Control de Pack de Útiles y Libro S/ 67)**: La ficha del alumno debe registrar obligatoriamente los campos de costo, monto pagado, estado (`pendiente`, `cancelado`, `exonerado`) y entrega física del material didáctico.
 * **RF-19 (Desacoplamiento de Fechas Contractuales)**: El sistema debe mantener separados los campos `enrollmentDate` (fecha administrativa de pago) y `planStartDate` (fecha real de la primera clase en sala).
 * **RF-20 (Edición In-Place de Ficha)**: Secretaría debe poder modificar teléfono, apoderado, notas pedagógicas y datos de emergencia directamente desde el drawer de detalle del alumno.
-* **RF-21 (Categorización Automática por Edad)**: El sistema debe asignar la categoría pedagógica en función de la fecha de nacimiento: *Infantil* (4 a 6 años), *Junior* (7 a 12 años), *Juvenil* (13 a 17 años) y *Adulto* (18+ años).
+* **RF-21 (Categorización Automática por Edad y MASTER)**: El sistema debe calcular y asignar la categoría pedagógica en función de la fecha de nacimiento (`birthdate`): *Infantil* (4 a 6 años), *Junior* (7 a 12 años), *Juvenil* (13 a 17 años) y *MASTER* (18+ años de forma totalmente automática).
 * **RF-22 (Reactivación 1 a 1 de Alumnos Históricos)**: El panel de depuración debe permitir reactivar a alumnos en baja en un solo clic, auto-aprovisionando su recibo y preservando su historial anterior.
 * **RF-23 (Eliminación Segura con Contraseña Maestra)**: La acción de eliminar definitivamente a un alumno debe requerir confirmación explícita con contraseña de Dirección General para evitar pérdidas accidentales.
 * **RF-24 (Exportación de Padrón)**: El módulo debe permitir exportar el listado de alumnos activos con sus datos de contacto en formato CSV y JSON.
@@ -853,36 +913,41 @@ erDiagram
 * **RF-34 (Cómputo en Vivo de Asistencias y Faltas)**: La cabecera del Kardex debe totalizar en tiempo real el conteo de Presentes, Faltas, Tardanzas, Justificadas y Sesiones Pendientes.
 * **RF-35 (Observaciones Pedagógicas por Sesión)**: Cada fila del Kardex debe permitir registrar y guardar una nota de texto con las observaciones pedagógicas de la clase dictada.
 * **RF-36 (Auditoría de Modificaciones)**: Cualquier cambio de asistencia realizado desde secretaría debe registrar el usuario y la marca de tiempo de la modificación.
+* **RF-37 (Transición Manual de Curso e Instrumento con Transferencia de Créditos)**: El Kardex y la ficha deben incorporar el componente `CourseTransitionDialog` permitiendo reasignar instrumento, docente especialista y sala oficial (ADR-0102), con fecha de vigencia (`effectiveDate`), validación de aforo ($\le 5$) y transferencia íntegra de créditos acumulados por inasistencia al nuevo curso bajo el principio de "La clase no se pierde, se recupera" (ADR-0129, ADR-0131).
+* **RF-38 (Barreras Temporales y Elegibilidad Estricta de Asistencia)**: Las lecciones deben obedecer límites temporales absolutos (`effectiveUntil` para el curso previo y `effectiveFrom` para el nuevo curso). En la hidratación (`hydrateFromBackend`), la guarda `isLessonEligibleForDate` debe impedir que marcas de asistencia de `attendance_logs` sangren o se vinculen a clases fuera de su vigencia temporal o en días de la semana distintos (ADR-0131).
+* **RF-39 (Reversión Quirúrgica de Transición de Curso)**: El sistema debe incorporar la acción `revertStudentCourseTransition` y el botón interactivo `[🔄 Deshacer Transición / Volver al Curso Anterior]` en Kardex y en el diálogo, permitiendo anular la transición, eliminar las clases futuras del nuevo curso y restituir el curso original sin alterar asistencias pasadas ni pagos (ADR-0131).
+* **RF-40 (Modales de Confirmación y Advertencia Anti-Error)**: Toda acción de aplicar una transición de curso o de revertirla debe exigir obligatoriamente confirmación interactiva mediante un diálogo `AlertDialog` con advertencia destacada, impidiendo mutaciones accidentales con un solo clic (ADR-0131).
+* **RF-41 (Adaptabilidad Responsiva y Erradicación de Desbordamiento en Modal)**: El modal del Kardex debe poseer diseño adaptativo responsivo (`w-[96vw] max-w-5xl`, scroll horizontal controlado, cuadrícula de métricas fluida y desborde cero) para garantizar ergonomía en laptops, tablets y pantallas de secretaría (ADR-0129).
 
 ## 9.4. Módulo 4: Kiosco Docente y Terminales de Sala (`TeacherKiosk`)
-* **RF-37 (Autenticación Simplificada Docente)**: El Kiosco debe permitir inicio de sesión rápido por selección de profesor y código PIN numérico de seguridad.
-* **RF-38 (Vista Exclusiva por Docente)**: El profesor autenticado solo puede visualizar y gestionar las clases y alumnos asignados a su persona y sala.
-* **RF-39 (Toma de Asistencia Táctil de 1 Toque)**: La interfaz debe presentar botones grandes de alto contraste para registrar `Presente`, `Falta`, `Tardanza` o `Justificada` con una sola pulsación.
-* **RF-40 (Tolerancia Offline y Cola de Reintentos)**: Si se pierde la conexión a internet, las marcas de asistencia deben encolarse localmente en la memoria del dispositivo y sincronizarse automáticamente con PostgreSQL al restablecerse la red.
-* **RF-41 (Propagación en Tiempo Real)**: Toda marca registrada en el Kiosco debe emitirse hacia la Agenda Board de secretaría y el Kardex del alumno en tiempo real.
-* **RF-42 (Privacidad de Datos Financieros)**: La interfaz del Kiosco docente no debe mostrar precios de planes, montos abonados, deudas ni números de teléfono de los apoderados.
-* **RF-43 (Notas Pedagógicas Rápidas)**: El docente debe poder dictar o tipear notas breves sobre el desempeño técnico del alumno al término de su sesión.
-* **RF-44 (Visualización de Alumnos en Espera)**: La pantalla debe mostrar los alumnos citados en el turno actual y en el turno inmediato posterior para facilitar la recepción en puerta de sala.
+* **RF-42 (Autenticación Simplificada Docente)**: El Kiosco debe permitir inicio de sesión rápido por selección de profesor y código PIN numérico de seguridad.
+* **RF-43 (Vista Exclusiva por Docente)**: El profesor autenticado solo puede visualizar y gestionar las clases y alumnos asignados a su persona y sala.
+* **RF-44 (Toma de Asistencia Táctil de 1 Toque)**: La interfaz debe presentar botones grandes de alto contraste para registrar `Presente`, `Falta`, `Tardanza` o `Justificada` con una sola pulsación.
+* **RF-45 (Tolerancia Offline y Cola de Reintentos)**: Si se pierde la conexión a internet, las marcas de asistencia deben encolarse localmente en la memoria del dispositivo y sincronizarse automáticamente con PostgreSQL al restablecerse la red.
+* **RF-46 (Propagación en Tiempo Real)**: Toda marca registrada en el Kiosco debe emitirse hacia la Agenda Board de secretaría y el Kardex del alumno en tiempo real.
+* **RF-47 (Privacidad de Datos Financieros)**: La interfaz del Kiosco docente no debe mostrar precios de planes, montos abonados, deudas ni números de teléfono de los apoderados.
+* **RF-48 (Notas Pedagógicas Rápidas)**: El docente debe poder dictar o tipear notas breves sobre el desempeño técnico del alumno al término de su sesión.
+* **RF-49 (Visualización de Alumnos en Espera)**: La pantalla debe mostrar los alumnos citados en el turno actual y en el turno inmediato posterior para facilitar la recepción en puerta de sala.
 
 ## 9.5. Módulo 5: Facturación, Recibos y Caja Chica (`Billing`)
-* **RF-45 (Auto-Aprovisionamiento de Recibos)**: Al matricular o reactivar a un alumno activo, el sistema debe crear automáticamente su recibo en `invoices` y garantizar su registro en `families`.
-* **RF-46 (Registro de Abonos Fraccionados)**: El sistema debe permitir registrar pagos parciales (ej. S/ 50 de reserva y S/ 247 de saldo) calculando matemáticamente el saldo restante (`remaining_balance`).
-* **RF-47 (Trazabilidad con Comprobante y N° de Operación)**: Cada abono debe exigir el método de pago (Efectivo, Yape, Plin, Transferencia BCP/BBVA) y el número de transacción bancaria.
-* **RF-48 (Sincronización Bidireccional con Ficha)**: Al registrar un abono en facturación, el sistema debe actualizar de inmediato los campos `amountPaid`, `balance` y `payment: "al-dia" | "pendiente"` en la ficha del alumno en `students`.
-* **RF-49 (Facturación Exclusiva de Alumnos Activos)**: El panel de facturación y la Matriz Anual deben listar únicamente a los alumnos con estado `activo`, excluyendo alumnos en baja histórica.
-* **RF-50 (Mapeo Robusto de Nombre de Alumno)**: Si el concepto del recibo contiene el nombre del estudiante (`Plan ... — Nombre`), el sistema debe indexar el recibo directamente al alumno y no confundirlo con el nombre del apoderado.
-* **RF-51 (Matriz Anual de Recaudación)**: El sistema debe presentar una sábana contable de Enero a Diciembre que muestre el estado de pago mensual de cada alumno activo.
-* **RF-52 (Arqueo y Cierre Diario de Caja)**: Módulo para conciliar los ingresos del día clasificados por canal de pago, emitiendo el total recaudado para cuadre con el dinero físico o bancario.
-* **RF-53 (Edición de Precios Sincronizada)**: Si secretaría modifica el precio pactado (`planPrice`) desde la ficha del alumno, el recibo enlazado debe actualizar su monto total y saldo en tiempo real.
-* **RF-54 (Impresión y Exportación de Recibos)**: Cada recibo debe poder previsualizarse e imprimirse en formato de comprobante interno oficial con el logotipo institucional de Vibra Music.
+* **RF-50 (Auto-Aprovisionamiento de Recibos)**: Al matricular o reactivar a un alumno activo, el sistema debe crear automáticamente su recibo en `invoices` y garantizar su registro en `families`.
+* **RF-51 (Registro de Abonos Fraccionados)**: El sistema debe permitir registrar pagos parciales (ej. S/ 50 de reserva y S/ 247 de saldo) calculando matemáticamente el saldo restante (`remaining_balance`).
+* **RF-52 (Trazabilidad con Comprobante y N° de Operación)**: Cada abono debe exigir el método de pago (Efectivo, Yape, Plin, Transferencia BCP/BBVA) y el número de transacción bancaria.
+* **RF-53 (Sincronización Bidireccional con Ficha)**: Al registrar un abono en facturación, el sistema debe actualizar de inmediato los campos `amountPaid`, `balance` y `payment: "al-dia" | "pendiente"` en la ficha del alumno en `students`.
+* **RF-54 (Facturación Exclusiva de Alumnos Activos)**: El panel de facturación y la Matriz Anual deben listar únicamente a los alumnos con estado `activo`, excluyendo alumnos en baja histórica.
+* **RF-55 (Mapeo Robusto de Nombre de Alumno)**: Si el concepto del recibo contiene el nombre del estudiante (`Plan ... — Nombre`), el sistema debe indexar el recibo directamente al alumno y no confundirlo con el nombre del apoderado.
+* **RF-56 (Matriz Anual de Recaudación)**: El sistema debe presentar una sábana contable de Enero a Diciembre que muestre el estado de pago mensual de cada alumno activo.
+* **RF-57 (Arqueo y Cierre Diario de Caja)**: Módulo para conciliar los ingresos del día clasificados por canal de pago, emitiendo el total recaudado para cuadre con el dinero físico o bancario.
+* **RF-58 (Edición de Precios Sincronizada)**: Si secretaría modifica el precio pactado (`planPrice`) desde la ficha del alumno, el recibo enlazado debe actualizar su monto total y saldo en tiempo real.
+* **RF-59 (Impresión y Exportación de Recibos)**: Cada recibo debe poder previsualizarse e imprimirse en formato de comprobante interno oficial con el logotipo institucional de Vibra Music.
 
 ## 9.6. Módulo 6: Bot Oficial de WhatsApp Cloud API (`WhatsAppService`)
-* **RF-55 (Integración Oficial de Meta)**: El bot debe operar exclusivamente a través de la API oficial de la nube de Meta (`/api/whatsapp/webhook`), prohibiendo librerías no oficiales basadas en QR.
-* **RF-56 (Validación de Webhook)**: El endpoint debe verificar el token de verificación de Meta (`hub.verify_token`) y responder al desafío `hub.challenge` conforme al protocolo RFC.
-* **RF-57 (Prospección Conversacional)**: El bot debe guiar al prospecto mediante menús interactivos para conocer su instrumento de interés, edad y nivel previo.
-* **RF-58 (Blindaje Pedagógico en Demos)**: Para clases demo de Piano de 4 a 8 años, el bot debe consultar cupos exclusivamente con Prof. Nathaly (Sala C). Para jóvenes y adultos, exclusivamente con Prof. Fernando (Sala B).
-* **RF-59 (Prohibición de Derivación Cruzada)**: Si no hay cupos con el docente correspondiente, el bot **nunca** debe ofrecer al docente incompatible; debe derivar al prospecto al estado `en_evaluacion` para atención personalizada de secretaría.
-* **RF-60 (Persistencia de Conversaciones)**: Todo mensaje entrante y saliente debe registrarse en la tabla `whatsapp_messages` para auditoría y seguimiento comercial.
+* **RF-60 (Integración Oficial de Meta)**: El bot debe operar exclusivamente a través de la API oficial de la nube de Meta (`/api/whatsapp/webhook`), prohibiendo librerías no oficiales basadas en QR.
+* **RF-61 (Validación de Webhook)**: El endpoint debe verificar el token de verificación de Meta (`hub.verify_token`) y responder al desafío `hub.challenge` conforme al protocolo RFC.
+* **RF-62 (Prospección Conversacional)**: El bot debe guiar al prospecto mediante menús interactivos para conocer su instrumento de interés, edad y nivel previo.
+* **RF-63 (Blindaje Pedagógico en Demos)**: Para clases demo de Piano de 4 a 8 años, el bot debe consultar cupos exclusivamente con Prof. Nathaly (Sala C). Para jóvenes y adultos, exclusivamente con Prof. Fernando (Sala B).
+* **RF-64 (Prohibición de Derivación Cruzada)**: Si no hay cupos con el docente correspondiente, el bot **nunca** debe ofrecer al docente incompatible; debe derivar al prospecto al estado `en_evaluacion` para atención personalizada de secretaría.
+* **RF-65 (Persistencia de Conversaciones)**: Todo mensaje entrante y saliente debe registrarse en la tabla `whatsapp_messages` para auditoría y seguimiento comercial.
 
 ---
 
@@ -980,16 +1045,21 @@ Cualquier modificación futura debe consultar obligatoriamente la regla de negoc
 # 13. ENTREGABLE 4: DEFINICIÓN Y CONSOLIDACIÓN DEL MVP
 
 ## 13.1. Qué conformó el MVP de Vibra Music Staff
-El Mínimo Producto Viable (MVP) constituyó el núcleo indispensable de software que permitió a Vibra Music suspender el uso de cuadernos de papel y descontinuar el Excel manual sin riesgo operativo:
-1. **Ficha Digital de Alumno**: Registro de datos esenciales de contacto y modalidad.
+El Mínimo Producto Viable (MVP) constituyó el núcleo indispensable y ágil de software que permitió a Vibra Music suspender el uso de cuadernos de papel y descontinuar el Excel manual sin riesgo operativo:
+1. **Ficha Digital de Alumno**: Registro de datos esenciales de contacto, apoderado y modalidad formativa.
 2. **Agenda Visual de Salas**: Distribución de alumnos en los turnos de Lunes a Sábado por profesor con límite visual de 5 alumnos.
-3. **Pase de Asistencia Básico**: Marcado de Presente y Falta.
-4. **Emisión de Recibo Simple**: Registro del valor mensual y estado de pago cancelado/pendiente.
+3. **Pase de Asistencia Básico en Sala**: Marcado táctil de Presente, Falta, Tardanza y Justificada en Kiosco docente.
+4. **Emisión de Recibo Simple**: Registro del valor mensual y estado de pago cancelado/pendiente con auditoría de abonos.
 
-## 13.2. Proceso de Validación en Sala y Criterios de Aceptación Cumplidos
+## 13.2. Proceso de Validación en Sala, Consolidación de Producción y Criterios de Aceptación
 * **Prueba de Campo con Secretaría**: Nayeli operó la grilla durante 2 semanas en paralelo con su cuaderno físico, verificando que la interfaz digital ahorraba más del 80% de su tiempo de atención.
 * **Prueba de Campo con Docentes**: Los profesores Nathaly, Fernando y Jeremy pasaron asistencia en tablets de sala, validando que el flujo no interfería con el inicio de sus clases.
-* **Criterio de Aceptación Superado**: Cero errores de solapamiento de alumnos y adopción unánime por el personal de la escuela.
+* **Consolidación Quirúrgica del MVP en Operación Real**:
+  * Para mantener la ligereza y simplicidad intrínseca de un MVP en producción real (sin incurrir en sobre-ingeniería innecesaria), las contingencias operativas se blindaron quirúrgicamente mediante reglas matemáticas y controles directos:
+    1. **Transición y Reversión Manual de Curso (ADR-0129, ADR-0131)**: Se implementó el cambio de instrumento y docente sin alterar el historial pasado de clases dictadas ni duplicar la cuota mensual contratada ("La clase no se pierde, se recupera").
+    2. **Prevención Anti-Error Humano**: Modales de confirmación con advertencia visual (`AlertDialog`) que evitan clics involuntarios de secretaría o dirección en operaciones críticas.
+    3. **Alineación con el Horario Físico Institucional (ADR-0130)**: Erradicación de franjas horarias complejas o inexistentes, limitando el sistema a los turnos reales de la academia (L-V 16:00 a 19:45; Sábados 09:00 a 13:30).
+* **Criterio de Aceptación Superado**: Cero errores de solapamiento de alumnos, consistencia financiera absoluta ($0.00$ de discrepancia) y adopción institucional plena del personal docente y administrativo.
 
 ---
 
@@ -1004,16 +1074,16 @@ El código fuente entregado comprende la siguiente estructura arquitectónica no
 ```
 vibra-music-staff/
 ├── docs/                             # Documentación exhaustiva del sistema
-│   ├── adr/                          # Registro histórico de Decisiones Arquitectónicas (ADR-001 al 0128)
+│   ├── adr/                          # Registro histórico de Decisiones Arquitectónicas (ADR-001 al 0131)
 │   ├── srs/                          # Especificación de Requisitos de Software oficial (Este documento)
 │   ├── logs/                         # Logs de auditoría, incidentes y resolución técnica
 │   ├── migrations/                   # Scripts SQL de base de datos PostgreSQL reproducibles
 │   └── CHANGELOG.md                  # Historial cronológico de versiones y cambios
 ├── src/                              # Código fuente de la aplicación
 │   ├── components/                   # Componentes de interfaz de usuario (React 19)
-│   │   ├── admin/                    # AgendaBoard, StudentsTable, BillingPanel, Modales
+│   │   ├── admin/                    # AgendaBoard, StudentsTable, BillingPanel, Modales, CourseTransitionDialog
 │   │   ├── teacher/                  # TeacherKiosk, controles táctiles de sala
-│   │   └── ui/                       # Primitivas accesibles de diseño (Radix / Tailwind)
+│   │   └── ui/                       # Primitivas accesibles de diseño (Radix / Tailwind / AlertDialog)
 │   ├── lib/                          # Servicios y utilidades de infraestructura
 │   │   ├── insforge.ts               # Cliente PostgREST con token sanitizer RFC 7519
 │   │   ├── calendar-utils.ts         # Cálculo dinámico de semanas y días pareados
@@ -1023,7 +1093,7 @@ vibra-music-staff/
 │   │   ├── teacher/                  # Rutas del portal de docentes
 │   │   └── api/                      # Endpoints serverless (Webhooks WhatsApp, etc.)
 │   └── store/                        # Capa de estado global (Zustand)
-│       └── app-store.ts              # Gestión de estado reactivo y sincronización de fondo
+│       └── app-store.ts              # Gestión de estado reactivo, transiciones, reversiones y sincronización
 ├── package.json                      # Manifiesto de dependencias y scripts de compilación
 ├── tsconfig.json                     # Configuración de compilador TypeScript
 └── AGENTS.md                         # Guía y reglas operativas de arquitectura
@@ -1079,9 +1149,9 @@ Para garantizar la continuidad operativa ininterrumpida de la escuela, se establ
 
 ---
 
-# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0128)
+# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0131)
 
-El sistema cuenta con un archivo vivo de **28 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
+El sistema cuenta con un archivo vivo de **31 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
 
 * **ADR-001**: Adopción de TanStack Start, Nitro, PostgreSQL Insforge y WhatsApp Cloud API oficial de Meta.
 * **ADR-0052 & 0053**: Autonomía de secretaría en la edición y eliminación directa de clases y supervisión de 8 clases en Regular y 4 en Intensivo.
@@ -1102,8 +1172,12 @@ El sistema cuenta con un archivo vivo de **28 Decisiones Arquitectónicas (ADR)*
 * **ADR-0126**: Sincronización en tiempo real del Kiosco docente con la agenda mediante cola de eventos y reintentos.
 * **ADR-0127**: Navegación automática determinista a semana y días pareados de hoy (`V-S` en Viernes) y cierre de sesión seguro (`window.location.href = "/"`).
 * **ADR-0128**: Sincronización estricta de ciclo lectivo entre Kiosco Docente y Agenda, resolviendo de forma unificada el cierre de cuota contractual sin discrepancias.
+* **ADR-0129**: Transición de curso e instrumento con interfaz manual en Kardex (`CourseTransitionDialog`), aislamiento de asistencias pasadas bajo el principio "La clase no se pierde, se recupera", categoría MASTER automática (18+ años) y ergonomía responsiva anti-desbordamiento horizontal.
+* **ADR-0130**: Alineación estricta con el horario oficial de Vibra Music (turnos vespertinos L-V de 16:00 a 19:45, matutinos de sábado de 09:00 a 13:30) y erradicación total de horarios no oficiales o ficticios (`17:40`, `18:25`, `19:45` como inicio, `20:30`, `21:15` o tardes de sábado).
+* **ADR-0131**: Aislamiento estricto de vigencias de transición (`effectiveFrom` y `effectiveUntil`), deduplicación de períodos, blindaje contra sangrado de asistencias (`isLessonEligibleForDate`), acción de Reversión Quirúrgica de Curso (`revertStudentCourseTransition`) y modales obligatorios de confirmación con advertencia anti-error (`AlertDialog`).
 
 ---
 
 ### Certificación de Completitud
 Este documento constituye la especificación canónica, formal y completa de los requerimientos de software de Vibra Music Staff. Define con exactitud matemática el comportamiento del sistema, sus interfaces, sus reglas operativas y su arquitectura de soporte, asegurando la trazabilidad total del proyecto.
+
