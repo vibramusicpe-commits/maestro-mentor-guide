@@ -767,3 +767,22 @@ inferencia.
    - Se erradica por completo la separación de `S/` y el importe numérico (ej. `S/\n0.00`) mediante la aplicación obligatoria de `whitespace-nowrap font-mono` y espacios no separables (`S/&nbsp;{monto}` o `S/\u00A0{monto}`) en todas las celdas de tabla, badges, tarjetas KPI y pies de página.
 4. **Deduplicación Visual en Columna de Observación del Kardex**:
    - En inasistencias migradas (`session.status === "ausente" && session.makeupCreditTransferred`), se renderiza un badge único y estilizado (`🔄 Pasa a Crédito en Guitarra (Prof. Jeremy)`), suprimiendo la impresión redundante de la nota de texto cruda superior y garantizando una presentación gráfica impecable tanto en pantalla como en papel/PDF.
+
+---
+
+### 37. Geometría Precisa de Impresión A4, Eliminación de Transform Offsets y Distribución Porcentual de Columnas (ADR-0137)
+1. **Erradicación del Desfase Horizontal (-50% Transform Offset)**:
+   - Al convertir el diálogo Radix UI a `position: static` durante la impresión, la persistencia de las variables CSS de Tailwind (`--tw-translate-x: -50%`) trasladaba el contenedor un 50% de su ancho fuera de la página hacia la izquierda, recortando la mitad izquierda de cada hoja.
+   - Se blindó `src/components/ui/dialog.tsx` con `print:static print:left-0 print:top-0 print:translate-x-0 print:translate-y-0 print:transform-none print:max-w-none print:w-full print:p-0 print:border-none print:shadow-none print:animate-none` y en `@media print` se neutralizaron todas las variables con `--tw-translate-x: 0px !important; --tw-translate-y: 0px !important; transform: none !important; left: 0 !important; right: 0 !important; margin: 0 !important; width: 100% !important;` en `[data-radix-portal]` y `div[role="dialog"]`.
+2. **Compactación Vertical Estricta para 2 Páginas Exactas en A4 Portrait**:
+   - Para impedir que las tablas se dividan en 3 o 4 páginas, se calibraron los paddings y tamaños de tipografía para impresión:
+     - **Página 1 (Pedagógica)**: Cabecera (`print:text-xs print:pb-2`), 3 tarjetas de alumno (`print:p-2 print:text-[10px]`), banner de transición (`print:p-2 print:space-y-1.5`) y filas de Kardex (`print:py-1 print:px-1.5 print:text-[9px]`). La altura total suma ~380px (<40% del alto imprimible de A4), asegurando que la tabla de clases nunca se fracture.
+     - **Página 2 (Financiera & Liquidación)**: Sub-cabecera compacta (`print:pb-1.5 print:mb-2`), tabla de matriz financiera (`print:py-1 print:px-1.5 print:text-[9px]`), tarjetas KPI de liquidación (`print:p-1.5 print:gap-1.5`) y firmas oficiales (`print:pt-6 print:mt-2`). La altura total suma ~360px, garantizando un ajuste perfecto sin desbordar.
+3. **Distribución Porcentual Fija de Columnas (`table-layout: fixed`) y Word-Break**:
+   - Con márgenes de página A4 de `7mm 8mm 7mm 8mm`, las tablas tienen `table-layout: fixed !important; width: 100% !important;` con anchos porcentuales exactos que suman 100%:
+     - Kardex: N° (`5%`), Fecha (`14%`), Hora (`13%`), Curso/Sala (`16%`), Docente (`15%`), Estado (`15%`), Observación (`22%`).
+     - Matriz Financiera: Rubro (`15%`), Concepto (`27%`), Monto (`11%`), Abonado (`10%`), Saldo (`11%`), Estado (`11%`), Método (`8%`), Referencia (`7%`).
+     - Inyección de `th, td { word-break: break-word !important; overflow-wrap: break-word !important; }` para impedir desbordamientos por textos largos.
+4. **Corrección de Docente Destino en Créditos Transferidos**:
+   - En sesiones transferidas (de Canto a Guitarra), el badge del Kardex ahora referencia correctamente `liveStudent?.teacher || "Jeremy"` en lugar de `session.teacher` (Nathaly), reflejando con exactitud que el crédito se recupera con el Prof. Jeremy en Sala A.
+

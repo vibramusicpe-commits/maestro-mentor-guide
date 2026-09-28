@@ -4,6 +4,23 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.23] - 2026-09-28
+
+### Geometría Precisa de Impresión A4, Eliminación de Transform Offsets y Distribución Porcentual de Columnas (ADR-0137)
+- **Erradicación del Desfase Horizontal (-50% Transform Offset)**:
+  - Se corrigió el problema en el cual la combinación de `position: static` con el transform residual `--tw-translate-x: -50%` de Radix UI desplazaba el contenido un 50% hacia la izquierda, recortando el lado izquierdo del reporte fuera del papel.
+  - Blindado `DialogContent` en `src/components/ui/dialog.tsx` con `print:static print:left-0 print:top-0 print:translate-x-0 print:translate-y-0 print:transform-none print:max-w-none print:w-full print:p-0 print:border-none print:shadow-none print:animate-none`.
+  - Inyectadas reglas de supresión total de transformaciones en `student-audit-report-dialog.tsx`: `--tw-translate-x: 0px !important; --tw-translate-y: 0px !important; transform: none !important; left: 0 !important; right: 0 !important; margin: 0 !important; width: 100% !important;` en `[data-radix-portal]` y `div[role="dialog"]`.
+- **Compactación Vertical Estricta para 2 Páginas Exactas en A4 Portrait**:
+  - **Página 1 (Pedagógica & Kardex)**: Altura reducida a ~380px (<40% del alto imprimible de A4) mediante compactación de cabecera (`print:text-xs print:pb-2`), tarjetas de alumno (`print:p-2 print:text-[10px]`), banner de transición (`print:p-2 print:space-y-1.5`) y filas de Kardex (`print:py-1 print:px-1.5 print:text-[9px]`). La tabla de clases nunca se fracciona ni salta a la mitad.
+  - **Página 2 (Financiera, Liquidación & Firmas)**: Altura acotada a ~360px mediante sub-cabecera compacta (`print:pb-1.5 print:mb-2`), tabla de matriz financiera (`print:py-1 print:px-1.5 print:text-[9px]`), tarjetas KPI de liquidación (`print:p-1.5 print:gap-1.5`) y casillas de firma (`print:pt-6 print:mt-2`), eliminando derrames a páginas 3 y 4.
+- **Distribución Porcentual Fija de Columnas (`table-layout: fixed`) y Word-Break**:
+  - Anchos de columnas en Kardex: N° (`5%`), Fecha (`14%`), Hora (`13%`), Curso/Sala (`16%`), Docente (`15%`), Estado (`15%`), Observación (`22%`) = 100%.
+  - Anchos de columnas en Matriz Financiera: Rubro (`15%`), Concepto (`27%`), Monto (`11%`), Abonado (`10%`), Saldo (`11%`), Estado (`11%`), Método (`8%`), Referencia (`7%`) = 100%.
+  - Inyección de `word-break: break-word !important; overflow-wrap: break-word !important;` para garantizar que ningún texto largo empuje las columnas.
+- **Corrección de Docente Destino en Créditos Transferidos**:
+  - En inasistencias migradas (Canto a Guitarra), se corrigió el badge de observación para mostrar al docente destino (`Prof. {session.targetTeacher || liveStudent?.teacher || "Jeremy"}`) en lugar del docente de la falta previa (Nathaly).
+
 ## [2.0.22] - 2026-09-28
 
 ### Arquitectura de Exportación A4 / PDF Ejecutivo de 2 Páginas, Desbordamiento de Diálogos Radix y No-Wrapping Monetario (ADR-0136)

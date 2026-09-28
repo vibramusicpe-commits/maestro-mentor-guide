@@ -321,25 +321,31 @@ export function StudentAuditReportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 gap-0 border-primary/30 bg-background text-foreground shadow-2xl print:max-w-none print:max-h-none print:shadow-none print:border-none print:p-0 print:static print:transform-none print:overflow-visible print:w-full print:h-auto">
+      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 gap-0 border-primary/30 bg-background text-foreground shadow-2xl print:max-w-none print:max-h-none print:shadow-none print:border-none print:p-0 print:static print:left-0 print:top-0 print:translate-x-0 print:translate-y-0 print:transform-none print:overflow-visible print:w-full print:h-auto print:animate-none">
         {/* Estilos dedicados para exportación de alta fidelidad a PDF e Impresión A4 ejecutiva */}
         <style>{`
           @media print {
             @page {
               size: A4 portrait;
-              margin: 10mm 12mm 12mm 12mm;
+              margin: 7mm 8mm 7mm 8mm;
+            }
+
+            *, *::before, *::after {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              box-sizing: border-box !important;
             }
 
             html, body {
               background: #ffffff !important;
               color: #000000 !important;
+              width: 100% !important;
+              max-width: 100% !important;
               height: auto !important;
               min-height: 100% !important;
               overflow: visible !important;
               margin: 0 !important;
               padding: 0 !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
             }
 
             /* Ocultar la aplicación de fondo */
@@ -347,14 +353,24 @@ export function StudentAuditReportDialog({
               display: none !important;
             }
 
-            /* Ocultar el backdrop negro del diálogo Radix */
-            div[data-radix-portal] > div[data-state]:not([role="dialog"]),
-            div[data-radix-portal] > div[class*="bg-black"] {
+            /* Ocultar backdrop negro y overlays de Radix */
+            [data-radix-portal] > div[data-state]:not([role="dialog"]),
+            [data-radix-portal] > div[class*="bg-black"],
+            .fixed.inset-0 {
               display: none !important;
             }
 
-            /* Desactivar contenedores fijos y permitir paginación fluida en Chromium */
-            div[data-radix-portal] {
+            /* Desactivar cualquier traslación, fixed o animación en Radix portal y dialog */
+            [data-radix-portal],
+            [data-radix-portal] * {
+              --tw-translate-x: 0px !important;
+              --tw-translate-y: 0px !important;
+              --tw-scale-x: 1 !important;
+              --tw-scale-y: 1 !important;
+              --tw-transform: none !important;
+            }
+
+            [data-radix-portal] {
               position: static !important;
               display: block !important;
               width: 100% !important;
@@ -362,23 +378,36 @@ export function StudentAuditReportDialog({
               overflow: visible !important;
             }
 
-            div[role="dialog"] {
+            [data-radix-portal] > div {
               position: static !important;
+              display: block !important;
+              width: 100% !important;
+              height: auto !important;
+              overflow: visible !important;
+            }
+
+            div[role="dialog"],
+            [role="dialog"] {
+              position: static !important;
+              display: block !important;
               transform: none !important;
-              top: auto !important;
-              left: auto !important;
-              right: auto !important;
+              -webkit-transform: none !important;
+              top: 0 !important;
+              left: 0 !important;
+              right: 0 !important;
               bottom: auto !important;
+              margin: 0 !important;
+              padding: 0 !important;
               width: 100% !important;
               max-width: 100% !important;
+              min-width: 100% !important;
               height: auto !important;
               max-height: none !important;
               overflow: visible !important;
               box-shadow: none !important;
               border: none !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              display: block !important;
+              animation: none !important;
+              transition: none !important;
               background: #ffffff !important;
               color: #000000 !important;
             }
@@ -387,10 +416,16 @@ export function StudentAuditReportDialog({
               display: none !important;
             }
 
-            /* Reglas de paginación de tablas para evitar corte horizontal de filas */
+            /* Tablas estructuradas al 100% exacto del A4 portrait sin desbordamiento */
             table {
               width: 100% !important;
+              table-layout: fixed !important;
               border-collapse: collapse !important;
+              margin: 0 !important;
+            }
+            th, td {
+              word-break: break-word !important;
+              overflow-wrap: break-word !important;
             }
             tr {
               break-inside: avoid !important;
@@ -408,7 +443,7 @@ export function StudentAuditReportDialog({
               break-before: page !important;
               page-break-before: always !important;
               margin-top: 0 !important;
-              padding-top: 4mm !important;
+              padding-top: 1mm !important;
             }
 
             .print-avoid-break {
@@ -454,13 +489,13 @@ export function StudentAuditReportDialog({
           </div>
 
           {/* Badges de Estado Rápido */}
-          <div className="flex flex-wrap items-center gap-2 mt-4 print:mt-2">
+          <div className="flex flex-wrap items-center gap-2 mt-4 print:mt-1 print:gap-1.5">
             <Badge
               variant="outline"
               className={
                 liveStudent.status === "activo"
-                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold print:border-emerald-600 print:text-emerald-800 print:bg-emerald-50"
-                  : "bg-amber-500/10 text-amber-600 border-amber-500/30 font-bold print:border-amber-600 print:text-amber-800 print:bg-amber-50"
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold print:border-emerald-600 print:text-emerald-800 print:bg-emerald-50 print:text-[9px] print:px-1.5 print:py-0"
+                  : "bg-amber-500/10 text-amber-600 border-amber-500/30 font-bold print:border-amber-600 print:text-amber-800 print:bg-amber-50 print:text-[9px] print:px-1.5 print:py-0"
               }
             >
               ESTADO: {liveStudent.status.toUpperCase()}
@@ -470,8 +505,8 @@ export function StudentAuditReportDialog({
               variant="outline"
               className={
                 financialAudit.totalSaldoPendiente === 0
-                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold print:border-emerald-600 print:text-emerald-800 print:bg-emerald-50"
-                  : "bg-rose-500/10 text-rose-600 border-rose-500/30 font-bold print:border-rose-600 print:text-rose-800 print:bg-rose-50"
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold print:border-emerald-600 print:text-emerald-800 print:bg-emerald-50 print:text-[9px] print:px-1.5 print:py-0"
+                  : "bg-rose-500/10 text-rose-600 border-rose-500/30 font-bold print:border-rose-600 print:text-rose-800 print:bg-rose-50 print:text-[9px] print:px-1.5 print:py-0"
               }
             >
               {financialAudit.totalSaldoPendiente === 0 ? "✓ PAGOS AL DÍA" : `⚠ DEUDA: S/\u00A0${financialAudit.totalSaldoPendiente.toFixed(2)}`}
@@ -481,21 +516,21 @@ export function StudentAuditReportDialog({
               variant="outline"
               className={
                 liquidation.isCompleted
-                  ? "bg-purple-500/10 text-purple-600 border-purple-500/30 font-bold print:border-purple-600 print:text-purple-800 print:bg-purple-50"
-                  : "bg-blue-500/10 text-blue-600 border-blue-500/30 font-bold print:border-blue-600 print:text-blue-800 print:bg-blue-50"
+                  ? "bg-purple-500/10 text-purple-600 border-purple-500/30 font-bold print:border-purple-600 print:text-purple-800 print:bg-purple-50 print:text-[9px] print:px-1.5 print:py-0"
+                  : "bg-blue-500/10 text-blue-600 border-blue-500/30 font-bold print:border-blue-600 print:text-blue-800 print:bg-blue-50 print:text-[9px] print:px-1.5 print:py-0"
               }
             >
               {liquidation.isCompleted ? "🏆 CICLO CULMINADO" : `⏳ EN CURSO (${liquidation.attendedCount}/${liquidation.targetQuota} asistidas)`}
             </Badge>
 
             {liquidation.hasInstrumentTransition && (
-              <Badge variant="outline" className="bg-amber-500/15 text-amber-600 border-amber-500/40 font-bold print:border-amber-600 print:text-amber-900 print:bg-amber-50">
+              <Badge variant="outline" className="bg-amber-500/15 text-amber-600 border-amber-500/40 font-bold print:border-amber-600 print:text-amber-900 print:bg-amber-50 print:text-[9px] print:px-1.5 print:py-0">
                 🔄 TRANSICIÓN: {liquidation.originalInstrument} ➔ {liquidation.newInstrument}
               </Badge>
             )}
 
             {liquidation.makeupCreditsMigrated > 0 && (
-              <Badge variant="outline" className="bg-emerald-500/15 text-emerald-600 border-emerald-500/40 font-bold print:border-emerald-600 print:text-emerald-900 print:bg-emerald-50">
+              <Badge variant="outline" className="bg-emerald-500/15 text-emerald-600 border-emerald-500/40 font-bold print:border-emerald-600 print:text-emerald-900 print:bg-emerald-50 print:text-[9px] print:px-1.5 print:py-0">
                 ✨ +{liquidation.makeupCreditsMigrated} CRÉDITOS A RECUPERAR
               </Badge>
             )}
@@ -664,40 +699,40 @@ export function StudentAuditReportDialog({
         )}
 
         {/* Cuerpo del Reporte */}
-        <div className="p-6 space-y-6 print:p-0 print:space-y-4">
+        <div className="p-6 space-y-6 print:p-0 print:space-y-2.5">
           {/* 1. Tarjeta de Datos del Alumno y Contrato */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-muted/20 border border-border p-4 rounded-xl text-xs print:grid-cols-3 print:bg-gray-50 print:border-gray-300 print:p-3 print:gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-muted/20 border border-border p-4 rounded-xl text-xs print:grid-cols-3 print:bg-gray-50 print:border-gray-300 print:p-2 print:gap-2 print:rounded-lg print:text-[10px]">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block print:text-gray-600">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block print:text-gray-600 print:text-[8.5px]">
                 Alumno
               </span>
-              <span className="text-sm font-black text-foreground print:text-black">{liveStudent.name}</span>
-              <div className="text-[11px] text-muted-foreground mt-0.5 print:text-gray-700">
+              <span className="text-sm font-black text-foreground print:text-black print:text-xs">{liveStudent.name}</span>
+              <div className="text-[11px] text-muted-foreground mt-0.5 print:text-gray-700 print:text-[9.5px]">
                 {liveStudent.category || "JUNIOR"} {liveStudent.age ? `· ${liveStudent.age} años` : ""}
               </div>
             </div>
 
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block print:text-gray-600">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block print:text-gray-600 print:text-[8.5px]">
                 Apoderado & Contacto
               </span>
-              <span className="font-bold text-foreground print:text-black">{apoderado}</span>
-              <div className="text-[11px] text-muted-foreground font-mono mt-0.5 print:text-gray-700">
+              <span className="font-bold text-foreground print:text-black print:text-[10.5px]">{apoderado}</span>
+              <div className="text-[11px] text-muted-foreground font-mono mt-0.5 print:text-gray-700 print:text-[9px]">
                 {phone || "Sin teléfono"}
               </div>
             </div>
 
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block print:text-gray-600">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block print:text-gray-600 print:text-[8.5px]">
                 Plan & Horario Actual
               </span>
-              <span className="font-bold text-foreground print:text-black">
+              <span className="font-bold text-foreground print:text-black print:text-[10.5px]">
                 {liveStudent.instrument || "Guitarra"} · {liveStudent.modality || "Regular (8 clases / 45 min)"}
               </span>
-              <div className="text-[11px] text-muted-foreground mt-0.5 print:text-gray-700">
+              <div className="text-[11px] text-muted-foreground mt-0.5 print:text-gray-700 print:text-[9.5px]">
                 {liveStudent.teacher || "Jeremy"} ({liveStudent.room || "Sala A"})
               </div>
-              <div className="text-[10px] font-mono text-muted-foreground mt-0.5 print:text-gray-600">
+              <div className="text-[10px] font-mono text-muted-foreground mt-0.5 print:text-gray-600 print:text-[8.5px]">
                 Vigencia: {liveStudent.planStartDate || "2026-09-10"} a {liveStudent.planEndDate || "2026-10-09"}
               </div>
             </div>
@@ -705,72 +740,72 @@ export function StudentAuditReportDialog({
 
           {/* Banner Institucional de Filosofía Vibra Music y Transición de Instrumento */}
           {liquidation.hasInstrumentTransition && (
-            <div className="bg-amber-500/10 border-2 border-amber-500/40 p-4 rounded-2xl text-xs space-y-3 print:bg-amber-50/60 print:border-amber-400 print:p-3 print:space-y-2 print-avoid-break">
+            <div className="bg-amber-500/10 border-2 border-amber-500/40 p-4 rounded-2xl text-xs space-y-3 print:bg-amber-50/60 print:border-amber-400 print:p-2 print:space-y-1.5 print:rounded-lg print-avoid-break">
               <div className="flex items-start gap-2.5">
                 <Sparkles className="h-5 w-5 text-amber-600 shrink-0 mt-0.5 print:hidden" />
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-black text-sm text-foreground print:text-black">
+                    <span className="font-black text-sm text-foreground print:text-black print:text-xs">
                       Transición Formal de Curso: {liquidation.originalInstrument} ➔ {liquidation.newInstrument}
                     </span>
-                    <Badge variant="outline" className="bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border-amber-500/30 print:border-amber-600 print:text-amber-950 print:bg-amber-100">
+                    <Badge variant="outline" className="bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border-amber-500/30 print:border-amber-600 print:text-amber-950 print:bg-amber-100 print:text-[8.5px] print:px-1.5 print:py-0">
                       Filosofía Oficial: "Las clases no se pierden, se recuperan"
                     </Badge>
                   </div>
-                  <p className="text-muted-foreground text-[11px] leading-relaxed print:text-gray-800">
+                  <p className="text-muted-foreground text-[11px] leading-relaxed print:text-gray-800 print:text-[9.5px] print:leading-tight">
                     El alumno cursó inicialmente <strong className="text-foreground print:text-black">{liquidation.originalInstrument}</strong> con Prof. Nathaly en Sala C ({liquidation.sessionsInOriginal} clases del ciclo lectivo: 3 asistidas y 2 inasistencias los días 15/09 y 17/09). A partir del <strong className="text-foreground print:text-black">Martes 29 de Setiembre de 2026</strong> inició formalmente en <strong className="text-foreground print:text-black">{liquidation.newInstrument}</strong> con <strong className="text-foreground print:text-black">{liveStudent.teacher || 'Prof. Jeremy'}</strong> en <strong className="text-foreground print:text-black">Sala A</strong> ({liquidation.transitionScheduleText || 'Mar y Jue 17:30'}).
                   </p>
                 </div>
               </div>
 
               {/* Tarjetas de Desglose Matemático de Clases a Dictar */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 print:grid-cols-3 print:gap-2">
-                <div className="bg-background/90 border border-border p-3 rounded-xl flex items-center gap-3 print:bg-white print:border-gray-300 print:p-2">
-                  <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-600 font-black text-sm flex items-center justify-center shrink-0 print:border print:border-blue-400 print:text-blue-800">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 print:grid-cols-3 print:gap-1.5 print:pt-0">
+                <div className="bg-background/90 border border-border p-3 rounded-xl flex items-center gap-3 print:bg-white print:border-gray-300 print:p-1.5 print:rounded-md print:gap-2">
+                  <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-600 font-black text-sm flex items-center justify-center shrink-0 print:border print:border-blue-400 print:text-blue-800 print:h-6 print:w-6 print:text-xs">
                     {liquidation.regularPendingInNew}
                   </div>
                   <div>
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold block print:text-gray-600">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold block print:text-gray-600 print:text-[8px]">
                       Clases Regulares Cuota
                     </span>
-                    <span className="text-xs font-black text-foreground print:text-black">
+                    <span className="text-xs font-black text-foreground print:text-black print:text-[9.5px]">
                       Pendientes en {liquidation.newInstrument}
                     </span>
-                    <span className="text-[10px] text-muted-foreground block print:text-gray-600">
+                    <span className="text-[10px] text-muted-foreground block print:text-gray-600 print:text-[8px]">
                       Sesiones 6, 7 y 8 del mes
                     </span>
                   </div>
                 </div>
 
-                <div className="bg-background/90 border border-border p-3 rounded-xl flex items-center gap-3 print:bg-white print:border-gray-300 print:p-2">
-                  <div className="h-9 w-9 rounded-lg bg-emerald-500/10 text-emerald-600 font-black text-sm flex items-center justify-center shrink-0 print:border print:border-emerald-400 print:text-emerald-800">
+                <div className="bg-background/90 border border-border p-3 rounded-xl flex items-center gap-3 print:bg-white print:border-gray-300 print:p-1.5 print:rounded-md print:gap-2">
+                  <div className="h-9 w-9 rounded-lg bg-emerald-500/10 text-emerald-600 font-black text-sm flex items-center justify-center shrink-0 print:border print:border-emerald-400 print:text-emerald-800 print:h-6 print:w-6 print:text-xs">
                     +{liquidation.makeupCreditsMigrated}
                   </div>
                   <div>
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold block print:text-gray-600">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold block print:text-gray-600 print:text-[8px]">
                       Créditos a Recuperar
                     </span>
-                    <span className="text-xs font-black text-emerald-600 print:text-emerald-800">
+                    <span className="text-xs font-black text-emerald-600 print:text-emerald-800 print:text-[9.5px]">
                       Transferidos a {liquidation.newInstrument}
                     </span>
-                    <span className="text-[10px] text-muted-foreground block print:text-gray-600">
+                    <span className="text-[10px] text-muted-foreground block print:text-gray-600 print:text-[8px]">
                       Por inasistencias en {liquidation.originalInstrument}
                     </span>
                   </div>
                 </div>
 
-                <div className="bg-primary/10 border-2 border-primary/40 p-3 rounded-xl flex items-center gap-3 print:bg-primary/5 print:border-primary/60 print:p-2">
-                  <div className="h-9 w-9 rounded-lg bg-primary text-primary-foreground font-black text-base flex items-center justify-center shrink-0 shadow print:border print:border-primary">
+                <div className="bg-primary/10 border-2 border-primary/40 p-3 rounded-xl flex items-center gap-3 print:bg-primary/5 print:border-primary/60 print:p-1.5 print:rounded-md print:gap-2">
+                  <div className="h-9 w-9 rounded-lg bg-primary text-primary-foreground font-black text-base flex items-center justify-center shrink-0 shadow print:border print:border-primary print:h-6 print:w-6 print:text-xs">
                     {liquidation.totalSessionsToDeliverInNew}
                   </div>
                   <div>
-                    <span className="text-[10px] text-primary uppercase font-black block print:text-primary">
+                    <span className="text-[10px] text-primary uppercase font-black block print:text-primary print:text-[8px]">
                       Total a Dictar en {liquidation.newInstrument}
                     </span>
-                    <span className="text-xs font-black text-foreground print:text-black">
+                    <span className="text-xs font-black text-foreground print:text-black print:text-[9.5px]">
                       Con {liveStudent.teacher || 'Prof. Jeremy'} (Sala A)
                     </span>
-                    <span className="text-[10px] text-muted-foreground block font-medium print:text-gray-600">
+                    <span className="text-[10px] text-muted-foreground block font-medium print:text-gray-600 print:text-[8px]">
                       3 regulares + 2 recuperaciones
                     </span>
                   </div>
@@ -780,9 +815,9 @@ export function StudentAuditReportDialog({
           )}
 
           {/* 2. Kardex Sesión por Sesión (1 a N) con Divisor Visual de Transición */}
-          <div className="space-y-2 print-avoid-break">
+          <div className="space-y-2 print:space-y-1 print-avoid-break">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5 print:text-black">
+              <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5 print:text-black print:text-[10.5px]">
                 <Calendar className="h-3.5 w-3.5 text-primary print:text-black" />
                 Kardex Detallado de Clases ({sessions.length} Sesiones del Ciclo)
               </h3>
@@ -794,16 +829,16 @@ export function StudentAuditReportDialog({
             </div>
 
             <div className="border border-border rounded-xl overflow-hidden overflow-x-auto shadow-sm print:border-black print:rounded-none print:shadow-none print:overflow-visible">
-              <table className="w-full text-xs print:text-[10px]">
-                <thead className="bg-muted/40 border-b border-border text-[10px] uppercase font-black text-muted-foreground print:bg-gray-100 print:text-black print:border-b-2 print:border-black">
+              <table className="w-full text-xs print:text-[9px] print:leading-tight">
+                <thead className="bg-muted/40 border-b border-border text-[10px] uppercase font-black text-muted-foreground print:bg-gray-100 print:text-black print:border-b print:border-black">
                   <tr>
-                    <th className="py-2.5 px-3 text-center w-10 whitespace-nowrap">N°</th>
-                    <th className="py-2.5 px-3 text-left whitespace-nowrap">Fecha</th>
-                    <th className="py-2.5 px-3 text-left whitespace-nowrap">Hora</th>
-                    <th className="py-2.5 px-3 text-left whitespace-nowrap">Curso / Sala</th>
-                    <th className="py-2.5 px-3 text-left whitespace-nowrap">Docente</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">Estado Asistencia</th>
-                    <th className="py-2.5 px-3 text-left">Observación / Tipo</th>
+                    <th className="py-2.5 px-3 text-center w-10 whitespace-nowrap print:w-[5%] print:py-1 print:px-1">N°</th>
+                    <th className="py-2.5 px-3 text-left whitespace-nowrap print:w-[14%] print:py-1 print:px-1.5">Fecha</th>
+                    <th className="py-2.5 px-3 text-left whitespace-nowrap print:w-[13%] print:py-1 print:px-1.5">Hora</th>
+                    <th className="py-2.5 px-3 text-left whitespace-nowrap print:w-[16%] print:py-1 print:px-1.5">Curso / Sala</th>
+                    <th className="py-2.5 px-3 text-left whitespace-nowrap print:w-[15%] print:py-1 print:px-1.5">Docente</th>
+                    <th className="py-2.5 px-3 text-center whitespace-nowrap print:w-[15%] print:py-1 print:px-1.5">Estado Asistencia</th>
+                    <th className="py-2.5 px-3 text-left print:w-[22%] print:py-1 print:px-1.5">Observación / Tipo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60 print:divide-gray-300">
@@ -822,13 +857,13 @@ export function StudentAuditReportDialog({
                         <Fragment key={`row-wrap-${session.id}`}>
                           {isTransitionBoundary && (
                             <tr key={`divider-${session.id}`} className="bg-amber-500/15 border-y-2 border-amber-500/40 print:bg-amber-100/70 print:border-amber-600">
-                              <td colSpan={7} className="py-2.5 px-4 text-center print:py-1.5">
-                                <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-black text-amber-700 dark:text-amber-300 print:text-amber-950">
+                              <td colSpan={7} className="py-2.5 px-4 text-center print:py-1 print:px-1.5">
+                                <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-black text-amber-700 dark:text-amber-300 print:text-amber-950 print:text-[9px]">
                                   <span>🎸</span>
                                   <span>
                                     {session.dayShort} ({session.dateStr}): Inicio Oficial de Transición a {session.instrument} con Prof. {session.teacher} en {session.room}
                                   </span>
-                                  <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 text-amber-800 dark:text-amber-200 print:bg-amber-200 print:text-amber-950 print:border-amber-400">
+                                  <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 text-amber-800 dark:text-amber-200 print:bg-amber-200 print:text-amber-950 print:border-amber-400 print:text-[8px] print:px-1.5 print:py-0">
                                     {liquidation.regularPendingInNew} clases regulares de cuota + {liquidation.makeupCreditsMigrated} créditos a recuperar = {liquidation.totalSessionsToDeliverInNew} clases totales en {session.instrument}
                                   </span>
                                 </div>
@@ -836,31 +871,31 @@ export function StudentAuditReportDialog({
                             </tr>
                           )}
                           <tr className="hover:bg-muted/20 transition-colors print:hover:bg-transparent">
-                            <td className="py-2.5 px-3 text-center font-mono font-bold text-muted-foreground print:text-black whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-muted-foreground print:text-black whitespace-nowrap print:py-1 print:px-1 print:text-[9px]">
                               {session.sessionIndex}
                             </td>
 
-                            <td className="py-2.5 px-3 font-medium whitespace-nowrap">
-                              <span className="font-bold text-foreground print:text-black">{session.dayShort}</span>
-                              <span className="text-[10px] text-muted-foreground block font-mono print:text-gray-600">
+                            <td className="py-2.5 px-3 font-medium whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
+                              <span className="font-bold text-foreground print:text-black print:text-[9px]">{session.dayShort}</span>
+                              <span className="text-[10px] text-muted-foreground block font-mono print:text-gray-600 print:text-[8px]">
                                 {session.dateStr}
                               </span>
                             </td>
 
-                            <td className="py-2.5 px-3 font-mono text-[11px] print:text-black whitespace-nowrap">
+                            <td className="py-2.5 px-3 font-mono text-[11px] print:text-black whitespace-nowrap print:py-1 print:px-1.5 print:text-[8.5px]">
                               {session.time} - {session.timeEnd}
                             </td>
 
-                            <td className="py-2.5 px-3 whitespace-nowrap">
-                              <span className="font-bold text-foreground print:text-black">{session.instrument}</span>
-                              <span className="text-[10px] text-muted-foreground block print:text-gray-600">{session.room}</span>
+                            <td className="py-2.5 px-3 whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
+                              <span className="font-bold text-foreground print:text-black print:text-[9px]">{session.instrument}</span>
+                              <span className="text-[10px] text-muted-foreground block print:text-gray-600 print:text-[8px]">{session.room}</span>
                             </td>
 
-                            <td className="py-2.5 px-3 font-medium text-foreground print:text-black whitespace-nowrap">
+                            <td className="py-2.5 px-3 font-medium text-foreground print:text-black whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                               {session.teacher}
                             </td>
 
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap print:py-1 print:px-1 print:text-center">
                               {attendanceEditMode ? (
                                 <div className="flex items-center justify-center gap-1 print:hidden">
                                   <button
@@ -922,7 +957,7 @@ export function StudentAuditReportDialog({
                               ) : (
                                 <Badge
                                   variant="outline"
-                                  className={`text-[10px] font-black uppercase ${
+                                  className={`text-[10px] font-black uppercase print:text-[8px] print:px-1 print:py-0 print:leading-tight ${
                                     session.status === "presente"
                                       ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 print:border-emerald-700 print:text-emerald-900 print:bg-emerald-50"
                                       : session.status === "tarde"
@@ -947,7 +982,7 @@ export function StudentAuditReportDialog({
                               )}
                             </td>
 
-                            <td className="py-2.5 px-3 text-[11px] text-muted-foreground print:text-gray-800 print:py-1.5">
+                            <td className="py-2.5 px-3 text-[11px] text-muted-foreground print:text-gray-800 print:py-1 print:px-1.5 print:text-[8.5px] print:leading-tight">
                               {session.isMakeup && (
                                 <span className="text-primary font-bold mr-1.5 print:text-black">
                                   [Recuperación{session.recoveringLessonDate ? ` de ${session.recoveringLessonDate}` : ""}]
@@ -955,9 +990,9 @@ export function StudentAuditReportDialog({
                               )}
                               <div className="space-y-0.5">
                                 {session.status === "ausente" && session.makeupCreditTransferred ? (
-                                  <div className="text-[10px] font-bold text-amber-700 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 inline-flex items-center gap-1 print:border-amber-500 print:text-amber-950 print:bg-amber-50">
+                                  <div className="text-[10px] font-bold text-amber-700 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 inline-flex items-center gap-1 print:border-amber-500 print:text-amber-950 print:bg-amber-50 print:text-[8px] print:px-1 print:py-0">
                                     <span>🔄</span>
-                                    <span>Pasa a Crédito en {session.targetInstrument || "Guitarra"} (Prof. {session.teacher || "Jeremy"})</span>
+                                    <span>Pasa a Crédito en {session.targetInstrument || "Guitarra"} (Prof. {session.targetTeacher || liveStudent?.teacher || "Jeremy"})</span>
                                   </div>
                                 ) : (
                                   <span>{session.notes || "Clase regular de calendario"}</span>
@@ -975,9 +1010,9 @@ export function StudentAuditReportDialog({
           </div>
 
           {/* 3. Bitácora de Pagos y Abonos (Matriz Oficial: 1. Matrícula · 2. Mensualidad · 3. Libros) */}
-          <div className="space-y-2 print-page-break print:space-y-3">
+          <div className="space-y-2 print-page-break print:space-y-2">
             {/* Sub-cabecera Oficial de Continuación en Página 2 (Visible exclusivamente en Impresión / PDF) */}
-            <div className="hidden print:flex items-center justify-between border-b-2 border-black pb-2 mb-3">
+            <div className="hidden print:flex items-center justify-between border-b-2 border-black pb-1.5 mb-2">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-black text-xs tracking-tight text-black">VIBRA MUSIC STAFF</span>
@@ -988,67 +1023,67 @@ export function StudentAuditReportDialog({
                     — Rendición Financiera, Matriz de Pagos y Liquidación
                   </span>
                 </div>
-                <p className="text-[9px] text-gray-600 mt-0.5">
+                <p className="text-[8.5px] text-gray-600 mt-0.5">
                   Alumno: <strong>{liveStudent.name}</strong> · Plan: <strong>{liveStudent.instrument || "Guitarra"} ({liveStudent.modality || "Regular 8 clases"})</strong>
                 </p>
               </div>
-              <div className="text-right font-mono text-[9px] text-gray-700">
+              <div className="text-right font-mono text-[8.5px] text-gray-700">
                 <span>CÓDIGO: <strong className="text-black">{auditCode}</strong></span>
                 <span className="block font-bold text-black mt-0.5">PÁGINA 2 DE 2</span>
               </div>
             </div>
 
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5 print:text-black">
+              <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5 print:text-black print:text-[10.5px]">
                 <CreditCard className="h-3.5 w-3.5 text-primary print:text-black" />
                 Historial de Pagos y Comprobantes Registrados (Matriz Oficial: 1. Matrícula · 2. Mensualidad · 3. Libros)
               </h3>
-              <Badge variant="outline" className="text-[10px] font-bold border-primary/30 text-primary print:border-black print:text-black">
+              <Badge variant="outline" className="text-[10px] font-bold border-primary/30 text-primary print:border-black print:text-black print:text-[8.5px] print:px-1.5 print:py-0">
                 {financialAudit.totalSaldoPendiente === 0 ? "✓ 100% Cancelado" : `Saldo Deuda Total: S/\u00A0${financialAudit.totalSaldoPendiente.toFixed(2)}`}
               </Badge>
             </div>
 
             <div className="border border-border rounded-xl overflow-hidden overflow-x-auto shadow-sm print:border-black print:rounded-none print:shadow-none print:overflow-visible">
-              <table className="w-full text-xs print:text-[10px]">
-                <thead className="bg-muted/40 border-b border-border text-[10px] uppercase font-black text-muted-foreground print:bg-gray-100 print:text-black print:border-b-2 print:border-black">
+              <table className="w-full text-xs print:text-[9px] print:leading-tight">
+                <thead className="bg-muted/40 border-b border-border text-[10px] uppercase font-black text-muted-foreground print:bg-gray-100 print:text-black print:border-b print:border-black">
                   <tr>
-                    <th className="py-2.5 px-3 text-left w-32 whitespace-nowrap">Rubro / Item</th>
-                    <th className="py-2.5 px-3 text-left whitespace-nowrap">Concepto Oficial</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Monto Total</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Abonado</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Saldo Restante</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">Estado</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">Método</th>
-                    <th className="py-2.5 px-3 text-left whitespace-nowrap">Referencia / Comprobante</th>
+                    <th className="py-2.5 px-3 text-left w-32 whitespace-nowrap print:w-[15%] print:py-1 print:px-1.5">Rubro / Item</th>
+                    <th className="py-2.5 px-3 text-left whitespace-nowrap print:w-[27%] print:py-1 print:px-1.5">Concepto Oficial</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap print:w-[11%] print:py-1 print:px-1.5">Monto Total</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap print:w-[10%] print:py-1 print:px-1.5">Abonado</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap print:w-[11%] print:py-1 print:px-1.5">Saldo Restante</th>
+                    <th className="py-2.5 px-3 text-center whitespace-nowrap print:w-[11%] print:py-1 print:px-1">Estado</th>
+                    <th className="py-2.5 px-3 text-center whitespace-nowrap print:w-[8%] print:py-1 print:px-1">Método</th>
+                    <th className="py-2.5 px-3 text-left whitespace-nowrap print:w-[7%] print:py-1 print:px-1.5">Referencia</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60 print:divide-gray-300">
                   {financialAudit.items.map((item) => (
                     <tr key={item.id} className="hover:bg-muted/20 transition-colors print:hover:bg-transparent">
-                      <td className="py-2.5 px-3 font-bold text-foreground print:text-black whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-bold text-foreground print:text-black whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                         {item.categoryLabel}
                       </td>
-                      <td className="py-2.5 px-3">
-                        <span className="font-semibold text-foreground print:text-black">{item.concept}</span>
+                      <td className="py-2.5 px-3 print:py-1 print:px-1.5">
+                        <span className="font-semibold text-foreground print:text-black print:text-[9px]">{item.concept}</span>
                         {item.notes && (
-                          <span className="text-[10px] text-muted-foreground block font-mono print:text-gray-600">
+                          <span className="text-[10px] text-muted-foreground block font-mono print:text-gray-600 print:text-[8px]">
                             {item.notes}
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground print:text-black whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground print:text-black whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                         S/&nbsp;{item.totalAmount.toFixed(2)}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 print:text-emerald-800 whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 print:text-emerald-800 whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                         S/&nbsp;{item.amountPaid.toFixed(2)}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600 print:text-rose-800 whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600 print:text-rose-800 whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                         S/&nbsp;{item.remainingBalance.toFixed(2)}
                       </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap print:py-1 print:px-1">
                         <Badge
                           variant="outline"
-                          className={`text-[10px] font-bold ${
+                          className={`text-[10px] font-bold print:text-[8px] print:px-1 print:py-0 print:leading-tight ${
                             item.status === "pagado"
                               ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 print:border-emerald-700 print:text-emerald-900 print:bg-emerald-50"
                               : item.status === "exonerado"
@@ -1061,10 +1096,10 @@ export function StudentAuditReportDialog({
                           {item.status.toUpperCase()}
                         </Badge>
                       </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        <span className="text-[11px] text-muted-foreground print:text-black">{item.paymentMethod}</span>
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap print:py-1 print:px-1 print:text-[8.5px]">
+                        <span className="text-[11px] text-muted-foreground print:text-black print:text-[8.5px]">{item.paymentMethod}</span>
                       </td>
-                      <td className="py-2.5 px-3 text-[11px] font-mono text-muted-foreground print:text-black whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-[11px] font-mono text-muted-foreground print:text-black whitespace-nowrap print:py-1 print:px-1.5 print:text-[8.5px]">
                         {item.voucherRef}
                       </td>
                     </tr>
@@ -1072,19 +1107,19 @@ export function StudentAuditReportDialog({
                 </tbody>
                 <tfoot className="bg-muted/50 border-t-2 border-border font-black text-xs print:bg-gray-100 print:border-black">
                   <tr>
-                    <td colSpan={2} className="py-2.5 px-3 uppercase tracking-wider text-foreground print:text-black whitespace-nowrap">
+                    <td colSpan={2} className="py-2.5 px-3 uppercase tracking-wider text-foreground print:text-black whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                       Total Consolidado de Cartera
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-foreground print:text-black whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-right font-mono text-foreground print:text-black whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                       S/&nbsp;{financialAudit.totalFacturado.toFixed(2)}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-emerald-600 print:text-emerald-800 whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-right font-mono text-emerald-600 print:text-emerald-800 whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                       S/&nbsp;{financialAudit.totalCobrado.toFixed(2)}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-rose-600 print:text-rose-800 whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-right font-mono text-rose-600 print:text-rose-800 whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                       S/&nbsp;{financialAudit.totalSaldoPendiente.toFixed(2)}
                     </td>
-                    <td colSpan={3} className="py-2.5 px-3 text-right whitespace-nowrap">
+                    <td colSpan={3} className="py-2.5 px-3 text-right whitespace-nowrap print:py-1 print:px-1.5 print:text-[9px]">
                       <span className={financialAudit.totalSaldoPendiente === 0 ? "text-emerald-600 font-bold print:text-emerald-800" : "text-rose-600 font-bold print:text-rose-800"}>
                         {financialAudit.totalSaldoPendiente === 0 ? "✓ PAGOS AL DÍA" : `DEUDA: S/\u00A0${financialAudit.totalSaldoPendiente.toFixed(2)}`}
                       </span>
@@ -1096,68 +1131,68 @@ export function StudentAuditReportDialog({
           </div>
 
           {/* 4. Tarjetas de Liquidación Oficial del Ciclo */}
-          <div className="bg-primary/5 border border-primary/20 p-5 rounded-2xl space-y-4 print:bg-gray-50 print:border-gray-300 print:p-4 print:space-y-3 print-avoid-break">
-            <h3 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5 print:text-black">
+          <div className="bg-primary/5 border border-primary/20 p-5 rounded-2xl space-y-4 print:bg-gray-50 print:border-gray-300 print:p-2.5 print:space-y-2 print:rounded-lg print-avoid-break">
+            <h3 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5 print:text-black print:text-[10px]">
               <ShieldCheck className="h-4 w-4 text-primary print:text-black" />
               Cuadro de Liquidación Oficial del Ciclo
             </h3>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center print:grid-cols-5 print:gap-2">
-              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-2">
-                <span className="text-[10px] text-muted-foreground uppercase font-bold block print:text-gray-600">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center print:grid-cols-5 print:gap-1.5">
+              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-1.5 print:rounded-md">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold block print:text-gray-600 print:text-[8px]">
                   Contratadas
                 </span>
-                <span className="text-lg font-black text-foreground print:text-black">
+                <span className="text-lg font-black text-foreground print:text-black print:text-sm">
                   {liquidation.targetQuota}
                 </span>
               </div>
 
-              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-2">
-                <span className="text-[10px] text-emerald-600 uppercase font-bold block print:text-emerald-800">
+              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-1.5 print:rounded-md">
+                <span className="text-[10px] text-emerald-600 uppercase font-bold block print:text-emerald-800 print:text-[8px]">
                   Asistidas
                 </span>
-                <span className="text-lg font-black text-emerald-600 print:text-emerald-800">
+                <span className="text-lg font-black text-emerald-600 print:text-emerald-800 print:text-sm">
                   {liquidation.attendedCount}
                 </span>
               </div>
 
-              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-2">
-                <span className="text-[10px] text-rose-600 uppercase font-bold block print:text-rose-800">
+              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-1.5 print:rounded-md">
+                <span className="text-[10px] text-rose-600 uppercase font-bold block print:text-rose-800 print:text-[8px]">
                   Inasistencias
                 </span>
-                <span className="text-lg font-black text-rose-600 print:text-rose-800">
+                <span className="text-lg font-black text-rose-600 print:text-rose-800 print:text-sm">
                   {liquidation.missedCount}
                 </span>
               </div>
 
-              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-2">
-                <span className="text-[10px] text-sky-600 uppercase font-bold block print:text-sky-800">
+              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-1.5 print:rounded-md">
+                <span className="text-[10px] text-sky-600 uppercase font-bold block print:text-sky-800 print:text-[8px]">
                   Créditos a Favor
                 </span>
-                <span className="text-lg font-black text-sky-600 print:text-sky-800">
+                <span className="text-lg font-black text-sky-600 print:text-sky-800 print:text-sm">
                   {liquidation.makeupCreditsAvailable}
                 </span>
               </div>
 
-              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-2">
-                <span className="text-[10px] text-amber-600 uppercase font-bold block print:text-amber-800">
+              <div className="bg-background border border-border p-3 rounded-xl print:bg-white print:border-gray-300 print:p-1.5 print:rounded-md">
+                <span className="text-[10px] text-amber-600 uppercase font-bold block print:text-amber-800 print:text-[8px]">
                   Pendientes
                 </span>
-                <span className="text-lg font-black text-amber-600 print:text-amber-800">
+                <span className="text-lg font-black text-amber-600 print:text-amber-800 print:text-sm">
                   {liquidation.pendingCount}
                 </span>
               </div>
             </div>
 
-            <div className="bg-background/80 border border-border p-3.5 rounded-xl flex items-center justify-between text-xs print:bg-white print:border-gray-300 print:p-2.5">
+            <div className="bg-background/80 border border-border p-3.5 rounded-xl flex items-center justify-between text-xs print:bg-white print:border-gray-300 print:p-2 print:rounded-md">
               <div className="space-y-0.5">
-                <span className="font-bold text-foreground print:text-black">Veredicto Oficial Institucional:</span>
-                <p className="text-muted-foreground text-[11px] print:text-gray-700">{liquidation.verdictText}</p>
+                <span className="font-bold text-foreground print:text-black print:text-[9.5px]">Veredicto Oficial Institucional:</span>
+                <p className="text-muted-foreground text-[11px] print:text-gray-700 print:text-[9px] print:leading-tight">{liquidation.verdictText}</p>
               </div>
 
               <div className="text-right shrink-0">
-                <span className="text-[10px] text-muted-foreground uppercase block font-bold print:text-gray-600">Saldo Total</span>
-                <span className={`text-base font-black font-mono whitespace-nowrap ${financialAudit.totalSaldoPendiente === 0 ? "text-emerald-600 print:text-emerald-800" : "text-rose-600 print:text-rose-800"}`}>
+                <span className="text-[10px] text-muted-foreground uppercase block font-bold print:text-gray-600 print:text-[8px]">Saldo Total</span>
+                <span className={`text-base font-black font-mono whitespace-nowrap print:text-xs ${financialAudit.totalSaldoPendiente === 0 ? "text-emerald-600 print:text-emerald-800" : "text-rose-600 print:text-rose-800"}`}>
                   S/&nbsp;{financialAudit.totalSaldoPendiente.toFixed(2)}
                 </span>
               </div>
@@ -1165,15 +1200,15 @@ export function StudentAuditReportDialog({
           </div>
 
           {/* 5. Casillas de Firmas Oficiales (Visibles exclusivamente para Impresión / PDF) */}
-          <div className="hidden print:grid grid-cols-2 gap-12 pt-10 mt-2 text-center text-xs print-avoid-break">
-            <div className="border-t-2 border-black pt-2">
-              <p className="font-bold text-black">Dirección / Secretaría Vibra Music</p>
-              <p className="text-[10px] text-gray-600">Firma y Sello Oficial</p>
+          <div className="hidden print:grid grid-cols-2 gap-12 pt-6 mt-2 text-center text-[10px] print-avoid-break">
+            <div className="border-t border-black pt-1.5">
+              <p className="font-bold text-black print:text-[9.5px]">Dirección / Secretaría Vibra Music</p>
+              <p className="text-[8px] text-gray-600">Firma y Sello Oficial</p>
             </div>
 
-            <div className="border-t-2 border-black pt-2">
-              <p className="font-bold text-black">Padre de Familia / Apoderado</p>
-              <p className="text-[10px] text-gray-600">Firma de Conformidad</p>
+            <div className="border-t border-black pt-1.5">
+              <p className="font-bold text-black print:text-[9.5px]">Padre de Familia / Apoderado</p>
+              <p className="text-[8px] text-gray-600">Firma de Conformidad</p>
             </div>
           </div>
         </div>
