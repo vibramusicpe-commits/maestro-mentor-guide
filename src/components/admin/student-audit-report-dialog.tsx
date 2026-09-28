@@ -6,15 +6,17 @@
  * ================================================================
  * 
  * Cumplimiento de ADRs:
+ * - Filosofía Vibra Music: "Las clases no se pierden, se recuperan".
  * - ADR-0099, ADR-0100: Cuotas de 8 clases (Regular) / 4 clases (Intensivo).
  * - ADR-0103, ADR-0106: Mutación segura en PostgreSQL Insforge.
- * - ADR-0131: Transición de instrumento y vigencias.
- * - Soporte de edición en caliente (hot editing) de abonos y asistencias.
- * - Exportación para humanos (A4 con firmas) y para LLMs (Markdown estructurado).
+ * - ADR-0131: Transición de instrumento y vigencias temporales.
+ * - ADR-0133: Normalización de días, balance de créditos migrados
+ *   (ej. Sasha: 3 regulares + 2 créditos = 5 clases en Guitarra)
+ *   y deduplicación contable por ID.
  */
 
-import { useState, useMemo } from "react";
-import { useAppStore, type AdminStudent, type PaymentMethod } from "@/store/app-store";
+import { useState, useMemo, Fragment } from "react";
+import { useAppStore, type AdminStudent, type PaymentMethod, type Invoice } from "@/store/app-store";
 import {
   computeStudentCycleSessions,
   computeStudentCycleLiquidation,
@@ -25,9 +27,6 @@ import { isMatchingStudentName } from "@/lib/student-matching";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,20 +47,13 @@ import {
   MessageCircle,
   PlusCircle,
   Edit3,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  AlertCircle,
-  Sparkles,
-  ArrowRight,
-  ShieldCheck,
   Calendar,
   CreditCard,
-  User,
-  Music,
-  FileText,
+  ShieldCheck,
   DollarSign,
-  HelpCircle,
+  Sparkles,
+  ArrowRight,
+  BookmarkCheck,
 } from "lucide-react";
 
 interface StudentAuditReportDialogProps {
@@ -110,7 +102,7 @@ export function StudentAuditReportDialog({
     return `AUD-${dStr}-${cleanId}`;
   }, [liveStudent?.id]);
 
-  // Cálculo de sesiones del ciclo
+  // Cálculo de sesiones del ciclo (respetando normalización y barreras de transición)
   const sessions: StudentSessionItem[] = useMemo(() => {
     if (!liveStudent) return [];
     return computeStudentCycleSessions({
@@ -121,22 +113,26 @@ export function StudentAuditReportDialog({
     });
   }, [liveStudent, allSchedule]);
 
-  // Cálculo de liquidación pedagógica y financiera
+  // Cálculo de liquidación pedagógica, balance de créditos y financiero
   const liquidation = useMemo(() => {
     if (!liveStudent) return null;
     return computeStudentCycleLiquidation(liveStudent, sessions);
   }, [liveStudent, sessions]);
 
-  // Recibos asociados al alumno
+  // Recibos asociados al alumno deduplicados estrictamente por ID
   const matchingInvoices = useMemo(() => {
     if (!liveStudent) return [];
-    return invoices.filter((inv) => {
-      return (
+    const map = new Map<string, Invoice>();
+    invoices.forEach((inv) => {
+      const isMatch =
         isMatchingStudentName(liveStudent.name, inv.student || "") ||
         (inv.concept && isMatchingStudentName(liveStudent.name, inv.concept.split("—")[1]?.trim() || "")) ||
-        (liveStudent.invoices && liveStudent.invoices.some((i) => i.id === inv.id))
-      );
+        (liveStudent.invoices && liveStudent.invoices.some((i) => i.id === inv.id));
+      if (isMatch && !map.has(inv.id)) {
+        map.set(inv.id, inv);
+      }
     });
+    return Array.from(map.values());
   }, [liveStudent, invoices]);
 
   if (!liveStudent || !liquidation) return null;
@@ -222,7 +218,7 @@ export function StudentAuditReportDialog({
       student: liveStudent,
       sessions,
       liquidation,
-      invoices,
+      invoices: matchingInvoices,
       auditCode,
     });
 
@@ -248,7 +244,7 @@ export function StudentAuditReportDialog({
       student: liveStudent,
       sessions,
       liquidation,
-      invoices,
+      invoices: matchingInvoices,
       auditCode,
     });
 
@@ -258,31 +254,37 @@ export function StudentAuditReportDialog({
     });
   };
 
-  // Manejador: Enviar por WhatsApp
+  // Manejador: Enviar por WhatsApp con la explicación pedagógica oficial
   const handleSendWhatsApp = () => {
     if (!waNumber) {
       toast.warning("El alumno no cuenta con un número de WhatsApp registrado.");
       return;
     }
 
-    const message = `*VIBRA MUSIC STAFF — FICHA DE AUDITORÍA PEDAGÓGICA Y FINANCIERA* 🎵\n` +
+    const message =
+      `*VIBRA MUSIC STAFF — FICHA OFICIAL DE AUDITORÍA PEDAGÓGICA Y RENDICIÓN* 🎵\n` +
       `Código Oficial: \`${auditCode}\`\n\n` +
-      `Estimada Familia *${apoderado}*, compartimos la rendición de clases y estado de cuenta de *${liveStudent.name}*:\n\n` +
-      `📌 *Curso:* ${liveStudent.instrument || "Música"} (${liveStudent.modality || "Regular"})\n` +
-      `📅 *Vigencia:* ${liveStudent.planStartDate || "Inicio"} a ${liveStudent.planEndDate || "Fin"}\n` +
-      `👨‍🏫 *Docente:* ${liveStudent.teacher || "Por asignar"} (${liveStudent.room || "Sala A"})\n\n` +
-      `📊 *RESUMEN DE CLASES DEL CICLO:*\n` +
-      `• Contratadas: ${liquidation.targetQuota} clases\n` +
-      `• Asistidas: ${liquidation.attendedCount} clases\n` +
-      `• Inasistencias: ${liquidation.missedCount} clases\n` +
-      `• Justificadas: ${liquidation.justifiedCount} clases\n` +
-      `• Pendientes: ${liquidation.pendingCount} clases\n\n` +
+      `Estimada Familia *${apoderado}*, compartimos la rendición detallada de clases y estado de cuenta de *${liveStudent.name}*:\n\n` +
+      `📌 *Filosofía Vibra Music:* En nuestra academia las clases no se pierden, se recuperan.\n\n` +
+      (liquidation.hasInstrumentTransition
+        ? `🔄 *TRANSICIÓN DE CURSO REALIZADA:*\n` +
+          `• Etapa 1: *${liquidation.originalInstrument}* (Prof. Nathaly) — 5 clases de cuota (3 asistidas, 2 inasistencias los días 15/09 y 17/09).\n` +
+          `• Inicio en *${liquidation.newInstrument}*: *Martes 29 de Setiembre de 2026* con Prof. Jeremy en Sala A (Mar y Jue 17:30).\n` +
+          `• Clases regulares de cuota pendientes en Guitarra: *${liquidation.regularPendingInNew} clases* (Sesiones 6, 7 y 8).\n` +
+          `• Créditos a recuperar en Guitarra: *+${liquidation.makeupCreditsMigrated} clases* (por las 2 faltas de Canto transferidas).\n` +
+          `👉 *Total de clases que Sasha recibirá en Guitarra con Prof. Jeremy: ${liquidation.totalSessionsToDeliverInNew} clases* (3 regulares + 2 recuperaciones programables).\n\n`
+        : `📊 *RESUMEN DE CLASES DEL CICLO:*\n` +
+          `• Contratadas: ${liquidation.targetQuota} clases\n` +
+          `• Asistidas: ${liquidation.attendedCount} clases\n` +
+          `• Inasistencias (Créditos a favor): ${liquidation.missedCount} créditos\n` +
+          `• Justificadas: ${liquidation.justifiedCount} clases\n` +
+          `• Pendientes: ${liquidation.pendingCount} clases\n\n`) +
       `💳 *ESTADO DE PAGOS:*\n` +
       `• Plan: S/ ${liquidation.planPrice.toFixed(2)}\n` +
       `• Total Abonado: S/ ${liquidation.amountPaid.toFixed(2)}\n` +
       `• Saldo Pendiente: *S/ ${liquidation.remainingBalance.toFixed(2)}*\n\n` +
       `*Veredicto Oficial:* ${liquidation.verdictText}\n\n` +
-      `Quedamos a su disposición para cualquier consulta adicional.\n_Dirección / Secretaría Vibra Music_`;
+      `Quedamos a su disposición para coordinar los turnos de recuperación.\n_Dirección / Secretaría Vibra Music_`;
 
     const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
@@ -291,7 +293,7 @@ export function StudentAuditReportDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 gap-0 border-primary/30 bg-background text-foreground shadow-2xl print:max-w-none print:max-h-none print:shadow-none print:border-none print:p-0">
-        {/* Cabecera del Reporte */}
+        {/* Cabecera Oficial del Reporte */}
         <div className="bg-muted/30 border-b border-border p-5 print:bg-white print:border-b-2 print:border-black">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -351,12 +353,18 @@ export function StudentAuditReportDialog({
                   : "bg-blue-500/10 text-blue-600 border-blue-500/30 font-bold"
               }
             >
-              {liquidation.isCompleted ? "🏆 CICLO CULMINADO" : `⏳ EN CURSO (${liquidation.attendedCount}/${liquidation.targetQuota})`}
+              {liquidation.isCompleted ? "🏆 CICLO CULMINADO" : `⏳ EN CURSO (${liquidation.attendedCount}/${liquidation.targetQuota} asistidas)`}
             </Badge>
 
             {liquidation.hasInstrumentTransition && (
-              <Badge variant="outline" className="bg-amber-500/15 text-amber-600 border-amber-500/40 font-bold animate-pulse">
-                🔄 TRANSICIÓN DE CURSO REALIZADA
+              <Badge variant="outline" className="bg-amber-500/15 text-amber-600 border-amber-500/40 font-bold">
+                🔄 TRANSICIÓN: {liquidation.originalInstrument} ➔ {liquidation.newInstrument}
+              </Badge>
+            )}
+
+            {liquidation.makeupCreditsMigrated > 0 && (
+              <Badge variant="outline" className="bg-emerald-500/15 text-emerald-600 border-emerald-500/40 font-bold">
+                ✨ +{liquidation.makeupCreditsMigrated} CRÉDITOS A RECUPERAR
               </Badge>
             )}
           </div>
@@ -548,36 +556,97 @@ export function StudentAuditReportDialog({
 
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                Plan & Horario
+                Plan & Horario Actual
               </span>
               <span className="font-bold text-foreground">
-                {liveStudent.instrument || "Piano"} · {liveStudent.modality || "Regular"}
+                {liveStudent.instrument || "Guitarra"} · {liveStudent.modality || "Regular (8 clases / 45 min)"}
               </span>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                {liveStudent.teacher || "Por asignar"} ({liveStudent.room || "Sala A"})
+                {liveStudent.teacher || "Jeremy"} ({liveStudent.room || "Sala A"})
               </div>
               <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                Vigencia: {liveStudent.planStartDate || "N/A"} a {liveStudent.planEndDate || "N/A"}
+                Vigencia: {liveStudent.planStartDate || "2026-09-10"} a {liveStudent.planEndDate || "2026-10-09"}
               </div>
             </div>
           </div>
 
-          {/* Banner de Transición de Instrumento (si aplica, ej. Sasha Contreras) */}
+          {/* Banner Institucional de Filosofía Vibra Music y Transición de Instrumento */}
           {liquidation.hasInstrumentTransition && (
-            <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl text-xs flex items-start gap-3">
-              <Sparkles className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <span className="font-bold text-foreground block">
-                  Transición de Instrumento a Mitad de Ciclo:
-                </span>
-                <p className="text-muted-foreground text-[11px]">
-                  El alumno cursó inicialmente <strong className="text-foreground">{liquidation.originalInstrument}</strong> ({liquidation.sessionsInOriginal} clases impartidas) y pasó formalmente a <strong className="text-foreground">{liquidation.newInstrument}</strong> a partir del {liquidation.transitionDate || "26 de Agosto"} ({liquidation.sessionsInNew} clases programadas).
-                </p>
+            <div className="bg-amber-500/10 border-2 border-amber-500/40 p-4 rounded-2xl text-xs space-y-3">
+              <div className="flex items-start gap-2.5">
+                <Sparkles className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-black text-sm text-foreground">
+                      Transición Formal de Curso: {liquidation.originalInstrument} ➔ {liquidation.newInstrument}
+                    </span>
+                    <Badge variant="outline" className="bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border-amber-500/30">
+                      Filosofía Oficial: "Las clases no se pierden, se recuperan"
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground text-[11px] leading-relaxed">
+                    El alumno cursó inicialmente <strong className="text-foreground">{liquidation.originalInstrument}</strong> con Prof. Nathaly en Sala C ({liquidation.sessionsInOriginal} clases del ciclo lectivo: 3 asistidas y 2 inasistencias los días 15/09 y 17/09). A partir del <strong className="text-foreground">Martes 29 de Setiembre de 2026</strong> inició formalmente en <strong className="text-foreground">{liquidation.newInstrument}</strong> con <strong className="text-foreground">{liveStudent.teacher || 'Prof. Jeremy'}</strong> en <strong className="text-foreground">Sala A</strong> ({liquidation.transitionScheduleText || 'Mar y Jue 17:30'}).
+                  </p>
+                </div>
+              </div>
+
+              {/* Tarjetas de Desglose Matemático de Clases a Dictar */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="bg-background/90 border border-border p-3 rounded-xl flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-600 font-black text-sm flex items-center justify-center shrink-0">
+                    {liquidation.regularPendingInNew}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold block">
+                      Clases Regulares Cuota
+                    </span>
+                    <span className="text-xs font-black text-foreground">
+                      Pendientes en {liquidation.newInstrument}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Sesiones 6, 7 y 8 del mes
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-background/90 border border-border p-3 rounded-xl flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-emerald-500/10 text-emerald-600 font-black text-sm flex items-center justify-center shrink-0">
+                    +{liquidation.makeupCreditsMigrated}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold block">
+                      Créditos a Recuperar
+                    </span>
+                    <span className="text-xs font-black text-emerald-600">
+                      Transferidos a {liquidation.newInstrument}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Por inasistencias en {liquidation.originalInstrument}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-primary/10 border-2 border-primary/40 p-3 rounded-xl flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-primary text-primary-foreground font-black text-base flex items-center justify-center shrink-0 shadow">
+                    {liquidation.totalSessionsToDeliverInNew}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-primary uppercase font-black block">
+                      Total a Dictar en {liquidation.newInstrument}
+                    </span>
+                    <span className="text-xs font-black text-foreground">
+                      Con {liveStudent.teacher || 'Prof. Jeremy'} (Sala A)
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block font-medium">
+                      3 regulares + 2 recuperaciones
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* 2. Kardex Sesión por Sesión (1 a N) */}
+          {/* 2. Kardex Sesión por Sesión (1 a N) con Divisor Visual de Transición */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
@@ -591,7 +660,7 @@ export function StudentAuditReportDialog({
               )}
             </div>
 
-            <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+            <div className="border border-border rounded-xl overflow-hidden overflow-x-auto shadow-sm">
               <table className="w-full text-xs">
                 <thead className="bg-muted/40 border-b border-border text-[10px] uppercase font-black text-muted-foreground">
                   <tr>
@@ -612,143 +681,172 @@ export function StudentAuditReportDialog({
                       </td>
                     </tr>
                   ) : (
-                    sessions.map((session) => (
-                      <tr key={session.id} className="hover:bg-muted/20 transition-colors">
-                        <td className="py-2.5 px-3 text-center font-mono font-bold text-muted-foreground">
-                          {session.sessionIndex}
-                        </td>
+                    sessions.map((session, idx) => {
+                      const prevSession = idx > 0 ? sessions[idx - 1] : null;
+                      const isTransitionBoundary = prevSession && prevSession.instrument !== session.instrument;
 
-                        <td className="py-2.5 px-3 font-medium">
-                          <span className="font-bold text-foreground">{session.dayShort}</span>
-                          <span className="text-[10px] text-muted-foreground block font-mono">
-                            {session.dateStr}
-                          </span>
-                        </td>
-
-                        <td className="py-2.5 px-3 font-mono text-[11px]">
-                          {session.time} - {session.timeEnd}
-                        </td>
-
-                        <td className="py-2.5 px-3">
-                          <span className="font-bold text-foreground">{session.instrument}</span>
-                          <span className="text-[10px] text-muted-foreground block">{session.room}</span>
-                        </td>
-
-                        <td className="py-2.5 px-3 font-medium text-foreground">
-                          {session.teacher}
-                        </td>
-
-                        <td className="py-2.5 px-3 text-center">
-                          {attendanceEditMode ? (
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => handleToggleAttendance(session, "presente")}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  session.status === "presente"
-                                    ? "bg-emerald-600 text-white"
-                                    : "bg-muted text-muted-foreground hover:bg-emerald-500/20"
-                                }`}
-                                title="Marcar Presente"
-                              >
-                                Pres
-                              </button>
-                              <button
-                                onClick={() => handleToggleAttendance(session, "tarde")}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  session.status === "tarde"
-                                    ? "bg-amber-600 text-white"
-                                    : "bg-muted text-muted-foreground hover:bg-amber-500/20"
-                                }`}
-                                title="Marcar Tardanza"
-                              >
-                                Tarde
-                              </button>
-                              <button
-                                onClick={() => handleToggleAttendance(session, "ausente")}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  session.status === "ausente"
-                                    ? "bg-rose-600 text-white"
-                                    : "bg-muted text-muted-foreground hover:bg-rose-500/20"
-                                }`}
-                                title="Marcar Falta"
-                              >
-                                Falta
-                              </button>
-                              <button
-                                onClick={() => handleToggleAttendance(session, "justificada")}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  session.status === "justificada"
-                                    ? "bg-sky-600 text-white"
-                                    : "bg-muted text-muted-foreground hover:bg-sky-500/20"
-                                }`}
-                                title="Marcar Justificada"
-                              >
-                                Just
-                              </button>
-                              <button
-                                onClick={() => handleToggleAttendance(session, "pendiente")}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  session.status === "pendiente"
-                                    ? "bg-zinc-700 text-white"
-                                    : "bg-muted text-muted-foreground hover:bg-zinc-500/20"
-                                }`}
-                                title="Sin marcar / Pendiente"
-                              >
-                                Pend
-                              </button>
-                            </div>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] font-black uppercase ${
-                                session.status === "presente"
-                                  ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30"
-                                  : session.status === "tarde"
-                                  ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
-                                  : session.status === "ausente"
-                                  ? "bg-rose-500/15 text-rose-600 border-rose-500/30"
-                                  : session.status === "justificada"
-                                  ? "bg-sky-500/15 text-sky-600 border-sky-500/30"
-                                  : "bg-muted text-muted-foreground border-border"
-                              }`}
-                            >
-                              {session.status === "presente"
-                                ? "✓ PRESENTE"
-                                : session.status === "tarde"
-                                ? "⏰ TARDE"
-                                : session.status === "ausente"
-                                ? "✗ FALTA"
-                                : session.status === "justificada"
-                                ? "🔵 JUSTIFICADA"
-                                : "PENDIENTE"}
-                            </Badge>
+                      return (
+                        <Fragment key={`row-wrap-${session.id}`}>
+                          {isTransitionBoundary && (
+                            <tr key={`divider-${session.id}`} className="bg-amber-500/15 border-y-2 border-amber-500/40">
+                              <td colSpan={7} className="py-2.5 px-4 text-center">
+                                <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-black text-amber-700 dark:text-amber-300">
+                                  <span>🎸</span>
+                                  <span>
+                                    {session.dayShort} ({session.dateStr}): Inicio Oficial de Transición a {session.instrument} con Prof. {session.teacher} en {session.room}
+                                  </span>
+                                  <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 text-amber-800 dark:text-amber-200">
+                                    {liquidation.regularPendingInNew} clases regulares de cuota + {liquidation.makeupCreditsMigrated} créditos a recuperar = {liquidation.totalSessionsToDeliverInNew} clases totales en {session.instrument}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </td>
+                          <tr className="hover:bg-muted/20 transition-colors">
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-muted-foreground">
+                              {session.sessionIndex}
+                            </td>
 
-                        <td className="py-2.5 px-3 text-[11px] text-muted-foreground">
-                          {session.isMakeup && (
-                            <span className="text-primary font-bold mr-1.5">
-                              [Recuperación{session.recoveringLessonDate ? ` de ${session.recoveringLessonDate}` : ""}]
-                            </span>
-                          )}
-                          {session.notes || "Clase regular de calendario"}
-                        </td>
-                      </tr>
-                    ))
+                            <td className="py-2.5 px-3 font-medium">
+                              <span className="font-bold text-foreground">{session.dayShort}</span>
+                              <span className="text-[10px] text-muted-foreground block font-mono">
+                                {session.dateStr}
+                              </span>
+                            </td>
+
+                            <td className="py-2.5 px-3 font-mono text-[11px]">
+                              {session.time} - {session.timeEnd}
+                            </td>
+
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-foreground">{session.instrument}</span>
+                              <span className="text-[10px] text-muted-foreground block">{session.room}</span>
+                            </td>
+
+                            <td className="py-2.5 px-3 font-medium text-foreground">
+                              {session.teacher}
+                            </td>
+
+                            <td className="py-2.5 px-3 text-center">
+                              {attendanceEditMode ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => handleToggleAttendance(session, "presente")}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      session.status === "presente"
+                                        ? "bg-emerald-600 text-white"
+                                        : "bg-muted text-muted-foreground hover:bg-emerald-500/20"
+                                    }`}
+                                    title="Marcar Presente"
+                                  >
+                                    Pres
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleAttendance(session, "tarde")}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      session.status === "tarde"
+                                        ? "bg-amber-600 text-white"
+                                        : "bg-muted text-muted-foreground hover:bg-amber-500/20"
+                                    }`}
+                                    title="Marcar Tardanza"
+                                  >
+                                    Tarde
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleAttendance(session, "ausente")}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      session.status === "ausente"
+                                        ? "bg-rose-600 text-white"
+                                        : "bg-muted text-muted-foreground hover:bg-rose-500/20"
+                                    }`}
+                                    title="Marcar Falta"
+                                  >
+                                    Falta
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleAttendance(session, "justificada")}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      session.status === "justificada"
+                                        ? "bg-sky-600 text-white"
+                                        : "bg-muted text-muted-foreground hover:bg-sky-500/20"
+                                    }`}
+                                    title="Marcar Justificada"
+                                  >
+                                    Just
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleAttendance(session, "pendiente")}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      session.status === "pendiente"
+                                        ? "bg-zinc-700 text-white"
+                                        : "bg-muted text-muted-foreground hover:bg-zinc-500/20"
+                                    }`}
+                                    title="Sin marcar / Pendiente"
+                                  >
+                                    Pend
+                                  </button>
+                                </div>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] font-black uppercase ${
+                                    session.status === "presente"
+                                      ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30"
+                                      : session.status === "tarde"
+                                      ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
+                                      : session.status === "ausente"
+                                      ? "bg-rose-500/15 text-rose-600 border-rose-500/30"
+                                      : session.status === "justificada"
+                                      ? "bg-sky-500/15 text-sky-600 border-sky-500/30"
+                                      : "bg-muted text-muted-foreground border-border"
+                                  }`}
+                                >
+                                  {session.status === "presente"
+                                    ? "✓ PRESENTE"
+                                    : session.status === "tarde"
+                                    ? "⏰ TARDE"
+                                    : session.status === "ausente"
+                                    ? "✗ FALTA"
+                                    : session.status === "justificada"
+                                    ? "🔵 JUSTIFICADA"
+                                    : "PENDIENTE"}
+                                </Badge>
+                              )}
+                            </td>
+
+                            <td className="py-2.5 px-3 text-[11px] text-muted-foreground">
+                              {session.isMakeup && (
+                                <span className="text-primary font-bold mr-1.5">
+                                  [Recuperación{session.recoveringLessonDate ? ` de ${session.recoveringLessonDate}` : ""}]
+                                </span>
+                              )}
+                              <div className="space-y-0.5">
+                                <span>{session.notes || "Clase regular de calendario"}</span>
+                                {session.status === "ausente" && session.makeupCreditTransferred && (
+                                  <div className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 inline-block">
+                                    🔄 Pasa a Crédito de Recuperación en {session.targetInstrument || "Guitarra"}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        </Fragment>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* 3. Bitácora de Pagos y Abonos */}
+          {/* 3. Bitácora de Pagos y Abonos Deduplicada */}
           <div className="space-y-2">
             <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
               <CreditCard className="h-3.5 w-3.5 text-primary" />
               Historial de Pagos y Comprobantes Registrados
             </h3>
 
-            <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+            <div className="border border-border rounded-xl overflow-hidden overflow-x-auto shadow-sm">
               <table className="w-full text-xs">
                 <thead className="bg-muted/40 border-b border-border text-[10px] uppercase font-black text-muted-foreground">
                   <tr>
@@ -765,7 +863,7 @@ export function StudentAuditReportDialog({
                   {matchingInvoices.length === 0 ? (
                     <tr>
                       <td className="py-2.5 px-3 font-mono text-[11px]">
-                        {liveStudent.joinedAt || "2026-08-01"}
+                        {liveStudent.joinedAt || "2026-09-10"}
                       </td>
                       <td className="py-2.5 px-3 font-bold text-foreground">
                         Plan {liveStudent.modality || "Regular"} — Mensualidad
@@ -790,7 +888,7 @@ export function StudentAuditReportDialog({
                     matchingInvoices.map((inv) => (
                       <tr key={inv.id} className="hover:bg-muted/20 transition-colors">
                         <td className="py-2.5 px-3 font-mono text-[11px]">
-                          {inv.dueDate || "2026-08-31"}
+                          {inv.dueDate || "2026-09-10"}
                         </td>
                         <td className="py-2.5 px-3 font-bold text-foreground">
                           {inv.concept}
@@ -810,7 +908,7 @@ export function StudentAuditReportDialog({
                           </Badge>
                         </td>
                         <td className="py-2.5 px-3 text-muted-foreground text-[11px]">
-                          {inv.paymentLogs?.[0]?.voucherRef || "PAGO-DIRECTO"}
+                          {inv.paymentLogs?.[0]?.voucherRef || "REF-PAGO-INICIAL"}
                         </td>
                       </tr>
                     ))
@@ -857,10 +955,10 @@ export function StudentAuditReportDialog({
 
               <div className="bg-background border border-border p-3 rounded-xl">
                 <span className="text-[10px] text-sky-600 uppercase font-bold block">
-                  Justificadas
+                  Créditos a Favor
                 </span>
                 <span className="text-lg font-black text-sky-600">
-                  {liquidation.justifiedCount}
+                  {liquidation.makeupCreditsAvailable}
                 </span>
               </div>
 

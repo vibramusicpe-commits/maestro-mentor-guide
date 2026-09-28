@@ -4,6 +4,26 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.20] - 2026-09-28
+
+### Filosofía Institucional de Créditos ("Las clases no se pierden, se recuperan"), Migración Inter-Instrumento y Normalización Universal (ADR-0134)
+- **Principio Pedagógico Institucional ("Las clases no se pierden, se recuperan")**:
+  - En Vibra Music Staff, ninguna inasistencia de un alumno activo se pierde ni se cancela: se convierte automáticamente en un crédito de recuperación acumulado a favor del estudiante (`makeupCredits`).
+  - **Migración de Créditos por Transición de Instrumento**: Cuando un alumno cambia de instrumento a mitad de ciclo lectivo (ej. Sasha Dharma Contreras de la Cruz: de Canto a Guitarra), los créditos generados por inasistencias en el curso original no se extinguen: migran íntegramente al nuevo instrumento.
+  - **Balance Matemático Transparente**:
+    - Clases regulares de cuota pendientes en el nuevo instrumento: 3 clases (Sesiones 6, 7 y 8).
+    - Créditos acumulados a recuperar en el nuevo instrumento: +2 clases (por las 2 faltas del 15/09 y 17/09 en Canto transferidas).
+    - **Total de clases que el nuevo docente impartirá al alumno: 5 clases** (3 regulares de cuota + 2 recuperaciones programables).
+- **Normalización Universal de Días (`normalizeDayKey`)**:
+  - En `src/lib/kardex-calculator.ts`, se incorporó la función `normalizeDayKey` que homologa de forma bidireccional formatos abreviados (`"Mar"`, `"Jue"`) con nombres completos (`"Martes"`, `"Jueves"`), solucionando de raíz el descalce que arrojaba 0 sesiones en alumnos con horario en PostgreSQL.
+- **Rediseño Enriquecido de la Ficha de Auditoría (`StudentAuditReportDialog`)**:
+  - **Banner Oficial de Transición y Filosofía**: Muestra con exactitud la fecha de corte del curso previo (28/09/2026), fecha de inicio formal en el nuevo curso (29/09/2026), nuevo horario (`Martes y Jueves 17:30 en Sala A con Prof. Jeremy`) y 3 tarjetas interactivas de desglose de clases (Regulares de cuota, Créditos a recuperar y Total a impartir).
+  - **Fila Divisoria Visual en Kardex**: Inserta una fila divisoria destacada entre las sesiones del instrumento previo y el nuevo curso, facilitando la comprensión visual instantánea.
+  - **Badges Trazables en Inasistencias**: Toda inasistencia indica claramente: `✗ FALTA ➔ Pasa a Crédito de Recuperación en {nuevoInstrumento}`.
+  - **Deduplicación Contable por ID**: Indexación de recibos mediante `Map<string, Invoice>()` por `id`, garantizando que cada recibo oficial aparezca una sola vez (eliminando recibos triplicados).
+  - **Plantilla de WhatsApp y Salida LLM**: Mensajes personalizados para los apoderados con el detalle pedagógico y archivos Markdown estructurados para ingesta por LLMs.
+
+
 ## [2.0.19] - 2026-09-28
 
 ### Ficha Oficial de Auditoría y Rendición por Alumno, Edición en Caliente y Exportación Dual Humano/LLM (ADR-0133)

@@ -702,4 +702,25 @@ inferencia.
      - Generador estandarizado `generateStudentAuditMarkdown` que produce un documento Markdown estructurado con clave-valor (fechas ISO 8601, identificadores canónicos, moneda explícita `PEN S/`) y tablas Markdown limpias, descargable como `.md` o copiable al portapapeles con `[📋 Copiar Formato LLM]`, permitiendo a cualquier LLM (Gemini, Claude, GPT) ingerir y auditar la historia del alumno sin margen de error.
 4. **Desacoplamiento Matemático en `kardex-calculator.ts`**:
    - Centraliza `computeStudentCycleSessions` y `computeStudentCycleLiquidation`, garantizando que tanto el Kardex de secretaría como la Ficha de Auditoría calculen exactamente las mismas clases, respetando transiciones de instrumento (`effectiveFrom`, `effectiveUntil`), clases de corrido (`+45m`), cuotas contractuales y asistencias evaluadas.
+
+---
+
+### 34. Filosofía Institucional de Créditos de Recuperación ("Las clases no se pierden, se recuperan"), Migración Inter-Instrumento y Auditoría Pedagógica (ADR-0134)
+1. **Principio Pedagógico Innegociable ("Las clases no se pierden, se recuperan")**:
+   - En Vibra Music Staff, ninguna inasistencia de un alumno activo (`ausente` o `justificada`) se cancela ni se pierde: genera automáticamente un derecho/crédito de recuperación (`makeupCredits` / `makeupCreditsAvailable`).
+2. **Migración de Créditos por Transición Inter-Instrumento**:
+   - Si un alumno realiza un cambio de instrumento a mitad de ciclo lectivo (por ejemplo, Sasha Dharma Contreras de la Cruz: de Canto a Guitarra), **los créditos acumulados por inasistencias en el instrumento previo no se anulan ni se descartan**: migran íntegramente al nuevo instrumento.
+   - En la Ficha de Auditoría y en el Kardex, el desglose matemático se estructura de forma transparente:
+     - **Clases Regulares de Cuota Pendientes en el Nuevo Instrumento**: Restan exactamente las clases necesarias para completar la cuota mensual contractual (ej. 3 clases de cuota en Guitarra para completar las 8).
+     - **Créditos Acumulados a Recuperar**: Las inasistencias del curso previo (ej. 2 faltas del 15/09 y 17/09 en Canto) pasan como `+2 créditos` a favor en Guitarra.
+     - **Total de Clases Efectivas por Impartir en el Nuevo Instrumento**: `regularPending + makeupCreditsMigrated` (ej. 3 regulares + 2 créditos = **5 clases totales** que el Prof. Jeremy dictará a Sasha).
+3. **Normalización Universal de Días (`normalizeDayKey`)**:
+   - `kardex-calculator.ts` implementa `normalizeDayKey`, homologando de forma bidireccional formatos cortos (`"Mar"`, `"Jue"`) con nombres completos (`"Martes"`, `"Jueves"`), erradicando descalces que provocaban la visualización de 0 sesiones en alumnos con horario guardado en PostgreSQL.
+4. **Trazabilidad Visual y Semántica en la Auditoría**:
+   - **Banner de Transición y Filosofía**: Detalla la fecha de corte del instrumento previo (ej. 28/09), la fecha de inicio del nuevo instrumento (ej. 29/09), el nuevo horario docente (ej. Martes y Jueves 17:30 con Prof. Jeremy en Sala A) y 3 tarjetas resumen de balance de clases.
+   - **Divisor Visual en Kardex**: Inserta una fila divisoria destacada entre las sesiones del instrumento previo y el nuevo.
+   - **Badges de Inasistencia**: Toda sesión en falta indica explícitamente: `✗ FALTA ➔ Pasa a Crédito de Recuperación en {nuevoInstrumento}`.
+   - **Deduplicación Contable por ID**: `matchingInvoices` indexa los recibos por `id` único mediante `Map<string, Invoice>()`, impidiendo filas triplicadas del mismo recibo.
+   - **Salida Dual para WhatsApp y LLMs**: Produce plantillas de WhatsApp personalizadas para los padres y archivos `.md` con claves semánticas precisas para auditoría automatizada por cualquier modelo de lenguaje.
+
 

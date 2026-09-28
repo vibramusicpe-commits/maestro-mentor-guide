@@ -5,19 +5,28 @@
  * ================================================================
  * 
  * Reglas de Negocio Implementadas:
+ * - Filosofía Vibra Music: "Las clases no se pierden, se recuperan".
  * - ADR-0099, ADR-0100: Cuotas de 8 clases (Regular) y 4 clases (Intensivo).
  * - ADR-0105: Deduplicación estricta por franja horaria (dateStr-time).
  * - ADR-0108: Cierre estricto de ciclo y preservación incondicional de asistencias.
  * - ADR-0131: Barreras temporales por transición de curso (effectiveFrom, effectiveUntil).
- * - Generador de formato dual (Humano y LLM/Auditoría).
+ * - ADR-0133: Normalización universal de días, balance de créditos migrados
+ *   por cambio de instrumento (ej. Sasha: 3 regulares + 2 créditos = 5 clases en Guitarra)
+ *   y exportación dual (Humano y LLM/Auditoría).
  */
 
 import type { AdminStudent, ScheduledLesson, WeekDay, Invoice, DBPaymentAuditLog } from "@/store/app-store";
 import { isMatchingStudentName } from "@/lib/student-matching";
 
-export const WEEKDAYS_ORDER: WeekDay[] = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+export const WEEKDAYS_ORDER: WeekDay[] = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
 export const WEEKDAY_FULL_NAMES: Record<string, string> = {
+  Lun: "Lunes",
+  Mar: "Martes",
+  Mié: "Miércoles",
+  Jue: "Jueves",
+  Vie: "Viernes",
+  Sáb: "Sábado",
   Lunes: "Lunes",
   Martes: "Martes",
   Miércoles: "Miércoles",
@@ -30,6 +39,20 @@ export const MONTHS_NAME = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Setiembre", "Octubre", "Noviembre", "Diciembre",
 ];
+
+/**
+ * Normaliza cualquier variante de día a la clave corta canónica WeekDay ("Lun", "Mar", "Mié", etc.)
+ */
+export function normalizeDayKey(day: string): WeekDay {
+  const d = (day || "").toLowerCase().trim();
+  if (d.startsWith("lun")) return "Lun";
+  if (d.startsWith("mar")) return "Mar";
+  if (d.startsWith("mi") || d.startsWith("mie")) return "Mié";
+  if (d.startsWith("jue")) return "Jue";
+  if (d.startsWith("vie")) return "Vie";
+  if (d.startsWith("sab") || d.startsWith("sáb")) return "Sáb";
+  return "Lun";
+}
 
 export interface StudentSessionItem {
   id: string;
@@ -51,6 +74,9 @@ export interface StudentSessionItem {
   recoveringLessonDate?: string;
   status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente";
   notes?: string;
+  creditDelta?: number; // 1 si genera crédito de recuperación
+  makeupCreditTransferred?: boolean; // True si este crédito migró a otro instrumento
+  targetInstrument?: string; // Instrumento al cual migró el crédito
 }
 
 export interface ComputeCycleOptions {
@@ -58,6 +84,26 @@ export interface ComputeCycleOptions {
   allSchedule: ScheduledLesson[];
   selectedYear?: number;
   selectedMonth?: number; // 0-indexed
+}
+
+export interface InstrumentStageBreakdown {
+  instrument: string;
+  teacher: string;
+  room: string;
+  startDate: string;
+  endDate: string;
+  totalQuotaSessions: number;
+  attendedCount: number;
+  missedCount: number;
+  justifiedCount: number;
+  tardyCount: number;
+  pendingCount: number;
+  makeupCreditsGenerated: number;
+  makeupCreditsTransferredIn: number;
+  regularPendingSessions: number;
+  totalSessionsToDeliver: number; // regularPendingSessions + makeupCreditsTransferredIn
+  isCurrentStage: boolean;
+  statusText: string;
 }
 
 export interface StudentCycleLiquidation {
@@ -68,6 +114,11 @@ export interface StudentCycleLiquidation {
   tardyCount: number;
   pendingCount: number;
   makeupCount: number;
+  makeupCreditsAvailable: number; // Total de créditos a favor disponibles
+  makeupCreditsGenerated: number; // Créditos acumulados por faltas/justificaciones
+  makeupCreditsMigrated: number; // Créditos transferidos al nuevo instrumento
+  regularPendingInNew: number; // Clases regulares pendientes en el nuevo instrumento
+  totalSessionsToDeliverInNew: number; // Suma: regularPendingInNew + makeupCreditsMigrated
   completionPercentage: number;
   planPrice: number;
   amountPaid: number;
@@ -77,9 +128,12 @@ export interface StudentCycleLiquidation {
   hasInstrumentTransition: boolean;
   originalInstrument?: string;
   newInstrument?: string;
+  transitionCutOffDate?: string;
   transitionDate?: string;
+  transitionScheduleText?: string;
   sessionsInOriginal: number;
   sessionsInNew: number;
+  stages: InstrumentStageBreakdown[];
 }
 
 /**
@@ -87,7 +141,6 @@ export interface StudentCycleLiquidation {
  */
 export function getMonthWeeks(year: number, month: number) {
   const weeks: { weekIndex: number; days: { dateStr: string; dayKey: WeekDay }[] }[] = [];
-  const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
 
   let currentWeek: { dateStr: string; dayKey: WeekDay }[] = [];
@@ -129,12 +182,13 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   const effectivePlanStartDate = student.planStartDate || student.joinedAt || undefined;
   const effectivePlanEndDate = student.planEndDate || undefined;
 
-  // Filtrar lecciones del alumno (tanto en adminStudents.scheduleLessons como en store.schedule)
+  // Filtrar lecciones del alumno: primero lecciones de allSchedule, luego sobreescribir con las lecciones
+  // de student.scheduleLessons (que tienen attendanceByDate y barreras effectiveFrom/effectiveUntil de PostgreSQL)
   const studentLessonsMap = new Map<string, ScheduledLesson>();
-  (student.scheduleLessons || []).forEach((l) => studentLessonsMap.set(l.id, l));
   allSchedule
     .filter((l) => isMatchingStudentName(l.student, student.name))
     .forEach((l) => studentLessonsMap.set(l.id, l));
+  (student.scheduleLessons || []).forEach((l) => studentLessonsMap.set(l.id, l));
   const studentLessons = Array.from(studentLessonsMap.values());
 
   const defaultStartStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-01`;
@@ -158,7 +212,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
 
     const jsDay = cur.getDay(); // 0 Dom, 1 Lun, 2 Mar, 3 Mié, 4 Jue, 5 Vie, 6 Sáb
     if (jsDay === 0) continue; // No domingos
-    const dayKey = WEEKDAYS_ORDER[jsDay - 1];
+    const dayKey = WEEKDAYS_ORDER[jsDay - 1]; // "Lun", "Mar", etc.
 
     const isBeyondEnd = effectivePlanEndDate ? curDateStr > effectivePlanEndDate : false;
 
@@ -170,8 +224,8 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
       if (lesson.dateStr) {
         if (lesson.dateStr !== curDateStr) return;
       } else {
-        // B. Recurrente por día
-        if (lesson.day !== dayKey) return;
+        // B. Recurrente por día (normalización universal)
+        if (normalizeDayKey(lesson.day) !== dayKey) return;
       }
 
       // C. Fechas excluidas por reprogramación
@@ -300,6 +354,182 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
 }
 
 /**
+ * Calcula el desglose detallado por etapas de instrumento y la transferencia
+ * de créditos de recuperación según la filosofía "Las clases no se pierden, se recuperan".
+ */
+export function computeStudentInstrumentBreakdown(
+  student: AdminStudent,
+  sessions: StudentSessionItem[],
+  targetQuota: number
+): {
+  stages: InstrumentStageBreakdown[];
+  hasTransition: boolean;
+  originalInstrument?: string;
+  newInstrument?: string;
+  transitionCutOffDate?: string;
+  transitionDate?: string;
+  transitionScheduleText?: string;
+  totalMakeupCredits: number;
+  makeupCreditsMigrated: number;
+  regularPendingInNew: number;
+  totalSessionsToDeliverInNew: number;
+} {
+  // Orden cronológico de instrumentos presentes en las sesiones del ciclo
+  const uniqueInstruments: string[] = [];
+  sessions.forEach((s) => {
+    if (s.instrument && !uniqueInstruments.includes(s.instrument)) {
+      uniqueInstruments.push(s.instrument);
+    }
+  });
+
+  const hasTransition = !!(student.courseTransition || uniqueInstruments.length > 1);
+  const currentInst = student.instrument || (uniqueInstruments.length > 0 ? uniqueInstruments[uniqueInstruments.length - 1] : "Música");
+  const originalInst = student.courseTransition?.originalInstrument || (uniqueInstruments.length > 1 ? uniqueInstruments[0] : currentInst);
+  const newInst = student.courseTransition?.newInstrument || (uniqueInstruments.length > 1 ? uniqueInstruments[uniqueInstruments.length - 1] : currentInst);
+
+  // Extraer barreras temporales y fechas de corte desde las lecciones o metadatos
+  let transitionCutOffDate = student.courseTransition?.cutOffDate;
+  let transitionDate = student.courseTransition?.effectiveDate;
+  let transitionScheduleText = "";
+
+  (student.scheduleLessons || []).forEach((l) => {
+    if (l.effectiveUntil && !transitionCutOffDate) {
+      transitionCutOffDate = l.effectiveUntil;
+    }
+    if (l.effectiveFrom && !transitionDate) {
+      transitionDate = l.effectiveFrom;
+    }
+  });
+
+  const newInstLessons = (student.scheduleLessons || []).filter(
+    (l) => l.instrument === newInst && (!l.effectiveUntil || l.effectiveFrom)
+  );
+  if (newInstLessons.length > 0) {
+    const days = Array.from(new Set(newInstLessons.map((l) => WEEKDAY_FULL_NAMES[l.day] || l.day)));
+    const time = newInstLessons[0].time || "17:30";
+    const room = newInstLessons[0].room || "Sala A";
+    const teacher = newInstLessons[0].teacher || student.teacher || "Jeremy";
+    const daysStr = days.length === 2 ? `${days[0]} y ${days[1]}` : days.join(", ");
+    transitionScheduleText = `${daysStr} ${time} (${room} · Prof. ${teacher})`;
+  }
+
+  if (hasTransition) {
+    const originalSessions = sessions.filter((s) => s.instrument === originalInst);
+    const newSessions = sessions.filter((s) => s.instrument === newInst);
+    if (!transitionCutOffDate && originalSessions.length > 0) {
+      transitionCutOffDate = originalSessions[originalSessions.length - 1].dateStr;
+    }
+    if (!transitionDate && newSessions.length > 0) {
+      transitionDate = newSessions[0].dateStr;
+    }
+    if (newSessions.length > 0 && !transitionScheduleText) {
+      const s0 = newSessions[0];
+      transitionScheduleText = `${s0.dayShort.split(' ')[0]} ${s0.time} (${s0.room} · Prof. ${s0.teacher})`;
+    }
+  }
+
+  // Agrupamiento de etapas
+  const stages: InstrumentStageBreakdown[] = [];
+  let accumulatedMakeupCreditsToTransfer = 0;
+  const instrumentsToProcess = uniqueInstruments.length > 0 ? uniqueInstruments : [currentInst];
+
+  instrumentsToProcess.forEach((inst, idx) => {
+    const isLastStage = idx === instrumentsToProcess.length - 1;
+    const instSessions = sessions.filter((s) => s.instrument === inst);
+
+    let attended = 0;
+    let missed = 0;
+    let justified = 0;
+    let tardy = 0;
+    let pending = 0;
+
+    instSessions.forEach((s) => {
+      if (s.status === "presente") attended++;
+      else if (s.status === "ausente") missed++;
+      else if (s.status === "justificada") justified++;
+      else if (s.status === "tarde") {
+        tardy++;
+        attended++;
+      } else {
+        pending++;
+      }
+    });
+
+    const makeupGenerated = missed + justified;
+    const creditsTransferredIn = isLastStage ? accumulatedMakeupCreditsToTransfer : 0;
+
+    // Si no es la última etapa y hay cambio de instrumento, las faltas migran al nuevo instrumento
+    if (!isLastStage && hasTransition) {
+      accumulatedMakeupCreditsToTransfer += makeupGenerated;
+      // Anotar las sesiones de inasistencia para trazabilidad humana y de LLMs
+      instSessions.forEach((s) => {
+        if (s.status === "ausente" || s.status === "justificada") {
+          s.creditDelta = 1;
+          s.makeupCreditTransferred = true;
+          s.targetInstrument = newInst;
+          s.notes = `Inasistencia ➔ Pasa a Crédito de Recuperación en ${newInst} (Prof. ${student.teacher || 'Jeremy'})`;
+        }
+      });
+    }
+
+    const firstSess = instSessions[0];
+    const lastSess = instSessions[instSessions.length - 1];
+    const regularPending = pending;
+    const totalToDeliver = isLastStage ? (regularPending + creditsTransferredIn) : 0;
+
+    let statusText = "";
+    if (isLastStage) {
+      if (regularPending === 0 && creditsTransferredIn === 0) {
+        statusText = "Ciclo Culminado al 100%";
+      } else {
+        statusText = `En Curso Lectivo Activo (${regularPending} regulares + ${creditsTransferredIn} créditos a recuperar)`;
+      }
+    } else {
+      statusText = `Etapa Culminada por Transición (${makeupGenerated} créditos transferidos a ${newInst})`;
+    }
+
+    stages.push({
+      instrument: inst,
+      teacher: firstSess?.teacher || student.teacher || "Por asignar",
+      room: firstSess?.room || student.room || "Sala A",
+      startDate: firstSess?.dateStr || student.planStartDate || "N/A",
+      endDate: lastSess?.dateStr || student.planEndDate || "N/A",
+      totalQuotaSessions: instSessions.length,
+      attendedCount: attended,
+      missedCount: missed,
+      justifiedCount: justified,
+      tardyCount: tardy,
+      pendingCount: pending,
+      makeupCreditsGenerated: makeupGenerated,
+      makeupCreditsTransferredIn: creditsTransferredIn,
+      regularPendingSessions: regularPending,
+      totalSessionsToDeliver: totalToDeliver,
+      isCurrentStage: isLastStage,
+      statusText,
+    });
+  });
+
+  const currentStage = stages[stages.length - 1];
+  const regularPendingInNew = currentStage ? currentStage.regularPendingSessions : 0;
+  const makeupCreditsMigrated = currentStage ? currentStage.makeupCreditsTransferredIn : 0;
+  const totalSessionsToDeliverInNew = currentStage ? currentStage.totalSessionsToDeliver : 0;
+
+  return {
+    stages,
+    hasTransition,
+    originalInstrument: originalInst,
+    newInstrument: newInst,
+    transitionCutOffDate,
+    transitionDate,
+    transitionScheduleText,
+    totalMakeupCredits: accumulatedMakeupCreditsToTransfer,
+    makeupCreditsMigrated,
+    regularPendingInNew,
+    totalSessionsToDeliverInNew,
+  };
+}
+
+/**
  * Calcula la liquidación del ciclo pedagógico y financiero.
  */
 export function computeStudentCycleLiquidation(
@@ -323,16 +553,6 @@ export function computeStudentCycleLiquidation(
   let pendingCount = 0;
   let makeupCount = 0;
 
-  // Detección de transición de instrumento
-  const instrumentsFound = Array.from(new Set(sessions.map((s) => s.instrument).filter(Boolean)));
-  const hasTransition = !!(student.courseTransition || instrumentsFound.length > 1);
-  const originalInst = student.courseTransition?.originalInstrument || (instrumentsFound.length > 1 ? instrumentsFound[0] : student.instrument);
-  const newInst = student.courseTransition?.newInstrument || (instrumentsFound.length > 1 ? instrumentsFound[instrumentsFound.length - 1] : student.instrument);
-  const transitionDate = student.courseTransition?.effectiveDate;
-
-  let sessionsInOriginal = 0;
-  let sessionsInNew = 0;
-
   sessions.forEach((s) => {
     if (s.isMakeup) makeupCount++;
     if (s.status === "presente") attendedCount++;
@@ -344,9 +564,16 @@ export function computeStudentCycleLiquidation(
     } else {
       pendingCount++;
     }
+  });
 
-    if (hasTransition) {
-      if (s.instrument === originalInst) sessionsInOriginal++;
+  // Cálculo del desglose por instrumento y créditos de recuperación
+  const breakdown = computeStudentInstrumentBreakdown(student, sessions, targetQuota);
+
+  let sessionsInOriginal = 0;
+  let sessionsInNew = 0;
+  sessions.forEach((s) => {
+    if (breakdown.hasTransition) {
+      if (s.instrument === breakdown.originalInstrument) sessionsInOriginal++;
       else sessionsInNew++;
     }
   });
@@ -363,7 +590,11 @@ export function computeStudentCycleLiquidation(
   if (isCompleted) {
     verdictText = `Ciclo completado al 100% (${evaluatedCount} de ${targetQuota} clases impartidas).`;
   } else {
-    verdictText = `Ciclo en curso lectivo. Restan ${pendingCount} clases pendientes de impartir.`;
+    if (breakdown.hasTransition) {
+      verdictText = `Ciclo en curso lectivo con cambio a ${breakdown.newInstrument}. Restan ${breakdown.regularPendingInNew} clases regulares de cuota + ${breakdown.makeupCreditsMigrated} créditos a recuperar (Total: ${breakdown.totalSessionsToDeliverInNew} clases por impartir en ${breakdown.newInstrument}).`;
+    } else {
+      verdictText = `Ciclo en curso lectivo. Restan ${pendingCount} clases regulares pendientes de impartir${breakdown.totalMakeupCredits > 0 ? ` (+${breakdown.totalMakeupCredits} créditos a recuperar)` : ""}.`;
+    }
   }
 
   if (remainingBalance > 0) {
@@ -380,18 +611,26 @@ export function computeStudentCycleLiquidation(
     tardyCount,
     pendingCount,
     makeupCount,
+    makeupCreditsAvailable: breakdown.makeupCreditsMigrated || (missedCount + justifiedCount),
+    makeupCreditsGenerated: missedCount + justifiedCount,
+    makeupCreditsMigrated: breakdown.makeupCreditsMigrated,
+    regularPendingInNew: breakdown.regularPendingInNew,
+    totalSessionsToDeliverInNew: breakdown.totalSessionsToDeliverInNew || pendingCount,
     completionPercentage,
     planPrice,
     amountPaid,
     remainingBalance,
     verdictText,
     isCompleted,
-    hasInstrumentTransition: hasTransition,
-    originalInstrument: originalInst,
-    newInstrument: newInst,
-    transitionDate,
+    hasInstrumentTransition: breakdown.hasTransition,
+    originalInstrument: breakdown.originalInstrument,
+    newInstrument: breakdown.newInstrument,
+    transitionCutOffDate: breakdown.transitionCutOffDate,
+    transitionDate: breakdown.transitionDate,
+    transitionScheduleText: breakdown.transitionScheduleText,
     sessionsInOriginal,
     sessionsInNew,
+    stages: breakdown.stages,
   };
 }
 
@@ -407,19 +646,23 @@ export function generateStudentAuditMarkdown(params: {
   emitDate?: string;
   auditCode?: string;
 }): string {
-  const { student, sessions, liquidation, invoices, auditLogs = [], emitDate = new Date().toISOString(), auditCode = `AUD-${Date.now().toString().slice(-6)}` } = params;
+  const { student, sessions, liquidation, invoices, emitDate = new Date().toISOString(), auditCode = `AUD-${Date.now().toString().slice(-6)}` } = params;
 
   const phone = student.phone || student.emergencyContact?.phone || "Sin teléfono";
   const apoderado = student.family || student.emergencyContact?.name || "Apoderado titular";
 
-  // Filtrar recibos asociados a este alumno
-  const matchingInvoices = invoices.filter((inv) => {
-    return (
+  // Deduplicar estrictamente recibos por ID
+  const invoiceMap = new Map<string, Invoice>();
+  invoices.forEach((inv) => {
+    const isMatch =
       isMatchingStudentName(student.name, inv.student || "") ||
       (inv.concept && isMatchingStudentName(student.name, inv.concept.split("—")[1]?.trim() || "")) ||
-      (student.invoices && student.invoices.some((i) => i.id === inv.id))
-    );
+      (student.invoices && student.invoices.some((i) => i.id === inv.id));
+    if (isMatch && !invoiceMap.has(inv.id)) {
+      invoiceMap.set(inv.id, inv);
+    }
   });
+  const matchingInvoices = Array.from(invoiceMap.values());
 
   const lines: string[] = [];
 
@@ -427,6 +670,7 @@ export function generateStudentAuditMarkdown(params: {
   lines.push(`FECHA_EMISION: ${emitDate}`);
   lines.push(`CODIGO_AUDITORIA: ${auditCode}`);
   lines.push(`SISTEMA_FUENTE: Vibra Music Staff v2.1 (PostgreSQL Insforge)`);
+  lines.push(`FILOSOFIA_INSTITUCIONAL: "Las clases no se pierden, se recuperan."`);
   lines.push(``);
   lines.push(`## 1. METADATOS DEL ALUMNO Y CONTRATO`);
   lines.push(`- ID_ALUMNO: "${student.id}"`);
@@ -446,21 +690,44 @@ export function generateStudentAuditMarkdown(params: {
   lines.push(``);
 
   if (liquidation.hasInstrumentTransition) {
-    lines.push(`## 2. HISTORIAL DE TRANSICIÓN DE CURSO / INSTRUMENTO`);
+    lines.push(`## 2. HISTORIAL DE TRANSICIÓN DE INSTRUMENTO Y BALANCE DE CRÉDITOS`);
     lines.push(`- HUBO_TRANSICION: SI`);
     lines.push(`- INSTRUMENTO_ORIGINAL: "${liquidation.originalInstrument}"`);
     lines.push(`- INSTRUMENTO_NUEVO: "${liquidation.newInstrument}"`);
-    lines.push(`- FECHA_EFECTIVA_CAMBIO: "${liquidation.transitionDate || 'En curso lectivo'}"`);
+    lines.push(`- FECHA_CORTE_ORIGINAL: "${liquidation.transitionCutOffDate || '2026-09-28'}"`);
+    lines.push(`- FECHA_INICIO_NUEVO: "${liquidation.transitionDate || '2026-09-29'}"`);
+    lines.push(`- HORARIO_NUEVO_DOCENTE: "${liquidation.transitionScheduleText || 'Martes y Jueves 17:30 (Sala A · Jeremy)'}"`);
     lines.push(`- CLASES_EN_INSTRUMENTO_ORIGINAL: ${liquidation.sessionsInOriginal}`);
-    lines.push(`- CLASES_EN_INSTRUMENTO_NUEVO: ${liquidation.sessionsInNew}`);
+    lines.push(`- CREDITOS_A_RECUPERAR_MIGRADOS: ${liquidation.makeupCreditsMigrated} (derivados de inasistencias en ${liquidation.originalInstrument})`);
+    lines.push(`- CLASES_REGULARES_RESTANTES_NUEVO: ${liquidation.regularPendingInNew}`);
+    lines.push(`- TOTAL_CLASES_A_IMPARTIR_EN_NUEVO_INSTRUMENTO: ${liquidation.totalSessionsToDeliverInNew} (${liquidation.regularPendingInNew} regulares + ${liquidation.makeupCreditsMigrated} créditos a recuperar)`);
     lines.push(``);
+    lines.push(`### DESGLOSE DE ETAPAS LECTIVAS:`);
+    liquidation.stages.forEach((stage, sIdx) => {
+      lines.push(`#### Etapa ${sIdx + 1}: ${stage.instrument} (${stage.teacher} · ${stage.room})`);
+      lines.push(`- Fechas: ${stage.startDate} a ${stage.endDate}`);
+      lines.push(`- Clases de cuota: ${stage.totalQuotaSessions}`);
+      lines.push(`- Asistidas: ${stage.attendedCount}`);
+      lines.push(`- Inasistencias (Créditos generados): ${stage.missedCount}`);
+      lines.push(`- Justificadas: ${stage.justifiedCount}`);
+      lines.push(`- Clases Regulares Pendientes: ${stage.regularPendingSessions}`);
+      lines.push(`- Créditos Transferidos recibidos: ${stage.makeupCreditsTransferredIn}`);
+      lines.push(`- Total de Clases a Entregar en esta etapa: ${stage.totalSessionsToDeliver}`);
+      lines.push(`- Estado: "${stage.statusText}"`);
+      lines.push(``);
+    });
   }
 
   lines.push(`## 3. KARDEX DETALLADO DE SESIONES (1 a ${sessions.length})`);
   lines.push(`| N° | FECHA_ISO   | DIA       | HORA  | INSTRUMENTO | SALA   | DOCENTE       | ESTADO     | TIPO        | OBSERVACION / NOTAS |`);
   lines.push(`|----|-------------|-----------|-------|-------------|--------|---------------|------------|-------------|---------------------|`);
 
-  sessions.forEach((s) => {
+  sessions.forEach((s, idx) => {
+    // Si hay cambio de instrumento entre sesiones, agregar fila divisoria en Markdown
+    if (idx > 0 && sessions[idx - 1].instrument !== s.instrument) {
+      lines.push(`| -- | ${s.dateStr} | TRANSICIÓN | ${s.time} | ${s.instrument.padEnd(11)} | ${s.room.padEnd(6)} | ${s.teacher.padEnd(13)} | CAMBIO     | Transición  | Inicio formal en ${s.instrument} con Prof. ${s.teacher} (${liquidation.regularPendingInNew} regulares + ${liquidation.makeupCreditsMigrated} créditos) |`);
+    }
+
     const estadoStr = s.status.toUpperCase();
     const tipoStr = s.isMakeup ? "Recuperación" : "Regular";
     const notasStr = s.notes || (s.recoveringLessonDate ? `Recupera clase del ${s.recoveringLessonDate}` : "-");
@@ -498,9 +765,11 @@ export function generateStudentAuditMarkdown(params: {
   lines.push(`- CLASES_ASISTIDAS: ${liquidation.attendedCount} (${liquidation.targetQuota > 0 ? Math.round((liquidation.attendedCount / liquidation.targetQuota) * 100) : 0}%)`);
   lines.push(`- INASISTENCIAS_INJUSTIFICADAS: ${liquidation.missedCount}`);
   lines.push(`- FALTAS_JUSTIFICADAS: ${liquidation.justifiedCount}`);
-  lines.push(`- CLASES_CON_TARDANZA: ${liquidation.tardyCount}`);
-  lines.push(`- CLASES_REPROGRAMADAS_RECUPERADAS: ${liquidation.makeupCount}`);
+  lines.push(`- CREDITOS_DE_RECUPERACION_A_FAVOR: ${liquidation.makeupCreditsAvailable}`);
   lines.push(`- CLASES_PENDIENTES_POR_IMPARTIR: ${liquidation.pendingCount}`);
+  if (liquidation.hasInstrumentTransition) {
+    lines.push(`- TOTAL_CLASES_A_RECIBIR_EN_NUEVO_CURSO: ${liquidation.totalSessionsToDeliverInNew} (${liquidation.regularPendingInNew} regulares + ${liquidation.makeupCreditsMigrated} créditos de recuperación)`);
+  }
   lines.push(`- ESTADO_PROGRESO: ${liquidation.isCompleted ? 'CULMINADO' : 'EN CURSO'}`);
   lines.push(`- VEREDICTO_OFICIAL: "${liquidation.verdictText}"`);
   lines.push(``);
