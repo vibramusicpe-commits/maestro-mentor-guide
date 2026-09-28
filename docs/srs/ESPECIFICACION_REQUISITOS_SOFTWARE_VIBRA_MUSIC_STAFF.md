@@ -7,8 +7,8 @@
 | **Documento** | Especificación de Requisitos de Software (SRS) |
 |---|---|
 | **Proyecto** | Vibra Music Staff — Webapp Integral |
-| **Versión** | 2.1.1 (Producción / MVP Consolidado) |
-| **Fecha de Emisión** | 26 de Setiembre 2026 (Actualización de Producción) |
+| **Versión** | 2.1.2 (Producción / Dossier de Auditoría Oficial & Calibración A4) |
+| **Fecha de Emisión** | 28 de Setiembre 2026 (Actualización de Producción) |
 | **Autor Institucional** | Equipo de Ingeniería de Software & Arquitectura de Sistemas |
 | **Cliente / Institución** | Escuela de Música Vibra Music (Tacna, Perú) |
 | **Estado del Documento** | Aprobado para Operación y Auditoría |
@@ -51,6 +51,7 @@
      - 5.3.4. Modelo 4: Paquete Flexible a Demanda (24 sesiones / 45 min · S/ 500)
      - 5.3.5. Modelo 5: Clase Demo y Nivelación Individual (Tarifa Abierta)
      - 5.3.6. Servicios y Cobros Complementarios (Pack de Útiles S/ 67, Matrícula S/ 30, Descuentos)
+     - 5.3.7. Matriz Canónica Oficial de 3 Rubros Financieros (1. Matrícula · 2. Mensualidad · 3. Libros) y Consolidación de Cartera
 6. [CAPA 5: DESCRIPCIÓN DETALLADA DE LOS PROCESOS DEL NEGOCIO (BPMN)](#6-capa-5-descripción-detallada-de-los-procesos-del-negocio-bpmn)
    - 6.1. Ciclo de Vida Inquebrantable de la Matrícula (Registro ➔ Horario ➔ Kardex ➔ Cobranzas)
    - 6.2. Regla de Candado: Bloqueo Condicional de Modalidad
@@ -62,6 +63,7 @@
    - 6.8. Proceso de Facturación, Emisión de Recibos y Abonos Fraccionados
    - 6.9. Proceso de Prospección y Captación Automatizada por WhatsApp Cloud API
    - 6.10. Proceso de Transición Quirúrgica de Curso, Preservación Histórica y Reversión Anti-Error
+   - 6.11. Proceso de Auditoría Oficial Integral, Dossier de Rendición Financiera y Exportación Ejecutiva A4 / PDF
 7. [CAPA 6: CASOS DE USO DEL NEGOCIO Y ESPECIFICACIÓN DE ESCENARIOS](#7-capa-6-casos-de-uso-del-negocio-y-especificación-de-escenarios)
    - 7.1. Matriz de Actores del Negocio
    - 7.2. Catálogo Detallado de Casos de Uso del Negocio (CUN-01 al CUN-12)
@@ -81,6 +83,7 @@
    - 9.4. Módulo 4: Kiosco Docente y Terminales de Sala (RF-42 al RF-49)
    - 9.5. Módulo 5: Facturación, Recibos y Caja Chica (RF-50 al RF-59)
    - 9.6. Módulo 6: Bot Oficial de WhatsApp Cloud API (RF-60 al RF-65)
+   - 9.7. Módulo 7: Dossier Oficial de Auditoría, Matriz Canónica de 3 Rubros y Exportación A4 / PDF (RF-66 al RF-72)
 10. [CAPA 9: REQUISITOS NO FUNCIONALES DEL SISTEMA (RNF)](#10-capa-9-requisitos-no-funcionales-del-sistema-rnf)
     - 10.1. Rendimiento y Latencia (RNF-01 a RNF-04)
     - 10.2. Seguridad, Autenticación y Control de Acceso (RNF-05 a RNF-08)
@@ -105,7 +108,7 @@
     - 15.1. Acuerdos de Nivel de Servicio (SLA) y Severidades de Incidencia
     - 15.2. Procedimientos de Respaldo y Recuperación ante Desastres (DRP)
     - 15.3. Modelo Operativo de Mantenimiento Preventivo, Correctivo y Evolutivo
-16. [ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0131)](#16-anexo-historial-de-decisiones-arquitectónicas-adr-001-al-adr-0131)
+16. [ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0137)](#16-anexo-historial-de-decisiones-arquitectónicas-adr-001-al-adr-0137)
 
 ---
 
@@ -355,6 +358,48 @@ La sede institucional cuenta con 3 salas formativas con acondicionamiento espec�
   * Plan Trimestral: S/ 261.00 por mes (ahorro del 12%).
   * Plan Anual: S/ 237.60 por mes (ahorro del 20%).
 
+### 5.3.7. Matriz Canónica Oficial de 3 Rubros Financieros y Consolidación de Cartera (ADR-0135)
+Para erradicar la dispersión en cobranzas, cobros omitidos y la duplicación de recibos de base de datos en los reportes ejecutivos, el sistema instituye una estructura financiera canónica obligatoria dividida estrictamente en tres rubros normalizados:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+3 RUBROS CANÓNICOS OFICIALES DE FACTURACIÓN Y RENDICIÓN ECONÓMICA
+├─────┬──────────────────────┬─────────────┬─────────────┬─────────────┬─────────────────┤
+│ N°  │ Rubro / Concepto     │ P. Lista    │ Monto Cobr. │ Saldo Deuda │ Estado Operativo│
+├─────┼──────────────────────┼─────────────┼─────────────┼─────────────┼─────────────────┤
+│ 1   │ Matrícula Instituc.  │ S/ 120 / 30 │ S/ 0 - 120  │ S/ 0 - 120  │ Pagado / Pend.  │
+│ 2   │ Mensualidad Ciclo    │ S/ 297.00   │ S/ 0 - 297  │ S/ 0 - 297  │ Al Día / Saldo  │
+│ 3   │ Libros & Pack Útiles │ S/ 67.00    │ S/ 0 - 67   │ S/ 0 - 67   │ Entregado Sí/No │
+├─────┴──────────────────────┼─────────────┼─────────────┼─────────────┼─────────────────┤
+│ TOTAL CONSOLIDADO CARTERA  │ FACTURADO   │ ABONADO     │ DEUDA NETA  │ LIQUIDACIÓN     │
+└────────────────────────────┴─────────────┴─────────────┴─────────────┴─────────────────┘
+```
+
+1. **Rubro 1: Matrícula Institucional**:
+   * Cuota de apertura de expediente y reserva de plaza docente.
+   * Valores contemplados: S/ 120.00 (Tarifa regular anual/semestral), S/ 30.00 (Promocional en campañas de captación) o S/ 0.00 (Exonerada formalmente por Dirección).
+   * Estado de liquidación: `Pagado` (con abono registrado) o `Pendiente` (con saldo exigible).
+
+2. **Rubro 2: Mensualidad / Cuota Formativa del Ciclo Lectivo**:
+   * Corresponde a la prestación educativa del plan contratado (S/ 297.00 para Regular 2x, Regular 1x/sem o Intensivo; S/ 500.00 para Paquete Flexible; o tarifas descontadas de paquetes trimestrales/anuales).
+   * **Deduplicación Estricta a Fila Canónica Única**: Si en PostgreSQL existen múltiples recibos o emisiones previas asociadas al alumno, el motor de auditoría (`StudentAuditReportDialog`) consolida automáticamente los registros en una sola fila representativa del ciclo activo, agregando la totalidad de los abonos reales registrados en `payment_audit_logs`. Esto impide la inflación ficticia de la deuda del estudiante en los estados de cuenta.
+   * Estado de liquidación: `Al día` (saldo = 0), `Abonado parcialmente` (con saldo por cobrar) o `Pendiente`.
+
+3. **Rubro 3: Libros y Pack de Útiles Escolares**:
+   * Material pedagógico oficial obligatorio para el desarrollo de clases en sala (cuaderno de pentagrama, libro de repertorio, mochila institucional).
+   * Valores: S/ 67.00 (Precio oficial de lista) o S/ 0.00 (Exonerado / Bonificado por Dirección).
+   * **Control Dual (Financiero + Logístico)**: Se supervisa simultáneamente el estado de cobro (`Pagado` o `Pendiente`) y el estado de entrega física (`Entregado: Sí / No`), garantizando que secretaría no entregue material didáctico sin haber registrado su cancelación previa.
+
+4. **Consolidación Matemática de Cartera**:
+   * **Total Facturado General**: Suma aritmética de los 3 rubros formalmente liquidados ($\text{Total Facturado} = \text{Matrícula} + \text{Mensualidad} + \text{Libros}$).
+   * **Total Abonado General**: Suma acumulada de todos los pagos reales acreditados en sala y respaldados por N° de Operación.
+   * **Saldo Deuda Pendiente**: Diferencia estricta ($\text{Deuda Total} = \text{Total Facturado} - \text{Total Abonado}$).
+   * Esta consolidación se proyecta unívocamente en:
+     * El pie de tabla (`tfoot`) de la matriz financiera en el diálogo de auditoría y en la impresión PDF.
+     * Los badges de resumen financiero del expediente.
+     * La copia en formato Markdown para portapapeles.
+     * El mensaje formateado para envío por WhatsApp a padres de familia.
+
 ---
 
 # 6. CAPA 5: DESCRIPCIÓN DETALLADA DE LOS PROCESOS DEL NEGOCIO (BPMN)
@@ -454,6 +499,41 @@ Para prevenir inconsistencias entre el contrato financiero y la ocupación de sa
   * Si secretaría o dirección requieren revertir el cambio (por error de agendamiento o desistimiento del alumno), disponen del botón `[🔄 Deshacer Transición / Volver al Curso Anterior]`.
   * Se despliega un modal de advertencia crítica para confirmar la reversión.
   * Al confirmar, se eliminan las lecciones creadas del curso nuevo, se retira la restricción `effectiveUntil` del curso original y se restituyen el instrumento, docente y sala previos sin alterar las asistencias pasadas ni los pagos registrados.
+
+## 6.11. Proceso de Auditoría Oficial Integral, Dossier de Rendición Financiera y Exportación Ejecutiva A4 / PDF (ADR-0134, ADR-0135, ADR-0136, ADR-0137)
+El sistema proporciona a Dirección General y Secretaría un flujo unificado y riguroso para emitir la rendición de cuentas académica y económica de cada estudiante, resolviendo disputas contractuales y facilitando reportes imprimibles oficiales de alta fidelidad:
+
+```mermaid
+flowchart TD
+    A["Directorio / Kardex del Alumno"] --> B["Abrir 'Dossier Oficial de Auditoría'\n(StudentAuditReportDialog)"]
+    B --> C["Generación de Código Canónico\nAUD-YYYYMMDD-XXXX"]
+    C --> D1["Auditoría Pedagógica\n• 5 KPIs del Ciclo Formativo\n• Kardex Cronológico Completo\n• Créditos de Recuperación"]
+    C --> D2["Auditoría Financiera Canónica\n• Matriz de 3 Rubros\n• Hot-Editing de Abonos\n• Total Cartera en tfoot"]
+    D1 & D2 --> E["Validación en Pantalla\n(Vista Previa Interactiva)"]
+    E --> F["Exportación Ejecutiva A4 / PDF\n(Calibrada en 2 Páginas Exactas)"]
+    F --> G1["Página 1: Pedagógica\n• Identidad Institucional\n• Kardex Completo"]
+    F --> G2["Página 2: Financiera & Legal\n• Matriz 3 Rubros & Abonos\n• Firmas de Dirección"]
+```
+
+* **Paso 1 (Invocación y Código Determinista)**:
+  * Desde la ficha del alumno o su Kardex, secretaría pulsa el botón `📋 Dossier Oficial de Auditoría`.
+  * El sistema genera al vuelo un identificador formal de auditoría estructurado como `AUD-YYYYMMDD-XXXX` (donde `YYYYMMDD` es la fecha de emisión y `XXXX` el sufijo hexadecimal del identificador único del estudiante).
+* **Paso 2 (Principio Pedagógico Institucional: "Las clases no se pierden, se recuperan" — ADR-0134)**:
+  * En casos de transición inter-instrumento (ej. alumno que cursaba Canto con Prof. Nathaly y migra a Guitarra con Prof. Jeremy), las inasistencias o clases pendientes del curso original no se anulan ni se computan como pérdidas económicas.
+  * El sistema transfiere automáticamente dichas sesiones como **créditos de recuperación** asignados al nuevo instrumento formativo, programando, por ejemplo: 3 clases regulares restantes + 2 créditos de recuperación acumulados = 5 sesiones a impartir en sala por el nuevo docente para completar las 8 contratadas.
+* **Paso 3 (Hot-Editing y Ajuste en Caliente de Datos de Auditoría)**:
+  * Si secretaría detecta que un pago entregado en efectivo o transferencia no fue ingresado a tiempo, puede pulsar `+ Registrar Abono Omitido` directamente dentro del informe sin abandonar la auditoría. El monto se persiste atómicamente en `invoices` y genera su auditoría en `payment_audit_logs`.
+  * Del mismo modo, si una asistencia en el Kardex requiere rectificación justificada, se sincroniza en caliente recalculando los 5 KPIs del ciclo al instante.
+* **Paso 4 (Consolidación de la Matriz de 3 Rubros y Deuda Neta — ADR-0135)**:
+  * El informe estructura la cuenta en 1. Matrícula, 2. Mensualidad y 3. Libros.
+  * Agrega en el pie de tabla (`tfoot`) la liquidación de la cartera: Total Facturado, Total Cobrado y Saldo Pendiente.
+* **Paso 5 (Calibración Geométrica A4 y Erradicación del Desfase Horizontal — ADR-0136, ADR-0137)**:
+  * Al pulsar `🖨️ Imprimir / Guardar PDF`, el navegador activa las reglas `@media print` especialmente calibradas:
+    1. **Supresión del Desfase -50%**: En CSS normal, los modales se centran mediante `transform: translate(-50%, -50%)`, lo que en motores de impresión web desplaza el documento hacia la izquierda comiendo la mitad del contenido. El sistema suprime esto en print fijando `--tw-translate-x: 0px`, `--tw-translate-y: 0px`, `transform: none !important` y `left: 0; width: 100%`.
+    2. **Anchos Fijos Anti-Desborde**: Todas las tablas operan con `table-layout: fixed`, estableciendo anchos porcentuales estrictos en cada columna (`w-[28%]`, `w-[18%]`, etc.) y fijando `white-space: nowrap` en cifras monetarias para evitar que `"S/ 297.00"` se quiebre en dos líneas.
+    3. **Partición Determinista en 2 Páginas Exactas**: Mediante la regla `page-break-after: always; break-after: page;`, el documento se imprime obligatoriamente en dos caras:
+       * **Página 1 (Académica)**: Cabecera con isotipo oficial, datos del estudiante, dictamen de avance y la totalidad del Kardex cronológico de clases.
+       * **Página 2 (Financiera y Legal)**: Matriz canónica de los 3 rubros con `tfoot`, historial cronológico de pagos/vouchers bancarios, notas administrativas y el bloque de doble firma legal (Dirección General y Secretaría Académica).
 
 ---
 
@@ -949,6 +1029,15 @@ erDiagram
 * **RF-64 (Prohibición de Derivación Cruzada)**: Si no hay cupos con el docente correspondiente, el bot **nunca** debe ofrecer al docente incompatible; debe derivar al prospecto al estado `en_evaluacion` para atención personalizada de secretaría.
 * **RF-65 (Persistencia de Conversaciones)**: Todo mensaje entrante y saliente debe registrarse en la tabla `whatsapp_messages` para auditoría y seguimiento comercial.
 
+## 9.7. Módulo 7: Dossier Oficial de Auditoría, Matriz Canónica de 3 Rubros y Exportación A4 / PDF (`StudentAuditReportDialog`)
+* **RF-66 (Dossier Oficial de Auditoría)**: El sistema debe proveer el componente `StudentAuditReportDialog` para emitir un expediente integral de rendición académica y financiera por estudiante, asignando unívocamente un código institucional determinista estructurado como `AUD-YYYYMMDD-XXXX` (ADR-0135).
+* **RF-67 (Matriz Canónica de 3 Rubros Financieros)**: La rendición económica debe desglosarse obligatoriamente en tres rubros normalizados: 1. Matrícula Institucional (S/ 120 / S/ 30 / S/ 0), 2. Mensualidad del Ciclo (S/ 297.00 o plan contratado, deduplicada a una sola fila representativa del ciclo activo contra la base de datos) y 3. Libros y Pack de Útiles (S/ 67.00 o S/ 0.00 con estatus de entrega física) (ADR-0135).
+* **RF-68 (Consolidación Matemática de Cartera)**: El informe debe computar con exactitud de centavos en el pie de tabla (`tfoot`) y badges superiores: el Total Facturado, el Total Cobrado / Abonado (suma de abonos reales verificados) y el Saldo Deuda Pendiente Neta, replicando estos totales en portapapeles y plantilla de WhatsApp para padres de familia (ADR-0135).
+* **RF-69 (Liquidación Oficial del Ciclo Formativo y Veredicto)**: El motor de cálculo (`kardex-calculator.ts`) debe evaluar reactivamente 5 KPIs pedagógicos clave (Total Clases Contratadas, Dictadas/Presentes, Faltas/Justificadas, Recuperaciones/Créditos y Porcentaje de Cumplimiento), emitiendo el veredicto académico institucional (*Completado*, *En Curso*, *Créditos Pendientes*) (ADR-0134, ADR-0135).
+* **RF-70 (Exportación Ejecutiva A4 / PDF en 2 Páginas Exactas)**: La acción `🖨️ Imprimir / Guardar PDF` debe estar estrictamente calibrada para hojas A4 verticales, particionando el documento en exactamente 2 páginas mediante `page-break-after: always; break-after: page;` (Página 1: Pedagógica con Kardex completo; Página 2: Financiera, Auditoría de Abonos, Notas y Bloque de Doble Firma), erradicando desplazamientos horizontales por transformadas CSS (`--tw-translate-x: 0px`, `transform: none !important`), fijando `table-layout: fixed` y evitando fracturas visuales con `white-space: nowrap` en cifras monetarias (ADR-0136, ADR-0137).
+* **RF-71 (Hot-Editing de Abonos Faltantes con Doble Persistencia)**: Secretaría debe poder agregar abonos omitidos directamente desde el visor de auditoría mediante un formulario inline, persistiendo atómicamente el monto en `invoices` y registrando el log con N° de operación en `payment_audit_logs` sin recargar la pantalla (ADR-0135).
+* **RF-72 (Ajuste en Caliente de Asistencias del Kardex)**: El visor de auditoría debe permitir rectificar en caliente cualquier sesión del Kardex, sincronizando el cambio con `attendance_logs` en PostgreSQL y actualizando instantáneamente los KPIs del ciclo (ADR-0135).
+
 ---
 
 # 10. CAPA 9: REQUISITOS NO FUNCIONALES DEL SISTEMA (RNF)
@@ -1059,6 +1148,10 @@ El Mínimo Producto Viable (MVP) constituyó el núcleo indispensable y ágil de
     1. **Transición y Reversión Manual de Curso (ADR-0129, ADR-0131)**: Se implementó el cambio de instrumento y docente sin alterar el historial pasado de clases dictadas ni duplicar la cuota mensual contratada ("La clase no se pierde, se recupera").
     2. **Prevención Anti-Error Humano**: Modales de confirmación con advertencia visual (`AlertDialog`) que evitan clics involuntarios de secretaría o dirección en operaciones críticas.
     3. **Alineación con el Horario Físico Institucional (ADR-0130)**: Erradicación de franjas horarias complejas o inexistentes, limitando el sistema a los turnos reales de la academia (L-V 16:00 a 19:45; Sábados 09:00 a 13:30).
+    4. **Saneamiento y Purga de la Base Activa en PostgreSQL (ADR-0132)**: Depuración de registros duplicados y normalización de los alumnos activos reales en producción con consistencia referencial en `families` e `invoices`.
+    5. **Reactivación 1 a 1 de Alumnos Históricos y Preservación de Identidad (ADR-0133)**: Capacidad de reincorporar expedientes pasados en un solo clic sin duplicación de UUIDs ni colisión de cuentas por cobrar.
+    6. **Migración Inter-Instrumento de Créditos con Principio "Las clases no se pierden, se recuperan" (ADR-0134)**: Garantía de transferencia íntegra de inasistencias acumuladas al nuevo curso para su reprogramación en sala con el nuevo docente.
+    7. **Dossier Oficial de Auditoría, Matriz Canónica de 3 Rubros y Calibración A4 (ADR-0135, ADR-0136, ADR-0137)**: Emisión de informes periciales académicos y económicos `AUD-YYYYMMDD-XXXX`, deduplicación de cartera a 3 rubros (Matrícula, Mensualidad, Libros), totalización en `tfoot`, hot-editing de pagos y exportación A4 ejecutiva en 2 páginas exactas sin desbordes horizontales ni desfases por transformadas CSS.
 * **Criterio de Aceptación Superado**: Cero errores de solapamiento de alumnos, consistencia financiera absoluta ($0.00$ de discrepancia) y adopción institucional plena del personal docente y administrativo.
 
 ---
@@ -1074,19 +1167,20 @@ El código fuente entregado comprende la siguiente estructura arquitectónica no
 ```
 vibra-music-staff/
 ├── docs/                             # Documentación exhaustiva del sistema
-│   ├── adr/                          # Registro histórico de Decisiones Arquitectónicas (ADR-001 al 0131)
+│   ├── adr/                          # Registro histórico de Decisiones Arquitectónicas (ADR-001 al ADR-0137)
 │   ├── srs/                          # Especificación de Requisitos de Software oficial (Este documento)
 │   ├── logs/                         # Logs de auditoría, incidentes y resolución técnica
 │   ├── migrations/                   # Scripts SQL de base de datos PostgreSQL reproducibles
 │   └── CHANGELOG.md                  # Historial cronológico de versiones y cambios
 ├── src/                              # Código fuente de la aplicación
 │   ├── components/                   # Componentes de interfaz de usuario (React 19)
-│   │   ├── admin/                    # AgendaBoard, StudentsTable, BillingPanel, Modales, CourseTransitionDialog
+│   │   ├── admin/                    # AgendaBoard, StudentsTable, BillingPanel, StudentAuditReportDialog, CourseTransitionDialog
 │   │   ├── teacher/                  # TeacherKiosk, controles táctiles de sala
 │   │   └── ui/                       # Primitivas accesibles de diseño (Radix / Tailwind / AlertDialog)
 │   ├── lib/                          # Servicios y utilidades de infraestructura
 │   │   ├── insforge.ts               # Cliente PostgREST con token sanitizer RFC 7519
 │   │   ├── calendar-utils.ts         # Cálculo dinámico de semanas y días pareados
+│   │   ├── kardex-calculator.ts      # Cálculo unificado de cuotas, asistencias y KPIs
 │   │   └── whatsapp-bot.service.ts   # Integración oficial con Meta Cloud API
 │   ├── routes/                       # Rutas de la aplicación (TanStack Router)
 │   │   ├── admin/                    # Rutas de administración y secretaría
@@ -1149,9 +1243,9 @@ Para garantizar la continuidad operativa ininterrumpida de la escuela, se establ
 
 ---
 
-# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0131)
+# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0137)
 
-El sistema cuenta con un archivo vivo de **31 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
+El sistema cuenta con un archivo vivo de **37 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
 
 * **ADR-001**: Adopción de TanStack Start, Nitro, PostgreSQL Insforge y WhatsApp Cloud API oficial de Meta.
 * **ADR-0052 & 0053**: Autonomía de secretaría en la edición y eliminación directa de clases y supervisión de 8 clases en Regular y 4 en Intensivo.
@@ -1175,6 +1269,12 @@ El sistema cuenta con un archivo vivo de **31 Decisiones Arquitectónicas (ADR)*
 * **ADR-0129**: Transición de curso e instrumento con interfaz manual en Kardex (`CourseTransitionDialog`), aislamiento de asistencias pasadas bajo el principio "La clase no se pierde, se recupera", categoría MASTER automática (18+ años) y ergonomía responsiva anti-desbordamiento horizontal.
 * **ADR-0130**: Alineación estricta con el horario oficial de Vibra Music (turnos vespertinos L-V de 16:00 a 19:45, matutinos de sábado de 09:00 a 13:30) y erradicación total de horarios no oficiales o ficticios (`17:40`, `18:25`, `19:45` como inicio, `20:30`, `21:15` o tardes de sábado).
 * **ADR-0131**: Aislamiento estricto de vigencias de transición (`effectiveFrom` y `effectiveUntil`), deduplicación de períodos, blindaje contra sangrado de asistencias (`isLessonEligibleForDate`), acción de Reversión Quirúrgica de Curso (`revertStudentCourseTransition`) y modales obligatorios de confirmación con advertencia anti-error (`AlertDialog`).
+* **ADR-0132**: Saneamiento y purga de la base activa en PostgreSQL: depuración de registros duplicados y normalización de los 43 alumnos activos reales en producción con consistencia referencial en `families` e `invoices`.
+* **ADR-0133**: Reactivación 1 a 1 de alumnos históricos con preservación de identidad: capacidad de reincorporar expedientes pasados en un solo clic sin duplicación de UUIDs ni colisión de cuentas por cobrar.
+* **ADR-0134**: Principio pedagógico "Las clases no se pierden, se recuperan" y migración inter-instrumento de créditos: garantía de transferencia íntegra de inasistencias acumuladas al nuevo curso para su reprogramación en sala con el nuevo docente.
+* **ADR-0135**: Dossier Oficial de Auditoría y Matriz Canónica de 3 Rubros Financieros: expediente `AUD-YYYYMMDD-XXXX`, deduplicación de cartera a 3 rubros (1. Matrícula, 2. Mensualidad, 3. Libros), totalización en `tfoot` y hot-editing de pagos omitidos.
+* **ADR-0136**: Arquitectura de Exportación A4 / PDF Ejecutivo en 2 Páginas Exactas: partición determinista en Página 1 (Pedagógica con Kardex) y Página 2 (Financiera, Auditoría de Abonos, Notas y Bloque de Doble Firma), prevención de huérfanos y no-wrapping monetario (`white-space: nowrap`).
+* **ADR-0137**: Calibración de Geometría de Impresión A4 y Erradicación del Desfase Horizontal -50%: supresión del offset de centrado CSS modal mediante `--tw-translate-x: 0px`, `transform: none !important`, contenedor `left: 0; width: 100%`, y anchos de tabla porcentuales fijos (`table-layout: fixed`).
 
 ---
 
