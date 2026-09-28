@@ -4,6 +4,24 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.21] - 2026-09-28
+
+### Matriz Oficial de 3 Rubros Financieros, Deduplicación de Recibos y Totales Consolidados de Cartera (ADR-0135)
+- **Matriz Canónica de 3 Rubros en Ficha de Auditoría (`computeStudentFinancialAudit`)**:
+  - En `src/lib/kardex-calculator.ts` y `src/components/admin/student-audit-report-dialog.tsx`, se implementó la matriz oficial de 3 rubros contables para todos los alumnos de la academia:
+    1. **1. Matrícula Institucional**: Evalúa `matriculaType` (Regular S/ 120, Promo Demo S/ 30, o Exonerada S/ 0). Para Sasha Dharma Contreras y alumnos becados/con convenio, se audita como `Exonerada (S/ 0.00 / S/ 0.00 / S/ 0.00)`.
+    2. **2. Mensualidad (Plan Contratado)**: Refleja la cuota del ciclo lectivo (ej. S/ 297.00), monto abonado (ej. S/ 100.00) y saldo restante (ej. S/ 197.00), método de pago y referencia/voucher auditado (`paymentLogs`). Se deduplica estrictamente para generar exactamente **1 fila** por ciclo lectivo, eliminando registros triplicados o repetidos.
+    3. **3. Libros y Material Didáctico (Pack de Útiles)**: Evalúa `packUtilesCost`, `packUtilesAmountPaid`, `packUtilesStatus`, `packUtilesDelivered` y notas. Para Sasha se audita como `Exonerado / Incluido (S/ 0.00 / S/ 0.00 / S/ 0.00)`. Para tarifas regulares (S/ 67.00), audita el abono, saldo pendiente y entrega física en sala.
+- **Totales Consolidados de Cartera (Pie de Tabla, Badges, Markdown y WhatsApp)**:
+  - Se incorporó en la tabla de pagos un pie consolidado (`tfoot`) con la suma matemática exacta:
+    - `Total Facturado`: Suma de cuotas oficiales de los 3 rubros (Sasha: S/ 297.00).
+    - `Total Abonado`: Suma de abonos registrados (Sasha: S/ 100.00).
+    - `Total Saldo Deuda`: Deuda exigible consolidada (Sasha: S/ 197.00).
+  - El badge superior de cabecera (`⚠ DEUDA: S/ 197.00`), la tarjeta de Saldo Total de liquidación, el archivo Markdown exportable para LLMs y el mensaje de WhatsApp reflejan unificadamente este saldo portfolio real.
+- **Deduplicación Estricta contra PostgreSQL (`hydrateFromBackend`)**:
+  - En `src/store/app-store.ts`, al fusionar recibos remotos con cachés locales en vuelo, se deduplica por `${studentName}-${baseConcept}`. Si PostgreSQL ya cuenta con el recibo del alumno (con UUID oficial), se omiten duplicados locales o copias residuales de sesiones previas.
+
+
 ## [2.0.20] - 2026-09-28
 
 ### Filosofía Institucional de Créditos ("Las clases no se pierden, se recuperan"), Migración Inter-Instrumento y Normalización Universal (ADR-0134)

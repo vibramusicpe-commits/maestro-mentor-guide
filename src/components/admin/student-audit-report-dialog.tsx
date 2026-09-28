@@ -20,6 +20,7 @@ import { useAppStore, type AdminStudent, type PaymentMethod, type Invoice } from
 import {
   computeStudentCycleSessions,
   computeStudentCycleLiquidation,
+  computeStudentFinancialAudit,
   generateStudentAuditMarkdown,
   type StudentSessionItem,
 } from "@/lib/kardex-calculator";
@@ -113,11 +114,17 @@ export function StudentAuditReportDialog({
     });
   }, [liveStudent, allSchedule]);
 
+  // Auditoría financiera canónica de 3 rubros (Matrícula, Mensualidad, Libros)
+  const financialAudit = useMemo(() => {
+    if (!liveStudent) return null;
+    return computeStudentFinancialAudit(liveStudent, invoices);
+  }, [liveStudent, invoices]);
+
   // Cálculo de liquidación pedagógica, balance de créditos y financiero
   const liquidation = useMemo(() => {
     if (!liveStudent) return null;
-    return computeStudentCycleLiquidation(liveStudent, sessions);
-  }, [liveStudent, sessions]);
+    return computeStudentCycleLiquidation(liveStudent, sessions, undefined, undefined, invoices);
+  }, [liveStudent, sessions, invoices]);
 
   // Recibos asociados al alumno deduplicados estrictamente por ID
   const matchingInvoices = useMemo(() => {
@@ -135,7 +142,7 @@ export function StudentAuditReportDialog({
     return Array.from(map.values());
   }, [liveStudent, invoices]);
 
-  if (!liveStudent || !liquidation) return null;
+  if (!liveStudent || !liquidation || !financialAudit) return null;
 
   const phone = liveStudent.phone || liveStudent.emergencyContact?.phone || "";
   const cleanPhone = phone.replace(/\D/g, "");
@@ -152,7 +159,8 @@ export function StudentAuditReportDialog({
 
     setIsSavingAbono(true);
     try {
-      const relatedInv = matchingInvoices[0];
+      const tuitionItem = financialAudit.items.find((i) => i.category === "mensualidad");
+      const relatedInv = tuitionItem ? matchingInvoices.find((inv) => inv.id === tuitionItem.id) || matchingInvoices[0] : matchingInvoices[0];
       if (relatedInv) {
         recordPaymentAbono(
           relatedInv.id,
@@ -167,7 +175,7 @@ export function StudentAuditReportDialog({
         recordNewDirectAbono({
           familyOrStudent: liveStudent.name,
           concept: `Plan ${liveStudent.modality || "Regular"} — ${liveStudent.name}`,
-          amount: liveStudent.planPrice || 297,
+          amount: tuitionItem?.totalAmount || liveStudent.planPrice || 297,
           amountPaid: amountNum,
           method: abonoMethod,
           voucherRef: abonoVoucher || `OP-${Date.now().toString().slice(-6)}`,
@@ -254,12 +262,32 @@ export function StudentAuditReportDialog({
     });
   };
 
-  // Manejador: Enviar por WhatsApp con la explicación pedagógica oficial
+  // Manejador: Enviar por WhatsApp con la explicación pedagógica y financiera oficial
   const handleSendWhatsApp = () => {
     if (!waNumber) {
       toast.warning("El alumno no cuenta con un número de WhatsApp registrado.");
       return;
     }
+
+    const matItem = financialAudit.items.find((i) => i.category === "matricula");
+    const planItem = financialAudit.items.find((i) => i.category === "mensualidad");
+    const libItem = financialAudit.items.find((i) => i.category === "libros");
+
+    const matText =
+      matItem?.status === "exonerado"
+        ? "Exonerada (S/ 0.00)"
+        : `S/ ${matItem?.totalAmount.toFixed(2)} (${matItem?.status.toUpperCase()})`;
+
+    const planText = planItem
+      ? `S/ ${planItem.totalAmount.toFixed(2)} (Abonado: S/ ${planItem.amountPaid.toFixed(2)} · Saldo: *S/ ${planItem.remainingBalance.toFixed(2)}*)`
+      : `S/ ${liquidation.planPrice.toFixed(2)}`;
+
+    const libText =
+      libItem?.status === "exonerado"
+        ? "Exonerado / Digital (S/ 0.00)"
+        : `S/ ${libItem?.totalAmount.toFixed(2)} (${libItem?.delivered ? "Entregado en sala" : "Pendiente de entrega"})`;
+
+    const totalDeuda = financialAudit.totalSaldoPendiente;
 
     const message =
       `*VIBRA MUSIC STAFF — FICHA OFICIAL DE AUDITORÍA PEDAGÓGICA Y RENDICIÓN* 🎵\n` +
@@ -279,10 +307,11 @@ export function StudentAuditReportDialog({
           `• Inasistencias (Créditos a favor): ${liquidation.missedCount} créditos\n` +
           `• Justificadas: ${liquidation.justifiedCount} clases\n` +
           `• Pendientes: ${liquidation.pendingCount} clases\n\n`) +
-      `💳 *ESTADO DE PAGOS:*\n` +
-      `• Plan: S/ ${liquidation.planPrice.toFixed(2)}\n` +
-      `• Total Abonado: S/ ${liquidation.amountPaid.toFixed(2)}\n` +
-      `• Saldo Pendiente: *S/ ${liquidation.remainingBalance.toFixed(2)}*\n\n` +
+      `💳 *ESTADO FINANCIERO Y COMPROBANTES:*\n` +
+      `• 1. Matrícula: ${matText}\n` +
+      `• 2. Mensualidad (${liveStudent.instrument || 'Música'}): ${planText}\n` +
+      `• 3. Libros y Material: ${libText}\n` +
+      `👉 *Total Saldo Deuda: *S/ ${totalDeuda.toFixed(2)}*\n\n` +
       `*Veredicto Oficial:* ${liquidation.verdictText}\n\n` +
       `Quedamos a su disposición para coordinar los turnos de recuperación.\n_Dirección / Secretaría Vibra Music_`;
 
@@ -337,12 +366,12 @@ export function StudentAuditReportDialog({
             <Badge
               variant="outline"
               className={
-                liquidation.remainingBalance === 0
+                financialAudit.totalSaldoPendiente === 0
                   ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold"
                   : "bg-rose-500/10 text-rose-600 border-rose-500/30 font-bold"
               }
             >
-              {liquidation.remainingBalance === 0 ? "✓ PAGOS AL DÍA" : `⚠ DEUDA: S/ ${liquidation.remainingBalance.toFixed(2)}`}
+              {financialAudit.totalSaldoPendiente === 0 ? "✓ PAGOS AL DÍA" : `⚠ DEUDA: S/ ${financialAudit.totalSaldoPendiente.toFixed(2)}`}
             </Badge>
 
             <Badge
@@ -839,81 +868,101 @@ export function StudentAuditReportDialog({
             </div>
           </div>
 
-          {/* 3. Bitácora de Pagos y Abonos Deduplicada */}
+          {/* 3. Bitácora de Pagos y Abonos (Matriz Oficial: 1. Matrícula · 2. Mensualidad · 3. Libros) */}
           <div className="space-y-2">
-            <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-              <CreditCard className="h-3.5 w-3.5 text-primary" />
-              Historial de Pagos y Comprobantes Registrados
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5 text-primary" />
+                Historial de Pagos y Comprobantes Registrados (Matriz Oficial: 1. Matrícula · 2. Mensualidad · 3. Libros)
+              </h3>
+              <Badge variant="outline" className="text-[10px] font-bold border-primary/30 text-primary">
+                {financialAudit.totalSaldoPendiente === 0 ? "✓ 100% Cancelado" : `Saldo Deuda Total: S/ ${financialAudit.totalSaldoPendiente.toFixed(2)}`}
+              </Badge>
+            </div>
 
             <div className="border border-border rounded-xl overflow-hidden overflow-x-auto shadow-sm">
               <table className="w-full text-xs">
                 <thead className="bg-muted/40 border-b border-border text-[10px] uppercase font-black text-muted-foreground">
                   <tr>
-                    <th className="py-2.5 px-3 text-left">Fecha Registro</th>
-                    <th className="py-2.5 px-3 text-left">Recibo / Concepto</th>
-                    <th className="py-2.5 px-3 text-right">Precio Plan</th>
+                    <th className="py-2.5 px-3 text-left w-36">Rubro / Item</th>
+                    <th className="py-2.5 px-3 text-left">Concepto Oficial</th>
+                    <th className="py-2.5 px-3 text-right">Monto Total</th>
                     <th className="py-2.5 px-3 text-right">Abonado</th>
                     <th className="py-2.5 px-3 text-right">Saldo Restante</th>
+                    <th className="py-2.5 px-3 text-center">Estado</th>
                     <th className="py-2.5 px-3 text-center">Método</th>
-                    <th className="py-2.5 px-3 text-left">Referencia / Voucher</th>
+                    <th className="py-2.5 px-3 text-left">Referencia / Comprobante</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {matchingInvoices.length === 0 ? (
-                    <tr>
-                      <td className="py-2.5 px-3 font-mono text-[11px]">
-                        {liveStudent.joinedAt || "2026-09-10"}
-                      </td>
+                  {financialAudit.items.map((item) => (
+                    <tr key={item.id} className="hover:bg-muted/20 transition-colors">
                       <td className="py-2.5 px-3 font-bold text-foreground">
-                        Plan {liveStudent.modality || "Regular"} — Mensualidad
+                        {item.categoryLabel}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-semibold text-foreground">{item.concept}</span>
+                        {item.notes && (
+                          <span className="text-[10px] text-muted-foreground block font-mono">
+                            {item.notes}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold">
-                        S/ {liquidation.planPrice.toFixed(2)}
+                        S/ {item.totalAmount.toFixed(2)}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600">
-                        S/ {liquidation.amountPaid.toFixed(2)}
+                        S/ {item.amountPaid.toFixed(2)}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600">
-                        S/ {liquidation.remainingBalance.toFixed(2)}
+                        S/ {item.remainingBalance.toFixed(2)}
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <Badge variant="outline" className="text-[10px]">Yape</Badge>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-bold ${
+                            item.status === "pagado"
+                              ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30"
+                              : item.status === "exonerado"
+                              ? "bg-sky-500/15 text-sky-600 border-sky-500/30"
+                              : item.status === "parcial"
+                              ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
+                              : "bg-rose-500/15 text-rose-600 border-rose-500/30"
+                          }`}
+                        >
+                          {item.status.toUpperCase()}
+                        </Badge>
                       </td>
-                      <td className="py-2.5 px-3 text-muted-foreground text-[11px]">
-                        REGISTRO-INICIAL
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="text-[11px] text-muted-foreground">{item.paymentMethod}</span>
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] font-mono text-muted-foreground">
+                        {item.voucherRef}
                       </td>
                     </tr>
-                  ) : (
-                    matchingInvoices.map((inv) => (
-                      <tr key={inv.id} className="hover:bg-muted/20 transition-colors">
-                        <td className="py-2.5 px-3 font-mono text-[11px]">
-                          {inv.dueDate || "2026-09-10"}
-                        </td>
-                        <td className="py-2.5 px-3 font-bold text-foreground">
-                          {inv.concept}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold">
-                          S/ {(inv.amount || 297).toFixed(2)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600">
-                          S/ {(inv.amountPaid || 0).toFixed(2)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600">
-                          S/ {(inv.remainingBalance ?? Math.max(0, (inv.amount || 297) - (inv.amountPaid || 0))).toFixed(2)}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <Badge variant="outline" className="text-[10px]">
-                            {inv.paymentMethod || "Yape"}
-                          </Badge>
-                        </td>
-                        <td className="py-2.5 px-3 text-muted-foreground text-[11px]">
-                          {inv.paymentLogs?.[0]?.voucherRef || "REF-PAGO-INICIAL"}
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
+                <tfoot className="bg-muted/50 border-t-2 border-border font-black text-xs">
+                  <tr>
+                    <td colSpan={2} className="py-2.5 px-3 uppercase tracking-wider text-foreground">
+                      Total Consolidado de Cartera
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-foreground">
+                      S/ {financialAudit.totalFacturado.toFixed(2)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-emerald-600">
+                      S/ {financialAudit.totalCobrado.toFixed(2)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-rose-600">
+                      S/ {financialAudit.totalSaldoPendiente.toFixed(2)}
+                    </td>
+                    <td colSpan={3} className="py-2.5 px-3 text-right">
+                      <span className={financialAudit.totalSaldoPendiente === 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                        {financialAudit.totalSaldoPendiente === 0 ? "✓ PAGOS AL DÍA" : `DEUDA: S/ ${financialAudit.totalSaldoPendiente.toFixed(2)}`}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -980,8 +1029,8 @@ export function StudentAuditReportDialog({
 
               <div className="text-right shrink-0">
                 <span className="text-[10px] text-muted-foreground uppercase block font-bold">Saldo Total</span>
-                <span className={`text-base font-black font-mono ${liquidation.remainingBalance === 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                  S/ {liquidation.remainingBalance.toFixed(2)}
+                <span className={`text-base font-black font-mono ${financialAudit.totalSaldoPendiente === 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                  S/ {financialAudit.totalSaldoPendiente.toFixed(2)}
                 </span>
               </div>
             </div>

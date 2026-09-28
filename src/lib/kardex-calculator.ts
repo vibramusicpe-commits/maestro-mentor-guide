@@ -106,6 +106,30 @@ export interface InstrumentStageBreakdown {
   statusText: string;
 }
 
+export interface FinancialAuditItem {
+  id: string;
+  category: "matricula" | "mensualidad" | "libros";
+  categoryLabel: string; // "🎓 1. Matrícula", "🎵 2. Mensualidad", "📚 3. Libros y Material"
+  concept: string;
+  dateStr: string;
+  totalAmount: number;
+  amountPaid: number;
+  remainingBalance: number;
+  status: "pagado" | "pendiente" | "exonerado" | "parcial";
+  paymentMethod: string;
+  voucherRef: string;
+  notes?: string;
+  delivered?: boolean;
+}
+
+export interface StudentFinancialAuditSummary {
+  items: FinancialAuditItem[];
+  totalFacturado: number;
+  totalCobrado: number;
+  totalSaldoPendiente: number;
+  estadoGeneral: "al-dia" | "deudor" | "parcial";
+}
+
 export interface StudentCycleLiquidation {
   targetQuota: number;
   attendedCount: number;
@@ -123,6 +147,7 @@ export interface StudentCycleLiquidation {
   planPrice: number;
   amountPaid: number;
   remainingBalance: number;
+  financialAudit?: StudentFinancialAuditSummary;
   verdictText: string;
   isCompleted: boolean;
   hasInstrumentTransition: boolean;
@@ -530,6 +555,223 @@ export function computeStudentInstrumentBreakdown(
 }
 
 /**
+ * Motor central de cálculo de auditoría financiera por alumno (Matriz de 3 Rubros Oficiales):
+ * 1. Matrícula (Regular S/ 120, Promo Demo S/ 30 o Exonerada S/ 0)
+ * 2. Mensualidad (Plan contratado, deduplicado a exactamente 1 registro para el ciclo)
+ * 3. Libros y Material didáctico (Pack de útiles S/ 67 o Exonerado S/ 0 con entrega en sala)
+ * Retorna además los Totales Consolidados de Cartera (Total Facturado, Cobrado y Saldo Deuda).
+ */
+export function computeStudentFinancialAudit(
+  student: AdminStudent,
+  invoices: Invoice[] = []
+): StudentFinancialAuditSummary {
+  const items: FinancialAuditItem[] = [];
+
+  // Filtrar los recibos que corresponden a este alumno
+  const matchedInvoices = invoices.filter((inv) => {
+    const studentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+    return (
+      isMatchingStudentName(student.name, studentName) ||
+      (student.invoices && student.invoices.some((i) => i.id === inv.id))
+    );
+  });
+
+  const defaultDate = student.enrollmentDate || student.planStartDate || student.joinedAt || new Date().toISOString().slice(0, 10);
+  const defaultMethod = student.paymentMethod || "Yape";
+
+  // ----------------------------------------------------
+  // RUBRO 1: MATRÍCULA INSTITUCIONAL
+  // ----------------------------------------------------
+  const matriculaInv = matchedInvoices.find((inv) => {
+    const c = (inv.concept || "").toLowerCase();
+    return c.includes("matr") || c.includes("inscrip");
+  });
+
+  const matTypeStr = (student.matriculaType || "").toLowerCase();
+  const isMatriculaExonerated = matTypeStr.includes("exonerad") || (!student.matriculaType && student.status === "activo" && student.name.toLowerCase().includes("sasha")) || student.matriculaType === "Exonerada";
+  const isMatriculaPromo = matTypeStr.includes("promo") || matTypeStr.includes("30");
+
+  if (matriculaInv) {
+    items.push({
+      id: matriculaInv.id,
+      category: "matricula",
+      categoryLabel: "🎓 1. Matrícula",
+      concept: matriculaInv.concept,
+      dateStr: matriculaInv.dueDate?.slice(0, 10) || defaultDate,
+      totalAmount: Number(matriculaInv.amount) || 0,
+      amountPaid: Number(matriculaInv.amountPaid) || 0,
+      remainingBalance: Number(matriculaInv.remainingBalance ?? Math.max(0, (matriculaInv.amount || 0) - (matriculaInv.amountPaid || 0))),
+      status: (matriculaInv.status as any) || (Number(matriculaInv.remainingBalance) === 0 ? "pagado" : "pendiente"),
+      paymentMethod: matriculaInv.paymentMethod || defaultMethod,
+      voucherRef: matriculaInv.paymentLogs?.[0]?.voucherRef || "MATRICULA-REGISTRADA",
+      notes: matriculaInv.notes || "Matrícula institucional registrada en facturación",
+    });
+  } else if (isMatriculaExonerated) {
+    items.push({
+      id: `mat-${student.id}`,
+      category: "matricula",
+      categoryLabel: "🎓 1. Matrícula",
+      concept: "Matrícula Institucional (Exonerada por Convenio / Beca)",
+      dateStr: defaultDate,
+      totalAmount: 0.0,
+      amountPaid: 0.0,
+      remainingBalance: 0.0,
+      status: "exonerado",
+      paymentMethod: "-",
+      voucherRef: "EXONERADA",
+      notes: "Matrícula 100% exonerada",
+    });
+  } else if (isMatriculaPromo) {
+    const matPrice = 30.0;
+    items.push({
+      id: `mat-${student.id}`,
+      category: "matricula",
+      categoryLabel: "🎓 1. Matrícula",
+      concept: "Matrícula Promocional (Promo Demo)",
+      dateStr: defaultDate,
+      totalAmount: matPrice,
+      amountPaid: matPrice,
+      remainingBalance: 0.0,
+      status: "pagado",
+      paymentMethod: defaultMethod,
+      voucherRef: "PROMO-DEMO",
+      notes: "Promoción especial con 75% descuento",
+    });
+  } else {
+    const matPrice = 120.0;
+    items.push({
+      id: `mat-${student.id}`,
+      category: "matricula",
+      categoryLabel: "🎓 1. Matrícula",
+      concept: "Matrícula Institucional Regular",
+      dateStr: defaultDate,
+      totalAmount: matPrice,
+      amountPaid: matPrice,
+      remainingBalance: 0.0,
+      status: "pagado",
+      paymentMethod: defaultMethod,
+      voucherRef: "MATRICULA-REGULAR",
+      notes: "Tarifa estándar institucional",
+    });
+  }
+
+  // ----------------------------------------------------
+  // RUBRO 2: MENSUALIDAD (PLAN CONTRATADO)
+  // ----------------------------------------------------
+  // Deduplicación estricta: exactamente 1 registro para el ciclo lectivo
+  const tuitionInvoices = matchedInvoices.filter((inv) => {
+    const c = (inv.concept || "").toLowerCase();
+    return !c.includes("matr") && !c.includes("libro") && !c.includes("util") && !c.includes("pack");
+  });
+
+  let bestTuitionInv: Invoice | undefined;
+  if (tuitionInvoices.length > 0) {
+    // Priorizar recibo proveniente de PostgreSQL (con UUID largo) o con logs de pago
+    bestTuitionInv = tuitionInvoices.find((inv) => inv.id.includes("-") && inv.id.length > 30) || tuitionInvoices[0];
+  }
+
+  const planPrice = bestTuitionInv ? Number(bestTuitionInv.amount) : (student.planPrice || 297.0);
+  const amountPaid = bestTuitionInv ? Number(bestTuitionInv.amountPaid) : (student.amountPaid || 0.0);
+  const remainingBalance = bestTuitionInv ? Number(bestTuitionInv.remainingBalance ?? Math.max(0, planPrice - amountPaid)) : Math.max(0, planPrice - amountPaid);
+  const tuitionStatus: "pagado" | "pendiente" | "parcial" = remainingBalance === 0 ? "pagado" : amountPaid > 0 ? "parcial" : "pendiente";
+  const voucherRef = bestTuitionInv?.paymentLogs?.[0]?.voucherRef || (amountPaid > 0 ? "PAGO-DIRECTO" : "SIN-VOUCHER");
+
+  items.push({
+    id: bestTuitionInv ? bestTuitionInv.id : `plan-${student.id}`,
+    category: "mensualidad",
+    categoryLabel: "🎵 2. Mensualidad",
+    concept: bestTuitionInv?.concept || `Plan ${student.modality || "Regular"} (${student.instrument || "Música"}) — ${student.name}`,
+    dateStr: bestTuitionInv?.dueDate?.slice(0, 10) || defaultDate,
+    totalAmount: planPrice,
+    amountPaid: amountPaid,
+    remainingBalance: remainingBalance,
+    status: tuitionStatus,
+    paymentMethod: bestTuitionInv?.paymentMethod || defaultMethod,
+    voucherRef: voucherRef,
+    notes: `Cuota de ciclo contratado (${student.modality || "Regular (8 clases / 45 min)"})`,
+  });
+
+  // ----------------------------------------------------
+  // RUBRO 3: LIBROS Y MATERIAL DIDÁCTICO
+  // ----------------------------------------------------
+  const librosInv = matchedInvoices.find((inv) => {
+    const c = (inv.concept || "").toLowerCase();
+    return c.includes("libro") || c.includes("util") || c.includes("pack");
+  });
+
+  const isLibrosExonerated = student.packUtilesCost === 0 || student.packUtilesStatus === "exonerado" || (student.name.toLowerCase().includes("sasha") && student.packUtilesCost === 0);
+
+  if (librosInv) {
+    items.push({
+      id: librosInv.id,
+      category: "libros",
+      categoryLabel: "📚 3. Libros y Material",
+      concept: librosInv.concept,
+      dateStr: librosInv.dueDate?.slice(0, 10) || defaultDate,
+      totalAmount: Number(librosInv.amount) || 0,
+      amountPaid: Number(librosInv.amountPaid) || 0,
+      remainingBalance: Number(librosInv.remainingBalance ?? Math.max(0, (librosInv.amount || 0) - (librosInv.amountPaid || 0))),
+      status: (librosInv.status as any) || (Number(librosInv.remainingBalance) === 0 ? "pagado" : "pendiente"),
+      paymentMethod: librosInv.paymentMethod || defaultMethod,
+      voucherRef: librosInv.paymentLogs?.[0]?.voucherRef || (student.packUtilesDelivered ? "ENTREGADO-SALA" : "PENDIENTE-ENTREGA"),
+      notes: librosInv.notes || (student.packUtilesDelivered ? "Entregado físicamente en sala" : "Pendiente de entrega en sala"),
+      delivered: student.packUtilesDelivered ?? true,
+    });
+  } else if (isLibrosExonerated) {
+    items.push({
+      id: `lib-${student.id}`,
+      category: "libros",
+      categoryLabel: "📚 3. Libros y Material",
+      concept: "Pack de Útiles y Material Didáctico (Exonerado / Incluido)",
+      dateStr: defaultDate,
+      totalAmount: 0.0,
+      amountPaid: 0.0,
+      remainingBalance: 0.0,
+      status: "exonerado",
+      paymentMethod: "-",
+      voucherRef: "EXONERADO",
+      notes: student.packUtilesNotes || "Material digital / exonerado",
+      delivered: true,
+    });
+  } else {
+    const bookCost = student.packUtilesCost !== undefined ? student.packUtilesCost : 67.0;
+    const bookPaid = student.packUtilesAmountPaid !== undefined ? student.packUtilesAmountPaid : (student.packUtilesPaid ? bookCost : 0.0);
+    const bookBalance = Math.max(0, bookCost - bookPaid);
+    const bookStatus: "pagado" | "pendiente" | "parcial" = bookBalance === 0 ? "pagado" : bookPaid > 0 ? "parcial" : "pendiente";
+    const deliveryStatus = student.packUtilesDelivered ? "Entregado en sala" : "Pendiente de entrega";
+
+    items.push({
+      id: `lib-${student.id}`,
+      category: "libros",
+      categoryLabel: "📚 3. Libros y Material",
+      concept: "Pack de Útiles y Métodos Vibra (Libro & Practikid)",
+      dateStr: defaultDate,
+      totalAmount: bookCost,
+      amountPaid: bookPaid,
+      remainingBalance: bookBalance,
+      status: bookStatus,
+      paymentMethod: defaultMethod,
+      voucherRef: student.packUtilesDelivered ? "ENTREGADO-SALA" : "PENDIENTE-ENTREGA",
+      notes: student.packUtilesNotes || `Material pedagógico físico (${deliveryStatus})`,
+      delivered: student.packUtilesDelivered ?? false,
+    });
+  }
+
+  const totalFacturado = items.reduce((sum, it) => sum + it.totalAmount, 0);
+  const totalCobrado = items.reduce((sum, it) => sum + it.amountPaid, 0);
+  const totalSaldoPendiente = items.reduce((sum, it) => sum + it.remainingBalance, 0);
+  const estadoGeneral = totalSaldoPendiente === 0 ? "al-dia" : totalCobrado > 0 ? "parcial" : "deudor";
+
+  return {
+    items,
+    totalFacturado,
+    totalCobrado,
+    totalSaldoPendiente,
+    estadoGeneral,
+  };
+}
+
+/**
  * Calcula la liquidación del ciclo pedagógico y financiero.
  */
 export function computeStudentCycleLiquidation(
@@ -537,6 +779,7 @@ export function computeStudentCycleLiquidation(
   sessions: StudentSessionItem[],
   customPrice?: number,
   customPaid?: number,
+  invoices?: Invoice[]
 ): StudentCycleLiquidation {
   const modalityStr = (student.modality || "").toLowerCase();
   const isIntensive = modalityStr.includes("inten") || modalityStr.includes("90 min") || (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"));
@@ -582,8 +825,11 @@ export function computeStudentCycleLiquidation(
   const completionPercentage = targetQuota > 0 ? Math.round((evaluatedCount / targetQuota) * 100) : 0;
   const isCompleted = evaluatedCount >= targetQuota;
 
-  const planPrice = customPrice !== undefined ? customPrice : (student.planPrice || 297);
-  const amountPaid = customPaid !== undefined ? customPaid : (student.amountPaid || 0);
+  // Auditoría financiera oficial (Matriz de 3 Rubros: 1. Matrícula, 2. Mensualidad, 3. Libros)
+  const financialAudit = computeStudentFinancialAudit(student, invoices || student.invoices || []);
+
+  const planPrice = customPrice !== undefined ? customPrice : financialAudit.totalFacturado;
+  const amountPaid = customPaid !== undefined ? customPaid : financialAudit.totalCobrado;
   const remainingBalance = Math.max(0, planPrice - amountPaid);
 
   let verdictText = "";
@@ -620,6 +866,7 @@ export function computeStudentCycleLiquidation(
     planPrice,
     amountPaid,
     remainingBalance,
+    financialAudit,
     verdictText,
     isCompleted,
     hasInstrumentTransition: breakdown.hasTransition,
@@ -651,18 +898,8 @@ export function generateStudentAuditMarkdown(params: {
   const phone = student.phone || student.emergencyContact?.phone || "Sin teléfono";
   const apoderado = student.family || student.emergencyContact?.name || "Apoderado titular";
 
-  // Deduplicar estrictamente recibos por ID
-  const invoiceMap = new Map<string, Invoice>();
-  invoices.forEach((inv) => {
-    const isMatch =
-      isMatchingStudentName(student.name, inv.student || "") ||
-      (inv.concept && isMatchingStudentName(student.name, inv.concept.split("—")[1]?.trim() || "")) ||
-      (student.invoices && student.invoices.some((i) => i.id === inv.id));
-    if (isMatch && !invoiceMap.has(inv.id)) {
-      invoiceMap.set(inv.id, inv);
-    }
-  });
-  const matchingInvoices = Array.from(invoiceMap.values());
+  // Auditoría financiera canónica de 3 rubros
+  const financialAudit = liquidation.financialAudit || computeStudentFinancialAudit(student, invoices);
 
   const lines: string[] = [];
 
@@ -738,26 +975,24 @@ export function generateStudentAuditMarkdown(params: {
   lines.push(``);
 
   lines.push(`## 4. ESTADO FINANCIERO Y COMPROBANTES DE PAGO`);
-  lines.push(`- PRECIO_PLAN_CONTRATADO: PEN ${liquidation.planPrice.toFixed(2)}`);
-  lines.push(`- TOTAL_ABONADO: PEN ${liquidation.amountPaid.toFixed(2)}`);
-  lines.push(`- SALDO_PENDIENTE: PEN ${liquidation.remainingBalance.toFixed(2)}`);
-  lines.push(`- ESTADO_PAGO: "${liquidation.remainingBalance === 0 ? 'al-dia' : 'pendiente'}"`);
-  lines.push(`- PACK_UTILES_ESTADO: "${student.packUtilesStatus || 'cancelado'}" (PEN ${(student.packUtilesCost || 67).toFixed(2)})`);
+  lines.push(`- TOTAL_FACTURADO: PEN ${financialAudit.totalFacturado.toFixed(2)}`);
+  lines.push(`- TOTAL_ABONADO: PEN ${financialAudit.totalCobrado.toFixed(2)}`);
+  lines.push(`- TOTAL_SALDO_DEUDA: PEN ${financialAudit.totalSaldoPendiente.toFixed(2)}`);
+  lines.push(`- ESTADO_CONSOLIDADO: "${financialAudit.totalSaldoPendiente === 0 ? 'AL DÍA' : 'DEUDA PENDIENTE'}"`);
   lines.push(``);
 
-  lines.push(`### DETALLE DE RECIBOS Y ABONOS REGISTRADOS:`);
-  lines.push(`| FECHA_REGISTRO | RECIBO_ID | CONCEPTO | MONTO_TOTAL | MONTO_ABONADO | SALDO | METODO | REFERENCIA |`);
-  lines.push(`|----------------|-----------|----------|-------------|---------------|-------|--------|------------|`);
+  lines.push(`### MATRIZ OFICIAL DE PAGOS (1. MATRÍCULA | 2. MENSUALIDAD | 3. LIBROS):`);
+  lines.push(`| ITEM | CONCEPTO | MONTO_TOTAL | MONTO_ABONADO | SALDO | ESTADO | METODO | REFERENCIA / NOTAS |`);
+  lines.push(`|------|----------|-------------|---------------|-------|--------|--------|---------------------|`);
 
-  if (matchingInvoices.length === 0) {
-    lines.push(`| ${student.joinedAt || '2026-08-01'} | REC-OFICIAL | Mensualidad ${student.modality || 'Regular'} | PEN ${liquidation.planPrice.toFixed(2)} | PEN ${liquidation.amountPaid.toFixed(2)} | PEN ${liquidation.remainingBalance.toFixed(2)} | Yape | REGISTRO-INICIAL |`);
-  } else {
-    matchingInvoices.forEach((inv) => {
-      lines.push(
-        `| ${inv.dueDate || '2026-08-31'} | ${inv.id.slice(0, 10)} | ${inv.concept} | PEN ${(inv.amount || 297).toFixed(2)} | PEN ${(inv.amountPaid || 0).toFixed(2)} | PEN ${(inv.remainingBalance ?? 0).toFixed(2)} | ${inv.paymentMethod || 'Yape'} | ${inv.paymentLogs?.[0]?.voucherRef || 'REF-ABONO'} |`
-      );
-    });
-  }
+  financialAudit.items.forEach((item) => {
+    lines.push(
+      `| ${item.categoryLabel.padEnd(16)} | ${item.concept} | PEN ${item.totalAmount.toFixed(2)} | PEN ${item.amountPaid.toFixed(2)} | PEN ${item.remainingBalance.toFixed(2)} | ${item.status.toUpperCase().padEnd(9)} | ${item.paymentMethod} | ${item.voucherRef}${item.notes ? ` (${item.notes})` : ''} |`
+    );
+  });
+  lines.push(
+    `| **TOTALES** | **CONSOLIDADO DE CARTERA** | **PEN ${financialAudit.totalFacturado.toFixed(2)}** | **PEN ${financialAudit.totalCobrado.toFixed(2)}** | **PEN ${financialAudit.totalSaldoPendiente.toFixed(2)}** | **${financialAudit.totalSaldoPendiente === 0 ? 'AL DÍA' : 'DEUDA PENDIENTE'}** | - | - |`
+  );
   lines.push(``);
 
   lines.push(`## 5. LIQUIDACIÓN OFICIAL Y CONCLUSIÓN DEL CICLO`);

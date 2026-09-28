@@ -1199,13 +1199,22 @@ export const useAppStore = create<AppState>()(
           const cleanSchedule = Array.from(scheduleMap.values());
 
           // Fusión inteligente de recibos: PostgreSQL es fuente de verdad, preservando
-          // recibos locales de alumnos activos recién creados o en vuelo
+          // recibos locales de alumnos activos recién creados o en vuelo que no existan en PostgreSQL
           const mergedInvoices: Invoice[] = Array.isArray(data.invoices) ? [...data.invoices] : [...s.invoices];
           (s.invoices || []).forEach((localInv) => {
             const alreadyInMerged = mergedInvoices.some((inv) => inv.id === localInv.id);
             if (!alreadyInMerged) {
-              const studentName = localInv.student || (localInv.concept?.includes("—") ? localInv.concept.split("—")[1]?.trim() : "");
-              if (studentName && cleanStudents.some((st) => st.status === "activo" && isMatchingStudentName(st.name, studentName))) {
+              const localStudentName = localInv.student || (localInv.concept?.includes("—") ? localInv.concept.split("—")[1]?.trim() : "");
+              const localBaseConcept = localInv.concept?.split("—")[0]?.trim() || "Plan Mensual";
+
+              // Si ya existe un recibo remoto para este mismo alumno y base de concepto, no añadir duplicado local
+              const alreadyHasInvoiceForConcept = mergedInvoices.some((inv) => {
+                const invStudentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+                const invBaseConcept = inv.concept?.split("—")[0]?.trim() || "Plan Mensual";
+                return localStudentName && invStudentName && isMatchingStudentName(invStudentName, localStudentName) && invBaseConcept === localBaseConcept;
+              });
+
+              if (!alreadyHasInvoiceForConcept && localStudentName && cleanStudents.some((st) => st.status === "activo" && isMatchingStudentName(st.name, localStudentName))) {
                 mergedInvoices.push(localInv);
               }
             }

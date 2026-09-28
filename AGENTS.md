@@ -723,4 +723,23 @@ inferencia.
    - **Deduplicación Contable por ID**: `matchingInvoices` indexa los recibos por `id` único mediante `Map<string, Invoice>()`, impidiendo filas triplicadas del mismo recibo.
    - **Salida Dual para WhatsApp y LLMs**: Produce plantillas de WhatsApp personalizadas para los padres y archivos `.md` con claves semánticas precisas para auditoría automatizada por cualquier modelo de lenguaje.
 
-
+
+
+---
+
+### 35. Matriz Oficial de 3 Rubros Financieros (1. Matrícula · 2. Mensualidad · 3. Libros), Deduplicación de Recibos y Totales Consolidados de Cartera (ADR-0135)
+1. **Estructura Financiera Canónica de 3 Rubros**:
+   - En toda la plataforma y en especial en la Ficha Oficial de Auditoría (`student-audit-report-dialog.tsx`, `kardex-calculator.ts`), la situación financiera de cualquier alumno se audita a través de una matriz estricta y automatizada de 3 rubros:
+     1. **1. Matrícula Institucional**: Evalúa `student.matriculaType` (Regular S/ 120, Promo Demo S/ 30, o Exonerada S/ 0). En alumnos con beca o convenio (como Sasha Dharma Contreras), se audita como `Exonerada (S/ 0.00 / 0.00 / 0.00)`.
+     2. **2. Mensualidad (Plan Contratado)**: Refleja la cuota del ciclo lectivo activo (ej. S/ 297.00), monto abonado (ej. S/ 100.00), saldo restante (ej. S/ 197.00), método de pago y referencia/voucher auditado (`paymentLogs`). Se deduplica estrictamente para que exista exactamente **1 fila** por ciclo lectivo, erradicando filas duplicadas o triplicadas.
+     3. **3. Libros y Material Didáctico (Pack de Útiles)**: Evalúa `student.packUtilesCost`, `student.packUtilesAmountPaid`, `student.packUtilesStatus`, `student.packUtilesDelivered` y `student.packUtilesNotes`. Si el costo es 0 o está exonerado (como en Sasha), se audita como `Exonerado / Incluido (S/ 0.00)`. Si aplica costo estándar (S/ 67.00), audita el abono, saldo pendiente y entrega física en sala.
+2. **Deduplicación Estricta de Recibos contra PostgreSQL (`hydrateFromBackend`)**:
+   - En `src/store/app-store.ts`, al fusionar recibos remotos de PostgreSQL con cachés locales en vuelo de `localStorage`, se compara no solo por `inv.id`, sino por `${studentName}-${baseConcept}`. Si PostgreSQL ya cuenta con un recibo formal para ese alumno y concepto (ej. UUID `a4b3fe8a...`), se descartan copias locales o mock residuales, impidiendo que un recibo aparezca multiplicado.
+3. **Totales Consolidados de Cartera (Table Footer, Badges, Markdown y WhatsApp)**:
+   - Toda tabla financiera incorpora un pie consolidado (`tfoot`) con la suma matemática exacta:
+     - `Total Facturado`: Suma de cuotas oficiales de los 3 rubros (ej. Sasha: S/ 0 + S/ 297 + S/ 0 = S/ 297.00).
+     - `Total Abonado`: Suma de pagos efectivos (ej. Sasha: S/ 0 + S/ 100 + S/ 0 = S/ 100.00).
+     - `Total Saldo Deuda`: Deuda real exigible (ej. Sasha: S/ 0 + S/ 197 + S/ 0 = S/ 197.00).
+   - Esta cifra se refleja unificadamente en el badge de cabecera (`⚠ DEUDA: S/ 197.00`), en el Cuadro de Liquidación Oficial del Ciclo, en el exportable `.md` para LLMs y en el mensaje generado para WhatsApp.
+4. **Universalidad para Todos los Alumnos**:
+   - Si bien se tomó a Sasha Dharma Contreras como caso de calibración, la lógica de `computeStudentFinancialAudit` es 100% universal y calcula de forma automática y reactiva la matriz contable para cualquier alumno activo del colegio.
