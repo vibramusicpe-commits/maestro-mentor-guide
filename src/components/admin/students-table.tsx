@@ -30,6 +30,7 @@ import {
   Pencil,
   Sparkles,
   Music,
+  FileText,
 } from "lucide-react";
 import {
   useAppStore,
@@ -56,6 +57,7 @@ import {
 } from "@/lib/room-compatibility";
 import { categoryStyles } from "@/components/admin/agenda-board";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
+import { StudentAuditReportDialog } from "@/components/admin/student-audit-report-dialog";
 import { DeletedStudentsTrashModal } from "@/components/admin/deleted-students-trash-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -273,6 +275,7 @@ export function StudentsTable() {
 
   // Estado para Edición Completa de Datos del Alumno (Solicitado por Secretaría Nayeli)
   const [editingStudent, setEditingStudent] = useState<AdminStudent | null>(null);
+  const [auditStudent, setAuditStudent] = useState<AdminStudent | null>(null);
 
 
   // Handler de WhatsApp Business con plantillas oficiales
@@ -1008,6 +1011,19 @@ export function StudentsTable() {
                         </Button>
                         <Button
                           size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAuditStudent(st);
+                          }}
+                          className="text-xs font-semibold gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                          title={`Ficha Oficial de Auditoría y Rendición de ${st.name}`}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Auditoría
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="ghost"
                           data-tour="btn-row-delete"
                           onClick={(e) => {
@@ -1049,6 +1065,15 @@ export function StudentsTable() {
                       title="Editar todos los campos de este alumno"
                     >
                       <Pencil className="h-3.5 w-3.5" /> Editar Ficha
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAuditStudent(selectedStudent)}
+                      className="h-8 text-xs font-bold gap-1 text-primary border-primary/40 bg-primary/10 hover:bg-primary/20"
+                      title="Abrir Ficha Oficial de Auditoría y Rendición de Cuentas"
+                    >
+                      <FileText className="h-3.5 w-3.5" /> Auditoría
                     </Button>
                     {statusBadge(selectedStudent.status)}
                   </div>
@@ -2820,7 +2845,19 @@ export function StudentsTable() {
           setKardexStudent(st);
           setIsKardexEditable(true);
         }}
+        onOpenAudit={(st) => {
+          setAuditStudent(st);
+        }}
       />
+
+      {/* Modal de Auditoría Oficial por Alumno */}
+      {auditStudent && (
+        <StudentAuditReportDialog
+          open={!!auditStudent}
+          onOpenChange={(o) => !o && setAuditStudent(null)}
+          student={auditStudent}
+        />
+      )}
     </div>
   );
 }
@@ -4070,12 +4107,14 @@ function EditStudentSheet({
   open,
   onOpenChange,
   onOpenKardex,
+  onOpenAudit,
 }: {
   student: AdminStudent | null;
   availableTeachers: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenKardex?: (st: AdminStudent) => void;
+  onOpenAudit?: (st: AdminStudent) => void;
 }) {
   const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
 
@@ -4089,6 +4128,7 @@ function EditStudentSheet({
       open={open}
       onOpenChange={onOpenChange}
       onOpenKardex={onOpenKardex}
+      onOpenAudit={onOpenAudit}
       updateStudentDetails={updateStudentDetails}
     />
   );
@@ -4100,6 +4140,7 @@ function EditStudentSheetInner({
   open,
   onOpenChange,
   onOpenKardex,
+  onOpenAudit,
   updateStudentDetails,
 }: {
   student: AdminStudent;
@@ -4107,6 +4148,7 @@ function EditStudentSheetInner({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenKardex?: (st: AdminStudent) => void;
+  onOpenAudit?: (st: AdminStudent) => void;
   updateStudentDetails: (id: string, updates: Partial<AdminStudent>) => void;
 }) {
   const [name, setName] = useState(student.name);
@@ -4438,6 +4480,21 @@ function EditStudentSheetInner({
                 >
                   <Calendar className="h-3.5 w-3.5" />
                   Ver Fechas en Kardex
+                </Button>
+              )}
+              {onOpenAudit && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onOpenAudit(student);
+                  }}
+                  className="h-7 text-xs font-bold gap-1 border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Ficha de Auditoría
                 </Button>
               )}
             </div>

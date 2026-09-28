@@ -4,6 +4,23 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.19] - 2026-09-28
+
+### Ficha Oficial de Auditoría y Rendición por Alumno, Edición en Caliente y Exportación Dual Humano/LLM (ADR-0133)
+- **Ficha Oficial de Auditoría Pedagógica y Financiera (`StudentAuditReportDialog`)**:
+  - Incorporación del botón interactivo `[👁️ Auditoría / Ficha Alumno]` en cada fila de alumno activo de `/admin/reportes`, en las acciones y drawer de detalle de `/admin/alumnos`, y en la cabecera del Kardex (`StudentAttendanceKardex`).
+  - Generación de código único oficial de auditoría (`AUD-YYYYMMDD-XXXX`), tarjetas de identidad del alumno, apoderado, contacto telefónico con link directo a WhatsApp, vigencias y badges de estado contable y pedagógico.
+  - Despliegue de banner explicativo de transición de instrumento a mitad de ciclo (ej. Sasha Contreras de Canto a Guitarra a partir del 26/08).
+- **Edición en Caliente In-Modal (In-Modal Hot Editing)**:
+  - **Registro de Abonos Faltantes (Resolución del caso de pago a las 7:50 PM)**: Formulario inline integrado para registrar abonos con monto (PEN S/), método (`Yape`, `Plin`, `Transferencia`, `Efectivo`), comprobante/operación, fecha/hora y notas contables. Persiste de forma atómica en PostgreSQL (`payment_audit_logs` e `invoices`) vía compuerta anti-fraude y actualiza el saldo de inmediato sin salir del modal ni perder el contexto.
+  - **Ajuste Quirúrgico de Asistencias**: Alternador en caliente de estado (`Presente`, `Ausente`, `Tardanza`, `Justificada`, `Sin marcar`) para corregir clases y notas docentes, sincronizando con `attendance_logs` y recalculando la liquidación en vivo.
+- **Exportación Dual (Humano y LLM/Auditoría)**:
+  - **Para Humanos (A4 / PDF / WhatsApp)**: Impresión formal optimizada (`window.print()`) con membrete corporativo, tabla limpia, cuadro de liquidación y casillas de firmas oficiales para Dirección/Secretaría y Padre de Familia, además de generador de mensaje para WhatsApp.
+  - **Para Modelos de Lenguaje (LLMs) y Auditores Automáticos (.md / .txt)**: Exportación estructurada en Markdown estandarizado (`generateStudentAuditMarkdown`) con bloques clave-valor, fechas ISO 8601, moneda explícita (`PEN S/`) y tablas tabulares para ingesta libre de alucinaciones por IA, con botón `[📋 Copiar Formato LLM]`.
+- **Motor Desacoplado `src/lib/kardex-calculator.ts`**:
+  - Desacoplamiento de `computeStudentCycleSessions` y `computeStudentCycleLiquidation` para garantizar 100% de coherencia matemática entre el Kardex y la Ficha de Auditoría, preservando cuotas contractuales (8 clases en Regular, 4 en Intensivo) y barreras de corte de instrumento.
+
+
 ## [2.0.18] - 2026-09-28
 
 ### Calibración Exclusiva de Paneles de Cobros y Reportes con Alumnos Activos en Tiempo Real (ADR-0132)

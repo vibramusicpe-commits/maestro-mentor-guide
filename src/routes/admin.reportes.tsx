@@ -19,7 +19,9 @@ import {
   ShieldCheck,
   AlertTriangle,
   RefreshCw,
+  Eye,
 } from "lucide-react";
+import { StudentAuditReportDialog } from "@/components/admin/student-audit-report-dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +77,7 @@ export function AdminReportesPage() {
   const [paymentFilter, setPaymentFilter] = useState<string>("todos");
   const [teacherFilter, setTeacherFilter] = useState<string>("todos");
   const [instrumentFilter, setInstrumentFilter] = useState<string>("todos");
+  const [selectedAuditStudent, setSelectedAuditStudent] = useState<AdminStudent | null>(null);
 
   // Calcular deuda consolidada por familia / alumno
   const getStudentDebt = (st: AdminStudent): { totalDebt: number; pendingCount: number } => {
@@ -460,12 +463,13 @@ export function AdminReportesPage() {
                 <th className="py-3 px-3 text-center">Asistencia</th>
                 <th className="py-3 px-3 text-right">Saldo Deudor</th>
                 <th className="py-3 px-3 text-center">WhatsApp</th>
+                <th className="py-3 px-3 text-center">Auditoría</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={10} className="py-12 text-center text-muted-foreground">
                     <p className="text-sm font-bold">No se encontraron alumnos con los filtros seleccionados.</p>
                     <p className="text-xs mt-1">Prueba limpiando la búsqueda o cambiando de estado.</p>
                   </td>
@@ -600,6 +604,20 @@ export function AdminReportesPage() {
                           <span className="text-muted-foreground text-[10px]">—</span>
                         )}
                       </td>
+
+                      {/* Ficha de Auditoría Oficial */}
+                      <td className="py-3 px-3 text-center">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2.5 text-[11px] font-bold gap-1 text-primary border-primary/30 hover:bg-primary/10 transition-colors shadow-xs"
+                          onClick={() => setSelectedAuditStudent(st)}
+                          title={`Ver Auditoría y Ficha de ${st.name}`}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Auditoría</span>
+                        </Button>
+                      </td>
                     </tr>
                   );
                 })
@@ -608,6 +626,15 @@ export function AdminReportesPage() {
           </table>
         </div>
       </div>
+
+      {/* Modal de Auditoría Oficial por Alumno */}
+      <StudentAuditReportDialog
+        open={!!selectedAuditStudent}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAuditStudent(null);
+        }}
+        student={selectedAuditStudent}
+      />
     </div>
   );
 }

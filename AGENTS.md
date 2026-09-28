@@ -684,4 +684,22 @@ inferencia.
    - En `/admin/reportes`, las 5 tarjetas KPI superiores (Alumnos Activos, Al Día en Pagos, Con Saldo Pendiente, Deuda por Cobrar, Asistencia Promedio) y la exportación oficial a CSV computan sus datos única y exclusivamente sobre los alumnos activos.
 5. **Blindaje de Persistencia y Deshidratación (`hydrateFromBackend` y `persist.merge`)**:
    - En `src/store/app-store.ts`, tanto la hidratación remota (`hydrateFromBackend`) como la rehidratación local (`persist.merge`) filtran estrictamente los recibos contra los alumnos activos, impidiendo de forma hermética que cachés residuales de `localStorage` o recibos de alumnos en `baja` reaparezcan al recargar la página.
+
+---
+
+### 33. Ficha Oficial de Auditoría y Rendición por Alumno, Edición en Caliente y Exportación Dual Humano/LLM (ADR-0133)
+1. **Previsualización Integral e Inmediata por Alumno (`StudentAuditReportDialog`)**:
+   - Cada fila de alumno activo en `/admin/reportes` cuenta con un botón dedicado `[👁️ Auditoría / Ficha Alumno]`, complementado por accesos en `/admin/alumnos` (en fila y drawer de detalle) y en la cabecera del Kardex (`StudentAttendanceKardex`).
+   - El diálogo presenta un código de auditoría oficial autogenerado (`AUD-YYYYMMDD-XXXX`), metadatos contractuales, tarjetas de liquidación de ciclo, tabla de 8 clases (o cuota pactada) e historial de recibos/abonos.
+2. **Edición en Caliente In-Modal (In-Modal Hot Editing) sin Salir del Contexto**:
+   - **Abonos Faltantes (ej. Pago de 7:50 PM no anotado a tiempo)**: Permite ingresar monto, método (`Yape`, `Plin`, `Transferencia`, `Efectivo`), N° de comprobante / operación, hora y notas. Invoca `recordPaymentAbono` / `recordNewDirectAbono`, activando la compuerta anti-fraude en `invoices.service.ts` (`payment_audit_logs` INSERT previo a `invoices` PATCH), recalculando el saldo en tiempo real y persistiendo en PostgreSQL.
+   - **Ajuste Quirúrgico de Asistencias**: Permite alternar en caliente el estado de cada sesión individual (`Presente`, `Ausente`, `Tardanza`, `Justificada`, `Sin marcar`) e ingresar notas pedagógicas, sincronizando atómicamente con `attendance_logs` y `students` sin desajustar el cronograma.
+3. **Formato Dual de Exportación (Humano y LLM/Auditoría)**:
+   - **Para Humanos (A4 / PDF / WhatsApp)**:
+     - Impresión A4 formal (`window.print()`) con membrete corporativo, tabla limpia de sesiones, liquidación del ciclo y dos casillas de firma obligatorias: *Dirección / Secretaría Vibra Music* y *Firma de Conformidad Apoderado*.
+     - Generación de mensaje cordial y formateado para WhatsApp con un clic.
+   - **Para Modelos de Lenguaje (LLMs) y Auditores Automáticos (.md / .txt)**:
+     - Generador estandarizado `generateStudentAuditMarkdown` que produce un documento Markdown estructurado con clave-valor (fechas ISO 8601, identificadores canónicos, moneda explícita `PEN S/`) y tablas Markdown limpias, descargable como `.md` o copiable al portapapeles con `[📋 Copiar Formato LLM]`, permitiendo a cualquier LLM (Gemini, Claude, GPT) ingerir y auditar la historia del alumno sin margen de error.
+4. **Desacoplamiento Matemático en `kardex-calculator.ts`**:
+   - Centraliza `computeStudentCycleSessions` y `computeStudentCycleLiquidation`, garantizando que tanto el Kardex de secretaría como la Ficha de Auditoría calculen exactamente las mismas clases, respetando transiciones de instrumento (`effectiveFrom`, `effectiveUntil`), clases de corrido (`+45m`), cuotas contractuales y asistencias evaluadas.
 

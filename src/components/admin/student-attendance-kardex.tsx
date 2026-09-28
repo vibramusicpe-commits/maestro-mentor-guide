@@ -23,8 +23,10 @@ import {
   PlusCircle,
   Layers,
   Music,
+  FileText,
 } from "lucide-react";
 import { CourseTransitionDialog } from "@/components/admin/course-transition-dialog";
+import { StudentAuditReportDialog } from "@/components/admin/student-audit-report-dialog";
 import { toast } from "sonner";
 import {
   useAppStore,
@@ -202,6 +204,7 @@ export function StudentAttendanceKardex({
   const [addSessionRoom, setAddSessionRoom] = useState<string>("Sala B");
   const [addSessionReason, setAddSessionReason] = useState<string>("adelanto");
   const [isTransitionModalOpen, setIsTransitionModalOpen] = useState(false);
+  const [isAuditReportOpen, setIsAuditReportOpen] = useState(false);
 
   // Semanas del mes seleccionado
   const monthWeeks = useMemo(() => {
@@ -809,6 +812,16 @@ export function StudentAttendanceKardex({
             >
               <Music className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
               <span>🎸 Cambiar Instrumento / Docente</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsAuditReportOpen(true)}
+              className="h-7 text-xs font-bold gap-1.5 border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl shadow-xs shrink-0"
+              title="Abrir Ficha Oficial de Auditoría y Rendición de Cuentas"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>📄 Auditoría</span>
             </Button>
           </div>
           <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-3">
@@ -1790,6 +1803,13 @@ export function StudentAttendanceKardex({
         student={liveStudent}
         isOpen={isTransitionModalOpen}
         onClose={() => setIsTransitionModalOpen(false)}
+      />
+
+      {/* Ficha Oficial de Auditoría y Rendición de Cuentas */}
+      <StudentAuditReportDialog
+        open={isAuditReportOpen}
+        onOpenChange={setIsAuditReportOpen}
+        student={liveStudent}
       />
     </div>
   );
