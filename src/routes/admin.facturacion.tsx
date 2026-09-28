@@ -25,6 +25,7 @@ import {
   Eye,
   Download,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import {
   useAppStore,
@@ -38,6 +39,8 @@ import {
   type Invoice,
   type PaymentLog,
 } from "@/store/admin-seeds";
+import { useInsforgeSync } from "@/hooks/use-insforge-sync";
+import { isMatchingStudentName } from "@/lib/student-matching";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { compressImageToWebP } from "@/lib/image-compressor";
@@ -145,6 +148,7 @@ function AdminFacturacionPage() {
   const importBatchPayments = useAppStore((s) => s.importBatchPayments);
   const remindInvoice = useAppStore((s) => s.remindInvoice);
   const generateMonthlyInvoices = useAppStore((s) => s.generateMonthlyInvoices);
+  const { syncNow, isSyncing, lastSyncTime } = useInsforgeSync();
 
   const [activeTab, setActiveTab] = useState<"recibos" | "anual" | "vouchers" | "resumen">("recibos");
   const [selectedStudentHistory, setSelectedStudentHistory] = useState<any | null>(null);
@@ -220,6 +224,43 @@ function AdminFacturacionPage() {
     [adminStudents],
   );
 
+  const activeInvoices = useMemo(() => {
+    // 1. Filtrar solo los recibos que corresponden a los alumnos activos oficiales de PostgreSQL
+    const matched = invoices.filter((inv) => {
+      const rawStudentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+      return activeStudents.some((st) =>
+        isMatchingStudentName(st.name, rawStudentName) ||
+        st.invoices?.some((i) => i.id === inv.id) ||
+        (st.family && inv.family && (
+          inv.family.toLowerCase().includes(st.family.toLowerCase()) ||
+          st.family.toLowerCase().includes(inv.family.toLowerCase())
+        ))
+      );
+    });
+
+    // 2. Deduplicar recibos si hubieran registros históricos repetidos para el mismo alumno y concepto
+    const uniqueMap = new Map<string, Invoice>();
+    matched.forEach((inv) => {
+      const rawStudentName = (inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "")).toLowerCase();
+      const studentMatch = activeStudents.find((st) => isMatchingStudentName(st.name, rawStudentName));
+      const baseConcept = inv.concept?.split("—")[0]?.trim() || "Mensualidad";
+      const key = studentMatch ? `${studentMatch.id}-${baseConcept}` : inv.id;
+
+      const existing = uniqueMap.get(key);
+      if (!existing) {
+        uniqueMap.set(key, inv);
+      } else {
+        const existingDate = existing.dueDate || "";
+        const curDate = inv.dueDate || "";
+        if (curDate > existingDate || (inv.paymentLogs && inv.paymentLogs.length > (existing.paymentLogs?.length || 0))) {
+          uniqueMap.set(key, inv);
+        }
+      }
+    });
+
+    return Array.from(uniqueMap.values());
+  }, [invoices, activeStudents]);
+
   const selectedInv = useMemo(
     () => invoices.find((i) => i.id === selectedInvoiceId),
     [invoices, selectedInvoiceId],
@@ -231,11 +272,11 @@ function AdminFacturacionPage() {
   );
 
   const dueSoonInvoices = useMemo(
-    () => invoices.filter((i) => i.status !== "pagado" && i.daysToDue <= 2 && i.daysToDue >= 0),
-    [invoices],
+    () => activeInvoices.filter((i) => i.status !== "pagado" && i.daysToDue <= 2 && i.daysToDue >= 0),
+    [activeInvoices],
   );
 
-  // Todos los vouchers / abonos recopilados cronológicamente
+  // Todos los vouchers / abonos recopilados cronológicamente sobre alumnos activos
   const allVoucherLogs = useMemo(() => {
     const logs: Array<{
       log: PaymentLog;
@@ -244,7 +285,7 @@ function AdminFacturacionPage() {
       concept: string;
     }> = [];
 
-    invoices.forEach((inv) => {
+    activeInvoices.forEach((inv) => {
       const pLogs = inv.paymentLogs || [];
       pLogs.forEach((l) => {
         logs.push({
@@ -257,31 +298,32 @@ function AdminFacturacionPage() {
     });
 
     return logs.sort((a, b) => (b.log?.timestamp || "").localeCompare(a.log?.timestamp || ""));
-  }, [invoices]);
+  }, [activeInvoices]);
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
+    return activeInvoices.filter((inv) => {
       const matchesSearch =
         inv.family.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.concept.toLowerCase().includes(searchQuery.toLowerCase());
+        inv.concept.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (inv.student && inv.student.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesStatus =
         statusFilter === "todos" ? true : inv.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [invoices, searchQuery, statusFilter]);
+  }, [activeInvoices, searchQuery, statusFilter]);
 
   const totals = useMemo(() => {
-    const totalFacturado = invoices.reduce((acc, inv) => acc + inv.amount, 0);
-    const totalCobrado = invoices.reduce((acc, inv) => acc + (inv.amountPaid || 0), 0);
-    const totalMorosidad = invoices
+    const totalFacturado = activeInvoices.reduce((acc, inv) => acc + inv.amount, 0);
+    const totalCobrado = activeInvoices.reduce((acc, inv) => acc + (inv.amountPaid || 0), 0);
+    const totalMorosidad = activeInvoices
       .filter((inv) => inv.status === "vencido")
       .reduce((acc, inv) => acc + (inv.remainingBalance ?? inv.amount), 0);
-    const totalPendiente = invoices
+    const totalPendiente = activeInvoices
       .filter((inv) => inv.status === "pendiente" || inv.status === "parcial")
       .reduce((acc, inv) => acc + (inv.remainingBalance ?? inv.amount), 0);
 
     return { totalFacturado, totalCobrado, totalMorosidad, totalPendiente };
-  }, [invoices]);
+  }, [activeInvoices]);
 
   const handleGenerateInvoices = () => {
     setGenerating(true);
@@ -494,12 +536,15 @@ function AdminFacturacionPage() {
       {/* Encabezado Principal */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-card p-4 sm:p-5 rounded-2xl border border-border shadow-xs">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
               Control de Cobros, Abonos y Vouchers
             </h1>
             <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold border-0 flex items-center gap-1">
               <Smartphone className="h-3 w-3" /> Yape & Plin Perú
+            </Badge>
+            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold border-0 flex items-center gap-1 text-[11px]">
+              <ShieldCheck className="h-3.5 w-3.5" /> PostgreSQL en Vivo ({activeStudents.length} Activos)
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -510,6 +555,19 @@ function AdminFacturacionPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Botón Sincronizar en Vivo */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncNow()}
+            disabled={isSyncing}
+            className="gap-1.5 font-bold border-border hover:bg-muted"
+            title="Sincronizar en tiempo real con PostgreSQL"
+          >
+            <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : "text-emerald-500"}`} />
+            {isSyncing ? "Sincronizando..." : "Sincronizar en Vivo"}
+          </Button>
+
           {/* Botón Cargar Excel / CSV */}
           <Button
             variant="outline"
@@ -852,10 +910,10 @@ function AdminFacturacionPage() {
             <div>
               <CardTitle className="text-sm font-black flex items-center gap-2">
                 <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                Matriz Anual de Control de Pagos 2026 (99 Alumnos Oficiales)
+                Matriz Anual de Control de Pagos 2026 ({activeStudents.length} Alumnos Activos Oficiales)
               </CardTitle>
               <CardDescription className="text-xs">
-                Reemplazo interactivo del Excel con historial mes a mes (Junio a Diciembre), montos y notas específicas.
+                Reemplazo interactivo del Excel con historial mes a mes (Junio a Diciembre), montos y notas específicas de los alumnos activos de Vibra Music.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2 text-[11px]">

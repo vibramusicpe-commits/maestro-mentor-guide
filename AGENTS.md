@@ -665,4 +665,23 @@ inferencia.
    - La reversión elimina de forma quirúrgica las lecciones del nuevo curso (`effectiveFrom`), retira el candado `effectiveUntil` de las lecciones del curso anterior, restituye el instrumento, docente y sala originales del alumno y persiste los cambios en PostgreSQL mediante `backgroundSyncStudentToDB`, preservando el 100% de los logs de auditoría y asistencias históricas.
 5. **Confirmación Obligatoria con Mensaje de Advertencia (Anti-Error)**:
    - Tanto la aplicación de una transición de curso (`executeConfirmTransition`) como la reversión al curso anterior (`executeRevertTransition`) deben solicitar obligatoriamente confirmación explícita mediante un modal `AlertDialog` con advertencia destacada.
-   - Está **TERMINANTEMENTE PROHIBIDO** ejecutar transiciones o reversiones de curso con un solo clic directo sin confirmación intermedia. El modal debe resumir el alumno, instrumento origen/destino, docente, sala, fecha de vigencia y la garantía de preservación del historial y pagos para evitar errores involuntarios de secretaría o dirección.
+   - Está **TERMINANTEMENTE PROHIBIDO** ejecutar transiciones o reversiones de curso con un solo clic directo sin confirmación intermedia. El modal debe resumir el alumno, instrumento origen/destino, docente, sala, fecha de vigencia y la garantía de preservación del historial y pagos para evitar errores involuntarios de secretaría o dirección.
+
+---
+
+### 32. Calibración Exclusiva de Paneles de Cobros y Reportes con Alumnos Activos en Tiempo Real (ADR-0132)
+1. **Scoping Estricto a la Base Activa Oficial (13 Alumnos)**:
+   - Los paneles de gestión institucional `/admin/facturacion` y `/admin/reportes` operan **exclusivamente sobre alumnos con `status === "activo"`** (los 13 alumnos productivos oficiales de PostgreSQL Insforge).
+   - Queda **TERMINANTEMENTE PROHIBIDO** que estos paneles incorporen en sus métricas, tablas, alertas o exportaciones a los 58 alumnos en `pausa` o 24 en `baja` (como Emma Sevilla), o semillas dummy de versiones antiguas.
+2. **Sincronización Bidireccional en Tiempo Real (`useInsforgeSync`)**:
+   - Ambos paneles incorporan el hook `useInsforgeSync()` y un botón interactivo:
+     👉 **`[🔄 Sincronizar en Vivo]`** en su barra superior de acciones, permitiendo revalidar al instante los datos con PostgreSQL, con indicación de estado de red (`isSyncing`) y distintivos visuales `PostgreSQL en Vivo ({activeStudents.length} Activos)`.
+3. **Deduplicación Quirúrgica y Cálculo Financiero Exacto (`activeInvoices`)**:
+   - En `/admin/facturacion`, `activeInvoices` vincula recibos a alumnos activos por coincidencia exacta o normalizada de nombre, familia o ID de recibo. Deduplica registros duplicados por alumno y concepto base (`${studentId}-${baseConcept}`), priorizando la versión más reciente con comprobantes auditados.
+   - Se mantiene el balance financiero exacto: **Total Facturado S/ 4,505.00**, **Total Cobrado S/ 3,717.00** y **Saldo Pendiente S/ 788.00** correspondiente a las 4 familias con cuotas pendientes (Fernanda Fajardo S/ 297, Karlitoz Pazos S/ 277, Marco Mamani S/ 17 y Sasha Contreras S/ 197).
+4. **Matriz Anual y Reporte Maestro Dinámicos**:
+   - En `/admin/facturacion`, la Matriz Anual erradica cualquier referencia estática heredada (`(99 Alumnos Oficiales)`) y adopta dinámicamente `(${activeStudents.length} Alumnos Activos Oficiales)`.
+   - En `/admin/reportes`, las 5 tarjetas KPI superiores (Alumnos Activos, Al Día en Pagos, Con Saldo Pendiente, Deuda por Cobrar, Asistencia Promedio) y la exportación oficial a CSV computan sus datos única y exclusivamente sobre los alumnos activos.
+5. **Blindaje de Persistencia y Deshidratación (`hydrateFromBackend` y `persist.merge`)**:
+   - En `src/store/app-store.ts`, tanto la hidratación remota (`hydrateFromBackend`) como la rehidratación local (`persist.merge`) filtran estrictamente los recibos contra los alumnos activos, impidiendo de forma hermética que cachés residuales de `localStorage` o recibos de alumnos en `baja` reaparezcan al recargar la página.
+

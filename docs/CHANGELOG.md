@@ -4,6 +4,24 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.18] - 2026-09-28
+
+### Calibración Exclusiva de Paneles de Cobros y Reportes con Alumnos Activos en Tiempo Real (ADR-0132)
+- **Calibración del Reporte Maestro de Alumnos y Clientes (`/admin/reportes`)**:
+  - En `src/routes/admin.reportes.tsx`, se scopó el conjunto de datos `filteredStudents` y `stats` estrictamente a los 13 alumnos con `status === "activo"` provenientes de PostgreSQL (Insforge).
+  - Las 5 tarjetas KPI superiores reflejan con precisión matemática la realidad operativa: 13 Alumnos Activos Oficiales, 9 Al Día en Pagos, 4 con Saldo Pendiente (Familias con cuota), S/ 788.00 de Deuda Total por Cobrar y Asistencia Promedio real del ciclo.
+  - La descarga oficial a Excel (CSV con UTF-8 BOM) exporta exclusivamente a los alumnos activos.
+  - Se agregó el botón interactivo `[🔄 Sincronizar en Vivo]` que invoca `useInsforgeSync` para consultar PostgreSQL y revalidar la base de datos sin recargar la página.
+- **Calibración del Panel de Cobros, Abonos y Vouchers (`/admin/facturacion`)**:
+  - En `src/routes/admin.facturacion.tsx`, se creó `activeInvoices` para filtrar exclusivamente los recibos pertenecientes a alumnos activos oficiales, deduplicando por alumno y concepto base (`${studentId}-${baseConcept}`).
+  - Se recalcularon las métricas y totales financieros del ciclo: Facturado (S/ 4,505.00), Cobrado/Abonado (S/ 3,717.00) y Saldo Pendiente (S/ 788.00).
+  - Las alertas de vencimiento (`dueSoonInvoices`), la bitácora de comprobantes (`allVoucherLogs`) y la pestaña de recibos activos se alimentan exclusivamente de `activeInvoices`.
+  - En la Matriz Anual de Pagos 2026, se erradicó el texto estático `(99 Alumnos Oficiales)` y se reemplazó dinámicamente por `(${activeStudents.length} Alumnos Activos Oficiales)`.
+  - Se incorporó el botón `[🔄 Sincronizar en Vivo]` con `useInsforgeSync` y la insignia `PostgreSQL en Vivo ({activeStudents.length} Activos)`.
+- **Blindaje de Persistencia y Cachés Residuales (`app-store.ts`)**:
+  - En `hydrateFromBackend` y `persist.merge`, se implementó el filtrado estricto de recibos contra los alumnos activos oficiales, impidiendo que datos antiguos de `localStorage` o recibos de alumnos en `baja` (como Emma Sevilla) contaminen las interfaces tras un reinicio de sesión o recarga.
+
+
 ## [2.0.17] - 2026-09-26
 
 ### Aislamiento de Vigencias de Transición, Deduplicación Estricta y Reversión Quirúrgica de Curso (ADR-0131)

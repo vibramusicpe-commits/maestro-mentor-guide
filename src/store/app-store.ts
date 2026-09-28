@@ -919,8 +919,21 @@ export const useAppStore = create<AppState>()(
       hydrateFromBackend: (data) =>
         set((s) => {
           if (!data.students || data.students.length === 0) {
+            const activeStudents = s.adminStudents.filter((st) => st.status === "activo");
+            const rawInvs = Array.isArray(data.invoices) ? data.invoices : s.invoices;
+            const filteredInvs = rawInvs.filter((inv) => {
+              const studentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+              return activeStudents.some((st) =>
+                isMatchingStudentName(st.name, studentName) ||
+                st.invoices?.some((i) => i.id === inv.id) ||
+                (st.family && inv.family && (
+                  inv.family.toLowerCase().includes(st.family.toLowerCase()) ||
+                  st.family.toLowerCase().includes(inv.family.toLowerCase())
+                ))
+              );
+            });
             return {
-              invoices: Array.isArray(data.invoices) ? data.invoices : s.invoices,
+              invoices: filteredInvs,
             };
           }
 
@@ -1198,10 +1211,24 @@ export const useAppStore = create<AppState>()(
             }
           });
 
+          // 🛡️ REGLA (ADR-0106, ADR-0132): Facturación exclusiva para alumnos activos.
+          // Filtrar rigurosamente los recibos para que SOLO pertenezcan a alumnos con status === "activo".
+          const activeCleanInvoices = mergedInvoices.filter((inv) => {
+            const studentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+            return activeStudents.some((st) =>
+              isMatchingStudentName(st.name, studentName) ||
+              st.invoices?.some((i) => i.id === inv.id) ||
+              (st.family && inv.family && (
+                inv.family.toLowerCase().includes(st.family.toLowerCase()) ||
+                st.family.toLowerCase().includes(inv.family.toLowerCase())
+              ))
+            );
+          });
+
           return {
             adminStudents: cleanStudents,
             schedule: cleanSchedule,
-            invoices: mergedInvoices,
+            invoices: activeCleanInvoices,
           };
         }),
       updateUserName: (name: string) =>
@@ -3267,12 +3294,24 @@ export const useAppStore = create<AppState>()(
           attendanceStatus: undefined,
         }));
 
+        const activePersistedInvoices = (persistedState?.invoices || initialInvoices).filter((inv: any) => {
+          const invStudent = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+          return migratedStudents.some((st: any) => st.status === "activo" && (
+            isMatchingStudentName(st.name, invStudent) ||
+            st.invoices?.some((i: any) => i.id === inv.id) ||
+            (st.family && inv.family && (
+              inv.family.toLowerCase().includes(st.family.toLowerCase()) ||
+              st.family.toLowerCase().includes(inv.family.toLowerCase())
+            ))
+          ));
+        });
+
         return {
           ...persistedState,
           adminStudents: migratedStudents,
           historicalStudents: persistedState?.historicalStudents || adminStudents,
           historicalMetadata: HISTORICAL_BASE_METADATA,
-          invoices: persistedState?.invoices || initialInvoices,
+          invoices: activePersistedInvoices,
           schedule: cleanSchedule,
           deletedStudents: persistedState?.deletedStudents || [],
           teacherNotes: persistedState?.teacherNotes || [],

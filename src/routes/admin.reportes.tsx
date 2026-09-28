@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/select";
 import { musicalInstruments, teachers } from "@/store/admin-seeds";
 import { toast } from "sonner";
+import { useInsforgeSync } from "@/hooks/use-insforge-sync";
+import { isMatchingStudentName } from "@/lib/student-matching";
 
 export const Route = createFileRoute("/admin/reportes")({
   head: () => ({
@@ -56,13 +58,20 @@ export function AdminReportesPage() {
   const schedule = useAppStore((s) => s.schedule);
   const activeRole = useAppStore((s) => s.activeRole);
 
+  const { syncNow, isSyncing, lastSyncTime } = useInsforgeSync();
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Base Oficial de Alumnos Activos (100% PostgreSQL Insforge)
+  const activeStudents = useMemo(
+    () => students.filter((s) => s.status === "activo"),
+    [students]
+  );
+
   // Estados de Filtro y Búsqueda
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [paymentFilter, setPaymentFilter] = useState<string>("todos");
   const [teacherFilter, setTeacherFilter] = useState<string>("todos");
   const [instrumentFilter, setInstrumentFilter] = useState<string>("todos");
@@ -75,9 +84,11 @@ export function AdminReportesPage() {
     const relatedInvoices = invoices.filter((inv) => {
       const invFam = (inv.family || "").toLowerCase().trim();
       const invConcept = (inv.concept || "").toLowerCase().trim();
+      const invStudent = (inv.student || "").toLowerCase().trim();
       return (
+        (stName && (invStudent === stName || isMatchingStudentName(st.name, inv.student || "") || invConcept.includes(stName))) ||
         (fam && invFam && (invFam.includes(fam) || fam.includes(invFam))) ||
-        (stName && invConcept.includes(stName))
+        st.invoices?.some((i) => i.id === inv.id)
       );
     });
 
@@ -115,9 +126,9 @@ export function AdminReportesPage() {
     return `${days} ${time} · ${teacher}${room ? ` (${room})` : ""}`;
   };
 
-  // Filtrado de Alumnos
+  // Filtrado de Alumnos (Exclusivamente Alumnos Activos Oficiales)
   const filteredStudents = useMemo(() => {
-    return students.filter((st) => {
+    return activeStudents.filter((st) => {
       const q = search.toLowerCase().trim();
       const matchSearch =
         !q ||
@@ -126,12 +137,6 @@ export function AdminReportesPage() {
         (st.instrument && st.instrument.toLowerCase().includes(q)) ||
         (st.teacher && st.teacher.toLowerCase().includes(q)) ||
         (st.phone && st.phone.includes(q));
-
-      const matchStatus =
-        statusFilter === "todos" ||
-        st.status === statusFilter ||
-        (statusFilter === "activo" && st.status === "activo") ||
-        (statusFilter === "inactivo" && st.status !== "activo");
 
       const { totalDebt } = getStudentDebt(st);
       const matchPayment =
@@ -147,19 +152,17 @@ export function AdminReportesPage() {
         instrumentFilter === "todos" ||
         (st.instrument && st.instrument.toLowerCase() === instrumentFilter.toLowerCase());
 
-      return matchSearch && matchStatus && matchPayment && matchTeacher && matchInstrument;
+      return matchSearch && matchPayment && matchTeacher && matchInstrument;
     });
-  }, [students, search, statusFilter, paymentFilter, teacherFilter, instrumentFilter, invoices]);
+  }, [activeStudents, search, paymentFilter, teacherFilter, instrumentFilter, invoices]);
 
-  // Indicadores Globales (KPIs)
+  // Indicadores Globales (KPIs) sobre Alumnos Activos Oficiales
   const stats = useMemo(() => {
-    const total = students.length;
-    const activos = students.filter((s) => s.status === "activo").length;
-    const enPausa = students.filter((s) => s.status === "pausa").length;
-    const enBaja = students.filter((s) => s.status === "baja").length;
+    const total = activeStudents.length;
+    const activos = total;
 
     // Asistencia Promedio
-    const evaluated = students.filter((s) => (s.attendanceRate || 0) > 0);
+    const evaluated = activeStudents.filter((s) => (s.attendanceRate || 0) > 0);
     const avgAttendance =
       evaluated.length > 0
         ? Math.round(
@@ -167,11 +170,11 @@ export function AdminReportesPage() {
           )
         : 88; // Promedio histórico referencial
 
-    // Deuda Total Acumulada
+    // Deuda Total Acumulada sobre Alumnos Activos
     let deudaTotalPEN = 0;
     let alumnosConDeuda = 0;
 
-    students.forEach((st) => {
+    activeStudents.forEach((st) => {
       const { totalDebt } = getStudentDebt(st);
       if (totalDebt > 0) {
         deudaTotalPEN += totalDebt;
@@ -182,14 +185,12 @@ export function AdminReportesPage() {
     return {
       total,
       activos,
-      enPausa,
-      enBaja,
       avgAttendance,
       deudaTotalPEN,
       alumnosConDeuda,
       alumnosAlDia: total - alumnosConDeuda,
     };
-  }, [students, invoices]);
+  }, [activeStudents, invoices]);
 
   // Exportar reporte consolidado a Excel CSV con UTF-8 BOM
   const handleExportCSV = () => {
@@ -254,13 +255,13 @@ export function AdminReportesPage() {
       {/* Encabezado Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
               Control Institucional · Vibra Music
             </span>
-            <span className="text-xs text-muted-foreground font-medium">
-              Uso exclusivo de Dirección, Secretaría y Marketing
-            </span>
+            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-bold flex items-center gap-1.5 text-[11px]">
+              <ShieldCheck className="h-3.5 w-3.5" /> Base Activa Oficial PostgreSQL ({activeStudents.length})
+            </Badge>
           </div>
           <h1 className="text-2xl font-black sm:text-3xl text-foreground mt-1 tracking-tight">
             Reporte Maestro de Alumnos (Clientes)
@@ -272,6 +273,17 @@ export function AdminReportesPage() {
 
         <div className="flex items-center gap-2">
           <Button
+            variant="outline"
+            onClick={() => syncNow()}
+            disabled={isSyncing}
+            className="gap-2 font-bold rounded-xl shadow-xs border-border hover:bg-muted"
+            title="Sincronizar en tiempo real con PostgreSQL"
+          >
+            <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : "text-emerald-500"}`} />
+            {isSyncing ? "Sincronizando..." : "Sincronizar en Vivo"}
+          </Button>
+
+          <Button
             onClick={handleExportCSV}
             className="gap-2 font-bold bg-[#F47B20] hover:bg-[#FF9E3D] text-[#15120F] rounded-xl shadow-xs"
           >
@@ -281,7 +293,7 @@ export function AdminReportesPage() {
         </div>
       </div>
 
-      {/* Tarjetas KPI Superiores */}
+      {/* Tarjetas KPI Superiores sobre Alumnos Activos Oficiales */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Card className="border-border shadow-xs bg-card">
           <CardContent className="p-4 space-y-1">
@@ -291,9 +303,7 @@ export function AdminReportesPage() {
             </div>
             <p className="text-2xl font-black text-foreground">{mounted ? stats.activos : "—"}</p>
             <p className="text-[11px] text-muted-foreground">
-              {stats.total > 0
-                ? `${Math.round((stats.activos / stats.total) * 100)}% de la matrícula`
-                : "0%"}
+              100% en vivo con PostgreSQL
             </p>
           </CardContent>
         </Card>
@@ -301,28 +311,28 @@ export function AdminReportesPage() {
         <Card className="border-border shadow-xs bg-card">
           <CardContent className="p-4 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-muted-foreground">En Pausa / Baja</span>
-              <UserX className="h-4 w-4 text-amber-500" />
+              <span className="text-xs font-bold text-muted-foreground">Al Día en Pagos</span>
+              <ShieldCheck className="h-4 w-4 text-emerald-500" />
             </div>
-            <p className="text-2xl font-black text-foreground">
-              {mounted ? `${stats.enPausa + stats.enBaja}` : "—"}
+            <p className="text-2xl font-black text-emerald-500">
+              {mounted ? stats.alumnosAlDia : "—"}
+            </p>
+            <p className="text-[11px] text-muted-foreground">Sin saldo pendiente</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border shadow-xs bg-card">
+          <CardContent className="p-4 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-muted-foreground">Con Saldo Pendiente</span>
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            </div>
+            <p className="text-2xl font-black text-amber-500">
+              {mounted ? `${stats.alumnosConDeuda} familias` : "—"}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {stats.enPausa} en pausa · {stats.enBaja} retirados
+              Cuotas del ciclo por cobrar
             </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border shadow-xs bg-card">
-          <CardContent className="p-4 space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-muted-foreground">Asistencia Promedio</span>
-              <GraduationCap className="h-4 w-4 text-primary" />
-            </div>
-            <p className="text-2xl font-black text-foreground">
-              {mounted ? `${stats.avgAttendance}%` : "—"}
-            </p>
-            <p className="text-[11px] text-emerald-500 font-bold">Registro de kardex en vivo</p>
           </CardContent>
         </Card>
 
@@ -336,7 +346,7 @@ export function AdminReportesPage() {
               {mounted ? `S/ ${stats.deudaTotalPEN.toFixed(2)}` : "—"}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {stats.alumnosConDeuda} familias en mora
+              Saldo total acumulado
             </p>
           </CardContent>
         </Card>
@@ -344,13 +354,13 @@ export function AdminReportesPage() {
         <Card className="border-border shadow-xs bg-card col-span-2 sm:col-span-1">
           <CardContent className="p-4 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-muted-foreground">Al Día en Pagos</span>
-              <ShieldCheck className="h-4 w-4 text-emerald-500" />
+              <span className="text-xs font-bold text-muted-foreground">Asistencia Promedio</span>
+              <GraduationCap className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-2xl font-black text-emerald-500">
-              {mounted ? stats.alumnosAlDia : "—"}
+            <p className="text-2xl font-black text-foreground">
+              {mounted ? `${stats.avgAttendance}%` : "—"}
             </p>
-            <p className="text-[11px] text-muted-foreground">Sin cuotas vencidas</p>
+            <p className="text-[11px] text-emerald-500 font-bold">Registro de kardex en vivo</p>
           </CardContent>
         </Card>
       </div>
@@ -371,19 +381,7 @@ export function AdminReportesPage() {
             </div>
 
             {/* Filtros Dropdown */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="text-xs rounded-xl h-9">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Estado: Todos</SelectItem>
-                  <SelectItem value="activo">Solo Activos</SelectItem>
-                  <SelectItem value="pausa">En Pausa</SelectItem>
-                  <SelectItem value="baja">Baja</SelectItem>
-                </SelectContent>
-              </Select>
-
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <Select value={paymentFilter} onValueChange={setPaymentFilter}>
                 <SelectTrigger className="text-xs rounded-xl h-9">
                   <SelectValue placeholder="Pagos" />
@@ -426,15 +424,14 @@ export function AdminReportesPage() {
 
           <div className="flex flex-wrap items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
             <span>
-              Mostrando <strong>{filteredStudents.length}</strong> de <strong>{students.length}</strong> alumnos registrados
+              Mostrando <strong>{filteredStudents.length}</strong> de <strong>{activeStudents.length}</strong> alumnos activos oficiales
             </span>
 
-            {(search || statusFilter !== "todos" || paymentFilter !== "todos" || teacherFilter !== "todos" || instrumentFilter !== "todos") && (
+            {(search || paymentFilter !== "todos" || teacherFilter !== "todos" || instrumentFilter !== "todos") && (
               <button
                 type="button"
                 onClick={() => {
                   setSearch("");
-                  setStatusFilter("todos");
                   setPaymentFilter("todos");
                   setTeacherFilter("todos");
                   setInstrumentFilter("todos");
