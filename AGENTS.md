@@ -743,3 +743,27 @@ inferencia.
    - Esta cifra se refleja unificadamente en el badge de cabecera (`⚠ DEUDA: S/ 197.00`), en el Cuadro de Liquidación Oficial del Ciclo, en el exportable `.md` para LLMs y en el mensaje generado para WhatsApp.
 4. **Universalidad para Todos los Alumnos**:
    - Si bien se tomó a Sasha Dharma Contreras como caso de calibración, la lógica de `computeStudentFinancialAudit` es 100% universal y calcula de forma automática y reactiva la matriz contable para cualquier alumno activo del colegio.
+
+---
+
+### 36. Arquitectura de Exportación A4 / PDF Ejecutivo de 2 Páginas, Desbordamiento de Diálogos Radix y No-Wrapping Monetario (ADR-0136)
+1. **Resolución del Bug Crítico de Impresión en Diálogos Radix UI**:
+   - En Chromium y navegadores modernos, un elemento con `position: fixed` o `position: absolute` y `overflow-y: auto` o `max-height` (como `DialogContent` en `@radix-ui/react-dialog`) se imprime como un viewport único congelado, imposibilitando la paginación natural y cortando las tablas a la mitad en la primera página.
+   - En `StudentAuditReportDialog`, se inyecta un bloque de estilos `@media print` dedicado y se configuran utilidades de Tailwind (`print:static print:transform-none print:overflow-visible print:w-full print:h-auto`) que desmantelan el posicionamiento fijo, remueven el backdrop negro (`[data-radix-portal] > div[class*="bg-black"]`), suprimen el botón de cierre (X) y restauran el flujo de bloque estático del documento.
+2. **Estructura Ejecutiva de 2 Páginas con Paginación Forzada**:
+   - **Página 1: Auditoría Pedagógica y Asistencias en Sala**:
+     - Membrete oficial Vibra Music con Código de Auditoría `AUD-YYYYMMDD-XXXX`, fecha de emisión y etiqueta `PÁGINA 1 DE 2`.
+     - Badges de estado de alta fidelidad cromática (`-webkit-print-color-adjust: exact`).
+     - Tarjetas de identidad (Alumno, Apoderado & Contacto, Plan & Horario) en 3 columnas impresas (`print:grid-cols-3`).
+     - Banner institucional de transición de instrumento y filosofía *"Las clases no se pierden, se recuperan"* con 3 tarjetas métricas.
+     - Kardex de 8 sesiones lectivas con divisor visual dorado de cambio de instrumento y marcas de asistencia.
+   - **Página 2: Rendición Financiera, Liquidación y Firmas Oficiales**:
+     - Activada por salto de página estricto: `.print-page-break { break-before: page !important; page-break-before: always !important; }`.
+     - Sub-cabecera de continuación impresa con identificación institucional, nombre del alumno, código de auditoría y etiqueta `PÁGINA 2 DE 2`.
+     - Matriz Oficial de 3 Rubros (1. Matrícula, 2. Mensualidad, 3. Libros) y pie consolidado (`tfoot`) de totales de cartera.
+     - Cuadro de Liquidación Oficial del Ciclo (Contratadas, Asistidas, Inasistencias, Créditos a Favor, Pendientes, Veredicto y Saldo Total).
+     - Casillas de firmas oficiales de Dirección/Secretaría y Padre de Familia / Apoderado protegidas contra cortes (`print-avoid-break`).
+3. **No-Wrapping Monetario y Blindaje de Símbolo de Moneda**:
+   - Se erradica por completo la separación de `S/` y el importe numérico (ej. `S/\n0.00`) mediante la aplicación obligatoria de `whitespace-nowrap font-mono` y espacios no separables (`S/&nbsp;{monto}` o `S/\u00A0{monto}`) en todas las celdas de tabla, badges, tarjetas KPI y pies de página.
+4. **Deduplicación Visual en Columna de Observación del Kardex**:
+   - En inasistencias migradas (`session.status === "ausente" && session.makeupCreditTransferred`), se renderiza un badge único y estilizado (`🔄 Pasa a Crédito en Guitarra (Prof. Jeremy)`), suprimiendo la impresión redundante de la nota de texto cruda superior y garantizando una presentación gráfica impecable tanto en pantalla como en papel/PDF.

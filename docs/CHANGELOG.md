@@ -4,6 +4,32 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.22] - 2026-09-28
+
+### Arquitectura de Exportación A4 / PDF Ejecutivo de 2 Páginas, Desbordamiento de Diálogos Radix y No-Wrapping Monetario (ADR-0136)
+- **Corrección Crítica de Paginación en Diálogos Radix UI**:
+  - Se eliminó el bug de Chromium donde los elementos `fixed` con `overflow-y: auto` o `max-height` (del diálogo de Radix UI) se congelaban en un viewport fijo de 1 página cortando la tabla financiera a la mitad.
+  - Se implementó una hoja de estilos `@media print` dedicada y clases Tailwind `print:static print:transform-none print:overflow-visible print:w-full print:h-auto` que ocultan el backdrop negro, suprimen el botón de cierre (X) y restauran el flujo de bloque estático natural para paginación continua y limpia.
+- **Estructura Ejecutiva de 2 Páginas con Paginación Estricta**:
+  - **Página 1: Auditoría Pedagógica y Asistencias en Sala**:
+    - Membrete oficial Vibra Music con Código de Auditoría `AUD-YYYYMMDD-XXXX`, fecha de emisión y etiqueta `PÁGINA 1 DE 2`.
+    - Badges de estado de alta fidelidad cromática (`-webkit-print-color-adjust: exact`).
+    - Tarjetas de identidad (Alumno, Apoderado & Contacto, Plan & Horario) en 3 columnas impresas (`print:grid-cols-3`).
+    - Banner institucional de transición de instrumento y filosofía *"Las clases no se pierden, se recuperan"* con 3 tarjetas métricas.
+    - Kardex de 8 sesiones lectivas con divisor visual dorado de cambio de instrumento y marcas de asistencia.
+  - **Página 2: Rendición Financiera, Liquidación y Firmas Oficiales**:
+    - Paginación forzada mediante `.print-page-break { break-before: page !important; page-break-before: always !important; }`.
+    - Sub-cabecera de continuación impresa con identificación institucional, nombre del alumno, código de auditoría y etiqueta `PÁGINA 2 DE 2`.
+    - Matriz Oficial de 3 Rubros (1. Matrícula, 2. Mensualidad, 3. Libros) y pie consolidado (`tfoot`) de totales de cartera.
+    - Cuadro de Liquidación Oficial del Ciclo (Contratadas, Asistidas, Inasistencias, Créditos a Favor, Pendientes, Veredicto y Saldo Total).
+    - Casillas de firmas oficiales de Dirección/Secretaría y Padre de Familia / Apoderado protegidas contra cortes (`print-avoid-break`).
+- **No-Wrapping Monetario y Blindaje de Símbolo de Moneda**:
+  - Se previno la separación de `S/` del importe numérico (ej. `S/\n0.00`) aplicando `whitespace-nowrap font-mono` y espacios no separables (`S/&nbsp;{monto}`) en todas las celdas de la tabla, badges, tarjetas KPI y pies de página.
+- **Deduplicación Visual en Columna de Observación del Kardex**:
+  - En inasistencias migradas (`session.status === "ausente" && session.makeupCreditTransferred`), se renderiza un badge único y estilizado (`🔄 Pasa a Crédito en Guitarra (Prof. Jeremy)`), suprimiendo la impresión redundante de la nota de texto cruda superior.
+- **Botón `Imprimir / PDF`**:
+  - Se actualizó el botón de acción a `[🖨️ Imprimir / PDF]` con tooltip descriptivo para impresión física o guardado en PDF de alta fidelidad en 2 páginas A4.
+
 ## [2.0.21] - 2026-09-28
 
 ### Matriz Oficial de 3 Rubros Financieros, Deduplicación de Recibos y Totales Consolidados de Cartera (ADR-0135)
