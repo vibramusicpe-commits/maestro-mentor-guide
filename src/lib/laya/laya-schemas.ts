@@ -5,6 +5,7 @@ import type { LayaChoiceQuestion, LayaNoulQuestion, LayaScoreQuestion } from "./
 
 export type ReprogramacionIntent =
   | "reprogramacion"
+  | "consulta_clases_pendientes"
   | "justificar_falta"
   | "consulta_vacantes"
   | "nueva_matricula"
@@ -20,9 +21,10 @@ export const LAYA_REPROGRAMACION_QUESTIONS = {
     instructions: "¿Cuál es la intención o gestión solicitada en el mensaje?",
     criteria: {
       reprogramacion: "Solicita reprogramar, recuperar, cambiar de fecha o agendar clase pendiente o perdida.",
+      consulta_clases_pendientes: "Pregunta cuántas clases le quedan, saldo de clases, cuántas faltan, clases pendientes, estado del ciclo o avance de asistencias.",
       justificar_falta: "Avisa que no podrá asistir por enfermedad, salud, exámenes o viaje.",
       consulta_vacantes: "Pregunta qué horarios, cupos o vacantes hay disponibles para un día o instrumento.",
-      nueva_matricula: "Pregunta por precios, inscripciones o clases de prueba para alumno nuevo.",
+      nueva_matricula: "Pregunta por precios, inscripciones o tarifas de alumno nuevo interesado en matricularse.",
       pago_voucher: "Envía comprobante, voucher de banco, pago de Yape/Plin o consulta de recibo.",
       reclamo_urgente: "Manifestación de molestia, desacuerdo con el servicio, docente o retraso.",
       general: "Saludos o mensajes que no solicitan ninguna gestión específica.",

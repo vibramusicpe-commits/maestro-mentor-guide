@@ -44,7 +44,7 @@ import {
   DialogTitle as DialogTitleComponent,
 } from "@/components/ui/dialog";
 import { AutopilotTourOverlay } from "@/components/admin/autopilot-tour-overlay";
-import { LayaCopilotModal } from "@/components/admin/laya-copilot-modal";
+import { LayaCopilotFlow } from "@/components/admin/laya-copilot-flow";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: () => {
@@ -532,8 +532,12 @@ function AdminLayout() {
         </DialogContent>
       </Dialog>
 
-      {/* Copiloto Laya para Decisiones Rápidas de Secretaría & Exportador Meta */}
-      <LayaCopilotModal isOpen={isLayaOpen} onClose={() => setIsLayaOpen(false)} />
+      {/* Copiloto Laya Estilo Google Flow (Cápsula Inferior y Panel Lateral) */}
+      <LayaCopilotFlow
+        isOpen={isLayaOpen}
+        onToggle={() => setIsLayaOpen((prev) => !prev)}
+        onClose={() => setIsLayaOpen(false)}
+      />
 
       {/* Overlay Global de Tour Autopiloto en Pantalla Completa con Cursor Virtual */}
       <AutopilotTourOverlay />

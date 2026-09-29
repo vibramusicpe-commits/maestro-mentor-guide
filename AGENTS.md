@@ -845,5 +845,20 @@ inferencia.
 4. **Atajo Universal y Accesibilidad**:
    - Accesible globalmente en la barra superior del panel administrativo (`⚡ Copiloto Laya`) y mediante el atajo de teclado **`Ctrl+Shift+L`**.
 
+---
+
+### 41. Pauta Anti-Colisión de Homónimos, Fuzzy Matching Fonético y UI/UX Google Flow (ADR-0141)
+1. **Pauta Multidimensional Anti-Colisión de Alumnos**:
+   - En una escuela con múltiples homónimos (ej. varias alumnas llamadas "Sasha"), Laya **NUNCA asume identidades a ciegas ni adivina**.
+   - Evalúa similitud fonética (Levenshtein $\le 1$), coincidencia de bigramas y contexto secundario (instrumento, profesor, nombre de apoderado en ficha de PostgreSQL).
+   - Si existen 2 o más candidatos cercanos en puntuación (diferencia $< 25$ pts), activa el **Estado de Desambiguación Obligatoria** (`isAmbiguous: true`), desplegando un selector interactivo en 1 clic para que secretaría confirme la alumna antes de procesar cualquier respuesta o acción.
+2. **Consulta en Vivo de Clases Faltantes y Cuotas Contractuales**:
+   - Intención tipada `consulta_clases_pendientes`: Cuando un apoderado consulta *"cuántas clases le faltan"*, Laya no lo confunde con nueva matrícula. Lee el Kardex real en PostgreSQL (`attendance_logs`) y calcula el desglose matemático: clases contratadas, asistidas, inasistencias por recuperar (créditos) y clases regulares restantes por dictar.
+3. **UI/UX Idéntica a Google Flow (Cápsula Flotante Inferior + Panel Lateral Derecho)**:
+   - Erradica los modales centrales obstructivos en favor de una arquitectura no invasiva:
+     - **Cápsula Inferior (Modo Minimizado)**: Píldora horizontal en la parte inferior central (`fixed bottom-6 left-1/2 -translate-x-1/2`), con selector de agente, caja de texto rápida, botón de Snapshot Meta y botón `[ ➔ ]`.
+     - **Panel Lateral Derecho (Modo Expandido)**: Drawer vertical acoplado a la derecha (`w-[460px]`), con cabecera de control (minimizar a cápsula `➖`, snapshot `📋`, cerrar `✖`), timeline de resolución inteligente, desambiguación de homónimos, ficha de Kardex en vivo y botón directo de WhatsApp Web (`wa.me`).
+
+
 
 

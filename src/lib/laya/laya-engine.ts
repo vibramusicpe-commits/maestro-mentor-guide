@@ -61,9 +61,61 @@ export interface LayaDecisionResult {
 }
 
 /**
+ * Distancia de Levenshtein para cotejo difuso
+ */
+export function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Similitud entre cadenas [0, 1] basada en Levenshtein
+ */
+export function stringSimilarity(a: string, b: string): number {
+  const s1 = (a || "").toLowerCase().trim();
+  const s2 = (b || "").toLowerCase().trim();
+  if (s1 === s2) return 1.0;
+  const maxLen = Math.max(s1.length, s2.length);
+  if (maxLen === 0) return 1.0;
+  const dist = levenshteinDistance(s1, s2);
+  return Math.max(0, 1 - dist / maxLen);
+}
+
+/**
+ * Lematizador/raíz básica en español para cotejo de verbos y plurales
+ */
+export function stemSpanish(word: string): string {
+  let w = word.toLowerCase().trim();
+  if (w.endsWith("es") && w.length > 4) w = w.slice(0, -2);
+  else if (w.endsWith("s") && w.length > 3) w = w.slice(0, -1);
+  if (w.endsWith("an") || w.endsWith("en") || w.endsWith("on")) w = w.slice(0, -2);
+  if (w.endsWith("ando") || w.endsWith("endo")) w = w.slice(0, -4);
+  if (w.endsWith("cion") || w.endsWith("sion")) w = w.slice(0, -4);
+  return w;
+}
+
+/**
  * Normaliza y tokeniza texto para cotejo semántico rápido
  */
-function tokenizeText(text: string): string[] {
+export function tokenizeText(text: string): string[] {
   return (text || "")
     .toLowerCase()
     .normalize("NFD")
@@ -145,19 +197,33 @@ export class LayaEngine {
     let totalScore = 0;
 
     const lowerRaw = rawText.toLowerCase();
+    const stemmedTokens = tokens.map(stemSpanish);
 
     for (const [key, description] of Object.entries(criteria) as [T, string][]) {
       const descTokens = tokenizeText(description);
+      const descStemmed = descTokens.map(stemSpanish);
       let matchCount = 0;
 
-      // Coincidencias de tokens clave
-      for (const t of tokens) {
-        if (descTokens.includes(t)) matchCount += 1.5;
-        if (key.toLowerCase().includes(t)) matchCount += 2.0;
+      // Coincidencias de tokens clave exactos y lematizados (ej: 'faltan' coincide con 'falta', 'clases' con 'clase')
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        const sT = stemmedTokens[i];
+
+        if (descTokens.includes(t)) {
+          matchCount += 2.0;
+        } else if (descStemmed.includes(sT)) {
+          matchCount += 1.6;
+        }
+
+        if (key.toLowerCase().includes(t)) {
+          matchCount += 2.5;
+        } else if (key.toLowerCase().includes(sT)) {
+          matchCount += 2.0;
+        }
       }
 
-      // Bonus por coincidencia exacta de subcadenas
-      if (lowerRaw.includes(key.toLowerCase())) matchCount += 3.0;
+      // Bonus por coincidencia de subcadena en texto crudo
+      if (lowerRaw.includes(key.toLowerCase())) matchCount += 3.5;
 
       // Base mínima para softmax calibrado
       const rawWeight = Math.max(0.05, matchCount);
