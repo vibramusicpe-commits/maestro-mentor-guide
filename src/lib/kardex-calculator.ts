@@ -255,15 +255,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
 
       // C. Fechas excluidas por reprogramación
       if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-        // 🛡️ REGLA INNEGOCIABLE DE PRESERVACIÓN (ADR-0100 & ADR-0105): Si la fecha ya cuenta con
-        // asistencia evaluada (presente, ausente, justificada, tarde), DEBE preservarse para el
-        // registro histórico del Kardex, permitiendo ver la falta original y su recuperación
-        const hasEvaluated = lesson.attendanceByDate &&
-          lesson.attendanceByDate[curDateStr] &&
-          lesson.attendanceByDate[curDateStr] !== "pendiente";
-        if (!hasEvaluated) {
-          return;
-        }
+        return;
       }
 
       // C.1. Barreras temporales absolutas por transición de curso (ADR-0131)
@@ -381,7 +373,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
       const attendedOrScheduled = attendedCount + pendingMakeups.length;
 
       if (evaluated.length >= targetQuota && attendedOrScheduled >= targetQuota && pendingMakeups.length === 0) {
-        finalSessions = evaluated;
+        finalSessions = evaluated.slice(0, targetQuota);
       } else {
         const slotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
         const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
@@ -392,7 +384,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
           if (cmp !== 0) return cmp;
           return a.time.localeCompare(b.time);
         });
-        finalSessions = combined;
+        finalSessions = combined.slice(0, targetQuota);
       }
     }
   }

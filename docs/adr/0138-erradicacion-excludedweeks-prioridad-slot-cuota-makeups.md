@@ -49,21 +49,10 @@ Cuando un alumno completaba 8 clases evaluadas (por ejemplo, 6 presentes + 2 fal
 - En `src/store/app-store.ts` (`rescheduleLesson`): Cuando la reprogramación proviene de una fecha exacta (`originalDateStr`), el sistema **NUNCA** inyecta índices numéricos en `excludedWeeks`; la exclusión se restringe estrictamente a `excludedDates: ["YYYY-MM-DD"]`.
 - En `revertMakeupLesson`: Al revertir una sesión de recuperación, se purga preventivamente `excludedWeeks: []`, eliminando cualquier remanente histórico en la plantilla semanal tanto en Zustand como en PostgreSQL.
 
-### 2. Preservación Incondicional de Asistencias Evaluadas frente a `excludedDates`
-Tanto en `student-attendance-kardex.tsx` como en `kardex-calculator.ts`:
-```typescript
-if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-  // 🛡️ REGLA INNEGOCIABLE DE PRESERVACIÓN (ADR-0100 & ADR-0105): Si la fecha ya cuenta con
-  // asistencia evaluada (presente, ausente, justificada, tarde), DEBE preservarse para el
-  // registro histórico del Kardex, permitiendo ver la falta original y su recuperación
-  const hasEvaluated = lesson.attendanceByDate &&
-    lesson.attendanceByDate[curDateStr] &&
-    lesson.attendanceByDate[curDateStr] !== "pendiente";
-  if (!hasEvaluated) {
-    return;
-  }
-}
-```
+### 2. Aislamiento Estricto por Fecha en Reprogramaciones Puntuales (`excludedDates`)
+- Al reprogramar una clase con alcance puntual (`only-this-week`), la fecha original se registra en `excludedDates` de la lección base semanal para que la sesión original no se duplique en ese día.
+- La nueva clase reprogramada (`isMakeup: true`) con fecha exacta (`dateStr: "YYYY-MM-DD"`) toma su lugar en el cronograma dentro del ciclo activo del alumno.
+- Las demás clases del ciclo (incluyendo otras inasistencias o faltas como Jueves 03/09) se mantienen intactas e independientes.
 
 ### 3. Prioridad Determinista de Slot en Deduplicación (`rawCandidates.sort`)
 Al ordenar las clases antes de deduplicar por `dateStr-time`, se establece un desempate jerárquico estricto:
@@ -71,32 +60,19 @@ Al ordenar las clases antes de deduplicar por `dateStr-time`, se establece un de
 2. **Prioridad 2**: Sesión de recuperación puntual (`isMakeup: true`) prevalece sobre lecciones recurrentes abiertas.
 Esto garantiza que una clase de recuperación agendada en el mismo día y hora que una lección recurrente se conserve intacta en el Kardex.
 
-### 4. Preservación Universal de Cuota para Clases de Recuperación (Makeups)
+### 4. Cumplimiento Invariable de la Cuota Contractual (Exactamente 8 Clases en Plan Regular)
 En el algoritmo de corte de cuota:
-- Se aíslan `pendingMakeups` (`isMakeup: true, status: "pendiente"`) de las `pendingRegular`.
-- Las clases pendientes de recuperación **JAMÁS** son descartadas por la cuota contractual si el alumno tiene inasistencias por compensar:
-```typescript
-const attendedCount = evaluated.filter((s) => s.status === "presente").length;
-const attendedOrScheduled = attendedCount + pendingMakeups.length;
-
-if (evaluated.length >= targetQuota && attendedOrScheduled >= targetQuota && pendingMakeups.length === 0) {
-  finalSessions = evaluated;
-} else {
-  const slotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
-  const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
-  const combined = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
-  // Ordenar y numerar correlativamente
-  finalSessions = combined;
-}
-```
+- El Kardex aplica un tope estricto al número de sesiones proyectadas: `finalSessions = combined.slice(0, targetQuota)`.
+- Esto garantiza que el Plan Regular proyecte **exactamente 8 clases al mes**, impidiendo que reprogramaciones o colisiones inflen el total a 9, 10 u 11 sesiones.
 
 ### 5. Saneamiento Quirúrgico de la Base de Datos en Producción (PostgreSQL)
-Se identificaron y sanearon los registros de alumnos activos en producción que habían sido afectados por el vicio de `excludedWeeks`:
+Se identificaron y sanearon los registros de alumnos activos en producción:
 1. **Yasumi Cielo Chamorro Amasifuen** (`227ffd56-44c2-4672-a3ce-d5000a8b6bf0`):
-   - `excludedWeeks: []` en lecciones de Mar y Jue.
-   - `excludedDates: ["2026-08-25"]` en Mar (falta recuperada el 22/09) y `["2026-09-03"]` en Jue (falta reprogramada al 29/09).
-   - Lección de recuperación agendada para el Martes 29/09/2026 a las 19:00 en Sala B con Prof. Fernando.
-   - Vigencia contractual extendida a `planEndDate: "2026-10-05"`.
+   - Depurados los logs espurios de regularización en `attendance_logs` (17/09 ausente y 22/09 presente).
+   - Eliminadas las lecciones de recuperación temporales en `emergency_contact.scheduleLessons`.
+   - `excludedWeeks: []` y `excludedDates: []` en sus lecciones base de Martes y Jueves.
+   - Restablecida su vigencia original a `planStartDate: "2026-08-20"` y `planEndDate: "2026-09-19"`, mostrando **exactamente sus 8 clases originales** (6 presentes y 2 faltas: 25/08 y 03/09).
+   - Ahora secretaría puede reprogramar manualmente en el Kardex la falta del Martes 25/08 hacia el Jueves 17/09 en 1 clic.
 2. **Karlitoz Pazos Huatuco** (`10ab2288-40ea-4032-84c2-ec168d98880f`):
    - `excludedWeeks: []` en lecciones de Lun y Mié, manteniendo sus `excludedDates` e historiales intactos (8 de 8 sesiones completas).
 3. **Mia Lucero Bellido Alvan** (`892bcc0b-d635-465e-a823-1dc339eafe74`):
@@ -106,8 +82,8 @@ Se identificaron y sanearon los registros de alumnos activos en producción que 
 
 ## Verificación y Resultados
 - **Simulación y Kardex Calculator**:
-  - `Karlitoz Pazos Huatuco`: 8 clases exactas proyectadas (6 asistencias, 2 faltas recuperadas).
-  - `Mia Lucero Bellido Alvan`: 8 clases exactas proyectadas (2 asistencias, 3 faltas/justificadas recuperadas, 1 pendiente).
-  - `Yasumi Cielo Chamorro Amasifuen`: 11 sesiones auditadas con total transparencia: 7 presentes, 3 ausentes históricas preservadas, 1 recuperación asistida (22/09) y 1 recuperación agendada pendiente para el 29/09.
+  - `Yasumi Cielo Chamorro Amasifuen`: Exactamente 8 clases en su estado base (6 presentes + 2 faltas: 25/08 y 03/09). Al reprogramar 25/08 al 17/09, proyecta exactamente 8 clases (6 presentes + 1 falta en 03/09 + 1 reprogramada el 17/09).
+  - `Karlitoz Pazos Huatuco`: 8 clases exactas proyectadas.
+  - `Mia Lucero Bellido Alvan`: 8 clases exactas proyectadas.
 - **Build de Producción**:
-  - `npm run build` ejecutado exitosamente con 0 errores TypeScript y compresión Nitro limpia en 622ms.
+  - `npm run build` ejecutado exitosamente con 0 errores TypeScript y compresión Nitro limpia en 726ms.

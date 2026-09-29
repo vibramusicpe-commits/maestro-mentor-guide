@@ -788,19 +788,21 @@ inferencia.
 
 ---
 
-### 38. Erradicación de ExcludedWeeks Relativos, Prioridad de Slot en Deduplicación y Cuota de Makeups (ADR-0138)
+### 38. Erradicación de ExcludedWeeks Relativos, Prioridad de Slot en Deduplicación y Cuota Exacta de 8 Clases (ADR-0138)
 1. **Erradicación de `excludedWeeks` en Reprogramaciones Puntuales**:
    - Al reprogramar una clase por fecha exacta (`originalDateStr`), el sistema **NUNCA** debe inyectar índices relativos al mes (`targetWeekIndex`) en `excludedWeeks`.
    - Las plantillas recurrentes no tienen mes fijo (`month: undefined`), por lo que un índice relativo como `[0]` o `[2]` contaminaba y borraba clases en meses pasados y futuros (Agosto, Setiembre, Octubre). La exclusión se realiza exclusivamente en `excludedDates: ["YYYY-MM-DD"]`.
    - Al invocar `revertMakeupLesson`, el sistema purga preventivamente `excludedWeeks: []` para limpiar cualquier remanente corruptor.
-2. **Preservación Incondicional de Historial Evaluado ante `excludedDates`**:
-   - Si una fecha está incluida en `excludedDates`, pero ya cuenta con asistencia evaluada (`status !== "pendiente"`), el Kardex **JAMÁS** debe descartarla. La falta original (`ausente`) o asistencia histórica debe permanecer visible para transparentar el origen del crédito de recuperación.
+2. **Aislamiento por Fecha en Reprogramaciones Puntuales (`excludedDates`)**:
+   - Al reprogramar una clase puntual (ej. Martes 25 de Agosto al Jueves 17 de Setiembre), la fecha original queda en `excludedDates` para que no se duplique en ese día, mientras que la nueva sesión agendada toma su lugar en el cronograma.
+   - Las demás sesiones del ciclo (incluyendo otras inasistencias o faltas del alumno como Jueves 03 de Setiembre) permanecen 100% intactas e inmutables.
 3. **Prioridad Determinista de Slot en Deduplicación (`rawCandidates.sort`)**:
    - Al ordenar las clases antes de deduplicar por franja horaria (`dateStr-time`):
      1. Prioridad 1: Sesión evaluada (`presente`, `ausente`, `tarde`, `justificada`) prevalece sobre sesión pendiente.
      2. Prioridad 2: Sesión de recuperación puntual (`isMakeup: true`) prevalece sobre lección recurrente abierta.
    - Esto impide que una clase recurrente genérica que cae en el mismo turno descarte a la sesión de recuperación agendada.
-4. **Preservación Universal de Cuota para Clases de Recuperación (Makeups)**:
-   - En el algoritmo de cálculo de cuota del Kardex (`computeStudentCycleSessions`), las sesiones de recuperación agendadas (`isMakeup: true, status: "pendiente"`) jamás deben ser podadas por el límite contractual si el alumno tiene inasistencias por compensar, satisfaciendo el principio institucional innegociable: *"Las clases no se pierden, se recuperan"*.
+4. **Cumplimiento Estricto de la Cuota Contractual (Exactamente 8 Clases en Plan Regular)**:
+   - El ciclo activo de un Plan Regular debe proyectar **exactamente 8 clases** (`finalSessions = combined.slice(0, targetQuota)`), ni más ni menos.
+   - Si el alumno reprograma una falta a una fecha posterior dentro de su ciclo, dicha sesión ocupa el casillero correspondiente completando rigurosamente las 8 clases contratadas sin inflar el total a 9, 10 u 11 sesiones.
 
 

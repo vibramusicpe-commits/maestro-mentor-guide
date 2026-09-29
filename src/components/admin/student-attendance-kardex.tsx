@@ -301,15 +301,7 @@ export function StudentAttendanceKardex({
 
         // C. Si la lección tiene fechas excluidas (reprogramada fuera de este día), omitir
         if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-          // 🛡️ REGLA INNEGOCIABLE DE PRESERVACIÓN (ADR-0100 & ADR-0105): Si la fecha ya cuenta con
-          // asistencia evaluada (presente, ausente, justificada, tarde), DEBE preservarse para el
-          // registro histórico del Kardex, permitiendo ver la falta original y su recuperación
-          const hasEvaluated = lesson.attendanceByDate &&
-            lesson.attendanceByDate[curDateStr] &&
-            lesson.attendanceByDate[curDateStr] !== "pendiente";
-          if (!hasEvaluated) {
-            return;
-          }
+          return;
         }
 
         // C.1. 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
@@ -429,7 +421,7 @@ export function StudentAttendanceKardex({
 
         if (evaluated.length >= targetQuota && attendedOrScheduled >= targetQuota && pendingMakeups.length === 0) {
           // Si ya completó o superó su cuota con clases reales evaluadas y no tiene makeups pendientes
-          finalSessions = evaluated;
+          finalSessions = evaluated.slice(0, targetQuota);
         } else {
           // Mantener todas las evaluadas, TODAS las recuperaciones pendientes agendadas,
           // y completar con las próximas pendientes regulares hasta llegar exactamente a targetQuota
@@ -442,7 +434,7 @@ export function StudentAttendanceKardex({
             if (cmp !== 0) return cmp;
             return a.time.localeCompare(b.time);
           });
-          finalSessions = combined;
+          finalSessions = combined.slice(0, targetQuota);
         }
       }
     }
