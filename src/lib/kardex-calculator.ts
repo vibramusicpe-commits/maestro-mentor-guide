@@ -976,13 +976,19 @@ export function computeStudentRetentionStatus(
     }
   });
 
-  // Créditos pendientes por inasistencias que aún no se han agendado
-  const explicitCredits = student.makeupCredits ?? (student as any).makeup_credits ?? 0;
-  const unhandledMissed = Math.max(0, missedCount + justifiedCount - scheduledMakeups);
-  const pendingCredits = Math.max(explicitCredits, unhandledMissed);
+  // 🛡️ REGLA CENTRAL DE RETENCIÓN (ADR-0139):
+  // Si el alumno ya asistió al 100% de la cuota contratada (attendedCount >= targetQuota),
+  // el ciclo lectivo está formalmente CULMINADO y no debe exigir clases adicionales.
+  const quotaDeficit = Math.max(0, targetQuota - attendedCount);
 
-  // Sesiones pendientes por recibir (regulares + makeups agendadas + créditos sin agendar)
-  const remaining = pendingRegular + pendingMakeups + pendingCredits;
+  // Créditos pendientes por inasistencias que aún no se han agendado
+  // Acotados estrictamente por el déficit de cuota para evitar exigir créditos fantasma ya recuperados
+  const scheduledMakeupsTotal = scheduledMakeups;
+  const unhandledMissed = Math.max(0, missedCount + justifiedCount - scheduledMakeupsTotal);
+  const pendingCredits = Math.min(quotaDeficit, Math.max(0, quotaDeficit - (pendingRegular + pendingMakeups)));
+
+  // Sesiones pendientes por recibir para completar el ciclo lectivo contratado
+  const remaining = Math.min(quotaDeficit, pendingRegular + pendingMakeups + pendingCredits);
 
   const firstLesson = student.scheduleLessons?.[0];
   const scheduleText = firstLesson ? `${firstLesson.day} ${firstLesson.time} (${firstLesson.room || 'Sala'})` : "su horario habitual";

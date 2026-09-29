@@ -33,9 +33,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { isSameStudentId, isMatchingStudentName } from "@/lib/student-matching";
+import { isSameStudentId, isMatchingStudentName, normalizeStudentName } from "@/lib/student-matching";
 
-type RetentionFilter = "todos" | "proximo_culminar" | "culminado" | "en_curso";
+type RetentionFilter = "todos" | "culminado" | "proximo_culminar" | "en_curso" | "pausa_baja";
 
 export function StudentRenewalsRetentionPanel() {
   const students = useAppStore((s) => s.adminStudents);
@@ -46,58 +46,78 @@ export function StudentRenewalsRetentionPanel() {
   const [renewStudent, setRenewStudent] = useState<AdminStudent | null>(null);
   const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
 
-  // Calcular el estado de retención y seguimiento para todos los alumnos activos
+  // Calcular el estado de retención y seguimiento para alumnos activos e inactivos deduplicados
   const computedData = useMemo(() => {
-    return students
-      .filter((st) => st.status === "activo")
-      .map((st) => {
-        const modalityStr = (st.modality || "").toLowerCase();
-        const isIntensive = modalityStr.includes("inten") || modalityStr.includes("90 min");
-        const targetQuota = isIntensive ? 4 : (st.packageTotalSessions || 8);
+    // 1. Alumnos activos oficiales
+    const activeStudents = students.filter((st) => st.status === "activo");
+    const activeNormNames = new Set(activeStudents.map((st) => normalizeStudentName(st.name)));
 
-        const sessions = computeStudentCycleSessions({
-          student: st,
-          allSchedule: schedule,
-          selectedYear: new Date().getFullYear(),
-          selectedMonth: new Date().getMonth(),
-        });
+    // 2. Alumnos en pausa o baja que no tengan homónimo activo registrado
+    const inactiveStudents = students.filter((st) => {
+      if (st.status === "activo") return false;
+      return !activeNormNames.has(normalizeStudentName(st.name));
+    });
 
-        const retention = computeStudentRetentionStatus(st, sessions, targetQuota);
+    const allStudents = [...activeStudents, ...inactiveStudents];
 
-        return {
-          student: st,
-          retention,
-        };
-      });
+    return allStudents.map((st) => {
+      const modalityStr = (st.modality || "").toLowerCase();
+      const isIntensive = modalityStr.includes("inten") || modalityStr.includes("90 min");
+      const targetQuota = isIntensive ? 4 : (st.packageTotalSessions || 8);
+
+      const sessions = st.status === "activo"
+        ? computeStudentCycleSessions({
+            student: st,
+            allSchedule: schedule,
+            selectedYear: new Date().getFullYear(),
+            selectedMonth: new Date().getMonth(),
+          })
+        : [];
+
+      const retention = computeStudentRetentionStatus(st, sessions, targetQuota);
+
+      return {
+        student: st,
+        retention,
+      };
+    });
   }, [students, schedule]);
 
-  // Contadores de métricas
+  // Contadores de métricas por categoría
   const metrics = useMemo(() => {
-    let proximoCulminar = 0;
     let culminados = 0;
+    let proximoCulminar = 0;
     let enCurso = 0;
+    let pausaBaja = 0;
 
     computedData.forEach(({ retention }) => {
-      if (retention.category === "proximo_culminar") proximoCulminar++;
-      else if (retention.category === "culminado") culminados++;
+      if (retention.category === "culminado") culminados++;
+      else if (retention.category === "proximo_culminar") proximoCulminar++;
       else if (retention.category === "en_curso") enCurso++;
+      else if (retention.category === "pausa_baja") pausaBaja++;
     });
 
     return {
       total: computedData.length,
-      proximoCulminar,
       culminados,
+      proximoCulminar,
       enCurso,
+      pausaBaja,
     };
   }, [computedData]);
 
-  // Lista filtrada
+  // Lista filtrada y ordenada estrictamente por ORDEN DE URGENCIA VISUAL:
+  // 1. 🔴 Rojos (Culminados - Urgencia máxima de renovación o liberación de vacante)
+  // 2. 🟡 Amarillos (Próximos a culminar - Alerta preventiva de 1 ó 2 clases restantes)
+  // 3. 🟢 Verdes (En curso - Ciclo lectivo normal > 2 clases)
+  // 4. ⚪ Blancos (Pausa / Baja)
   const filteredList = useMemo(() => {
-    return computedData.filter(({ student, retention }) => {
+    const list = computedData.filter(({ student, retention }) => {
       // Filtro por categoría de retención
-      if (filter === "proximo_culminar" && retention.category !== "proximo_culminar") return false;
       if (filter === "culminado" && retention.category !== "culminado") return false;
+      if (filter === "proximo_culminar" && retention.category !== "proximo_culminar") return false;
       if (filter === "en_curso" && retention.category !== "en_curso") return false;
+      if (filter === "pausa_baja" && retention.category !== "pausa_baja") return false;
 
       // Filtro por búsqueda
       if (search.trim() !== "") {
@@ -110,6 +130,28 @@ export function StudentRenewalsRetentionPanel() {
       }
 
       return true;
+    });
+
+    // 🛡️ REGLA: Orden visual de urgencia estricto (ADR-0139)
+    const categoryPriority: Record<StudentRetentionStatus["category"], number> = {
+      culminado: 1,        // 🔴 Rojo primero
+      proximo_culminar: 2, // 🟡 Amarillo segundo
+      en_curso: 3,         // 🟢 Verde tercero
+      pausa_baja: 4,       // ⚪ Blanco al final
+    };
+
+    return list.sort((a, b) => {
+      const pA = categoryPriority[a.retention.category] || 99;
+      const pB = categoryPriority[b.retention.category] || 99;
+      if (pA !== pB) return pA - pB;
+
+      // Desempate interno para amarillos: menos clases restantes = mayor urgencia (1 clase antes que 2)
+      if (a.retention.category === "proximo_culminar") {
+        const remDiff = a.retention.remainingSessionsToDeliver - b.retention.remainingSessionsToDeliver;
+        if (remDiff !== 0) return remDiff;
+      }
+
+      return a.student.name.localeCompare(b.student.name);
     });
   }, [computedData, filter, search]);
 
@@ -141,52 +183,36 @@ export function StudentRenewalsRetentionPanel() {
         </div>
       </div>
 
-      {/* Tarjetas de Métricas Superior */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+      {/* Tarjetas de Métricas Superior Ordenadas por Urgencia */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {/* 1. Todos */}
         <div
           onClick={() => setFilter("todos")}
-          className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+          className={`p-3 rounded-xl border transition-all cursor-pointer ${
             filter === "todos"
               ? "bg-card border-primary shadow-sm ring-1 ring-primary/40"
               : "bg-muted/40 border-border hover:bg-muted/70"
           }`}
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold">
-            <span>Alumnos Activos</span>
+            <span>Total Alumnos</span>
             <UserCheck className="h-4 w-4 text-primary" />
           </div>
           <p className="text-2xl font-black text-foreground mt-1">{metrics.total}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">En ciclo lectivo actual</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Cartera global</p>
         </div>
 
-        <div
-          onClick={() => setFilter("proximo_culminar")}
-          className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
-            filter === "proximo_culminar"
-              ? "bg-amber-500/10 border-amber-500 shadow-sm ring-1 ring-amber-500/40"
-              : "bg-muted/40 border-border hover:bg-muted/70"
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs font-semibold text-amber-600 dark:text-amber-400">
-            <span>🟡 Por Culminar (≤2)</span>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-          </div>
-          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
-            {metrics.proximoCulminar}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Contacto preventivo anticipado</p>
-        </div>
-
+        {/* 2. 🔴 Culminados */}
         <div
           onClick={() => setFilter("culminado")}
-          className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+          className={`p-3 rounded-xl border transition-all cursor-pointer ${
             filter === "culminado"
               ? "bg-rose-500/10 border-rose-500 shadow-sm ring-1 ring-rose-500/40"
               : "bg-muted/40 border-border hover:bg-muted/70"
           }`}
         >
           <div className="flex items-center justify-between text-xs font-semibold text-rose-600 dark:text-rose-400">
-            <span>🔴 Culminados (0 pendientes)</span>
+            <span>🔴 Culminados</span>
             <CheckCircle2 className="h-4 w-4 text-rose-500" />
           </div>
           <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
@@ -195,22 +221,61 @@ export function StudentRenewalsRetentionPanel() {
           <p className="text-[10px] text-muted-foreground mt-0.5">Listos para renovar mes</p>
         </div>
 
+        {/* 3. 🟡 Por Culminar */}
+        <div
+          onClick={() => setFilter("proximo_culminar")}
+          className={`p-3 rounded-xl border transition-all cursor-pointer ${
+            filter === "proximo_culminar"
+              ? "bg-amber-500/10 border-amber-500 shadow-sm ring-1 ring-amber-500/40"
+              : "bg-muted/40 border-border hover:bg-muted/70"
+          }`}
+        >
+          <div className="flex items-center justify-between text-xs font-semibold text-amber-600 dark:text-amber-400">
+            <span>🟡 Por Culminar</span>
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+          </div>
+          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
+            {metrics.proximoCulminar}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Alerta preventiva (≤2)</p>
+        </div>
+
+        {/* 4. 🟢 En Curso */}
         <div
           onClick={() => setFilter("en_curso")}
-          className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+          className={`p-3 rounded-xl border transition-all cursor-pointer ${
             filter === "en_curso"
               ? "bg-emerald-500/10 border-emerald-500 shadow-sm ring-1 ring-emerald-500/40"
               : "bg-muted/40 border-border hover:bg-muted/70"
           }`}
         >
           <div className="flex items-center justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-            <span>🟢 En Curso (&gt;2)</span>
+            <span>🟢 En Curso</span>
             <Clock className="h-4 w-4 text-emerald-500" />
           </div>
           <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
             {metrics.enCurso}
           </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Progreso normal en sala</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Progreso regular (&gt;2)</p>
+        </div>
+
+        {/* 5. ⚪ Pausa / Baja */}
+        <div
+          onClick={() => setFilter("pausa_baja")}
+          className={`p-3 rounded-xl border transition-all cursor-pointer ${
+            filter === "pausa_baja"
+              ? "bg-zinc-500/15 border-zinc-400 shadow-sm ring-1 ring-zinc-400/40"
+              : "bg-muted/40 border-border hover:bg-muted/70"
+          }`}
+        >
+          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+            <span>⚪ Pausa / Baja</span>
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-2xl font-black text-muted-foreground mt-1">
+            {metrics.pausaBaja}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Inactivos en sala</p>
         </div>
       </div>
 
@@ -226,7 +291,7 @@ export function StudentRenewalsRetentionPanel() {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 p-1 bg-muted/60 rounded-xl border border-border text-xs">
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-muted/60 rounded-xl border border-border text-xs">
           <Button
             size="sm"
             variant={filter === "todos" ? "default" : "ghost"}
@@ -234,14 +299,6 @@ export function StudentRenewalsRetentionPanel() {
             className="h-7 text-xs font-bold"
           >
             Todos ({metrics.total})
-          </Button>
-          <Button
-            size="sm"
-            variant={filter === "proximo_culminar" ? "default" : "ghost"}
-            onClick={() => setFilter("proximo_culminar")}
-            className="h-7 text-xs font-bold gap-1 text-amber-600 dark:text-amber-400 hover:text-amber-500"
-          >
-            🟡 Por Culminar ({metrics.proximoCulminar})
           </Button>
           <Button
             size="sm"
@@ -253,11 +310,27 @@ export function StudentRenewalsRetentionPanel() {
           </Button>
           <Button
             size="sm"
+            variant={filter === "proximo_culminar" ? "default" : "ghost"}
+            onClick={() => setFilter("proximo_culminar")}
+            className="h-7 text-xs font-bold gap-1 text-amber-600 dark:text-amber-400 hover:text-amber-500"
+          >
+            🟡 Por Culminar ({metrics.proximoCulminar})
+          </Button>
+          <Button
+            size="sm"
             variant={filter === "en_curso" ? "default" : "ghost"}
             onClick={() => setFilter("en_curso")}
             className="h-7 text-xs font-bold gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
           >
             🟢 En Curso ({metrics.enCurso})
+          </Button>
+          <Button
+            size="sm"
+            variant={filter === "pausa_baja" ? "default" : "ghost"}
+            onClick={() => setFilter("pausa_baja")}
+            className="h-7 text-xs font-bold gap-1 text-zinc-500 hover:text-foreground"
+          >
+            ⚪ Pausa/Baja ({metrics.pausaBaja})
           </Button>
         </div>
 
@@ -356,6 +429,8 @@ export function StudentRenewalsRetentionPanel() {
                               ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40"
                               : retention.color === "red"
                               ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/40"
+                              : retention.color === "zinc"
+                              ? "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/40"
                               : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
                           }`}
                         >
@@ -399,6 +474,16 @@ export function StudentRenewalsRetentionPanel() {
                             >
                               <RotateCw className="h-3.5 w-3.5" />
                               <span>Renovar</span>
+                            </Button>
+                          ) : student.status !== "activo" ? (
+                            <Button
+                              size="sm"
+                              disabled
+                              variant="ghost"
+                              className="text-xs text-muted-foreground opacity-50 cursor-not-allowed"
+                              title="Alumno en pausa o baja administrativa"
+                            >
+                              <span>{student.status === "pausa" ? "Pausa" : "Baja"}</span>
                             </Button>
                           ) : (
                             <Button
