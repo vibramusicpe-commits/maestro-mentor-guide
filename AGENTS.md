@@ -786,3 +786,21 @@ inferencia.
 4. **Corrección de Docente Destino en Créditos Transferidos**:
    - En sesiones transferidas (de Canto a Guitarra), el badge del Kardex ahora referencia correctamente `liveStudent?.teacher || "Jeremy"` en lugar de `session.teacher` (Nathaly), reflejando con exactitud que el crédito se recupera con el Prof. Jeremy en Sala A.
 
+---
+
+### 38. Erradicación de ExcludedWeeks Relativos, Prioridad de Slot en Deduplicación y Cuota de Makeups (ADR-0138)
+1. **Erradicación de `excludedWeeks` en Reprogramaciones Puntuales**:
+   - Al reprogramar una clase por fecha exacta (`originalDateStr`), el sistema **NUNCA** debe inyectar índices relativos al mes (`targetWeekIndex`) en `excludedWeeks`.
+   - Las plantillas recurrentes no tienen mes fijo (`month: undefined`), por lo que un índice relativo como `[0]` o `[2]` contaminaba y borraba clases en meses pasados y futuros (Agosto, Setiembre, Octubre). La exclusión se realiza exclusivamente en `excludedDates: ["YYYY-MM-DD"]`.
+   - Al invocar `revertMakeupLesson`, el sistema purga preventivamente `excludedWeeks: []` para limpiar cualquier remanente corruptor.
+2. **Preservación Incondicional de Historial Evaluado ante `excludedDates`**:
+   - Si una fecha está incluida en `excludedDates`, pero ya cuenta con asistencia evaluada (`status !== "pendiente"`), el Kardex **JAMÁS** debe descartarla. La falta original (`ausente`) o asistencia histórica debe permanecer visible para transparentar el origen del crédito de recuperación.
+3. **Prioridad Determinista de Slot en Deduplicación (`rawCandidates.sort`)**:
+   - Al ordenar las clases antes de deduplicar por franja horaria (`dateStr-time`):
+     1. Prioridad 1: Sesión evaluada (`presente`, `ausente`, `tarde`, `justificada`) prevalece sobre sesión pendiente.
+     2. Prioridad 2: Sesión de recuperación puntual (`isMakeup: true`) prevalece sobre lección recurrente abierta.
+   - Esto impide que una clase recurrente genérica que cae en el mismo turno descarte a la sesión de recuperación agendada.
+4. **Preservación Universal de Cuota para Clases de Recuperación (Makeups)**:
+   - En el algoritmo de cálculo de cuota del Kardex (`computeStudentCycleSessions`), las sesiones de recuperación agendadas (`isMakeup: true, status: "pendiente"`) jamás deben ser podadas por el límite contractual si el alumno tiene inasistencias por compensar, satisfaciendo el principio institucional innegociable: *"Las clases no se pierden, se recuperan"*.
+
+

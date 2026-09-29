@@ -4,6 +4,25 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.24] - 2026-09-29
+
+### Erradicación de ExcludedWeeks Relativos, Prioridad de Slot en Deduplicación y Cuota de Makeups (ADR-0138)
+- **Erradicación Definitiva de `excludedWeeks` en Reprogramaciones Puntuales**:
+  - Se corrigió el vicio sistémico en `rescheduleLesson` (`src/store/app-store.ts`) donde reprogramar una sesión puntual inyectaba índices numéricos relativos al mes (`targetWeekIndex`) en `excludedWeeks: [0, 2]`. Al carecer las lecciones recurrentes de un mes específico (`month: undefined`), esos índices borraban semanas completas en meses pasados y futuros (Agosto, Setiembre, Octubre).
+  - La exclusión puntual ahora se almacena exclusivamente en `excludedDates: ["YYYY-MM-DD"]`.
+  - En `revertMakeupLesson`, se configuró la purga preventiva `excludedWeeks: []` para erradicar cualquier residuo corruptor al revertir una reprogramación.
+- **Preservación Incondicional de Historial Evaluado ante `excludedDates`**:
+  - En `student-attendance-kardex.tsx` y `kardex-calculator.ts`, las fechas listadas en `excludedDates` que ya cuenten con asistencia evaluada (`status !== "pendiente"`) no son descartadas, preservando la inasistencia histórica original (`ausente`) y su trazabilidad para la recuperación.
+- **Prioridad Determinista de Slot en Deduplicación (`rawCandidates.sort`)**:
+  - Se implementó un criterio de desempate jerárquico por franja horaria (`dateStr-time`):
+    1. Las sesiones evaluadas (`presente`, `ausente`, `tarde`, `justificada`) prevalecen sobre las pendientes.
+    2. Las sesiones de recuperación agendadas (`isMakeup: true`) prevalecen sobre lecciones recurrentes abiertas.
+  - Esto evita que una lección regular abierta opaque y descarte a una sesión de recuperación agendada en el mismo turno.
+- **Preservación Universal de Cuota para Clases de Recuperación (Makeups)**:
+  - En el corte de cuota (`computeStudentCycleSessions`), las sesiones de recuperación pendientes (`isMakeup: true, status: "pendiente"`) no son eliminadas por el tope contractual si el alumno tiene inasistencias por recuperar, garantizando el cumplimiento de *"Las clases no se pierden, se recuperan"*.
+- **Saneamiento Quirúrgico de la Base de Datos en Producción**:
+  - Se purgaron los residuos de `excludedWeeks` y se normalizó el cronograma para los 3 alumnos activos afectados en PostgreSQL: Yasumi Cielo Chamorro (con su recuperación del 29/09/2026 y vigencia extendida al 05/10/2026), Karlitoz Pazos Huatuco y Mia Lucero Bellido Alvan.
+
 ## [2.0.23] - 2026-09-28
 
 ### Geometría Precisa de Impresión A4, Eliminación de Transform Offsets y Distribución Porcentual de Columnas (ADR-0137)

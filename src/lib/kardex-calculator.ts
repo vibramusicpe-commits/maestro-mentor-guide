@@ -255,7 +255,15 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
 
       // C. Fechas excluidas por reprogramación
       if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-        return;
+        // 🛡️ REGLA INNEGOCIABLE DE PRESERVACIÓN (ADR-0100 & ADR-0105): Si la fecha ya cuenta con
+        // asistencia evaluada (presente, ausente, justificada, tarde), DEBE preservarse para el
+        // registro histórico del Kardex, permitiendo ver la falta original y su recuperación
+        const hasEvaluated = lesson.attendanceByDate &&
+          lesson.attendanceByDate[curDateStr] &&
+          lesson.attendanceByDate[curDateStr] !== "pendiente";
+        if (!hasEvaluated) {
+          return;
+        }
       }
 
       // C.1. Barreras temporales absolutas por transición de curso (ADR-0131)
@@ -325,11 +333,22 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
     });
   }
 
-  // 1. Orden cronológico
+  // 1. Orden cronológico con prioridad de slot (ADR-0105)
   rawCandidates.sort((a, b) => {
     const cmp = a.dateStr.localeCompare(b.dateStr);
     if (cmp !== 0) return cmp;
-    return a.time.localeCompare(b.time);
+    const timeCmp = a.time.localeCompare(b.time);
+    if (timeCmp !== 0) return timeCmp;
+    // 🛡️ Prioridad de slot en la misma fecha y hora (ADR-0105):
+    // 1. Sesión evaluada (asistió, falta, tarde, justificada) prevalece sobre pendiente
+    const aEval = a.status !== "pendiente" ? 1 : 0;
+    const bEval = b.status !== "pendiente" ? 1 : 0;
+    if (aEval !== bEval) return bEval - aEval;
+    // 2. Sesión de recuperación puntual (isMakeup: true) prevalece sobre lección recurrente abierta
+    const aMakeup = a.isMakeup ? 1 : 0;
+    const bMakeup = b.isMakeup ? 1 : 0;
+    if (aMakeup !== bMakeup) return bMakeup - aMakeup;
+    return 0;
   });
 
   // 2. Deduplicar por fecha y hora exactas
@@ -352,14 +371,22 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
       finalSessions = deduped;
     } else {
       const evaluated = deduped.filter((s) => s.status !== "pendiente");
-      if (evaluated.length >= targetQuota) {
+      const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
+      const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
+
+      // 🛡️ REGLA ADR-0105 & ADR-0134: Las clases de recuperación pendientes (isMakeup: true)
+      // JAMÁS deben descartarse si el alumno tiene inasistencias por recuperar, porque son la vía
+      // para alcanzar sus 8 clases asistidas efectivas ("Las clases no se pierden, se recuperan").
+      const attendedCount = evaluated.filter((s) => s.status === "presente").length;
+      const attendedOrScheduled = attendedCount + pendingMakeups.length;
+
+      if (evaluated.length >= targetQuota && attendedOrScheduled >= targetQuota && pendingMakeups.length === 0) {
         finalSessions = evaluated;
       } else {
-        const pending = deduped.filter((s) => s.status === "pendiente");
-        const slotsNeeded = targetQuota - evaluated.length;
-        const chosenPending = pending.slice(0, slotsNeeded);
+        const slotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
+        const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
 
-        const combined = [...evaluated, ...chosenPending];
+        const combined = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
         combined.sort((a, b) => {
           const cmp = a.dateStr.localeCompare(b.dateStr);
           if (cmp !== 0) return cmp;

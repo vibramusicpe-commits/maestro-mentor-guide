@@ -1351,7 +1351,9 @@ export const useAppStore = create<AppState>()(
 
             const updatedOriginal: ScheduledLesson = {
               ...targetLesson,
-              excludedWeeks: targetWeekIndex !== undefined
+              // 🛡️ REGLA ADR-0105: Si la reprogramación es por fecha exacta (originalDateStr),
+              // NO debe inyectar índices relativos en excludedWeeks que contaminen otros meses.
+              excludedWeeks: !originalDateStr && targetWeekIndex !== undefined
                 ? Array.from(new Set([...excludedWeeks, targetWeekIndex]))
                 : excludedWeeks,
               excludedDates: originalDateStr
@@ -1543,6 +1545,8 @@ export const useAppStore = create<AppState>()(
                 return {
                   ...l,
                   excludedDates: l.excludedDates.filter((d) => d !== recoveringLessonDate),
+                  // 🛡️ Limpieza preventiva de excludedWeeks residuales
+                  excludedWeeks: [],
                 };
               }
               return l;
@@ -1564,6 +1568,8 @@ export const useAppStore = create<AppState>()(
                     return {
                       ...l,
                       excludedDates: l.excludedDates.filter((d) => d !== recoveringLessonDate),
+                      // 🛡️ Limpieza preventiva de excludedWeeks residuales
+                      excludedWeeks: [],
                     };
                   }
                   return l;
