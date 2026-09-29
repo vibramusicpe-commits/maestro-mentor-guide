@@ -859,6 +859,24 @@ inferencia.
      - **Cápsula Inferior (Modo Minimizado)**: Píldora horizontal en la parte inferior central (`fixed bottom-6 left-1/2 -translate-x-1/2`), con selector de agente, caja de texto rápida, botón de Snapshot Meta y botón `[ ➔ ]`.
      - **Panel Lateral Derecho (Modo Expandido)**: Drawer vertical acoplado a la derecha (`w-[460px]`), con cabecera de control (minimizar a cápsula `➖`, snapshot `📋`, cerrar `✖`), timeline de resolución inteligente, desambiguación de homónimos, ficha de Kardex en vivo y botón directo de WhatsApp Web (`wa.me`).
 
+---
 
-
+### 42. Autocompletado con Tab, Menciones @, Ocultamiento Lateral EyeOff, Guardrails de Seguridad y Recuperaciones de 45m (ADR-0142)
+1. **Autocompletado con Tecla `Tab`**:
+   - Al pulsar `Tab` en la caja de texto de Laya, si existe un candidato sugerido en "Alumno Identificado en PostgreSQL", se autocompleta inmediatamente como `@Nombre Completo `.
+2. **Sintaxis y Desambiguación con `@Menciones`**:
+   - Si la secretaria escribe o selecciona `@Nombre Completo` (ej. `@Sasha Dharma Contreras de la Cruz`), el motor de búsqueda en tiempo real fija al alumno con 100% de confianza inmediata, evitando colisiones con homónimos (ej. `@Sasha Gómez`).
+   - Al hacer clic en una tarjeta de desambiguación de candidatas, se inserta automáticamente la mención `@Nombre` en el texto.
+3. **Ocultamiento Total Exclusivo en Vista Lateral (`EyeOff`)**:
+   - En la cabecera del panel lateral derecho (sidebar) se ubica un botón de ojo (`EyeOff`).
+   - Al hacer clic en este botón, el agente se oculta por completo (`isFullyHidden: true`), retirando tanto el panel lateral como la cápsula flotante inferior.
+   - Para volver a visualizarlo, el usuario pulsa el botón `[⚡ Copiloto Laya Ctrl+Shift+L]` de la barra de navegación o presiona la combinación `Ctrl+Shift+L`.
+4. **Reglas Pedagógicas de Duración (Intensivos 90 min vs Recuperaciones 45 min en Viernes/Sábado)**:
+   - Los Cursos Intensivos son de **90 minutos** continuos (1x por semana en Jueves, Viernes o Sábados).
+   - Los Viernes y Sábados pueden emplearse formalmente para **recuperaciones de 45 minutos** de alumnos de Plan Regular, siempre que la sala del docente mantenga aforo disponible (< 5 alumnos en ese turno).
+5. **Módulo de Inducción Técnica/Operativa y Guardrails de Seguridad Financiera**:
+   - Laya responde consultas de arquitectura de la academia: Días Pareados (L-M, M-J, V-S), proceso de activación de alumnos (1. Ficha/Registro -> 2. Horario por edad/sala [ADR-0102] -> 3. Kardex), aforos y cupos.
+   - **Guardrails Estrictos de Seguridad**: Bloqueo absoluto ante intentos de extraer números de tarjetas de crédito, contraseñas, credenciales de dueños o tokens, redireccionando canónicamente a `/admin/facturacion` y `/admin/reportes`.
+6. **Saneamiento de Plantillas de WhatsApp**:
+   - Supresión de duplicación de cadenas como `"Familia Familia ..."` mediante normalización de prefijos (`replace(/^familia\s+/i, "").trim()`).
 

@@ -8,6 +8,7 @@ import type { AdminStudent, ScheduledLesson } from "@/store/app-store";
 import { normalizeStudentName } from "@/lib/student-matching";
 import { availableTeachers, rooms, timeSlotsWeekday, timeSlotsSaturday } from "@/store/admin-seeds";
 import { stringSimilarity, levenshteinDistance } from "./laya-engine";
+import { resolveAcademyKnowledge, type AcademyKnowledgeResponse } from "./laya-knowledge-base";
 
 export interface DisambiguationCandidate {
   student: AdminStudent;
@@ -51,6 +52,7 @@ export interface MatchedSlotAnalysis {
     room: string;
     availableVacancies: number;
   }[];
+  pedagogicalNote?: string;
 }
 
 export interface LayaParsedRequest {
@@ -66,6 +68,7 @@ export interface LayaParsedRequest {
   urgencyLabel: string;
   kardexSummary?: StudentKardexSummary;
   slotAnalysis?: MatchedSlotAnalysis;
+  academyKnowledge?: AcademyKnowledgeResponse | null;
   suggestedWhatsAppMessage: string;
 }
 
@@ -121,6 +124,40 @@ export function extractStudentFromText(
 ): StudentMatchResult {
   if (!text || !text.trim()) {
     return { confidence: 0, candidates: [], isAmbiguous: false };
+  }
+
+  // 🛡️ REGLA ADR-0142: Detección y prioridad absoluta de @Menciones explícitas
+  // Si el texto incluye @Nombre (ej. @Sasha Dharma Contreras de la Cruz), otorga 100% de certeza inmediata
+  const atMatch = text.match(/@([a-zA-ZÁ-ÿ0-9\s]+?)(?:$|[,\.\?!]|\n|\s{2,})/);
+  if (atMatch && atMatch[1].trim()) {
+    const rawMention = atMatch[1].trim();
+    const normMention = normalizeStudentName(rawMention);
+
+    // Buscar coincidencia exacta o por inclusión entre los alumnos
+    const explicitMatch =
+      students.find((st) => {
+        const normSt = normalizeStudentName(st.name);
+        return normSt === normMention || normSt.startsWith(normMention) || normMention.startsWith(normSt);
+      }) ||
+      students.find((st) => {
+        const normSt = normalizeStudentName(st.name);
+        return normSt.includes(normMention) || normMention.includes(normSt);
+      });
+
+    if (explicitMatch) {
+      return {
+        student: explicitMatch,
+        confidence: 1.0,
+        candidates: [
+          {
+            student: explicitMatch,
+            score: 200,
+            matchReasons: [`Mención explícita directa (@${explicitMatch.name})`],
+          },
+        ],
+        isAmbiguous: false,
+      };
+    }
   }
 
   const normInput = normalizeStudentName(text);
@@ -385,6 +422,13 @@ export function analyzeSlotAvailability(params: {
     }
   }
 
+  const isWeekendSlot = day === "Vie" || day === "Sáb";
+  const pedagogicalNote = isWeekendSlot
+    ? isAvailable
+      ? "Turno en Viernes/Sábado con aforo disponible: Apto para recuperación de 45m de Plan Regular (Intensivos son de 90m)."
+      : "Turno en Viernes/Sábado con aforo completo."
+    : undefined;
+
   return {
     requestedDay: day,
     requestedTime: time,
@@ -395,6 +439,7 @@ export function analyzeSlotAvailability(params: {
     isAvailable,
     enrolledStudents,
     alternatives,
+    pedagogicalNote,
   };
 }
 
@@ -426,7 +471,9 @@ export function buildWhatsAppReply(params: {
     kardexSummary,
   } = params;
 
-  const greeting = familyName ? `¡Hola Familia ${familyName}! 🎵` : "¡Hola! Te saluda Secretaría de Vibra Music. 🎵";
+  // 🛡️ REGLA ADR-0142: Saneamiento de nombre familiar para evitar "Familia Familia ..."
+  const cleanFamily = (familyName || "").replace(/^familia\s+/i, "").trim();
+  const greeting = cleanFamily ? `¡Hola Familia ${cleanFamily}! 🎵` : "¡Hola! Te saluda Secretaría de Vibra Music. 🎵";
 
   // 1. Caso Consulta de Clases Faltantes / Estado de Kardex
   if (intent === "consulta_clases_pendientes") {
@@ -457,10 +504,13 @@ export function buildWhatsAppReply(params: {
 
   // 2. Caso Reprogramación o Consulta de Vacantes
   if (intent === "reprogramacion" || intent === "consulta_vacantes") {
+    const isWeekendSlot = day === "Vie" || day === "Sáb";
+    const slotNote = isWeekendSlot ? " (turno apto para su clase de recuperación de 45 minutos)" : "";
+
     if (isAvailable && day !== "indeterminado" && time !== "indeterminado") {
       return (
         `${greeting}\n\n` +
-        `Revisamos la agenda y *SÍ tenemos vacante disponible* para ${studentName} el *${day} a las ${time}* ` +
+        `Revisamos la agenda y *SÍ tenemos vacante disponible* para ${studentName} el *${day} a las ${time}*${slotNote} ` +
         `en ${room} con el Prof. ${teacher}.\n\n` +
         `¿Desean que lo dejemos registrado formalmente como su clase de recuperación? ¡Quedamos atentos para confirmarlo!`
       );
@@ -490,7 +540,15 @@ export function buildWhatsAppReply(params: {
     );
   }
 
-  // 4. Caso General
+  // 4. Caso Consulta de Sistema / Academia / Inducción (ADR-0142)
+  if (intent === "consulta_sistema_academia") {
+    return (
+      `${greeting}\n\n` +
+      `¡Hola! Respecto a tu consulta sobre las pautas de Vibra Music, te comento que las clases regulares se organizan en Días Pareados (L-M, M-J, V-S) de 45 minutos y los intensivos son de 90 minutos (Jue, Vie o Sáb). Puedes revisar todos los detalles pedagógicos y de activación en el panel de Copiloto Laya. ¡Quedamos atentos para ayudarte!`
+    );
+  }
+
+  // 5. Caso General
   return (
     `${greeting}\n\n` +
     `Recibimos tu mensaje respecto a ${studentName}. Estamos a tu disposición para ayudarte con cualquier consulta de clases, pagos o asistencias. ¿En qué podemos apoyarte hoy?`

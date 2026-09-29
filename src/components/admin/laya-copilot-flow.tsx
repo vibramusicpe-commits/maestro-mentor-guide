@@ -18,6 +18,7 @@ import {
   FileSpreadsheet,
   X,
   Minus,
+  EyeOff,
   ChevronUp,
   ArrowRight,
   Plus,
@@ -41,6 +42,7 @@ import {
   type StudentKardexSummary,
   type DisambiguationCandidate,
 } from "@/lib/laya/laya-realtime-matcher";
+import { resolveAcademyKnowledge, type AcademyKnowledgeResponse } from "@/lib/laya/laya-knowledge-base";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +66,8 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
 
   // Modo de visualización: 'capsule' (barra inferior minimizada) o 'sidebar' (panel lateral derecho)
   const [viewMode, setViewMode] = useState<"capsule" | "sidebar">("capsule");
+  // 🛡️ Ocultamiento total (EyeOff): retira panel lateral y cápsula flotante hasta pulsar Ctrl+Shift+L
+  const [isFullyHidden, setIsFullyHidden] = useState(false);
   const [inputPrompt, setInputPrompt] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
@@ -99,6 +103,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
     urgencyLabel: string;
     kardexSummary?: StudentKardexSummary;
     slotAnalysis?: MatchedSlotAnalysis;
+    academyKnowledge?: AcademyKnowledgeResponse | null;
     whatsAppReply: string;
   } | null>(null);
 
@@ -117,7 +122,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       const prediction = await defaultLaya.predict(textToAnalyze, LAYA_REPROGRAMACION_QUESTIONS);
       const { answers, routing } = prediction;
 
-      // 2. Extracción y matching de alumno con Pauta Anti-Colisión (ADR-0140)
+      // 2. Extracción y matching de alumno con Pauta Anti-Colisión (ADR-0140 / ADR-0142)
       let matchedSt: AdminStudent | undefined = forcedStudent;
       let stConfidence = 1.0;
       let candidates: DisambiguationCandidate[] = [];
@@ -131,10 +136,16 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
         isAmbiguous = matchResult.isAmbiguous;
       }
 
+      // 2b. Evaluación de Base de Conocimientos de Inducción y Guardrails de Seguridad (ADR-0142)
+      const academyKnowledge = resolveAcademyKnowledge(textToAnalyze);
+
       // 3. Resolución de docente y sala por pedagogía oficial (ADR-0102)
       const dayVal = answers.dia?.choice || "indeterminado";
       const timeVal = answers.horario?.choice || "indeterminado";
-      const intentVal = answers.intent?.choice || "general";
+      let intentVal = answers.intent?.choice || "general";
+      if (academyKnowledge && (intentVal === "general" || intentVal === "reprogramacion")) {
+        intentVal = "consulta_sistema_academia";
+      }
       const reasonVal = answers.motivo_falta?.choice || "injustificada";
       const isJustifiedVal = !!answers.es_justificada?.noul;
       const urgencyLabel = answers.urgencia?.label || "Normal";
@@ -192,6 +203,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
         urgencyLabel,
         kardexSummary,
         slotAnalysis,
+        academyKnowledge,
         whatsAppReply,
       });
     } catch (err) {
@@ -215,18 +227,38 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
     }
   }, [inputPrompt, manualStudent]);
 
-  // Si se abre desde fuera con isOpen, asegurar que se muestre en modo sidebar
+  // Si se abre desde fuera con isOpen, asegurar que se muestre en modo sidebar y reactivar visibilidad
   useEffect(() => {
     if (isOpen) {
+      setIsFullyHidden(false);
       setViewMode("sidebar");
     }
   }, [isOpen]);
 
+  // 🛡️ Inyectar mención @Nombre del alumno y fijar 100% de confianza (ADR-0142)
+  const handleInjectMention = (student: AdminStudent) => {
+    const mention = `@${student.name} `;
+    let newPrompt = inputPrompt;
+    if (newPrompt.includes("@")) {
+      newPrompt = newPrompt.replace(/@[a-zA-ZÁ-ÿ0-9\s]+?(?=$|[,\.\?!]|\s{2,})/, mention);
+    } else {
+      const firstName = student.name.split(" ")[0].toLowerCase();
+      const regex = new RegExp(`\\b${firstName}\\b`, "i");
+      if (regex.test(newPrompt)) {
+        newPrompt = newPrompt.replace(regex, mention);
+      } else {
+        newPrompt = `${mention}${newPrompt}`.trim();
+      }
+    }
+    setInputPrompt(newPrompt);
+    setManualStudent(student);
+    toast.success(`Alumno fijado con @: ${student.name}`);
+    runLayaAnalysis(newPrompt, student);
+  };
+
   // Selección manual en caso de ambigüedad / homónimos
   const handleSelectCandidate = (candidate: AdminStudent) => {
-    setManualStudent(candidate);
-    toast.success(`Alumno seleccionado: ${candidate.name}`);
-    runLayaAnalysis(inputPrompt, candidate);
+    handleInjectMention(candidate);
   };
 
   // Enviar mensaje / expandir a sidebar
@@ -283,7 +315,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
 
   // Renderizar la Cápsula Inferior (Modo Google Flow)
   const renderBottomCapsule = () => {
-    if (viewMode === "sidebar") return null;
+    if (viewMode === "sidebar" || isFullyHidden) return null;
 
     return (
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-4 pointer-events-auto">
@@ -311,13 +343,22 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
             <span>Copiloto Laya</span>
           </button>
 
-          {/* Input de Texto Libre */}
+          {/* Input de Texto Libre con Autocompletado Tab (ADR-0142) */}
           <input
             ref={inputRef}
             type="text"
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
-            placeholder="Pega el mensaje del apoderado o consulta sobre un alumno..."
+            onKeyDown={(e) => {
+              if (e.key === "Tab") {
+                const topStudent = parsedData?.detectedStudent || parsedData?.candidates?.[0]?.student;
+                if (topStudent) {
+                  e.preventDefault();
+                  handleInjectMention(topStudent);
+                }
+              }
+            }}
+            placeholder="Pega el mensaje o escribe @alumno... (Tab autocompleta)"
             className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none px-2 min-w-0"
           />
 
@@ -346,7 +387,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
 
   // Renderizar el Panel Lateral Derecho (Modo Google Flow Sidebar)
   const renderRightSidebar = () => {
-    if (viewMode !== "sidebar") return null;
+    if (viewMode !== "sidebar" || isFullyHidden) return null;
 
     return (
       <div className="fixed top-0 right-0 h-screen w-full sm:w-[460px] lg:w-[480px] z-50 bg-[#0D0B0A] border-l border-white/10 shadow-2xl flex flex-col text-foreground animate-in slide-in-from-right duration-300">
@@ -375,6 +416,19 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
               title="Exportar Snapshot de Vacantes para Meta"
             >
               <FileSpreadsheet className="h-4 w-4" />
+            </button>
+
+            {/* 👁️ Ocultar completamente Copiloto Laya (EyeOff) — Exclusivo en vista lateral (ADR-0142) */}
+            <button
+              onClick={() => {
+                setIsFullyHidden(true);
+                onClose();
+                toast.info("Copiloto Laya ocultado. Presiona Ctrl+Shift+L o el botón superior para reactivarlo.");
+              }}
+              className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-[#F47B20] transition-colors cursor-pointer"
+              title="Ocultar Copiloto Laya (Reactivar con Ctrl+Shift+L o botón superior)"
+            >
+              <EyeOff className="h-4 w-4" />
             </button>
 
             {/* Minimizar a cápsula inferior */}
@@ -425,13 +479,22 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
               <textarea
                 value={inputPrompt}
                 onChange={(e) => setInputPrompt(e.target.value)}
-                placeholder="Pega aquí el mensaje de WhatsApp... (ej: 'Mama de sasha darma dice que le faltan dos clases')"
+                onKeyDown={(e) => {
+                  if (e.key === "Tab") {
+                    const topStudent = parsedData?.detectedStudent || parsedData?.candidates?.[0]?.student;
+                    if (topStudent) {
+                      e.preventDefault();
+                      handleInjectMention(topStudent);
+                    }
+                  }
+                }}
+                placeholder="Pega aquí el mensaje o consulta... (Presiona Tab para autocompletar @alumno)"
                 className="w-full bg-transparent resize-none focus:outline-none min-h-[55px] text-xs leading-relaxed"
               />
             </div>
           </div>
 
-          {/* PAUTA ANTI-COLISIÓN: Estado de Desambiguación de Homónimos */}
+          {/* PAUTA ANTI-COLISIÓN: Estado de Desambiguación de Homónimos (ADR-0141 / ADR-0142) */}
           {parsedData?.isAmbiguous && (
             <div className="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 space-y-2.5 animate-in fade-in">
               <div className="flex items-center gap-2 text-amber-400">
@@ -447,7 +510,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
                 {parsedData.candidates.map((cand) => (
                   <button
                     key={cand.student.id}
-                    onClick={() => handleSelectCandidate(cand.student)}
+                    onClick={() => handleInjectMention(cand.student)}
                     className="w-full text-left p-2.5 rounded-lg bg-card/80 hover:bg-card border border-white/10 hover:border-amber-500/50 transition-all flex items-center justify-between group cursor-pointer"
                   >
                     <div>
@@ -458,11 +521,48 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
                         {cand.student.instrument} · Prof. {cand.student.teacher} · {cand.student.family}
                       </p>
                     </div>
-                    <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">
-                      Elegir
+                    <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 font-bold">
+                      @ Elegir
                     </Badge>
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* BASE DE CONOCIMIENTOS / INDUCCIÓN / GUARDRAILS (ADR-0142) */}
+          {parsedData?.academyKnowledge && (
+            <div
+              className={`p-3.5 rounded-xl border ${
+                parsedData.academyKnowledge.isRestricted
+                  ? "border-rose-500/40 bg-rose-500/10"
+                  : "border-primary/30 bg-primary/5"
+              } space-y-2.5 animate-in fade-in`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5 text-primary" />
+                  Manual & Reglas de Academia
+                </span>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] font-bold ${
+                    parsedData.academyKnowledge.isRestricted
+                      ? "border-rose-500/40 text-rose-400 bg-rose-500/20"
+                      : "border-primary/40 text-primary bg-primary/10"
+                  }`}
+                >
+                  {parsedData.academyKnowledge.isRestricted ? "🔒 Restringido" : "📘 Inducción Oficial"}
+                </Badge>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
+                  {parsedData.academyKnowledge.title}
+                </h4>
+                <div className="text-xs text-foreground/90 whitespace-pre-line leading-relaxed font-sans mt-2 p-2.5 rounded-lg bg-black/40 border border-white/5">
+                  {parsedData.academyKnowledge.markdownContent}
+                </div>
               </div>
             </div>
           )}
@@ -563,6 +663,13 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
                 <DoorOpen className="h-3 w-3 text-primary" />
                 Aforo en Sala ({parsedData.slotAnalysis.assignedRoom} · Prof. {parsedData.slotAnalysis.assignedTeacher})
               </span>
+
+              {parsedData.slotAnalysis.pedagogicalNote && (
+                <div className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <span>{parsedData.slotAnalysis.pedagogicalNote}</span>
+                </div>
+              )}
 
               {parsedData.slotAnalysis.isAvailable ? (
                 <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
@@ -671,7 +778,16 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
               type="text"
               value={inputPrompt}
               onChange={(e) => setInputPrompt(e.target.value)}
-              placeholder="Escribe una nueva consulta..."
+              onKeyDown={(e) => {
+                if (e.key === "Tab") {
+                  const topStudent = parsedData?.detectedStudent || parsedData?.candidates?.[0]?.student;
+                  if (topStudent) {
+                    e.preventDefault();
+                    handleInjectMention(topStudent);
+                  }
+                }
+              }}
+              placeholder="Escribe una nueva consulta... (Tab autocompleta @)"
               className="flex-1 bg-card border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#F47B20]/60 transition-colors"
             />
             <Button

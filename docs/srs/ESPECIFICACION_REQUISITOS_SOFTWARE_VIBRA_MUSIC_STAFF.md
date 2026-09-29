@@ -1217,6 +1217,25 @@ Para reconstruir y desplegar el sistema en cualquier servidor o plataforma:
    ```
 5. **Despliegue**: El directorio generado `dist/` o `.output/` se despliega directamente sobre Cloudflare Pages o cualquier servidor web Node.js.
 
+## 14.4. Módulo de Inducción Técnica, Operativa y Soporte Cognitivo (Copiloto Laya Sistema 1)
+* **Inferencia Local en Edge (<35 ms)**: Motor de clasificación y scoring tipado (`choice`, `score`, `noul`) implementado en TypeScript nativo sobre Cloudflare Workers & Pages sin consumo de tokens de modelos externos ni pago de WhatsApp Cloud API (ADR-0140).
+* **Pauta Anti-Colisión y Desambiguación de Homónimos**:
+  - Evaluación multidimensional de similitud fonética mediante distancia de Levenshtein ($\le 1$) y cotejo de bigramas.
+  - Ponderación contextual por instrumento, docente y nombres de apoderados en PostgreSQL.
+  - Bloqueo de suposiciones ciegas: Ante 2 o más candidatos cercanos ($< 25\text{ pts}$ de diferencia), el sistema activa el estado de desambiguación obligatoria (`isAmbiguous: true`) requiriendo confirmación interactiva de la secretaria (ADR-0141).
+* **Autocompletado con Tecla `Tab` y Sintaxis `@Menciones`**:
+  - Al escribir en el input, la tecla `Tab` autocompleta al primer alumno sugerido en formato `@Nombre Completo`.
+  - La presencia de `@Nombre` en el texto otorga 100% de certeza inmediata al motor, suprimiendo falsos positivos.
+
+## 14.5. Reglas Pedagógicas de Duración de Sesión (Intensivos 90m vs Recuperaciones 45m en Viernes/Sábado)
+* **Plan Intensivo (4 clases / 90 min)**: Sesiones semanales de 90 minutos continuos (2 bloques consecutivos de 45m), 1 vez por semana, asignadas en Jueves, Viernes o Sábados.
+* **Recuperaciones de Plan Regular en Viernes y Sábados**: Aunque Viernes y Sábados están destinados a turnos intensivos, si una sala tiene aforo disponible ($< 5\text{ alumnos}$ en ese bloque de 45m), el sistema autoriza formalmente agendar clases de recuperación de 45 minutos de alumnos de Plan Regular (ADR-0142).
+
+## 14.6. Política de Guardrails y Protección de Información Confidencial
+* **Prohibición de Extracción de Datos Sensibles**:
+  - Laya bloquea taxativamente cualquier solicitud orientada a extraer contraseñas, tokens de base de datos, credenciales bancarias o números de tarjetas de crédito / pasarelas de pago Culqi.
+  - Respuesta canónica de seguridad: *"🔒 Solicitud restringida: Por políticas de seguridad y privacidad (ADR-0142), las credenciales, accesos administrativos y datos financieros sensibles no son accesibles a través del asistente. Consulta los módulos oficiales de Cobros (/admin/facturacion) y Reportes (/admin/reportes)."*
+
 ---
 
 # 15. ETAPA DOS: PLAN DE MANTENIMIENTO, SOPORTE CONTINUO Y SLA
@@ -1246,9 +1265,9 @@ Para garantizar la continuidad operativa ininterrumpida de la escuela, se establ
 
 ---
 
-# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0137)
+# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0142)
 
-El sistema cuenta con un archivo vivo de **37 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
+El sistema cuenta con un archivo vivo de **42 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
 
 * **ADR-001**: Adopción de TanStack Start, Nitro, PostgreSQL Insforge y WhatsApp Cloud API oficial de Meta.
 * **ADR-0052 & 0053**: Autonomía de secretaría en la edición y eliminación directa de clases y supervisión de 8 clases en Regular y 4 en Intensivo.
@@ -1279,6 +1298,10 @@ El sistema cuenta con un archivo vivo de **37 Decisiones Arquitectónicas (ADR)*
 * **ADR-0136**: Arquitectura de Exportación A4 / PDF Ejecutivo en 2 Páginas Exactas: partición determinista en Página 1 (Pedagógica con Kardex) y Página 2 (Financiera, Auditoría de Abonos, Notas y Bloque de Doble Firma), prevención de huérfanos y no-wrapping monetario (`white-space: nowrap`).
 * **ADR-0137**: Calibración de Geometría de Impresión A4 y Erradicación del Desfase Horizontal -50%: supresión del offset de centrado CSS modal mediante `--tw-translate-x: 0px`, `transform: none !important`, contenedor `left: 0; width: 100%`, y anchos de tabla porcentuales fijos (`table-layout: fixed`).
 * **ADR-0138**: Erradicación de ExcludedWeeks Relativos, Prioridad Determinista de Slot en Deduplicación y Preservación Universal de Cuota para Clases de Recuperación (Makeups): eliminación definitiva de índices semanales relativos que contaminaban meses pasados y futuros en lecciones recurrentes abiertas, resolución determinista de colisiones horarias en Kardex priorizando asistencias evaluadas y recuperaciones sobre plantillas recurrentes, y garantía innegociable de inclusión de makeups pendientes bajo la máxima "Las clases no se pierden, se recuperan".
+* **ADR-0139**: Sistema Integral de Seguimiento, Retención y Renovación de Ciclos: Regla innegociable de cero vacantes de cortesía post-vencimiento. Semáforo de retención Spend = pendientes regulares + makeups agendadas + créditos por inasistencias. Verde (>2), Amarillo (1 o 2, alerta preventiva obligatoria antes de última clase), Rojo (0, culminado). Al renovar ciclo se inicia limpio con 0 créditos pendientes. Pestaña dedicada en /admin/alumnos.
+* **ADR-0140**: Motor de Decisiones Tipo Sistema 1 Laya ($0 Costo): Implementado en TypeScript nativo corriendo en Cloudflare Workers y Pages en <35ms sin dependencias de Python ni tokens externos. Triage en tiempo real con PostgreSQL (Insforge) y respeto de reglas pedagógicas ADR-0102 (Nathaly Sala C para 4-8 años y canto; Fernando Sala B para 9+ años y violín; Jeremy Sala A para guitarra y batería). Exportador de vacantes en Markdown para Meta Business Suite y CSV.
+* **ADR-0141**: Pauta Anti-Colisión de Homónimos y UI/UX Google Flow: Algoritmo Levenshtein para typos ('darma' -> 'dharma') y multidimensional (instrumento, profesor, apoderado). Detección de ambigüedad si hay 2 o más candidatos cercanos sin adivinar a ciegas. Interfaz Google Flow con cápsula flotante inferior y panel lateral derecho (460px).
+* **ADR-0142**: Reglas pedagógicas de cursos Intensivos (90m en Jue/Vie/Sáb) vs Recuperaciones de Regular (45m en Viernes/Sábados con salas libres), sistema de autocompletado con tecla Tab y sintaxis @Menciones, botón EyeOff para ocultar totalmente el agente, y módulo de inducción técnica/operativa para resolver preguntas de negocio con guardrails de seguridad financiera (bloqueo estricto de tarjetas y credenciales de dueños).
 
 ---
 
