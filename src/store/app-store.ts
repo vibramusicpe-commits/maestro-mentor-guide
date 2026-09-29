@@ -248,6 +248,16 @@ type AppState = {
   ) => number;
   remindInvoice: (id: string) => void;
   generateMonthlyInvoices: () => number;
+  // Renovación Atómica de Ciclo (ADR-0139)
+  renewStudentCycle: (
+    studentId: string,
+    options?: {
+      newStartDate?: string;
+      planPrice?: number;
+      paymentMethod?: string;
+      notes?: string;
+    }
+  ) => Promise<boolean>;
   // Configuración de Timbre Acústico (school bell.mp3)
   chimeSettings: {
     autoPlayEnabled: boolean;
@@ -3206,6 +3216,96 @@ export const useAppStore = create<AppState>()(
           teacherNotes: [note, ...s.teacherNotes.filter((n) => n.id !== note.id)],
         })),
       setTeacherNotes: (notes) => set({ teacherNotes: notes }),
+
+      // Renovación Atómica de Ciclo (ADR-0139)
+      renewStudentCycle: async (studentId, options) => {
+        const s = get();
+        const target = s.adminStudents.find((st) => isSameStudentId(st.id, studentId));
+        if (!target) return false;
+
+        const is1x = (target.modality || "").includes("1x");
+        const durationMonths = is1x ? 2 : 1;
+
+        let newStartDate = options?.newStartDate;
+        if (!newStartDate) {
+          if (target.planEndDate) {
+            const [ey, em, ed] = target.planEndDate.split("-").map(Number);
+            const nextD = new Date(ey, em - 1, ed + 1);
+            if (nextD.getDay() === 0) nextD.setDate(nextD.getDate() + 1);
+            newStartDate = `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, "0")}-${String(nextD.getDate()).padStart(2, "0")}`;
+          } else {
+            newStartDate = new Date().toISOString().slice(0, 10);
+          }
+        }
+
+        const [sy, sm, sd] = newStartDate.split("-").map(Number);
+        const endD = new Date(sy, (sm - 1) + durationMonths, sd);
+        endD.setDate(endD.getDate() - 1);
+        const newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, "0")}-${String(endD.getDate()).padStart(2, "0")}`;
+
+        const planPrice = options?.planPrice !== undefined ? options?.planPrice : (target.planPrice || 297);
+        const paymentMethod = options?.paymentMethod || target.paymentMethod || "Yape";
+
+        // 🛡️ REGLA INSTITUCIONAL: Renovación limpia sin arrastre de créditos pasados
+        const newInvoice: Invoice = {
+          id: generateUUID(),
+          family: target.family || `Familia ${target.name}`,
+          student: target.name,
+          phone: target.phone,
+          concept: `Plan ${target.modality || target.planType || "Regular"} (${target.instrument || "Piano"}) — ${target.name} (Renovación Ciclo)`,
+          amount: planPrice,
+          amountPaid: 0,
+          remainingBalance: planPrice,
+          dueDate: newStartDate,
+          daysToDue: 10,
+          status: "pendiente",
+          paymentMethod: paymentMethod as any,
+          notes: options?.notes || `Renovación de ciclo lectivo (${newStartDate} al ${newEndDate})`,
+          paymentLogs: [],
+        };
+
+        // Persistir nuevo recibo en PostgreSQL
+        backgroundCreateInvoiceInDB(s.activeRole, newInvoice, target);
+
+        // Actualizar alumno en PostgreSQL: nuevo inicio, nuevo fin, créditos en 0
+        backgroundSyncStudentToDB(s.activeRole, target.id, {
+          planStartDate: newStartDate,
+          planEndDate: newEndDate,
+          planStartMonth: newStartDate.slice(0, 7),
+          planEndMonth: newEndDate.slice(0, 7),
+          makeupCredits: 0,
+          status: "activo",
+        });
+
+        // Actualizar Zustand
+        set((state) => {
+          const updatedStudents = state.adminStudents.map((st) => {
+            if (isSameStudentId(st.id, target.id) || isMatchingStudentName(st.name, target.name)) {
+              return {
+                ...st,
+                planStartDate: newStartDate,
+                planEndDate: newEndDate,
+                planStartMonth: newStartDate.slice(0, 7),
+                planEndMonth: newEndDate.slice(0, 7),
+                makeupCredits: 0,
+                status: "activo" as const,
+                balance: (st.balance || 0) + planPrice,
+                payment: "pendiente" as const,
+                invoices: [newInvoice, ...(st.invoices || [])],
+              };
+            }
+            return st;
+          });
+
+          return {
+            adminStudents: updatedStudents,
+            invoices: [newInvoice, ...state.invoices],
+            syncQueue: [...state.syncQueue, queueItem(`Ciclo renovado · ${target.name} (${newStartDate} al ${newEndDate})`)],
+          };
+        });
+
+        return true;
+      },
     }),
 
     {

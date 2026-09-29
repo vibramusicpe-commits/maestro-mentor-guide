@@ -901,6 +901,150 @@ export function computeStudentCycleLiquidation(
 }
 
 /**
+ * ================================================================
+ * MOTOR DE RETENCIÓN & SEGUIMIENTO PREVENTIVO DE CICLOS (ADR-0139)
+ * ================================================================
+ * Reglas de Negocio Oficiales:
+ * 1. Cero Vacante de Cortesía: El seguimiento se ejecuta DÍAS PREVIOS
+ *    en fase AMARILLA (cuando restan 1 ó 2 clases/créditos).
+ * 2. Renovación Limpia: Solo se renueva cuando S_pend === 0 (0 créditos).
+ *    El avance se mide por clases cumplidas.
+ */
+export interface StudentRetentionStatus {
+  category: "en_curso" | "proximo_culminar" | "culminado" | "pausa_baja";
+  color: "green" | "yellow" | "red" | "gray";
+  remainingSessionsToDeliver: number; // S_pend = pendingRegular + pendingMakeups + unscheduledCredits
+  attendedCount: number;
+  targetQuota: number;
+  pendingCredits: number;
+  pendingRegular: number;
+  pendingMakeups: number;
+  badgeLabel: string;
+  badgeTooltip: string;
+  canRenew: boolean;
+  whatsappSuggestedType: "preventivo" | "renovacion" | "regular";
+  suggestedMessage: string;
+}
+
+export function computeStudentRetentionStatus(
+  student: AdminStudent,
+  sessions: StudentSessionItem[],
+  targetQuota: number = 8
+): StudentRetentionStatus {
+  if (student.status === "pausa" || student.status === "baja") {
+    return {
+      category: "pausa_baja",
+      color: "gray",
+      remainingSessionsToDeliver: 0,
+      attendedCount: 0,
+      targetQuota,
+      pendingCredits: 0,
+      pendingRegular: 0,
+      pendingMakeups: 0,
+      badgeLabel: "⚪ Pausa / Inactivo",
+      badgeTooltip: "Alumno en pausa o baja administrativa. Vacante disponible para reasignación.",
+      canRenew: false,
+      whatsappSuggestedType: "regular",
+      suggestedMessage: `Hola Familia ${student.family}, te saluda Secretaría de Vibra Music para coordinar el estado de ${student.name}.`,
+    };
+  }
+
+  let attendedCount = 0;
+  let missedCount = 0;
+  let justifiedCount = 0;
+  let pendingRegular = 0;
+  let pendingMakeups = 0;
+  let scheduledMakeups = 0;
+
+  sessions.forEach((s) => {
+    if (s.status === "presente" || s.status === "tarde") {
+      attendedCount++;
+    } else if (s.status === "ausente") {
+      missedCount++;
+    } else if (s.status === "justificada") {
+      justifiedCount++;
+    } else if (s.status === "pendiente") {
+      if (s.isMakeup) {
+        pendingMakeups++;
+      } else {
+        pendingRegular++;
+      }
+    }
+
+    if (s.isMakeup) {
+      scheduledMakeups++;
+    }
+  });
+
+  // Créditos pendientes por inasistencias que aún no se han agendado
+  const explicitCredits = student.makeupCredits ?? (student as any).makeup_credits ?? 0;
+  const unhandledMissed = Math.max(0, missedCount + justifiedCount - scheduledMakeups);
+  const pendingCredits = Math.max(explicitCredits, unhandledMissed);
+
+  // Sesiones pendientes por recibir (regulares + makeups agendadas + créditos sin agendar)
+  const remaining = pendingRegular + pendingMakeups + pendingCredits;
+
+  const firstLesson = student.scheduleLessons?.[0];
+  const scheduleText = firstLesson ? `${firstLesson.day} ${firstLesson.time} (${firstLesson.room || 'Sala'})` : "su horario habitual";
+
+  if (remaining === 0) {
+    return {
+      category: "culminado",
+      color: "red",
+      remainingSessionsToDeliver: 0,
+      attendedCount,
+      targetQuota,
+      pendingCredits: 0,
+      pendingRegular: 0,
+      pendingMakeups: 0,
+      badgeLabel: `🔴 Culminado (${attendedCount}/${targetQuota})`,
+      badgeTooltip: "Completó al 100% sus clases y créditos. Listo para renovación limpia del nuevo ciclo.",
+      canRenew: true,
+      whatsappSuggestedType: "renovacion",
+      suggestedMessage: `¡Hola Familia ${student.family}! 🎉 Te saludamos con mucha alegría de Vibra Music. Te contamos que ${student.name} ha culminado con 100% de éxito sus clases de ${student.instrument} con el Prof. ${student.teacher || 'de música'}. Para asegurar su vacante en su mismo horario (${scheduleText}) e iniciar su nuevo ciclo sin interrupciones, les adjuntamos los datos para su renovación mensual. ¿Desean continuar por Yape, Plin o Transferencia?`,
+    };
+  }
+
+  if (remaining === 1 || remaining === 2) {
+    const detailLabel = pendingCredits > 0
+      ? `🟡 Restan ${remaining} (${pendingCredits} créd.)`
+      : `🟡 Restan ${remaining} ${remaining === 1 ? 'clase' : 'clases'}`;
+
+    return {
+      category: "proximo_culminar",
+      color: "yellow",
+      remainingSessionsToDeliver: remaining,
+      attendedCount,
+      targetQuota,
+      pendingCredits,
+      pendingRegular,
+      pendingMakeups,
+      badgeLabel: detailLabel,
+      badgeTooltip: `Alerta preventiva: Restan ${remaining} ${remaining === 1 ? 'sesión/crédito' : 'sesiones/créditos'} por cumplir. Contactar días previos para consultar continuidad y no perder la vacante.`,
+      canRenew: false,
+      whatsappSuggestedType: "preventivo",
+      suggestedMessage: `¡Hola Familia ${student.family}! 🎵 Te saluda Secretaría de Vibra Music respecto a las clases de ${student.name} (${student.instrument}). Le ${remaining === 1 ? 'resta solo 1 clase/crédito' : `restan ${remaining} clases/créditos`} para culminar su ciclo mensual con el Prof. ${student.teacher || 'de música'}. Nos comunicamos con anticipación para consultarles si continuarán el próximo mes y así asegurar su vacante en su horario (${scheduleText}), ya que tenemos alumnos en lista de espera. ¡Quedamos atentos a su confirmación!`,
+    };
+  }
+
+  return {
+    category: "en_curso",
+    color: "green",
+    remainingSessionsToDeliver: remaining,
+    attendedCount,
+    targetQuota,
+    pendingCredits,
+    pendingRegular,
+    pendingMakeups,
+    badgeLabel: `🟢 En Curso (${attendedCount}/${targetQuota})`,
+    badgeTooltip: `Ciclo activo en progreso normal (${remaining} sesiones por impartir).`,
+    canRenew: false,
+    whatsappSuggestedType: "regular",
+    suggestedMessage: `Hola Familia ${student.family}, te saluda Secretaría de Vibra Music respecto al seguimiento de clases de ${student.name} (${student.instrument}).`,
+  };
+}
+
+/**
  * Genera el documento estructurado en Markdown apto para lectura humana y parsing por LLMs.
  */
 export function generateStudentAuditMarkdown(params: {

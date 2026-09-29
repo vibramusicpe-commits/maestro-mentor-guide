@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { GraduationCap, ShieldCheck, DoorOpen, Clock, Sparkles } from "lucide-react";
+import { GraduationCap, ShieldCheck, DoorOpen, Clock, Sparkles, RotateCw } from "lucide-react";
 import { StudentsTable } from "@/components/admin/students-table";
+import { StudentRenewalsRetentionPanel } from "@/components/admin/student-renewals-retention-panel";
 import { VacancyAvailabilityPanel } from "@/components/admin/vacancy-availability-panel";
 import { TeacherNotesModeration } from "@/components/admin/teacher-notes-moderation";
 import { StudentCleanupPanel } from "@/components/admin/student-cleanup-panel";
 import { useAppStore } from "@/store/app-store";
+import { computeStudentCycleSessions, computeStudentRetentionStatus } from "@/lib/kardex-calculator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -29,11 +31,33 @@ export const Route = createFileRoute("/admin/alumnos")({
 });
 
 function AdminAlumnosPage() {
-  const [activeTab, setActiveTab] = useState<"directorio" | "notas" | "vacantes">("directorio");
+  const [activeTab, setActiveTab] = useState<"directorio" | "renovaciones" | "notas" | "vacantes">("directorio");
   const [mounted, setMounted] = useState(false);
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
   const teacherNotes = useAppStore((s) => s.teacherNotes);
   const pendingCount = teacherNotes.filter((n) => n.status === "pendiente").length;
+  const students = useAppStore((s) => s.adminStudents);
+  const schedule = useAppStore((s) => s.schedule);
+
+  // Cantidad de alumnos que requieren atención (amarillos: por culminar + rojos: culminados)
+  const attentionCount = useMemo(() => {
+    return students
+      .filter((st) => st.status === "activo")
+      .reduce((acc, st) => {
+        const modalityStr = (st.modality || "").toLowerCase();
+        const isIntensive = modalityStr.includes("inten") || modalityStr.includes("90 min");
+        const targetQuota = isIntensive ? 4 : (st.packageTotalSessions || 8);
+        const sessions = computeStudentCycleSessions({
+          student: st,
+          allSchedule: schedule,
+        });
+        const ret = computeStudentRetentionStatus(st, sessions, targetQuota);
+        if (ret.category === "proximo_culminar" || ret.category === "culminado") {
+          return acc + 1;
+        }
+        return acc;
+      }, 0);
+  }, [students, schedule]);
 
   useEffect(() => {
     setMounted(true);
@@ -41,7 +65,7 @@ function AdminAlumnosPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const tab = params.get("tab");
-        if (tab === "notas" || tab === "vacantes" || tab === "directorio") {
+        if (tab === "notas" || tab === "vacantes" || tab === "directorio" || tab === "renovaciones") {
           setActiveTab(tab);
         }
       }
@@ -86,6 +110,27 @@ function AdminAlumnosPage() {
 
             <button
               type="button"
+              onClick={() => setActiveTab("renovaciones")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
+                activeTab === "renovaciones"
+                  ? "bg-card text-foreground shadow-xs border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <RotateCw className="h-3.5 w-3.5 text-[#F47B20]" />
+              <span>Seguimiento & Renovación</span>
+              {mounted && attentionCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="ml-1 text-[10px] px-1.5 py-0 h-4 font-black bg-[#F47B20] text-black animate-pulse"
+                >
+                  {attentionCount}
+                </Badge>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab("notas")}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
                 activeTab === "notas"
@@ -121,12 +166,9 @@ function AdminAlumnosPage() {
         </div>
       </div>
 
-      {activeTab === "directorio" && (
-        <div className="space-y-6">
-          <StudentsTable />
-          <VacancyAvailabilityPanel />
-        </div>
-      )}
+      {activeTab === "directorio" && <StudentsTable />}
+
+      {activeTab === "renovaciones" && <StudentRenewalsRetentionPanel />}
 
       {activeTab === "notas" && <TeacherNotesModeration />}
 

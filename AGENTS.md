@@ -805,4 +805,23 @@ inferencia.
    - El ciclo activo de un Plan Regular debe proyectar **exactamente 8 clases** (`finalSessions = combined.slice(0, targetQuota)`), ni más ni menos.
    - Si el alumno reprograma una falta a una fecha posterior dentro de su ciclo, dicha sesión ocupa el casillero correspondiente completando rigurosamente las 8 clases contratadas sin inflar el total a 9, 10 u 11 sesiones.
 
+---
+
+### 39. Sistema Integral de Seguimiento, Retención y Renovación de Ciclos (ADR-0139)
+1. **Regla Innegociable: Cero Vacante de Cortesía y Contacto Preventivo Anticipado**:
+   - En Vibra Music **no existe plazo de gracia o cortesía posterior al vencimiento**. Un cupo docente (aforo máximo estricto de 5 alumnos por sala) no puede quedar congelado esperando si el alumno renueva o no.
+   - La comunicación preventiva con el apoderado se realiza obligatoriamente durante la fase **🟡 AMARILLA (cuando restan 1 ó 2 clases o créditos por cumplir)** para consultar con días de anticipación si continuará el siguiente mes y asegurar su horario en sala antes de su última sesión.
+2. **Condición Matemática de Retención ($S_{pend}$)**:
+   - $S_{pend} = \text{pendientes regulares} + \text{makeups agendadas pendientes} + \text{créditos por inasistencia sin agendar}$.
+   - **🟢 VERDE (`en_curso`)**: $S_{pend} > 2$. Progreso lectivo normal en sala.
+   - **🟡 AMARILLO (`proximo_culminar`)**: $S_{pend} \in \{1, 2\}$. Alerta preventiva obligatoria con botón de WhatsApp preventivo pre-cargado.
+   - **🔴 ROJO (`culminado`)**: $S_{pend} === 0$. Completó todas sus clases y créditos. Botón de renovación habilitado.
+   - **⚪ GRIS (`pausa_baja`)**: Alumno en pausa o baja administrativa. Vacante disponible para nuevos alumnos.
+3. **Renovación Exclusiva con 0 Créditos Pendientes (`renewStudentCycle`)**:
+   - Un alumno solo puede renovar ciclo cuando ha cumplido el 100% de sus clases y recuperado todas sus faltas ($S_{pend} === 0$). El avance se mide por clases cumplidas; el nuevo mes arranca limpio con sus 8 clases nuevas (o 4 intensivas) sin arrastrar créditos anteriores.
+   - La acción calcula `newStartDate` (+1 día hábil tras `planEndDate`) y `newEndDate` (+1 mes o +2 meses en 1x/sem), genera el recibo en estado `"pendiente"` en PostgreSQL (`invoices`) y sincroniza la ficha en `students` con `makeup_credits: 0`.
+4. **Despeje Visual del Dashboard y Pestaña Dedicada**:
+   - El dashboard principal (`/admin`) se mantiene limpio y sin saturación.
+   - El seguimiento diario de secretaría vive en su propia pestaña dedicada **`[🔄 Seguimiento & Renovación]`** dentro de `/admin/alumnos` con badge en vivo de alumnos que requieren atención (`proximo_culminar` + `culminado`).
+
 

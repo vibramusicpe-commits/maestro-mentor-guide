@@ -6,6 +6,7 @@ import {
   XCircle,
   AlertTriangle,
   RotateCcw,
+  RotateCw,
   Copy,
   Check,
   Printer,
@@ -27,6 +28,8 @@ import {
 } from "lucide-react";
 import { CourseTransitionDialog } from "@/components/admin/course-transition-dialog";
 import { StudentAuditReportDialog } from "@/components/admin/student-audit-report-dialog";
+import { RenewStudentCycleDialog } from "@/components/admin/renew-student-cycle-dialog";
+import { computeStudentRetentionStatus } from "@/lib/kardex-calculator";
 import { toast } from "sonner";
 import {
   useAppStore,
@@ -205,6 +208,7 @@ export function StudentAttendanceKardex({
   const [addSessionReason, setAddSessionReason] = useState<string>("adelanto");
   const [isTransitionModalOpen, setIsTransitionModalOpen] = useState(false);
   const [isAuditReportOpen, setIsAuditReportOpen] = useState(false);
+  const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
 
   // Semanas del mes seleccionado
   const monthWeeks = useMemo(() => {
@@ -500,6 +504,11 @@ export function StudentAttendanceKardex({
       rate,
     };
   }, [sessions]);
+
+  // 🛡️ Motor de Retención & Seguimiento Preventivo (ADR-0139)
+  const retentionStatus = useMemo(() => {
+    return computeStudentRetentionStatus(liveStudent, sessions, targetQuota);
+  }, [liveStudent, sessions, targetQuota]);
 
   // Para alumnos con Paquete Flexible: conteo global de todas las clases consumidas en su bolsa histórica
   const totalPackageAttended = useMemo(() => {
@@ -1050,6 +1059,46 @@ export function StudentAttendanceKardex({
               Gestionar o Revertir Transición
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* 🔄 Banner de Seguimiento y Retención Preventiva (ADR-0139) */}
+      {retentionStatus.category === "proximo_culminar" && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div className="space-y-0.5 min-w-0 flex-1">
+            <p className="text-xs font-black text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              <span>🟡 Seguimiento Preventivo: {retentionStatus.badgeLabel}</span>
+            </p>
+            <p className="text-[11px] text-muted-foreground font-medium">
+              {retentionStatus.badgeTooltip}
+            </p>
+          </div>
+          <Badge className="bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-500/40 shrink-0 font-bold text-xs">
+            {retentionStatus.badgeLabel}
+          </Badge>
+        </div>
+      )}
+
+      {retentionStatus.category === "culminado" && (
+        <div className="rounded-2xl border border-[#F47B20]/40 bg-[#F47B20]/10 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div className="space-y-0.5 min-w-0 flex-1">
+            <p className="text-xs font-black text-foreground flex items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+              <span>🔴 Ciclo Culminado al 100% ({retentionStatus.attendedCount}/{retentionStatus.targetQuota} Asistidas)</span>
+            </p>
+            <p className="text-[11px] text-muted-foreground font-medium">
+              El alumno completó todas las sesiones contratadas con 0 créditos pendientes. Listo para renovar su nuevo mes lectivo.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setIsRenewModalOpen(true)}
+            className="gap-1.5 font-bold text-xs bg-[#F47B20] text-black hover:bg-[#F47B20]/90 shadow-md shrink-0"
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+            <span>Renovar Ciclo (+1 Mes)</span>
+          </Button>
         </div>
       )}
 
@@ -1828,6 +1877,13 @@ export function StudentAttendanceKardex({
       <StudentAuditReportDialog
         open={isAuditReportOpen}
         onOpenChange={setIsAuditReportOpen}
+        student={liveStudent}
+      />
+
+      {/* Diálogo Modal de Renovación de Ciclo (ADR-0139) */}
+      <RenewStudentCycleDialog
+        isOpen={isRenewModalOpen}
+        onClose={() => setIsRenewModalOpen(false)}
         student={liveStudent}
       />
     </div>
