@@ -43,8 +43,8 @@ import {
   DialogTitle,
   DialogTitle as DialogTitleComponent,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { AutopilotTourOverlay } from "@/components/admin/autopilot-tour-overlay";
+import { LayaCopilotModal } from "@/components/admin/laya-copilot-modal";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: () => {
@@ -92,6 +92,7 @@ function AdminLayout() {
   const [open, setOpen] = useState(false); // Mobile drawer
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLayaOpen, setIsLayaOpen] = useState(false);
   const navigate = useNavigate();
 
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
@@ -217,9 +218,13 @@ function AdminLayout() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setIsSearchOpen((prev) => !prev);
+      }
+      if ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "l") || (e.altKey && e.key.toLowerCase() === "l")) {
+        e.preventDefault();
+        setIsLayaOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -413,6 +418,19 @@ function AdminLayout() {
           {/* Fichaje de Horario y Turno para Karla / Dirección */}
           <AdminShiftClockWidget />
 
+          {/* Copiloto Laya - Decisiones Rápidas & Snapshot Meta */}
+          <button
+            onClick={() => setIsLayaOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-gradient-to-r from-amber-500/15 to-orange-500/15 hover:from-amber-500/25 hover:to-orange-500/25 px-3 py-1 text-xs font-bold text-amber-500 dark:text-amber-400 transition-all cursor-pointer shadow-2xs group"
+            title="Abrir Copiloto Laya: Triage de Reprogramaciones y Snapshot para Meta (Ctrl+Shift+L)"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-amber-500 animate-pulse group-hover:scale-110 transition-transform" />
+            <span className="hidden sm:inline">⚡ Copiloto Laya</span>
+            <kbd className="hidden xl:inline text-[9px] font-mono bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-amber-700 dark:text-amber-300">
+              Ctrl+Shift+L
+            </kbd>
+          </button>
+
           {/* Toggle Modo Noche / Modo Día */}
           <button
             onClick={toggleTheme}
@@ -513,6 +531,9 @@ function AdminLayout() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Copiloto Laya para Decisiones Rápidas de Secretaría & Exportador Meta */}
+      <LayaCopilotModal isOpen={isLayaOpen} onClose={() => setIsLayaOpen(false)} />
 
       {/* Overlay Global de Tour Autopiloto en Pantalla Completa con Cursor Virtual */}
       <AutopilotTourOverlay />

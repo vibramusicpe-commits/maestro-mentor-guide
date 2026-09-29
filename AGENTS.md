@@ -824,4 +824,26 @@ inferencia.
    - El dashboard principal (`/admin`) se mantiene limpio y sin saturación.
    - El seguimiento diario de secretaría vive en su propia pestaña dedicada **`[🔄 Seguimiento & Renovación]`** dentro de `/admin/alumnos` con badge en vivo de alumnos que requieren atención (`proximo_culminar` + `culminado`).
 
+---
+
+### 40. Motor de Decisiones Tipo Sistema 1 Laya ($0 Costo), Copiloto de Triage y Exportador de Contexto para Meta (ADR-0140)
+1. **Costo Cero Absoluto ($0 Cost)**:
+   - No requiere WhatsApp Cloud API ni consumo de tokens por mensaje.
+   - El motor de inferencia corre localmente en el cliente con arquitectura encoder no-autoregresiva tipo Sistema 1 (<35 ms de latencia por decisión), usando esquemas tipados (`choice`, `score`, `noul`).
+   - Los envíos de respuesta a padres de familia se despachan sin costo a través del protocolo web `wa.me` con mensaje URL-encoded.
+2. **Triage Quirúrgico de Reprogramaciones y Aforo (ADR-0102 Compliance)**:
+   - Toda solicitud de reprogramación procesada por Laya extrae el alumno de la nómina activa, determina la edad, nivel e instrumento y asigna rigurosamente el docente y sala correctos:
+     - Prof. Nathaly: Sala C (Piano Infantil 4-8 años y Canto).
+     - Prof. Fernando: Sala B (Piano estándar 9+ años y Violín).
+     - Prof. Jeremy: Sala A (Guitarra y Batería).
+   - Verifica el aforo en vivo sobre `schedule` y `adminStudents` en la franja solicitada:
+     - 🟢 **Disponible (<5 alumnos)**: Habilita el agendamiento directo en el Kardex y genera la plantilla de confirmación por WhatsApp.
+     - 🔴 **Lleno (5/5)**: Prohíbe el sobrecupo y calcula matemáticamente las mejores 2 opciones alternativas de horario con el docente en la misma semana.
+3. **Exportador de Contexto en Tiempo Real para Agente de Meta Business Suite**:
+   - Incluye botón dedicado **"📋 Copiar Snapshot para Agente Meta Business"** que sintetiza la matriz viva de disponibilidad de salas hora por hora en formato Markdown estructurado para inyectar como prompt context en Meta Business Suite / WhatsApp AI.
+   - Incluye botón **"📥 Descargar Horarios Disponibles (.CSV)"** para alimentación de catálogos y sistemas externos sin intervención humana.
+4. **Atajo Universal y Accesibilidad**:
+   - Accesible globalmente en la barra superior del panel administrativo (`⚡ Copiloto Laya`) y mediante el atajo de teclado **`Ctrl+Shift+L`**.
+
+
 
