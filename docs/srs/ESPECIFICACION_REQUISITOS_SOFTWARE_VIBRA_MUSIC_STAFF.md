@@ -1265,9 +1265,9 @@ Para garantizar la continuidad operativa ininterrumpida de la escuela, se establ
 
 ---
 
-# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0142)
+# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0143)
 
-El sistema cuenta con un archivo vivo de **42 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
+El sistema cuenta con un archivo vivo de **43 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
 
 * **ADR-001**: Adopción de TanStack Start, Nitro, PostgreSQL Insforge y WhatsApp Cloud API oficial de Meta.
 * **ADR-0052 & 0053**: Autonomía de secretaría en la edición y eliminación directa de clases y supervisión de 8 clases en Regular y 4 en Intensivo.
@@ -1302,6 +1302,7 @@ El sistema cuenta con un archivo vivo de **42 Decisiones Arquitectónicas (ADR)*
 * **ADR-0140**: Motor de Decisiones Tipo Sistema 1 Laya ($0 Costo): Implementado en TypeScript nativo corriendo en Cloudflare Workers y Pages en <35ms sin dependencias de Python ni tokens externos. Triage en tiempo real con PostgreSQL (Insforge) y respeto de reglas pedagógicas ADR-0102 (Nathaly Sala C para 4-8 años y canto; Fernando Sala B para 9+ años y violín; Jeremy Sala A para guitarra y batería). Exportador de vacantes en Markdown para Meta Business Suite y CSV.
 * **ADR-0141**: Pauta Anti-Colisión de Homónimos y UI/UX Google Flow: Algoritmo Levenshtein para typos ('darma' -> 'dharma') y multidimensional (instrumento, profesor, apoderado). Detección de ambigüedad si hay 2 o más candidatos cercanos sin adivinar a ciegas. Interfaz Google Flow con cápsula flotante inferior y panel lateral derecho (460px).
 * **ADR-0142**: Reglas pedagógicas de cursos Intensivos (90m en Jue/Vie/Sáb) vs Recuperaciones de Regular (45m en Viernes/Sábados con salas libres), sistema de autocompletado con tecla Tab y sintaxis @Menciones, botón EyeOff para ocultar totalmente el agente, y módulo de inducción técnica/operativa para resolver preguntas de negocio con guardrails de seguridad financiera (bloqueo estricto de tarjetas y credenciales de dueños).
+* **ADR-0143**: Base de Conocimiento Pedagógico en Copiloto Laya (Categorías por Edad, Equivalencia Master = Adulto y Convivencia de Planes): Integración en Sistema 1 de resolución determinista de categorías (Infantil 5-6 años, Piano Infantil 4-8 con Nathaly en Sala C, Junior 7-12, Juvenil 13-17 y Master 18+). Equivalencia oficial e innegociable Master = Adulto con persistencia transparente en PostgreSQL (`ADULTO`) y etiqueta visual `MASTER (18+)`. Reglas de convivencia en sala: Junior y Master prohibidos juntos; 45 min no convive con 90 min; Viernes/Sábados habilitados para recuperaciones de 45m si hay aforo (<5 alumnos). Formateo automático de respuestas estructuradas para WhatsApp Web.
 
 ---
 

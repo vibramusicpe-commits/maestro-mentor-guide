@@ -13,6 +13,10 @@ export interface AcademyKnowledgeResponse {
     | "ciclo_activacion"
     | "intensivo_recuperacion"
     | "aforos_docentes"
+    | "categorias_edad"
+    | "master_adulto"
+    | "convivencia_salas"
+    | "planes_estudio"
     | "renovacion_retencion"
     | "pack_utiles_pagos"
     | "seguridad_restringida"
@@ -180,7 +184,178 @@ export function resolveAcademyKnowledge(text: string): AcademyKnowledgeResponse 
     };
   }
 
-  // 5. ASIGNACIÓN DOCENTE, SALAS Y AFOROS (ADR-0102)
+  // 5. EQUIVALENCIA CANÓNICA: MASTER ES IGUAL A ADULTO (ADR-0121)
+  const isMasterAdultoQuery =
+    (norm.includes("master") &&
+      (norm.includes("adult") ||
+        norm.includes("igual") ||
+        norm.includes("mismo") ||
+        norm.includes("diferen") ||
+        norm.includes("que es") ||
+        norm.includes("significa") ||
+        norm.includes("edad") ||
+        norm.includes("rango") ||
+        norm.includes("quien es"))) ||
+    (norm.includes("adulto") &&
+      (norm.includes("master") || norm.includes("categoria") || norm.includes("edad"))) ||
+    norm === "master" ||
+    norm === "categoria master" ||
+    norm === "adulto" ||
+    norm === "categoria adulto" ||
+    norm.includes("master es adulto") ||
+    norm.includes("master es igual");
+
+  if (isMasterAdultoQuery) {
+    return {
+      isMatch: true,
+      isRestricted: false,
+      category: "master_adulto",
+      title: "🎓 Equivalencia Oficial: Master es Igual a Adulto (ADR-0121)",
+      markdownContent:
+        "**SÍ, la categoría Master es exactamente igual a Adulto (alumnos de 18 años a más)**.\n\n" +
+        "Pautas normativas y de persistencia oficial en Vibra Music:\n\n" +
+        "• **Compatibilidad en PostgreSQL (ADR-0121)**:\n" +
+        "  - En la base de datos PostgreSQL se almacena bajo el valor histórico `ADULTO` para garantizar compatibilidad técnica sin romper registros de producción.\n" +
+        "  - En la webapp, fichas de alumno y vista del horario semanal se presenta oficialmente con la etiqueta visible **`MASTER (18+)`**.\n\n" +
+        "• **Reglas Estrictas de Convivencia en Sala (ADR-0121)**:\n" +
+        "  - ✅ **SÍ puede compartir sala** con la categoría **Juvenil (13 a 17 años)** hasta el aforo de 5 alumnos.\n" +
+        "  - ❌ **TERMINANTEMENTE PROHIBIDO compartir sala** con la categoría **Junior (7 a 12 años)** para cuidar la madurez del grupo y la metodología formativa.\n\n" +
+        "• **Docentes y Salas Asignadas**:\n" +
+        "  - **Piano y Violín**: Prof. Fernando (Sala B).\n" +
+        "  - **Guitarra y Batería**: Prof. Jeremy (Sala A).\n" +
+        "  - **Aforo**: Máximo 5 alumnos por turno de 45 minutos.",
+    };
+  }
+
+  // 6. CATEGORÍAS OFICIALES POR EDAD, RANGOS Y SALAS (ADR-0121 / ADR-0102)
+  const isCategoriasEdadQuery =
+    (norm.includes("infantil") &&
+      (norm.includes("edad") ||
+        norm.includes("categoria") ||
+        norm.includes("anos") ||
+        norm.includes("rango") ||
+        norm.includes("que es") ||
+        norm.includes("cuando") ||
+        norm.includes("cuanto") ||
+        norm.includes("piano infantil") ||
+        norm.includes("clase"))) ||
+    norm.includes("categoria de edad") ||
+    norm.includes("categorias de edad") ||
+    norm.includes("rango de edad") ||
+    norm.includes("rangos de edad") ||
+    norm.includes("que categorias") ||
+    norm.includes("cuales son las categorias") ||
+    norm.includes("categoria por edad") ||
+    norm.includes("edades de los alumnos") ||
+    norm.includes("que edad") ||
+    ((norm.includes("junior") || norm.includes("juvenil") || norm.includes("estimulacion")) &&
+      (norm.includes("edad") || norm.includes("anos") || norm.includes("categoria") || norm.includes("rango"))) ||
+    norm === "infantil" ||
+    norm === "categoria infantil" ||
+    norm === "junior" ||
+    norm === "juvenil" ||
+    norm === "estimulacion musical";
+
+  if (isCategoriasEdadQuery) {
+    return {
+      isMatch: true,
+      isRestricted: false,
+      category: "categorias_edad",
+      title: "👶 Categorías Oficiales por Rango de Edad y Salas (ADR-0121 / ADR-0102)",
+      markdownContent:
+        "En Vibra Music Staff, los alumnos se clasifican de forma innegociable según su edad y nivel técnico:\n\n" +
+        "1. **👶 Estimulación Musical (4 a 5 años)**:\n" +
+        "   - **Prof. Claudia (Sala D)** · Aforo máx. 5 niños.\n" +
+        "   - **Sala Única**: Prohibido mezclar con otras edades o niveles.\n\n" +
+        "2. **🧒 Infantil (5 a 6 años)**:\n" +
+        "   - **Prof. Nathaly (Sala C)** · Aforo máx. 5 niños.\n" +
+        "   - **Sala Única**: Solo comparte con niños de su misma categoría (5-6 años). Prohibido mezclar con alumnos mayores.\n" +
+        "   - *Piano Infantil*: Abarca de **4 a 8 años** (categorías Infantil, Tiny, Junior inicial) dictado exclusivamente por la Prof. Nathaly en Sala C (ADR-0102).\n\n" +
+        "3. **🎒 Junior (7 a 12 años)**:\n" +
+        "   - Jeremy (Sala A) / Fernando (Sala B) según instrumento.\n" +
+        "   - ✅ Puede compartir sala con **Juvenil (13 a 17 años)**.\n" +
+        "   - ❌ **PROHIBIDO compartir sala con Master (18+)**.\n\n" +
+        "4. **🧑 Juvenil (13 a 17 años)**:\n" +
+        "   - Jeremy (Sala A) / Fernando (Sala B).\n" +
+        "   - **Puente etario**: Puede compartir sala tanto con Junior (7-12) como con Master (18+).\n\n" +
+        "5. **🧑‍🎓 Master = Adulto (18 a + años)**:\n" +
+        "   - Jeremy (Sala A) / Fernando (Sala B).\n" +
+        "   - ✅ Comparte con Juvenil (13-17). ❌ **PROHIBIDO con Junior (7-12)**. (En PostgreSQL se almacena como `ADULTO`).\n\n" +
+        "6. **🎯 Personalizado y Demos de Nivelación**:\n" +
+        "   - **Aforo = 1 alumno máx.** (Aislamiento total, 45 min). Jamás comparte sala con otros alumnos.",
+    };
+  }
+
+  // 7. REGLAS PEDAGÓGICAS DE CONVIVENCIA Y CRUCES EN SALA (ADR-0121)
+  const isConvivenciaSalasQuery =
+    norm.includes("compartir sala") ||
+    norm.includes("comparten sala") ||
+    norm.includes("convivencia") ||
+    norm.includes("reglas de convivencia") ||
+    norm.includes("cruces de sala") ||
+    norm.includes("mezclar alumnos") ||
+    norm.includes("mezclar edades") ||
+    (norm.includes("junior") && norm.includes("master")) ||
+    (norm.includes("master") && norm.includes("junior")) ||
+    norm.includes("junior puede") ||
+    norm.includes("master puede") ||
+    norm.includes("infantil puede") ||
+    (norm.includes("45") && norm.includes("90")) ||
+    norm.includes("45 min con 90");
+
+  if (isConvivenciaSalasQuery) {
+    return {
+      isMatch: true,
+      isRestricted: false,
+      category: "convivencia_salas",
+      title: "🏛️ Reglas Pedagógicas de Convivencia y Cruces en Sala (ADR-0121)",
+      markdownContent:
+        "Pautas oficiales de convivencia para agendar clases sin cruces pedagógicos:\n\n" +
+        "• **Convivencia Etaria (¿Quiénes pueden compartir sala?)**:\n" +
+        "  - ✅ **Junior (7-12) + Juvenil (13-17)**: SÍ está permitido.\n" +
+        "  - ✅ **Juvenil (13-17) + Master (18+)**: SÍ está permitido.\n" +
+        "  - ❌ **Junior (7-12) + Master (18+)**: **TERMINANTEMENTE PROHIBIDO**.\n" +
+        "  - ❌ **Estimulación (4-5) e Infantil (5-6)**: **Sala Única** (jamás se mezclan con otras categorías).\n" +
+        "  - ❌ **Personalizado**: Aforo estricto de 1 alumno (aislamiento absoluto).\n\n" +
+        "• **Convivencia por Duración de Sesión (45 min vs. 90 min)**:\n" +
+        "  - ✅ **Sesiones de 45 min** (Regular 2x, Regular 1x y Flexible 45m) SÍ pueden convivir en la misma sala hasta 5 alumnos si respetan la edad.\n" +
+        "  - ❌ **Sesiones de 90 min (Intensivo)** NO pueden convivir con sesiones de 45 min porque la entrada y salida de alumnos interrumpe la concentración (salvo Paquete Flexible de 90m).",
+    };
+  }
+
+  // 8. MODALIDADES Y PLANES DE ESTUDIO (ADR-0110 / ADR-0113)
+  const isPlanesEstudioQuery =
+    norm.includes("regular 1x") ||
+    norm.includes("regular 2x") ||
+    norm.includes("regular extenso") ||
+    norm.includes("paquete flexible") ||
+    norm.includes("a demanda") ||
+    ((norm.includes("diferencia") || norm.includes("comparar")) &&
+      (norm.includes("regular") || norm.includes("intensivo"))) ||
+    norm.includes("modalidades de estudio") ||
+    norm.includes("tipos de planes") ||
+    norm.includes("modalidades");
+
+  if (isPlanesEstudioQuery) {
+    return {
+      isMatch: true,
+      isRestricted: false,
+      category: "planes_estudio",
+      title: "🎵 Planes de Estudio, Frecuencias y Duración (ADR-0110 / ADR-0113)",
+      markdownContent:
+        "Modalidades formativas oficiales en Vibra Music:\n\n" +
+        "• **Plan Regular Normal (2x/sem · 45 min)**:\n" +
+        "  - **8 clases al mes** en Días Pareados (L-M, M-J o V-S). Tarifa: S/ 297/mes.\n\n" +
+        "• **Plan Regular Extenso (1x/sem · 45 min)**:\n" +
+        "  - **8 clases a lo largo de 2 meses** (1 clase por semana de 45m). Pensado para alumnos con agendas ocupadas.\n\n" +
+        "• **Plan Intensivo (1x/sem · 90 min)**:\n" +
+        "  - **4 clases al mes** de **90 minutos continuos** (2 bloques de 45m seguidos). Días: Jueves, Viernes o Sábados. Tarifa: S/ 297/mes.\n\n" +
+        "• **Paquete Flexible (A demanda · 45 min por defecto)**:\n" +
+        "  - Bolsas de clases (ej. 24 sesiones a S/ 500). Vigencia por consumo de clases contratadas, configurable en 1x ó 2x por semana.",
+    };
+  }
+
+  // 9. ASIGNACIÓN DOCENTE, SALAS Y AFOROS (ADR-0102)
   if (
     norm.includes("profesores y salas") ||
     norm.includes("docentes y salas") ||

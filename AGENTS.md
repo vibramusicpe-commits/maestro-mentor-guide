@@ -880,3 +880,24 @@ inferencia.
 6. **Saneamiento de Plantillas de WhatsApp**:
    - Supresión de duplicación de cadenas como `"Familia Familia ..."` mediante normalización de prefijos (`replace(/^familia\s+/i, "").trim()`).
 
+---
+
+### 43. Base de Conocimiento Pedagógico en Copiloto Laya: Categorías por Edad, Equivalencia Master = Adulto y Convivencia de Planes (ADR-0143)
+1. **Equivalencia Oficial Master = Adulto (ADR-0121)**:
+   - **SÍ, Master es exactamente igual a Adulto (alumnos de 18 años a más)**.
+   - En la base de datos PostgreSQL se persiste bajo el valor histórico `ADULTO` por compatibilidad técnica sin romper migraciones ni llaves foráneas. En el frontend se muestra oficialmente como **`MASTER (18+)`**.
+   - **Convivencia en Sala**: Los alumnos Master (18+) pueden compartir sala con la categoría **Juvenil (13 a 17 años)**, pero tienen **TERMINANTEMENTE PROHIBIDO compartir sala con la categoría Junior (7 a 12 años)**.
+2. **Categorías Oficiales por Rango de Edad y Aislamiento (ADR-0102 / ADR-0121)**:
+   - **Estimulación Musical (4 a 5 años)**: Prof. Claudia en Sala D. Sala Única (prohibido mezclar con otras edades). Aforo máx. 5.
+   - **Infantil (5 a 6 años)**: Prof. Nathaly en Sala C. Sala Única (prohibido mezclar con mayores). Aforo máx. 5.
+     - **Piano Infantil**: Especialidad de **4 a 8 años** (Infantil, Tiny, Junior inicial) a cargo exclusivo de la Prof. Nathaly en Sala C.
+   - **Junior (7 a 12 años)**: Jeremy (Sala A) / Fernando (Sala B). Comparte con Juvenil. Prohibido con Master.
+   - **Juvenil (13 a 17 años)**: Jeremy (Sala A) / Fernando (Sala B). Puente etario: comparte con Junior o Master.
+   - **Personalizado y Demos de Nivelación**: Aforo = 1 alumno máx. (Aislamiento total, 45 min).
+3. **Convivencia de Planes por Duración (45 min vs. 90 min)**:
+   - Sesiones de **45 minutos** (Regular 2x, Regular 1x, Flexible 45m) SÍ pueden convivir en la misma sala hasta 5 alumnos respetando la compatibilidad de edad.
+   - Sesiones de **90 minutos** (Intensivo) NO pueden convivir en sala con sesiones de 45 min porque la rotación de alumnos a los 45 minutos distrae y rompe la concentración del intensivo.
+   - Los Viernes y Sábados pueden emplearse formalmente para recuperaciones de 45 minutos de Plan Regular siempre que haya cupo libre (<5 alumnos).
+4. **Resolución Determinista en Laya**:
+   - `laya-knowledge-base.ts` y `laya-realtime-matcher.ts` integran matchers semánticos y plantillas de WhatsApp para `master_adulto`, `categorias_edad`, `convivencia_salas` y `planes_estudio`.
+

@@ -573,6 +573,48 @@ export function buildWhatsAppReply(params: {
         `¡Quedamos atentos para reservar la sala!`
       );
     }
+    if (academyKnowledge?.category === "master_adulto") {
+      return (
+        `¡Hola! Te saluda Secretaría de Vibra Music Staff. 🎵\n\n` +
+        `¡Sí, exactamente! En Vibra Music la categoría *Master es igual a Adulto (alumnos de 18 años a más)*.\n\n` +
+        `• *Docentes*: Clases con el profesor especialista del instrumento (Prof. Fernando para Piano y Violín en Sala B; Prof. Jeremy para Guitarra y Batería en Sala A).\n` +
+        `• *Convivencia*: Pueden compartir sala con la categoría Juvenil (13-17 años), pero tienen terminantemente prohibido compartir con niños de Junior (7-12 años).\n\n` +
+        `¡Quedamos a tu disposición para ayudarte a coordinar tus horarios!`
+      );
+    }
+    if (academyKnowledge?.category === "categorias_edad") {
+      return (
+        `¡Hola! Te saluda Secretaría de Vibra Music Staff. 🎵\n\n` +
+        `Nuestras categorías oficiales se organizan por edad para cuidar el avance pedagógico:\n` +
+        `• *Estimulación Musical*: 4 a 5 años (Prof. Claudia · Sala D · Sala Única).\n` +
+        `• *Infantil*: 5 a 6 años (Prof. Nathaly · Sala C · Sala Única) y *Piano Infantil* de 4 a 8 años.\n` +
+        `• *Junior*: 7 a 12 años (comparte con Juvenil, prohibido con Master).\n` +
+        `• *Juvenil*: 13 a 17 años (puente etario).\n` +
+        `• *Master*: 18+ años (adultos).\n\n` +
+        `¡Coméntanos qué edad tiene el alumno para asignarle el grupo y sala ideal!`
+      );
+    }
+    if (academyKnowledge?.category === "convivencia_salas") {
+      return (
+        `¡Hola! Te saluda Secretaría de Vibra Music Staff. 🎵\n\n` +
+        `Te compartimos nuestras normas de convivencia en sala (ADR-0121):\n` +
+        `• Junior (7-12) puede compartir con Juvenil (13-17), pero *jamás con Master (18+)*.\n` +
+        `• Estimulación e Infantil tienen *Sala Única* sin mezclar con otras edades.\n` +
+        `• Clases de 45 minutos no se mezclan con Intensivos de 90 minutos.\n\n` +
+        `¡Mantenemos estos estándares para garantizar la mejor calidad en cada clase!`
+      );
+    }
+    if (academyKnowledge?.category === "planes_estudio") {
+      return (
+        `¡Hola! Te saluda Secretaría de Vibra Music Staff. 🎵\n\n` +
+        `En Vibra Music contamos con los siguientes planes formativos:\n` +
+        `• *Plan Regular (2x/sem)*: 8 clases al mes de 45 min en Días Pareados (S/ 297/mes).\n` +
+        `• *Plan Regular Extenso (1x/sem)*: 8 clases en 2 meses (1 clase semanal de 45m).\n` +
+        `• *Plan Intensivo (1x/sem)*: 4 clases al mes de 90 min en Jueves, Viernes o Sábados (S/ 297/mes).\n` +
+        `• *Paquete Flexible*: Bolsa de horas a demanda para agendar según disponibilidad.\n\n` +
+        `¿Cuál de estas modalidades se adapta mejor a tu rutina?`
+      );
+    }
     if (academyKnowledge?.category === "aforos_docentes") {
       return (
         `¡Hola! Te saluda Secretaría de Vibra Music Staff. 🎵\n\n` +

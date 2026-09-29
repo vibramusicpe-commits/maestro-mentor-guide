@@ -553,7 +553,17 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
                       : "border-primary/40 text-primary bg-primary/10"
                   }`}
                 >
-                  {parsedData.academyKnowledge.isRestricted ? "🔒 Restringido" : "📘 Inducción Oficial"}
+                  {parsedData.academyKnowledge.isRestricted
+                    ? "🔒 Restringido"
+                    : parsedData.academyKnowledge.category === "master_adulto"
+                    ? "🎓 Master = Adulto"
+                    : parsedData.academyKnowledge.category === "categorias_edad"
+                    ? "👶 Categorías & Edades"
+                    : parsedData.academyKnowledge.category === "convivencia_salas"
+                    ? "🏛️ Regla Convivencia"
+                    : parsedData.academyKnowledge.category === "planes_estudio"
+                    ? "🎵 Planes de Estudio"
+                    : "📘 Inducción Oficial"}
                 </Badge>
               </div>
 
