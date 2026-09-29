@@ -280,30 +280,20 @@ export function LayaCopilotModal({ isOpen, onClose, initialPrompt = "" }: LayaCo
                 className="text-xs min-h-[75px] resize-y bg-background"
               />
 
-              {/* Chips de ejemplos rápidos */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
-                <span className="text-[10px] font-semibold">Ejemplos rápidos:</span>
-                <button
-                  type="button"
-                  onClick={() => setInputPrompt("La mamá de Thiago solicita recuperar su clase este jueves a las 6pm")}
-                  className="px-2 py-0.5 rounded-md bg-muted hover:bg-muted/80 text-[10px] text-foreground border border-border"
-                >
-                  💡 Thiago jueves 6pm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInputPrompt("Cielo Chamorro quiere recuperar el jueves a las 7pm")}
-                  className="px-2 py-0.5 rounded-md bg-muted hover:bg-muted/80 text-[10px] text-foreground border border-border"
-                >
-                  💡 Cielo Chamorro jueves 7pm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInputPrompt("Aviso que Mafer no podrá asistir hoy por fiebre médica")}
-                  className="px-2 py-0.5 rounded-md bg-muted hover:bg-muted/80 text-[10px] text-foreground border border-border"
-                >
-                  💡 Mafer falta por salud
-                </button>
+              {/* Guía en vivo y botón de limpiar */}
+              <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground">
+                <span className="text-[10px]">
+                  💡 Escribe o pega cualquier mensaje real de WhatsApp con el nombre de un alumno y el horario deseado.
+                </span>
+                {inputPrompt && (
+                  <button
+                    type="button"
+                    onClick={() => setInputPrompt("")}
+                    className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer"
+                  >
+                    Limpiar
+                  </button>
+                )}
               </div>
             </div>
 
