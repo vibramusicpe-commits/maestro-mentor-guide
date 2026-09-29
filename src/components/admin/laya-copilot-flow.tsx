@@ -143,7 +143,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       const dayVal = answers.dia?.choice || "indeterminado";
       const timeVal = answers.horario?.choice || "indeterminado";
       let intentVal = answers.intent?.choice || "general";
-      if (academyKnowledge && (intentVal === "general" || intentVal === "reprogramacion")) {
+      if (academyKnowledge) {
         intentVal = "consulta_sistema_academia";
       }
       const reasonVal = answers.motivo_falta?.choice || "injustificada";
@@ -187,6 +187,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
         isAvailable: slotAnalysis?.isAvailable ?? true,
         alternatives: slotAnalysis?.alternatives || [],
         kardexSummary,
+        academyKnowledge,
       });
 
       setLatencyMs(routing.latencyMs || Math.round((performance.now() - start) * 10) / 10);

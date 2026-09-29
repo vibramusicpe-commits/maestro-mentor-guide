@@ -457,6 +457,7 @@ export function buildWhatsAppReply(params: {
   isAvailable: boolean;
   alternatives: { day: string; time: string }[];
   kardexSummary?: StudentKardexSummary;
+  academyKnowledge?: AcademyKnowledgeResponse | null;
 }): string {
   const {
     studentName = "el alumno",
@@ -469,6 +470,7 @@ export function buildWhatsAppReply(params: {
     isAvailable,
     alternatives,
     kardexSummary,
+    academyKnowledge,
   } = params;
 
   // 🛡️ REGLA ADR-0142: Saneamiento de nombre familiar para evitar "Familia Familia ..."
@@ -542,6 +544,45 @@ export function buildWhatsAppReply(params: {
 
   // 4. Caso Consulta de Sistema / Academia / Inducción (ADR-0142)
   if (intent === "consulta_sistema_academia") {
+    if (academyKnowledge?.category === "ciclo_activacion") {
+      return (
+        `¡Hola! Te saluda Secretaría de Vibra Music Staff. 🎵\n\n` +
+        `Para registrar y activar a un alumno en Vibra Music seguimos el flujo oficial de 3 pasos:\n` +
+        `1️⃣ *Ficha y Registro* (/admin/alumnos): Pulsa '+ Nuevo Alumno' e ingresa los datos del alumno, apoderado, plan y pack de útiles.\n` +
+        `2️⃣ *Horario de Clases* (/admin/agenda): Asigna sala y docente según edad e instrumento (ADR-0102) en Días Pareados (L-M, M-J, V-S) con candado contractual.\n` +
+        `3️⃣ *Kardex de Asistencias*: El sistema proyecta automáticamente exactamente 8 clases al mes (o 4 intensivas) con control de faltas y recuperaciones.\n\n` +
+        `¡Quedamos a tu disposición para ayudarte con el registro!`
+      );
+    }
+    if (academyKnowledge?.category === "horarios_pareados") {
+      return (
+        `¡Hola! Te saluda Secretaría de Vibra Music Staff. 🎵\n\n` +
+        `Nuestras clases regulares (8 clases al mes de 45 min) se organizan en Días Pareados Oficiales:\n` +
+        `• *Lunes y Miércoles (L-M)*: Turnos vespertinos de 16:00 a 20:30.\n` +
+        `• *Martes y Jueves (M-J)*: Turnos vespertinos de 16:00 a 20:30.\n` +
+        `• *Viernes y Sábado (V-S)*: Viernes tarde y Sábado mañana (09:00 a 14:15).\n\n` +
+        `¡Quedamos atentos para coordinar el horario más cómodo para el alumno!`
+      );
+    }
+    if (academyKnowledge?.category === "intensivo_recuperacion") {
+      return (
+        `¡Hola! Te saluda Secretaría de Vibra Music Staff. 🎵\n\n` +
+        `Te recordamos nuestras normas pedagógicas oficiales:\n` +
+        `• *Cursos Intensivos*: Son clases de 90 minutos continuos (1 vez por semana en Jueves, Viernes o Sábados).\n` +
+        `• *Recuperaciones de Plan Regular*: Aunque Viernes y Sábados son de intensivo, si una sala tiene aforo disponible (< 5 alumnos), sí se pueden programar recuperaciones de 45 minutos.\n\n` +
+        `¡Quedamos atentos para reservar la sala!`
+      );
+    }
+    if (academyKnowledge?.category === "aforos_docentes") {
+      return (
+        `¡Hola! Te saluda Secretaría de Vibra Music Staff. 🎵\n\n` +
+        `Nuestra asignación docente se rige exclusivamente por especialidad y edad (ADR-0102):\n` +
+        `• *Prof. Nathaly (Sala C)*: Piano Infantil (4 a 8 años) y Canto.\n` +
+        `• *Prof. Fernando (Sala B)*: Piano estándar (9+ años, jóvenes y adultos) y Violín.\n` +
+        `• *Prof. Jeremy (Sala A)*: Guitarra clásica/eléctrica y Batería.\n\n` +
+        `Manejamos un aforo máximo estricto de 5 alumnos por sala para cuidar la calidad pedagógica.`
+      );
+    }
     return (
       `${greeting}\n\n` +
       `¡Hola! Respecto a tu consulta sobre las pautas de Vibra Music, te comento que las clases regulares se organizan en Días Pareados (L-M, M-J, V-S) de 45 minutos y los intensivos son de 90 minutos (Jue, Vie o Sáb). Puedes revisar todos los detalles pedagógicos y de activación en el panel de Copiloto Laya. ¡Quedamos atentos para ayudarte!`
