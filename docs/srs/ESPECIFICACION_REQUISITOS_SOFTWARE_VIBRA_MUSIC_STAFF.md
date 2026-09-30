@@ -7,11 +7,11 @@
 | **Documento** | Especificación de Requisitos de Software (SRS) |
 |---|---|
 | **Proyecto** | Vibra Music Staff — Webapp Integral |
-| **Versión** | 2.2.0 (Producción / Blindaje Financiero, Purga 13 Alumnos, Control Libros & Matriz Anual) |
+| **Versión** | 2.3.0 (Producción / Blindaje Universal de Reprogramaciones, Reset Atómico de Matrícula, Desbloqueo de Modalidad & Homogeneidad de Sala) |
 | **Fecha de Emisión** | 30 de Setiembre 2026 (Actualización de Producción) |
 | **Autor Institucional** | Equipo de Ingeniería de Software & Arquitectura de Sistemas |
 | **Cliente / Institución** | Escuela de Música Vibra Music (Tacna, Perú) |
-| **Estado del Documento** | Aprobado para Operación y Auditoría |
+| **Estado del Documento** | Aprobado para Operación, Auditoría y Venta SaaS White-Label |
 | **Formato Fuente** | Markdown (.md) preparado para conversión formal a .docx |
 
 ---
@@ -265,7 +265,12 @@ La sede institucional cuenta con 3 salas formativas con acondicionamiento espec�
 ```
 
 * **Principio de Aislamiento Acústico**: Batería y Guitarra Eléctrica generan una presión sonora elevada que no puede convivir en la misma sala con instrumentos de arco o cuerda frotada como el Violín.
-* **Principio de Pedagogía por Edad**: Los niños de 4 a 8 años requieren mobiliario adaptado, juegos rítmicos y acompañamiento de voz lírica/infantil (Sala C), mientras que jóvenes y adultos requieren lectura técnica y teoría en teclado estándar (Sala B).
+* **Principio Pedagógico Inquebrantable de Transformación de Sala por Instrumento (Regla Estricta Sala A — Batería vs. Guitarra, ADR-0147)**:
+  * En la **Sala A (Prof. Jeremy)** se imparten Batería y Guitarra (clásica y eléctrica). **Regla innegociable**: Al ingresar el primer alumno a un turno de 45 min, la sala se transforma y queda reservada **exclusivamente para ese instrumento**.
+  * Si el primer alumno es de Batería (ej. Batería Junior), el turno se convierte en **"Turno Exclusivo de Batería"**. Queda **TERMINANTEMENTE PROHIBIDO** inscribir a alumnos de Guitarra de cualquier categoría en ese mismo turno, aun cuando coincidan en edad.
+  * Únicamente pueden integrarse otros alumnos de Batería de la misma categoría o de categorías etarias colindantes (ej. Junior 7-12 con Juvenil 13-17).
+  * Del mismo modo, si el primer alumno inscrito es de Guitarra, el turno se bloquea para Batería. La mezcla simultánea de percusión y cuerdas en un mismo espacio de 45 min destruye la inteligibilidad auditiva y es pedagógicamente inadmisible en la práctica real.
+* **Principio de Pedagogía por Edad y Colindancia Etaria**: Los niños de 4 a 8 años requieren mobiliario adaptado, juegos rítmicos y acompañamiento de voz lírica/infantil (Sala C), mientras que jóvenes y adultos requieren lectura técnica y teoría en teclado estándar (Sala B). La convivencia en sala exige categorías colindantes (Infantil con Junior inicial, o Junior con Juvenil); queda terminantemente prohibido agrupar a niños de categoría Junior (7 a 12 años) con adultos de categoría Master (18+ años).
 * **Horarios Operativos Oficiales Canónicos de Vibra Music (ADR-0130)**:
   * **Lunes a Viernes (Turno Tarde)**: De 4:00 pm a 7:45 pm. Las 5 franjas pedagógicas oficiales de 45 minutos son:
     `16:00 - 16:45` · `16:45 - 17:30` · `17:30 - 18:15` · `18:15 - 19:00` · `19:00 - 19:45`.
@@ -444,10 +449,11 @@ flowchart LR
 3. **Kardex**: El sistema proyecta la cuota de clases y registra asistencias y reprogramaciones.
 4. **Cobranzas**: Se genera el recibo en `invoices` y se auditan los abonos y saldos.
 
-## 6.2. Regla de Candado: Bloqueo Condicional de Modalidad
-Para prevenir inconsistencias entre el contrato financiero y la ocupación de salas:
+## 6.2. Regla de Candado y Desbloqueo Controlado de Modalidad (ADR-0111, ADR-0148)
+Para prevenir inconsistencias entre el contrato financiero y la ocupación de salas, pero permitiendo a su vez la subsanación ágil de errores administrativos:
 * **Condición de Libertad**: Si el alumno aún no tiene un horario agendado (`!hasSavedSchedule`), la secretaría puede cambiar libremente la modalidad entre Regular 2x, Regular 1x/sem, Intensivo o Flexible.
-* **Condición de Bloqueo**: Tan pronto como el alumno tiene clases guardadas y activas en el horario semanal, el selector de modalidad en la cabecera del formulario se bloquea visualmente con un candado (`🔒 Horario activo`). Para cambiar de plan, se requiere desasignar o reestructurar previamente sus clases en la grilla.
+* **Control de Candado y Desbloqueo Interactivo**: Cuando el alumno cuenta con clases guardadas en el horario semanal, el selector de modalidad se presenta protegido inicialmente (`🔒 Horario activo`). Sin embargo, secretaría cuenta con un botón interactivo de desbloqueo `[🔒 Desbloquear para Cambiar]` que al conmutar a `[🔓 Modalidad Desbloqueada]` habilita el selector, recalcula la fecha de finalización contractual (`planEndDate`: +2 meses para Regular 1x/sem, +1 mes para Regular 2x/Intensivo, o por consumo para Paquete Flexible) y sincroniza atómicamente la nueva modalidad hacia PostgreSQL sin obligar a desmatricular ni borrar al alumno.
+* **Reset Atómico en Matrícula**: En `AddNewStudentDialog`, la función `resetForm()` se ejecuta de forma determinista al abrir y cerrar la ficha, garantizando que todo nuevo alumno inicie en Plan Regular y no herede configuraciones de Paquete Flexible registradas previamente en la sesión.
 
 ## 6.3. Proceso de Agendamiento, Validación de Aforo (5 alumnos) y Asignación de Salas
 * **Paso 1**: Secretaría selecciona al alumno en el buscador de la agenda.
@@ -455,6 +461,7 @@ Para prevenir inconsistencias entre el contrato financiero y la ocupación de sa
   * Si es Piano de 4 a 8 años o Canto $\rightarrow$ Enruta a Prof. Nathaly (Sala C).
   * Si es Piano Estándar o Violín $\rightarrow$ Enruta a Prof. Fernando (Sala B).
   * Si es Guitarra o Batería $\rightarrow$ Enruta a Prof. Jeremy (Sala A).
+  * **Regla Inquebrantable de Transformación de Sala por Instrumento (ADR-0147)**: En Sala A, si el turno seleccionado ya cuenta con al menos un alumno inscrito de Batería, la sala se transforma a "Batería" y el sistema bloquea automáticamente la inscripción de Guitarra (y viceversa). Solo se permite inscribir alumnos de Batería de la misma categoría o de categorías etarias colindantes (ej. Junior con Juvenil).
 * **Paso 3**: Al seleccionar el turno de 45 min, el sistema cuenta los alumnos actualmente agendados en ese bloque. Si el conteo es $\ge 5$, el botón de guardado se deshabilita y se muestra el indicador en rojo de turno lleno.
 * **Paso 4**: Al guardar, se actualiza atómicamente el estado en memoria Zustand y se sincroniza en segundo plano hacia PostgreSQL.
 
@@ -466,13 +473,14 @@ Para prevenir inconsistencias entre el contrato financiero y la ocupación de sa
 * **Paso 5**: El Kiosco envía la mutación a `attendance_logs` en PostgreSQL y emite un evento local de sincronización.
 * **Paso 6**: La pantalla de la Agenda de secretaría y el Kardex del alumno reflejan la píldora de asistencia en tiempo real sin recargar la página.
 
-## 6.5. Proceso de Reprogramación Puntual (Aislamiento por Fecha y `excludedDates`)
+## 6.5. Proceso de Reprogramación Puntual (Aislamiento por Fecha, `excludedDates` y Prioridad Universal de Makeups, ADR-0105, ADR-0134, ADR-0148)
 * **Paso 1**: Un alumno con falta justificada solicita recuperar su sesión.
 * **Paso 2**: En el Kardex, secretaría pulsa `🔄 Reprogramar` en la fila de la sesión afectada.
 * **Paso 3**: Se escoge la nueva fecha y hora de recuperación.
 * **Paso 4**: El sistema crea una nueva lección marcada con `dateStr: YYYY-MM-DD` y `isMakeup: true`.
 * **Paso 5**: La lección semanal recurrente original añade la fecha cancelada a su lista `excludedDates`.
-* **Paso 6**: De este modo, la clase original no se renderiza en la fecha cancelada, la nueva clase solo existe en la fecha reprogramada y el total de clases del ciclo se mantiene exactamente en la cuota contratada.
+* **Paso 6 (Preservación Incondicional de Historial de Asistencia)**: Si la sesión original en `excludedDates` ya contaba con una marca de asistencia evaluada (`ausente`, `tarde`, `justificada`), el Kardex y el ciclo computan y proyectan **ambas sesiones**: la falta histórica permanece visible en la fecha pasada para fines pedagógicos y de auditoría, mientras que la recuperación se añade en la nueva fecha.
+* **Paso 7 (Universalización de Prioridad de Makeups en Todos los Planes)**: Tanto en Plan Regular, Intensivo o Paquete Flexible (a demanda), las recuperaciones agendadas (`isMakeup: true`) y las asistencias evaluadas gozan de prioridad absoluta, asegurando que jamás sean descartadas por límites de cuota (`targetQuota`). De este modo, la clase original no se duplica indebidamente y el total de clases asistidas efectivas suma la meta contractual.
 
 ## 6.6. Proceso de Clase Consecutiva de Corrido (+45 min)
 * **Paso 1**: El alumno acuerda permanecer un bloque adicional de 45 minutos contiguo a su clase regular.
@@ -1026,6 +1034,8 @@ erDiagram
 * **RF-73 (Erradicación de ExcludedWeeks Relativos y Aislamiento por Fecha Exacta)**: Las reprogramaciones con alcance puntual (`only-this-week`) nunca deben almacenar índices semanales relativos al mes (`excludedWeeks`), los cuales contaminaban semanas homólogas en meses subsiguientes; deben aislarse estrictamente mediante fecha exacta (`excludedDates: ["YYYY-MM-DD"]`). Al revertir una reprogramación (`revertMakeupLesson`), el sistema debe purgar de forma preventiva cualquier residuo histórico de índices semanales (ADR-0105, ADR-0138).
 * **RF-74 (Preservación Universal de Cuota para Clases de Recuperación / Makeups)**: En el algoritmo de cálculo de cuota del Kardex (`computeStudentCycleSessions`), las sesiones de recuperación agendadas (`isMakeup: true, status: "pendiente"`) jamás deben descartarse cuando el alumno tiene inasistencias por recuperar, garantizando que el total proyectado sume las asistencias efectivas contratadas bajo el principio institucional "Las clases no se pierden, se recuperan" (ADR-0134, ADR-0138).
 * **RF-75 (Prioridad Determinista de Slot en Deduplicación por Coincidencia Horaria)**: Al consolidar las sesiones candidatas del Kardex por fecha y hora exactas (`dateStr-time`), cuando confluyen dos lecciones en la misma franja, el sistema debe priorizar estrictamente: 1) sesiones evaluadas (`presente`, `ausente`, `tarde`, `justificada`) sobre pendientes, y 2) sesiones puntuales de recuperación (`isMakeup: true`) sobre plantillas recurrentes abiertas, impidiendo que una lección recurrente opaque o descarte una recuperación agendada (ADR-0105, ADR-0138).
+* **RF-76 (Desbloqueo Controlado de Modalidad y Frecuencia en Horario y Ficha)**: El selector de modalidad en `ScheduleStudentForm` y `EditStudentSheetInner` debe incorporar un mecanismo de desbloqueo mediante conmutador interactivo `[🔒 Horario activo (Desbloquear)]` / `[🔓 Modalidad Desbloqueada]`, permitiendo a secretaría subsanar asignaciones erróneas sin forzar la desmatriculación del alumno, recalculando automáticamente `planEndDate` (+2 meses en 1x/sem, +1 mes en 2x/Intensivo, o por clases terminadas en Flexible) y sincronizando la nueva modalidad hacia PostgreSQL (ADR-0148).
+* **RF-77 (Universalización de Prioridad de Makeups y Asistencias Evaluadas para Paquete Flexible y Regular)**: En los algoritmos de Kardex (`student-attendance-kardex.tsx`), cálculo estandarizado (`kardex-calculator.ts`) y validación de ciclo activo (`student-cycle.ts`), las sesiones de recuperación (`isMakeup: true`) y todas las sesiones evaluadas (`presente`, `ausente`, `tarde`, `justificada`) deben poseer prioridad absoluta sobre clases pendientes no evaluadas en todas las modalidades (Regular 2x, Regular 1x, Intensivo y Paquete Flexible), impidiendo recortes ciegos (`slice(0, targetQuota)`) que oculten recuperaciones o inasistencias en fechas excluidas (ADR-0134, ADR-0148).
 
 ## 9.4. Módulo 4: Kiosco Docente y Terminales de Sala (`TeacherKiosk`)
 * **RF-42 (Autenticación Simplificada Docente)**: El Kiosco debe permitir inicio de sesión rápido por selección de profesor y código PIN numérico de seguridad.
@@ -1308,9 +1318,9 @@ Para garantizar la continuidad operativa ininterrumpida de la escuela, se establ
 
 ---
 
-# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0147)
+# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0148)
 
-El sistema cuenta con un archivo vivo de **47 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
+El sistema cuenta con un archivo vivo de **48 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
 
 * **ADR-001**: Adopción de TanStack Start, Nitro, PostgreSQL Insforge y WhatsApp Cloud API oficial de Meta.
 * **ADR-0052 & 0053**: Autonomía de secretaría en la edición y eliminación directa de clases y supervisión de 8 clases en Regular y 4 en Intensivo.
@@ -1350,6 +1360,7 @@ El sistema cuenta con un archivo vivo de **47 Decisiones Arquitectónicas (ADR)*
 * **ADR-0145**: Purga de Semillas Heredadas, Respaldo Histórico en CSV y Blindaje de Facturación para 13 Alumnos Activos: Respaldo íntegro de los 142 registros históricos en archivo externo CSV (`archivo_historico_base_antigua_alumnos_vibra_music.csv`) con UTF-8 BOM. Inicialización limpia de `adminStudents: AdminStudent[] = []` en `src/store/admin-seeds.ts`, actualización de persistencia Zustand a `v32` y purga de versiones anteriores de `localStorage`. Blindaje del modal de facturación masiva de recibos en `/admin/facturacion` para procesar estrictamente a los 13 alumnos activos confirmados y sincronizar con PostgreSQL. Preservación incondicional de la papelera de reciclaje (`deletedStudents`) bajo la máxima "Ningún dato se pierde".
 * **ADR-0146**: Control Oficial de Material Escolar / Libros (S/ 67) y Matriz Anual Dinámica con Estados de Culminación: Módulo y pestaña senior-friendly `📚 Material Escolar / Libros (S/ 67)` con 5 tarjetas KPI métricas, filtros rápidos, toggle interactivo 1-clic para alternar `📦 Entregado en Sala` vs `⚠️ Pendiente de Entrega` sincronizado a PostgreSQL (`emergency_contact.packUtilesDelivered`), botón de cobro directo y WhatsApp. En la Matriz Anual 2026, reemplazo de registros estáticos por cálculo dinámico reactivo mes a mes conectado a PostgreSQL e integrando `computeStudentRetentionStatus` para renderizar la insignia morada oficial `🎓 Culminado (8/8)` en alumnos que completaron sus clases (como Alumno E.J., Alumna V.A. y Alumna Y.C.).
 * **ADR-0147**: Regla Inquebrantable de Transformación de Sala por Instrumento y Colindancia de Edades: Al ingresar el primer alumno, la sala en ese turno se transforma y queda reservada exclusivamente para ese instrumento. Prohibido mezclar instrumentos dispares en sala (ej. Batería con Guitarra en Sala A con Jeremy; Piano con Violín en Sala B; o Piano Infantil con Canto en Sala C). Convivencia etaria colindante obligatoria (Junior 7-12 convive con Junior o Juvenil 13-17; prohibido Junior con Master 18+). Excepción temporal para Guitarra clásica y eléctrica. Alerta crítica en rojo y desactivación de guardado con confirmación obligatoria de excepción en `ScheduleStudentForm`.
+* **ADR-0148**: Reset Atómico de Estado en Matrícula, Desbloqueo Controlado de Modalidad y Universalización de Recuperaciones en Paquete Flexible: Implementación de la función determinista `resetForm()` en `AddNewStudentDialog` ejecutada en apertura y cierre del Sheet, impidiendo que nuevos registros (como Kiara) hereden involuntariamente configuraciones de Paquete Flexible de alumnos previos (como Aaron). Sincronización bidireccional entre selectores de plan y modalidad con fallback a Plan Mensual Regular (S/ 297). Sustitución del atributo `disabled` permanente en `ScheduleStudentForm` y `EditStudentSheetInner` por un conmutador interactivo de desbloqueo `[🔒 Desbloquear para Cambiar]` / `[🔓 Modalidad Desbloqueada]`, recalculando atómicamente la vigencia (`planEndDate`) sin requerir desmatricular al estudiante. Extensión universal de la regla de prioridad ADR-0105/ADR-0134 a Paquete Flexible y planes multicuota en `kardex-calculator.ts`, `student-attendance-kardex.tsx` y `student-cycle.ts`, garantizando que las recuperaciones agendadas (`isMakeup: true`) y las inasistencias evaluadas históricas en `excludedDates` nunca sean recortadas por el límite de cuota contractual (`slice(0, targetQuota)`).
 
 ---
 
