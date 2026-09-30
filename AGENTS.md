@@ -933,3 +933,22 @@ inferencia.
 5. **Preservación Incondicional del Detalle Integral**:
    - El panel mantiene el acceso a las pestañas detalladas (`Recibos Activos`, `Matriz Anual 2026`, `Historial de Vouchers Yape` y `Conciliación y Caja` con tendencias y distribución de planes calculadas dinámicamente).
 
+---
+
+### 45. Purga de Semillas Heredadas, Respaldo Histórico en CSV y Blindaje de Facturación para 13 Alumnos Activos (ADR-0145)
+1. **Respaldo Consolidado de Base Histórica Antigua en CSV**:
+   - Los 142 registros históricos han sido extraídos y respaldados en `archivo_historico_base_antigua_alumnos_vibra_music.csv` con UTF-8 BOM (`\uFEFF`) para consulta externa en Microsoft Excel.
+   - Contiene la totalidad de campos de contacto, datos pedagógicos, pack de útiles, notas y récord mensual de Junio a Diciembre.
+2. **Desacoplamiento de Semillas en Frontend**:
+   - `adminStudents` en `src/store/admin-seeds.ts` se inicializa como un arreglo vacío (`export const adminStudents: AdminStudent[] = []`).
+   - Queda terminantemente prohibido inyectar arrays mock (`baseControlStudents`, `missingAdminStudents`, `missingScheduleStudents`) al estado de ejecución.
+3. **Versión de Persistencia `v32` y Purga de Caché de Navegador**:
+   - La persistencia de Zustand se actualiza a `cadencia-app-v32`, eliminando versiones previas (`cadencia-app-v1` a `cadencia-app-v31`) de `localStorage`.
+   - La función `migrate` purga cualquier residuo mock inactivo y `hydrateFromBackend` preserva única y exclusivamente los alumnos reales provenientes de PostgreSQL.
+4. **Blindaje de Emisión Masiva de Recibos en Facturación**:
+   - En el modal de confirmación (`src/routes/admin.facturacion.tsx`), el conteo renderiza estrictamente `{activeStudents.length}` (los 13 alumnos activos confirmados) y nunca `{adminStudents.length}`.
+   - `generateMonthlyInvoices` (`app-store.ts`) deduplica por alumno y mes lectivo, no sobrescribe recibos pagados ni emitidos previamente, y persiste cada nuevo recibo en PostgreSQL vía `backgroundCreateInvoiceInDB`.
+5. **Preservación Incondicional de la Papelera de Reciclaje**:
+   - Bajo el principio *"Ninguna clase se pierde, ningún dato se pierde"*, el sistema de papelera (`deletedStudents`, `deleteStudent`, `deleteStudents`, `restoreStudentLog`) permanece 100% activo en el store y la interfaz para documentar cualquier baja manual con su snapshot completo y motivo.
+
+

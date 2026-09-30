@@ -349,11 +349,9 @@ officialSchedule.forEach((sch) => {
   }
 });
 
-export const adminStudents: AdminStudent[] = [
-  ...baseControlStudents,
-  ...missingAdminStudents,
-  ...missingScheduleStudents,
-];
+// Base inicial desacoplada: Se inicializa vacía para operar exclusivamente con datos reales de PostgreSQL.
+// Los 142 registros históricos fueron respaldados y exportados a archivo_historico_base_antigua_alumnos_vibra_music.csv.
+export const adminStudents: AdminStudent[] = [];
 
 
 // Lista de recibos oficiales sincronizados desde PostgreSQL para alumnos activos

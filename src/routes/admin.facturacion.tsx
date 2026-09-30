@@ -2527,7 +2527,7 @@ function AdminFacturacionPage() {
 
           <div className="py-3 space-y-2 text-xs text-foreground">
             <p>
-              Esta acción creará o actualizará automáticamente los recibos de cobro para las <strong>{adminStudents.length} familias activas</strong> con su día programado de vencimiento y monto mensual en Soles.
+              Esta acción creará o actualizará automáticamente los recibos de cobro para las <strong>{activeStudents.length} familias activas</strong> con su día programado de vencimiento y monto mensual en Soles.
             </p>
             <div className="p-3 rounded-xl bg-muted/60 border border-border text-[11px] text-muted-foreground space-y-1">
               <p className="font-bold text-foreground">🛡️ Seguridad de Secretaría:</p>

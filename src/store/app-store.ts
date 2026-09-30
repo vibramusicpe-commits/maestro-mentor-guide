@@ -947,8 +947,9 @@ export const useAppStore = create<AppState>()(
             };
           }
 
-          // Fusión no destructiva: PostgreSQL enriquece datos sin borrar alumnos locales ni activaciones válidas
-          const mergedStudents: AdminStudent[] = [...s.adminStudents];
+          // Fusión no destructiva: PostgreSQL es la fuente de verdad.
+          // Purgamos cualquier residuo mock y solo preservamos alumnos activos locales en vuelo o reales.
+          const mergedStudents: AdminStudent[] = s.adminStudents.filter((st) => st.status === "activo");
 
           data.students.forEach((dbSt) => {
             // 🛡️ REGLA: Si el registro de PostgreSQL es ACTIVO, tiene prioridad absoluta y reemplaza cualquier registro previo
@@ -1958,16 +1959,16 @@ export const useAppStore = create<AppState>()(
       resetToOfficialStudents: () => {
         try {
           if (typeof window !== "undefined" && window.localStorage) {
-            for (let i = 1; i <= 30; i++) {
+            for (let i = 1; i <= 32; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }
         } catch {}
         set((s) => ({
-          adminStudents: adminStudents,
+          adminStudents: [],
           invoices: initialInvoices,
           schedule: initialSchedule,
-          syncQueue: [...s.syncQueue, queueItem("Base oficial de 83 alumnos individualizados restaurada con éxito")],
+          syncQueue: [...s.syncQueue, queueItem("Base de alumnos limpiada y rehidratada desde PostgreSQL")],
         }));
         // Rehidratar inmediatamente desde la base de datos PostgreSQL para preservar alumnos y activaciones en la nube
         try {
@@ -3021,38 +3022,66 @@ export const useAppStore = create<AppState>()(
         );
         const now = new Date();
         const dynDueDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-20`;
-        const generatedInvoices: Invoice[] = currentStudents.map((st, idx) => {
-          const planAmount =
-            st.planPrice ||
-            (st.planType === "Trimestral"
-              ? VIBRA_PRICING.Trimestral.priceMonthly
-              : st.planType === "Anual"
-              ? VIBRA_PRICING.Anual.priceMonthly
-              : VIBRA_PRICING.Mensual.priceMonthly);
-          const conceptLabel = `Mensualidad ${st.planType || "Mensual"} · ${st.instrument} (${st.teacher})`;
+        const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-          return {
-            id: `inv-${Date.now()}-${idx}`,
-            family: st.family || `Familia ${st.name.split(" ")[1] || st.name}`,
-            concept: conceptLabel,
-            students: 1,
-            amount: planAmount,
-            amountPaid: 0,
-            remainingBalance: planAmount,
-            dueDate: dynDueDate,
-            daysToDue: 6,
-            status: "pendiente" as const,
-            paymentMethod: null,
-            remindedAt: null,
-            paymentLogs: [],
-          };
+        const existingInvoices = get().invoices || [];
+        const newGeneratedInvoices: Invoice[] = [];
+
+        currentStudents.forEach((st, idx) => {
+          // Si el alumno ya cuenta con un recibo emitido o pagado para este mes lectivo, no duplicar
+          const hasMonthInvoice = existingInvoices.some((inv) => {
+            const isStudentMatch = isMatchingStudentName(inv.student || "", st.name) ||
+              (inv.family && st.family && inv.family.toLowerCase().trim() === st.family.toLowerCase().trim());
+            const isSameMonth = (inv.dueDate && inv.dueDate.startsWith(currentYearMonth)) ||
+              (inv.issueDate && inv.issueDate.startsWith(currentYearMonth));
+            return isStudentMatch && isSameMonth;
+          });
+
+          if (!hasMonthInvoice) {
+            const planAmount =
+              st.planPrice ||
+              (st.planType === "Trimestral"
+                ? VIBRA_PRICING.Trimestral.priceMonthly
+                : st.planType === "Anual"
+                ? VIBRA_PRICING.Anual.priceMonthly
+                : VIBRA_PRICING.Mensual.priceMonthly);
+            const conceptLabel = `Mensualidad ${st.planType || "Mensual"} · ${st.instrument} (${st.teacher}) — ${st.name}`;
+
+            const newInv: Invoice = {
+              id: `inv-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+              student: st.name,
+              family: st.family || `Familia ${st.name.split(" ")[1] || st.name}`,
+              concept: conceptLabel,
+              students: 1,
+              amount: planAmount,
+              amountPaid: 0,
+              remainingBalance: planAmount,
+              dueDate: dynDueDate,
+              issueDate: now.toISOString().slice(0, 10),
+              daysToDue: 6,
+              status: "pendiente" as const,
+              paymentMethod: null,
+              remindedAt: null,
+              paymentLogs: [],
+            };
+
+            newGeneratedInvoices.push(newInv);
+            try {
+              backgroundCreateInvoiceInDB(get().activeRole, newInv, st);
+            } catch (err) {
+              console.warn("[Facturación] Error al sincronizar recibo generado en BD:", err);
+            }
+          }
         });
 
-        set((s) => ({
-          invoices: generatedInvoices,
-          syncQueue: [...s.syncQueue, queueItem(`Recibos del mes generados para ${generatedInvoices.length} familias`)],
-        }));
-        return generatedInvoices.length;
+        if (newGeneratedInvoices.length > 0) {
+          set((s) => ({
+            invoices: [...newGeneratedInvoices, ...s.invoices],
+            syncQueue: [...s.syncQueue, queueItem(`Recibos del mes generados para ${newGeneratedInvoices.length} familias`)],
+          }));
+        }
+
+        return newGeneratedInvoices.length;
       },
 
       // Configuración de Timbre Acústico Oficial
@@ -3309,22 +3338,24 @@ export const useAppStore = create<AppState>()(
     }),
 
     {
-      name: "cadencia-app-v31",
+      name: "cadencia-app-v32",
       storage: createJSONStorage(() => localStorage),
-      version: 31,
+      version: 32,
       migrate: (persistedState: any, version: number) => {
         try {
           if (typeof window !== "undefined") {
-            for (let i = 1; i <= 30; i++) {
+            for (let i = 1; i <= 31; i++) {
               window.localStorage.removeItem(`cadencia-app-v${i}`);
             }
           }
         } catch {}
 
         // Migración limpia alineada con la base de datos PostgreSQL:
-        // Respeta alumnos activados por administración y los alumnos confirmados activos:
-        // Camila Pastor, Emma Sevilla / Micaela, Marco Antonio Adrian y Jonathan Ticona Cachay.
-        const migratedStudents = (persistedState?.adminStudents || adminStudents).map((st: any) => {
+        // Purgar semillas mock residuales y preservar únicamente alumnos activos reales
+        const rawPersisted: any[] = Array.isArray(persistedState?.adminStudents)
+          ? persistedState.adminStudents.filter((st: any) => st && st.status === "activo")
+          : [];
+        const migratedStudents = rawPersisted.map((st: any) => {
           const isCamila = isMatchingStudentName(st.name, "Camila Valentina Pastor Conco");
           const isEmma = isMatchingStudentName(st.name, "Emma Micaela") || isMatchingStudentName(st.name, "Emma Sevilla");
           const isMarco = isMatchingStudentName(st.name, "Marco Antonio Adrian");
@@ -3424,7 +3455,7 @@ export const useAppStore = create<AppState>()(
         return {
           ...persistedState,
           adminStudents: migratedStudents,
-          historicalStudents: persistedState?.historicalStudents || adminStudents,
+          historicalStudents: [],
           historicalMetadata: HISTORICAL_BASE_METADATA,
           invoices: activePersistedInvoices,
           schedule: cleanSchedule,
