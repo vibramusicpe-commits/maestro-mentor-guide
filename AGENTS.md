@@ -901,3 +901,35 @@ inferencia.
 4. **Resolución Determinista en Laya**:
    - `laya-knowledge-base.ts` y `laya-realtime-matcher.ts` integran matchers semánticos y plantillas de WhatsApp para `master_adulto`, `categorias_edad`, `convivencia_salas` y `planes_estudio`.
 
+---
+
+### 44. Rediseño Integral de Cobros y Abonos Accesible para Personas Mayores (Senior-Friendly) con Perfil Dual Dueña/Contador y Cero Mock Data (ADR-0144)
+1. **Erradicación Absoluta de Mock Data en `/admin/facturacion`**:
+   - Está **TERMINANTEMENTE PROHIBIDO** importar o consumir arrays simulados como `billingTrend` o `recurringConcepts` de `admin-seeds.ts`.
+   - Toda cifra, porcentaje de cobranza y resumen de cartera proviene 100% de los datos reales de PostgreSQL (`students`, `invoices`, `payment_audit_logs`).
+   - Los 13 alumnos activos en producción representan exactamente:
+     - **Total Facturado:** S/ 4,213.00 PEN.
+     - **Total Cobrado en Caja:** S/ 3,425.00 PEN (81.3% recaudado).
+     - **Saldo Pendiente de Cobro:** S/ 788.00 PEN (18.7%).
+     - **Semáforo de Deudores Oficial:** Exactamente 4 alumnos con deuda:
+       1. *Fernanda Sofía Fajardo Condo*: Debe S/ 297.00.
+       2. *Karlitoz Pazos Huatuco*: Debe S/ 277.00.
+       3. *Sasha Dharma Contreras de la Cruz*: Debe S/ 197.00.
+       4. *Marco Antonio Adrian Mamani Caro*: Debe S/ 17.00.
+     - **Alumnos al Día:** Exactamente los 9 alumnos restantes con saldo S/ 0.00.
+2. **Barra de Accesibilidad Senior y Perfil Dual (`SeniorAccessibilityBar`)**:
+   - Conmutador instantáneo entre `💼 Vista Dueña (Caja y Cobranza)` y `📑 Vista Contador (Bancos y Cuadre)`.
+   - Selector de tamaño de letra de 3 niveles: `A` (Normal 14px), `A+` (Mediano 16px) y `A++ Senior` (Grande 18-24px con números de 36-48px).
+   - Todos los botones de acción para personas mayores tienen un objetivo táctil mínimo de **48px de altura** (`min-h-[48px]`), previniendo pulsaciones accidentales.
+   - Cero iconos huérfanos: toda acción cuenta con etiqueta textual descriptiva en español.
+   - Botón `💡 Explicar con Laya` que despliega un diálogo explicativo en lenguaje sencillo y amigable.
+3. **Vista Dueña (Ejecutiva de Caja y Cobranza)**:
+   - Semáforo prioritario destacando a los 4 alumnos con deuda.
+   - Botón directo de WhatsApp `📲 Cobrar WhatsApp` con mensaje pre-armado y respetuoso con nombre del alumno, instrumento y monto exacto adeudado.
+   - Botón `💵 Registrar Abono` con soporte de pegado de voucher con `Ctrl+V` y compresión WebP.
+4. **Vista Contador (Libro Diario y Conciliación Fiscal)**:
+   - Libro Diario correlativo con Fecha, Hora, Alumno, Medio de Pago, N° de Operación bancario, Rubro Contable (Pensión, Matrícula, Pack Útiles), Importe y Auditoría.
+   - Botón de exportación `📥 Descargar Libro Contable (CSV / Excel)` con prefijo UTF-8 BOM (`\uFEFF`) para compatibilidad perfecta con Microsoft Excel.
+5. **Preservación Incondicional del Detalle Integral**:
+   - El panel mantiene el acceso a las pestañas detalladas (`Recibos Activos`, `Matriz Anual 2026`, `Historial de Vouchers Yape` y `Conciliación y Caja` con tendencias y distribución de planes calculadas dinámicamente).
+

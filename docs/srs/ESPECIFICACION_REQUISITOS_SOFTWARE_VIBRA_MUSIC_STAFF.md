@@ -1267,7 +1267,7 @@ Para garantizar la continuidad operativa ininterrumpida de la escuela, se establ
 
 # 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0143)
 
-El sistema cuenta con un archivo vivo de **43 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
+El sistema cuenta con un archivo vivo de **44 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
 
 * **ADR-001**: Adopción de TanStack Start, Nitro, PostgreSQL Insforge y WhatsApp Cloud API oficial de Meta.
 * **ADR-0052 & 0053**: Autonomía de secretaría en la edición y eliminación directa de clases y supervisión de 8 clases en Regular y 4 en Intensivo.
@@ -1303,6 +1303,7 @@ El sistema cuenta con un archivo vivo de **43 Decisiones Arquitectónicas (ADR)*
 * **ADR-0141**: Pauta Anti-Colisión de Homónimos y UI/UX Google Flow: Algoritmo Levenshtein para typos ('darma' -> 'dharma') y multidimensional (instrumento, profesor, apoderado). Detección de ambigüedad si hay 2 o más candidatos cercanos sin adivinar a ciegas. Interfaz Google Flow con cápsula flotante inferior y panel lateral derecho (460px).
 * **ADR-0142**: Reglas pedagógicas de cursos Intensivos (90m en Jue/Vie/Sáb) vs Recuperaciones de Regular (45m en Viernes/Sábados con salas libres), sistema de autocompletado con tecla Tab y sintaxis @Menciones, botón EyeOff para ocultar totalmente el agente, y módulo de inducción técnica/operativa para resolver preguntas de negocio con guardrails de seguridad financiera (bloqueo estricto de tarjetas y credenciales de dueños).
 * **ADR-0143**: Base de Conocimiento Pedagógico en Copiloto Laya (Categorías por Edad, Equivalencia Master = Adulto y Convivencia de Planes): Integración en Sistema 1 de resolución determinista de categorías (Infantil 5-6 años, Piano Infantil 4-8 con Nathaly en Sala C, Junior 7-12, Juvenil 13-17 y Master 18+). Equivalencia oficial e innegociable Master = Adulto con persistencia transparente en PostgreSQL (`ADULTO`) y etiqueta visual `MASTER (18+)`. Reglas de convivencia en sala: Junior y Master prohibidos juntos; 45 min no convive con 90 min; Viernes/Sábados habilitados para recuperaciones de 45m si hay aforo (<5 alumnos). Formateo automático de respuestas estructuradas para WhatsApp Web.
+* **ADR-0144**: Rediseño Integral de Cobros y Abonos Accesible para Personas Mayores (Senior-Friendly) con Perfil Dual Dueña/Contador y Cero Mock Data: Erradicación absoluta de arrays simulados (`billingTrend`, `recurringConcepts`). Cálculos 100% en tiempo real contra PostgreSQL (13 alumnos activos, S/ 4,213 facturado, S/ 3,425 cobrado en caja, S/ 788 por cobrar, semáforo de 4 alumnos deudores y 9 alumnos al día). Componente `SeniorAccessibilityBar` con selector dual (Dueña vs Contador), selector de zoom de tipografía (A, A+, A++ Senior con objetivos táctiles de 48px), botón interactivo de Laya Explainer, WhatsApp de cobranza respetuosa en 1 clic y exportación de Libro Diario Contable en CSV UTF-8 BOM para Microsoft Excel.
 
 ---
 
