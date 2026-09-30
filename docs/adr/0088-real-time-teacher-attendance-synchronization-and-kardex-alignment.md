@@ -10,8 +10,8 @@ Tras una auditoría exhaustiva de extremo a extremo, se detectaron cinco causas 
 
 1. **Desincronización de Mes en Kardex**: El modal `StudentAttendanceKardex` tenía `defaultMonth = 7` (Agosto) hardcodeado. Al marcar asistencia hoy (10 de Setiembre, mes 8), el Kardex abría por defecto en Agosto, mostrando todas las sesiones como pendientes.
 2. **Discrepancia en Nombres entre Horario (`officialSchedule`) y Alumnos (`adminStudents`)**:
-   - En el horario: `"Valerie Angulo Chipana"`, `"Camila Pastor Conco"`.
-   - En el directorio: `"Valerie Yidda Angulo"`, `"Camila Valentina Pastor Conco"`.
+   - En el horario: `"Alumna V.A."`, `"Alumna C.P."`.
+   - En el directorio: `"Alumna V.A."`, `"Alumna C.P."`.
    - La condición `.includes()` de JavaScript evaluaba a `false`, impidiendo que `markLessonAttendance` actualizara la tasa de asistencia (`attendanceRate`), la bitácora reciente (`recentAttendance`) y bloqueando la sincronización en segundo plano.
 3. **Ausencia de Indicador de Asistencia en Tarjetas de la Agenda (`/admin/agenda`)**: Las vistas del horario (Vista 1 por Salas y Vista 2 Rejilla Semanal) no renderizaban el estado de asistencia o dependían de un punto microscópico de 2px en una sola vista.
 4. **Fallo en Resolución de UUID para PostgreSQL**: `backgroundSyncAttendanceLogToDB` verificaba `!isNaN(Number(studentId))`. Los IDs como `"as-cp-65"` retornaban `NaN`, enviando `student_id = NULL` a la tabla `attendance_logs`.

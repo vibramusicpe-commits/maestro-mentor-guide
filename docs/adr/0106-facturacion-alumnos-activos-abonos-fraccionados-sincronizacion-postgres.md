@@ -7,8 +7,8 @@ Aprobado (v2.0.0) — 18 de Septiembre, 2026
 1. **Contaminación de Recibos Históricos y Falsos Positivos en Facturación**:
    - El módulo `/admin/facturacion` ("Cobros y Abonos") mostraba 83 recibos antiguos de una base anterior dada de baja y 98 alumnos en la "Matriz Anual 2026".
    - Al iniciar la depuración y migración manual 1 a 1 de alumnos activos, el panel de cobranzas no reflejaba la realidad contable de los alumnos recién matriculados y activos en sala.
-2. **Registro y Auditoría de Abonos Fraccionados (Caso Camila Pastor Conco)**:
-   - La alumna Camila Valentina Pastor Conco (Violín, Prof. Fernando) cuenta con una matrícula de reingreso/continuación en Plan Trimestral (promoción de S/ 297 a S/ 261).
+2. **Registro y Auditoría de Abonos Fraccionados (Caso Alumna C.P.)**:
+   - La alumna Alumna C.P. (Violín, Prof. Fernando) cuenta con una matrícula de reingreso/continuación en Plan Trimestral (promoción de S/ 297 a S/ 261).
    - Su apoderada realizó dos abonos por Yape:
      - Abono 1: S/ 200 el 08/09/2026 (reserva/matrícula formal).
      - Abono 2: S/ 61 el 10/09/2026 (día de su primera clase presencial, saldo cancelado al 100%).
@@ -35,7 +35,7 @@ Aprobado (v2.0.0) — 18 de Septiembre, 2026
 4. **Filtrado Estricto de Alumnos Activos en `/admin/facturacion`**:
    - En `src/routes/admin.facturacion.tsx`, la pestaña "Matriz Anual 2026" y su tabla de alumnos ahora consumen exclusivamente `activeStudents = adminStudents.filter(st => st.status === "activo")`.
    - La generación mensual de facturas (`generateMonthlyInvoices`) opera únicamente sobre alumnos activos.
-5. **Migración Completa de Camila Pastor Conco**:
+5. **Migración Completa de Alumna C.P.**:
    - `id`: `00000000-0000-0000-0002-000000000045`.
    - `status`: `"activo"`.
    - `instrument`: `"Violín"`, Profesor: Fernando (Sala B).

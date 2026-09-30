@@ -4,12 +4,12 @@
 Aprobado (v2.0.2) — 18 de Septiembre, 2026
 
 ## Contexto
-1. **Píldoras de Asistencia Ocultas en el Horario de Clases (Caso Camila Pastor Conco)**:
+1. **Píldoras de Asistencia Ocultas en el Horario de Clases (Caso Alumna C.P.)**:
    - En `agenda-board.tsx` y `minimal-agenda-calendar.tsx`, la evaluación de asistencia en cada celda (`cardAtt` / `effectiveStatus`) leía únicamente el arreglo indexado por semana (`lesson.attendanceByWeek?.[safeWeekIndex]`).
    - Sin embargo, las marcas registradas por los docentes o la secretaría en el Kardex y Kiosco se persisten en PostgreSQL (`attendance_logs`) y en Zustand con fechas calendario exactas (`attendanceByDate: { "2026-09-10": "presente", ... }`).
    - Al no consultar `lesson.attendanceByDate?.[dayInfo.dateStr]`, las clases a las que la alumna ya asistió (ej. 10/09, 15/09, 17/09) se mostraban en el horario semanal sin el badge de asistencia "🟢 Pres".
 
-2. **Clases "Fantasma" Posteriores a la Culminación del 100% de la Cuota (Caso Emma Micaela Sevilla Perez)**:
+2. **Clases "Fantasma" Posteriores a la Culminación del 100% de la Cuota (Caso Alumna E.S.)**:
    - Emma completó el 100% de su cuota de 8 clases lectivas el viernes 18 de Setiembre de 2026 (tomó clases de corrido el 11/09 y 18/09).
    - Sin embargo, en el Horario de Clases seguían proyectándose clases no cursadas en la Semana 4 (21 al 25 de Setiembre), Semana 5 (28 al 30 de Setiembre) y en todos los meses subsiguientes (Octubre, Noviembre, etc.).
    - Causas raíz identificadas:
@@ -51,6 +51,6 @@ Aprobado (v2.0.2) — 18 de Septiembre, 2026
    - Se añadió resolución de nombre por nota (`log.note && isMatchingStudentName(st.name, log.note)`) como fallback resiliente.
 
 ## Consecuencias
-- **Camila Pastor Conco**: Sus 3 asistencias de Setiembre (10/09, 15/09, 17/09) se visualizan con su badge verde "🟢 Pres" en sus respectivos días lectivos.
-- **Emma Sevilla**: Al haber culminado sus 8 créditos el 18/09, su historial de 8 clases queda perfectamente preservado y visible en las semanas 2 y 3, mientras que las semanas 4, 5 y los meses futuros quedan limpios de clases fantasma.
+- **Alumna C.P.**: Sus 3 asistencias de Setiembre (10/09, 15/09, 17/09) se visualizan con su badge verde "🟢 Pres" en sus respectivos días lectivos.
+- **Alumna E.S.**: Al haber culminado sus 8 créditos el 18/09, su historial de 8 clases queda perfectamente preservado y visible en las semanas 2 y 3, mientras que las semanas 4, 5 y los meses futuros quedan limpios de clases fantasma.
 - **Total Coherencia**: El Kardex del alumno y el Horario de Clases comparten la misma verdad matemática sobre cuotas contractuales y asistencias.

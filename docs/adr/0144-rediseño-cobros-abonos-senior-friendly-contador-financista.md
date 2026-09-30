@@ -22,10 +22,10 @@ El panel de "Cobros, Abonos y Vouchers" (`/admin/facturacion`) conservaba depend
   - **Total Cobrado en Caja:** S/ 3,425.00 PEN (81.3% recaudado).
   - **Saldo Pendiente (Deuda por Cobrar):** S/ 788.00 PEN (18.7%).
   - **Semáforo de Deudores (4 Alumnos con saldo pendiente):**
-    1. *Fernanda Sofía Fajardo Condo:* Debe S/ 297.00 PEN (S/ 0 abonado).
-    2. *Karlitoz Pazos Huatuco:* Debe S/ 277.00 PEN (S/ 20 abonado).
-    3. *Sasha Dharma Contreras de la Cruz:* Debe S/ 197.00 PEN (S/ 100 abonado).
-    4. *Marco Antonio Adrian Mamani Caro:* Debe S/ 17.00 PEN (S/ 280 abonado).
+    1. *Alumna F.F.:* Debe S/ 297.00 PEN (S/ 0 abonado).
+    2. *Alumno K.P.:* Debe S/ 277.00 PEN (S/ 20 abonado).
+    3. *Alumna S.C.:* Debe S/ 197.00 PEN (S/ 100 abonado).
+    4. *Alumno M.M.:* Debe S/ 17.00 PEN (S/ 280 abonado).
   - **Alumnos 100% al Día:** 9 alumnos con saldo S/ 0.00.
 
 ### 2. Barra de Accesibilidad y Perfil Dual (`SeniorAccessibilityBar`)

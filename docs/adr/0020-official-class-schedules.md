@@ -27,7 +27,7 @@ El sistema utilizaba previamente rangos horarios genéricos (como `15:00` a `18:
    - Reemplazados los horarios viejos por la matriz oficial de Vibra Music (`timeSlotsWeekday` y `timeSlotsSaturday`).
    - Actualizados los profesores a la lista oficial (`Jeremy`, `Fernando`, `Nathaly`).
 2. **Semillas Reales Cargadas**:
-   - Se precargaron los grupos reales indicados en la hoja de Nayeli (ej: *Asaf Chipana en Batería 16:00, Mariño Huachuilca Kiara en Canto 16:00, Valerie Yidda Angulo en Violín 16:00, etc.*).
+   - Se precargaron los grupos reales indicados en la hoja de Nayeli (ej: *Asaf Chipana en Batería 16:00, Mariño Huachuilca Kiara en Canto 16:00, Alumna V.A. en Violín 16:00, etc.*).
 
 ## Consecuencias
 - El sistema muestra exactamente los horarios y profesores con los que trabaja la escuela. Nayeli y la Dueña verán su plantilla real 100% reflejada.

@@ -5,13 +5,13 @@ Aprobado (v2.0.3) — 19 de Septiembre, 2026
 
 ## Contexto
 1. **Migración Manual 1 a 1 de Alumnos a la Base Activa**:
-   - La escuela cuenta con alumnos en la base de datos de PostgreSQL clasificados en `pausa` (60) y `baja` (22), manteniendo únicamente a los alumnos activos reales verificados (`Emma Micaela Sevilla Perez`, `Camila Pastor Conco`).
+   - La escuela cuenta con alumnos en la base de datos de PostgreSQL clasificados en `pausa` (60) y `baja` (22), manteniendo únicamente a los alumnos activos reales verificados (`Alumna E.S.`, `Alumna C.P.`).
    - Al comenzar el proceso operativo de migración 1 a 1 mediante el panel de **Depuración & Reactivación 2026** (`StudentCleanupPanel`) o matriculando nuevos alumnos (`addNewStudent`), se requería garantizar que todos los módulos del backend y frontend permanezcan 100% interconectados sin fisuras de persistencia.
 
 2. **Riesgos Críticos Identificados en la Auditoría Quirúrgica del Backend**:
    - **Pérdida de Recibos en Recarga**: Al matricular un nuevo alumno (`addNewStudent`), el recibo se creaba en memoria Zustand, pero no se persistía en la tabla `invoices` de PostgreSQL. Al recargar la página (`F5`), `useInsforgeSync` consultaba la base de datos y sobrescribía `invoices`, provocando la desaparición del recibo del alumno recién registrado.
    - **Ausencia de Recibo al Reactivar Alumno 1 a 1**: Al cambiar el estado de un alumno histórico a `activo` (`setStudentStatus`), el alumno ingresaba al horario y directorio, pero no tenía recibo asociado en `/admin/facturacion` para que la secretaría pudiera registrar sus abonos o vouchers.
-   - **Valores Hardcodeados en Abonos (`S/ 297`)**: `backgroundSyncPaymentToDB` llamaba a `registerPayment` enviando un objeto de recibo prefijado en `{ amount: 297, amount_paid: 0, remaining_balance: 297 }`. Esto provocaba que abonos sucesivos (como el segundo abono de Camila Pastor de S/ 61 tras un primer abono de S/ 200) o planes promocionales no pudieran validarse con precisión matemática en la tabla `payment_audit_logs`.
+   - **Valores Hardcodeados en Abonos (`S/ 297`)**: `backgroundSyncPaymentToDB` llamaba a `registerPayment` enviando un objeto de recibo prefijado en `{ amount: 297, amount_paid: 0, remaining_balance: 297 }`. Esto provocaba que abonos sucesivos (como el segundo abono de Alumna C.P. de S/ 61 tras un primer abono de S/ 200) o planes promocionales no pudieran validarse con precisión matemática en la tabla `payment_audit_logs`.
    - **Mapeo de Nombre de Alumno en Facturas**: `mapDBInvoiceToInvoice` utilizaba el nombre del apoderado (`primary_guardian_name`) como fallback para el campo `student`, generando desalineaciones visuales en los recibos cuando el nombre del alumno figuraba en el concepto.
 
 ## Decisiones Técnicas

@@ -11,10 +11,10 @@ En el módulo de Cobros y Abonos (`/admin/facturacion`), la administración (due
 1. **Material Escolar y Libro de Método Vibra (S/ 67.00 PEN)**:
    - No existía una pestaña o vista dedicada para el control de los libros escolares.
    - En la interfaz solo se mostraban tres pestañas: "Recibos Activos", "Matriz Anual 2026" e "Historial de Vouchers Yape".
-   - No había visibilidad de quiénes debían el libro (ej. Fernanda Sofía Fajardo Condo con saldo deudor de S/ 67.00), quiénes lo tenían pagado (ej. Camila Valentina Pastor Conco), quiénes estaban exonerados, ni si el libro físico ya había sido entregado en sala de clase o continuaba pendiente de entrega.
+   - No había visibilidad de quiénes debían el libro (ej. Alumna F.F. con saldo deudor de S/ 67.00), quiénes lo tenían pagado (ej. Alumna C.P.), quiénes estaban exonerados, ni si el libro físico ya había sido entregado en sala de clase o continuaba pendiente de entrega.
 2. **Matriz Anual de Control de Pagos 2026 Desactualizada y sin Estados de Culminación**:
    - Al purgar las semillas mock heredadas (ADR-0145), los registros mes a mes (Junio a Diciembre) mostraban guiones vacíos (`—`) porque leían una propiedad estática `annualRecords` desvinculada de la base de datos real.
-   - La leyenda de la matriz solo contemplaba tres estados: "Cancelado", "Deudor" y "Parcial", omitiendo a los alumnos que ya culminaron su ciclo contractual de 8 clases (ej. Ethan Jara, Valerie Angulo y Yasumi Chamorro con 8/8 clases completadas en Septiembre).
+   - La leyenda de la matriz solo contemplaba tres estados: "Cancelado", "Deudor" y "Parcial", omitiendo a los alumnos que ya culminaron su ciclo contractual de 8 clases (ej. Alumno E.J., Alumna V.A. y Alumna Y.C. con 8/8 clases completadas en Septiembre).
 
 ## Decisiones Técnicas
 

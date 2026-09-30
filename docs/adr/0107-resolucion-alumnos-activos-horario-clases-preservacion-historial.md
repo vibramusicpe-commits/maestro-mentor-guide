@@ -5,7 +5,7 @@ Aprobado (v2.0.1) — 18 de Septiembre, 2026
 
 ## Contexto
 1. **Ocultamiento Involuntario de Alumnos Activos en el Horario de Clases (`AgendaBoard`)**:
-   - Al probar el flujo de borrado y nueva alta 1 a 1 de alumnos (caso Emma Micaela Sevilla Perez), el registro eliminado permanecía en PostgreSQL con `status = 'baja'` y el nuevo registro se guardaba con un nuevo UUID y `status = 'activo'`.
+   - Al probar el flujo de borrado y nueva alta 1 a 1 de alumnos (caso Alumna E.S.), el registro eliminado permanecía en PostgreSQL con `status = 'baja'` y el nuevo registro se guardaba con un nuevo UUID y `status = 'activo'`.
    - Al rehidratar desde la base de datos (`hydrateFromBackend`), se preservaban ambos registros. Como los registros antiguos en `baja` se crearon previamente, se situaban antes en el array `mergedStudents`.
    - Cuando el filtro del Horario de Clases (`agenda-board.tsx`) ejecutaba:
      ```ts
@@ -13,7 +13,7 @@ Aprobado (v2.0.1) — 18 de Septiembre, 2026
      if (!studentProfile || studentProfile.status !== "activo") return false;
      ```
      el método `.find` devolvía el registro antiguo en `baja`, concluyendo erróneamente que la alumna no estaba activa y descartando todas sus clases del cronograma.
-   - Por el contrario, para alumnos con un solo registro como Camila Pastor Conco, `.find` encontraba inmediatamente el perfil activo, por lo que sus clases sí se mostraban.
+   - Por el contrario, para alumnos con un solo registro como Alumna C.P., `.find` encontraba inmediatamente el perfil activo, por lo que sus clases sí se mostraban.
 2. **Preservación del Historial de Clases Culminadas**:
    - El hecho de que un alumno activo complete el 100% de las clases de su plan (ej. 8 de 8 sesiones) jamás debe provocar que sus clases desaparezcan del Horario de Clases en las semanas en que asistió. El historial pedagógico debe ser accesible en cada semana lectiva.
 3. **Paridad de Asistencias Basada en Fechas Exactas**:

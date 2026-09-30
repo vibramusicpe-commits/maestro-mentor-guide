@@ -15,7 +15,7 @@ En Vibra Music Staff, el ciclo de vida de una clase reprogramada (makeup) es un 
    - **Bug 2 (Botón X no persistente)**: `deleteLessonFromSchedule` solo filtraba en memoria `s.schedule`, sin actualizar `adminStudents.scheduleLessons` ni persistir en PostgreSQL (`backgroundSyncStudentToDB`). Al recargar la página, la clase makeup volvía a aparecer.
    - **Bug 3 (Botón X no restauraba `excludedDates` ni devolvía crédito)**: El botón X ejecutaba mutaciones inline frágiles con `useAppStore.setState` sin persistir a PostgreSQL y sin devolver el crédito de recuperación consumido.
 
-Un intento previo (commit `3aaee2c`) intentó separar la lectura en `allCycleSessions` del Kardex usando semanas relativas al mes, lo que causó una regresión crítica reabriendo ciclos completados (como el de Emma Sevilla) con clases fantasma hasta noviembre. Dicho commit fue revertido en `a124bc5`.
+Un intento previo (commit `3aaee2c`) intentó separar la lectura en `allCycleSessions` del Kardex usando semanas relativas al mes, lo que causó una regresión crítica reabriendo ciclos completados (como el de Alumna E.S.) con clases fantasma hasta noviembre. Dicho commit fue revertido en `a124bc5`.
 
 ## Decisiones Técnicas Adoptadas
 
@@ -47,4 +47,4 @@ Un intento previo (commit `3aaee2c`) intentó separar la lectura en `allCycleSes
 ## Consecuencias y Beneficios
 - **Cero Arrastre**: Alumnos con doble sesión en el mismo día (regular + recuperación) mantienen estados de asistencia completamente aislados e independientes.
 - **Reversión Perfecta**: Al hacer clic en el botón X en el Kardex, la sesión de recuperación se elimina en pantalla y en PostgreSQL, la clase original se restaura en el calendario y el crédito se devuelve para una nueva reprogramación.
-- **Historial Protegido**: Alumnos con ciclo culminado (ej. Emma Sevilla) conservan su cuota de 8 clases exacta sin reaperturas fantasma.
+- **Historial Protegido**: Alumnos con ciclo culminado (ej. Alumna E.S.) conservan su cuota de 8 clases exacta sin reaperturas fantasma.

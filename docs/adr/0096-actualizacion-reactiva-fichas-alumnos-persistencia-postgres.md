@@ -7,7 +7,7 @@ Aceptado e Implementado en Producción
 2026-09-15
 
 ## Contexto
-Durante el proceso de reactivación y regularización 1 a 1 de alumnos desde el panel de administración (`/admin/alumnos`), el equipo de Dirección y Marketing realizó una prueba reactivando y editando la ficha de "Camila Valentina Pastor Conco". Tras pulsar "Guardar Cambios", la interfaz mostraba la alerta "Ficha guardada exitosamente en la base de datos", pero los cambios no se reflejaban de forma reactiva en la tabla ni en la ficha, y al recargar la página se perdían datos extendidos.
+Durante el proceso de reactivación y regularización 1 a 1 de alumnos desde el panel de administración (`/admin/alumnos`), el equipo de Dirección y Marketing realizó una prueba reactivando y editando la ficha de "Alumna C.P.". Tras pulsar "Guardar Cambios", la interfaz mostraba la alerta "Ficha guardada exitosamente en la base de datos", pero los cambios no se reflejaban de forma reactiva en la tabla ni en la ficha, y al recargar la página se perdían datos extendidos.
 
 Tras una auditoría técnica profunda del flujo de mutación y persistencia, se detectaron las siguientes causas raíz:
 
@@ -26,7 +26,7 @@ Tras una auditoría técnica profunda del flujo de mutación y persistencia, se 
    - Al recargar la página (F5) o sincronizar desde el backend, `mapDBStudentToAdminStudent` fijaba por defecto `planType = "Mensual"`, profesor `"Fernando"`, y dejaba `ageCategory` indefinido, sobrescribiendo los datos previamente configurados.
 
 4. **Fallo en Propagación al Horario de Clases (`isMatchingStudentName` vs `.includes`)**:
-   - Cuando se cambiaba el nombre o horario en `updateStudentDetails`, la actualización de las lecciones del horario utilizaba `lesson.student.toLowerCase().includes(...)`, lo cual fallaba cuando los nombres tenían diferencias de segundo nombre o apellidos (ej. "Camila Valentina Pastor Conco" vs "Camila Pastor Conco").
+   - Cuando se cambiaba el nombre o horario en `updateStudentDetails`, la actualización de las lecciones del horario utilizaba `lesson.student.toLowerCase().includes(...)`, lo cual fallaba cuando los nombres tenían diferencias de segundo nombre o apellidos (ej. "Alumna C.P." vs "Alumna C.P.").
 
 5. **Ausencia del Selector de Estado de Matrícula en "Editar Ficha"**:
    - El formulario `EditStudentSheetInner` no incluía un selector para cambiar directamente el estado del alumno (`activo`, `pausa`, `baja`), obligando al usuario a buscar acciones dispersas.
@@ -90,6 +90,6 @@ En `src/components/admin/students-table.tsx`:
 
 ## Consecuencias y Verificación
 - **Reactividad Instantánea**: Al editar y guardar la ficha de un alumno, la tabla y los paneles reflejan los cambios en 0 ms sin requerir F5.
-- **Persistencia Confiable**: Al recargar la página (F5), los datos de Camila Valentina Pastor Conco (y cualquier otro alumno) se cargan exactamente como fueron configurados, respaldados en PostgreSQL.
+- **Persistencia Confiable**: Al recargar la página (F5), los datos de Alumna C.P. (y cualquier otro alumno) se cargan exactamente como fueron configurados, respaldados en PostgreSQL.
 - **Sincronización de Horario Impecable**: Las lecciones del horario se vinculan correctamente sin importar discrepancias menores en los nombres compuestos.
 - **Compilación Exitosa**: `npm run build` ejecutado sin errores en 1.3s.

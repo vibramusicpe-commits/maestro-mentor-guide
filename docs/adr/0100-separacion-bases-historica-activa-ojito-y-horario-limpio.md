@@ -13,7 +13,7 @@ Aprobado (v1.8.9) — 16 de Septiembre, 2026
    - Al pasar a un alumno de "Pausa" a "Activo", el sistema tendía a resucitar lecciones heredadas de los seeds originales en el horario. La regla de negocio exige que cada alumno reactivado empiece con su horario completamente en blanco (`schedule: []`), obligando a que secretaría configure los días, salas y profesores de forma 100% manual y consciente mediante el botón `+ Horario`.
 4. **Nueva Modalidad: Regular 1x/semana (8 clases en 2 meses)**:
    - Se requería dar soporte a alumnos que asisten una sola vez por semana en sesiones de 45 minutos (un paquete de 8 clases distribuido a lo largo de 2 meses o periodos lectivos), complementando a la modalidad Regular clásica (2x/semana, 1 mes) e Intensivo (fines de semana, 4 clases de 90 min).
-5. **Corrección de Fechas en Kardex (Camila Pastor Conco)**:
+5. **Corrección de Fechas en Kardex (Alumna C.P.)**:
    - Camila inició clases el 10/09/2026, pero el Kardex le seguía programando sesiones el 1, 3 y 8 de septiembre debido a que la semilla de control de pagos arrastraba `planStartDate: "2026-08-01"`.
 6. **Desfase en "Ver Ficha" y Sobreescritura Mock en "Editar Ficha"**:
    - En el drawer de solo lectura "Ver Ficha", las pastillas de asistencia mostraban 3 valores fijos desfasados del Kardex y contenía un botón de regularización de fechas que debía pertenecer exclusivamente al modo edición.
@@ -43,11 +43,11 @@ Aprobado (v1.8.9) — 16 de Septiembre, 2026
    - En el drawer "Ver Ficha", las pastillas de asistencia se calculan dinámicamente desde `schedule.attendanceByDate` mostrando las etiquetas reales de las fechas marcadas (ej. `10 Set`, `15 Set`).
    - Se retiró el botón `⚡ Regularizar por Fechas (1 Clic)` del drawer de visualización.
 7. **Migración a `cadencia-app-v29`**:
-   - Se incrementó el identificador de persistencia de Zustand a `cadencia-app-v29` con purga controlada de versiones previas en `localStorage` y forzado de la fecha oficial de inicio para Camila Pastor.
+   - Se incrementó el identificador de persistencia de Zustand a `cadencia-app-v29` con purga controlada de versiones previas en `localStorage` y forzado de la fecha oficial de inicio para Alumna C.P..
 
 ## Consecuencias
 - La Base Histórica de 83 alumnos queda blindada contra escrituras accidentales y disponible para descarga y auditoría.
 - La secretaria puede activar alumnos con plena visibilidad de su historial sin estrés cognitivo gracias al "ojito".
 - Los alumnos reactivados inician con 0 lecciones, impidiendo cruces de horario o clases no deseadas.
-- El Kardex de Camila Pastor Conco muestra con exactitud sus 6 clases de Septiembre (10, 15, 17, 22, 24, 29), sin fechas fantasma previas a su matrícula.
+- El Kardex de Alumna C.P. muestra con exactitud sus 6 clases de Septiembre (10, 15, 17, 22, 24, 29), sin fechas fantasma previas a su matrícula.
 - Al guardar la ficha de un alumno, no se sobreescriben ni se pierden las asistencias registradas en el Kardex.

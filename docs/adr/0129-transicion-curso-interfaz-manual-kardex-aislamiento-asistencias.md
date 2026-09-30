@@ -4,7 +4,7 @@
 Aceptado
 
 ## Contexto
-En la operativa diaria de Vibra Music Staff, surgen casos donde un alumno activo requiere cambiar de curso o instrumento a mitad de ciclo lectivo (por ejemplo, el caso de la alumna **Sasha Dharma Contreras de la Cruz**, quien por prescripción médica tras una cirugía debe cesar las clases de Canto y pasar a clases de Guitarra con el Prof. Jeremy).
+En la operativa diaria de Vibra Music Staff, surgen casos donde un alumno activo requiere cambiar de curso o instrumento a mitad de ciclo lectivo (por ejemplo, el caso de la alumna **Alumna S.C.**, quien por prescripción médica tras una cirugía debe cesar las clases de Canto y pasar a clases de Guitarra con el Prof. Jeremy).
 
 La aplicación contaba con herramientas para reprogramaciones puntuales de una sesión (`[🔄 Reprogramar]`) y consumos de créditos de recuperación (`[+ Programar Recuperación]`), pero no disponía de un mecanismo formal en la interfaz para gestionar la transición completa de un curso hacia otro instrumento/docente preservando las clases y asistencias ya impartidas.
 

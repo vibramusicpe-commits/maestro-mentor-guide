@@ -10,7 +10,7 @@ Aprobado (v1.8.8) — 16 de Septiembre, 2026
 2. **Auto-marcado Fantasma y Fuga de Asistencias en el Kardex**:
    - En `src/components/admin/student-attendance-kardex.tsx`, al marcar una sesión se guardaba un estado global en la lección (`lesson.attendanceStatus`). Al renderizar sesiones de la semana lectiva activa que aún no habían sido evaluadas, la línea `(selectedMonth === currentRealMonth && week.weekIndex === currentActiveWeek && lesson.attendanceStatus) ? lesson.attendanceStatus` heredaba el estado global y marcaba sesiones futuras (como el 17 de Septiembre al marcar el 10) de forma involuntaria.
    - En `src/store/app-store.ts`, `attendanceByWeek` se indexaba solo por `weekIndex` (`0, 1, 2, 3, 4`), provocando colisiones entre meses (marcar semana 1 de septiembre marcaba semana 1 de agosto).
-   - El Kardex ignoraba las fechas de vigencia contratadas (`student.planStartDate` y `student.planEndDate`), generando sesiones anteriores a la matrícula del alumno (ej. 1, 3 y 8 de septiembre para Camila Pastor, quien inició el 10/09/2026).
+   - El Kardex ignoraba las fechas de vigencia contratadas (`student.planStartDate` y `student.planEndDate`), generando sesiones anteriores a la matrícula del alumno (ej. 1, 3 y 8 de septiembre para Alumna C.P., quien inició el 10/09/2026).
    - En `src/lib/services/students.service.ts`, `recentAttendance` tenía un mock por defecto de `["presente", "presente", "presente"]` y `attendanceRate: 100`, mostrando 3 asistencias y 100% incluso en alumnos sin registros reales.
 
 ## Decisiones Técnicas
@@ -35,7 +35,7 @@ Aprobado (v1.8.8) — 16 de Septiembre, 2026
 
 ## Consecuencias
 - Docentes como Jeremy y Nathaly muestran 0 alumnos asignados mientras no tengan alumnos reactivados por administración.
-- Camila Pastor figura exclusivamente con el Prof. Fernando en sus 6 clases reales de Septiembre (10, 15, 17, 22, 24, 29).
+- Alumna C.P. figura exclusivamente con el Prof. Fernando en sus 6 clases reales de Septiembre (10, 15, 17, 22, 24, 29).
 - Marcar el 10 de Septiembre ya no marca automáticamente el 17 de Septiembre ni ninguna otra fecha.
 - Agosto queda 100% limpio sin sesiones antes del 10 de Septiembre.
 - La ficha del alumno refleja exactamente las asistencias reales marcadas (0, 1, 2, etc.), sin los 3 mocks anteriores.

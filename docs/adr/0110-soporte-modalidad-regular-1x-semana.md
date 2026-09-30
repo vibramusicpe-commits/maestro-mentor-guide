@@ -4,7 +4,7 @@
 Aceptado e Implementado en Producción (v2.0.4)
 
 ## Contexto
-Al matricular o editar a la alumna **Sasha Dharma Contreras de la Cruz** (Canto, Prof. Nathaly, Adulto) bajo la modalidad oficial:
+Al matricular o editar a la alumna **Alumna S.C.** (Canto, Prof. Nathaly, Adulto) bajo la modalidad oficial:
 `Regular: 8 clases (1x semana, 45 min · 2 meses)` (`Regular 1x/sem (8 clases / 45 min)`), el formulario de organización de horario (`ScheduleStudentForm`) agrupaba a todos los planes regulares bajo `isRegular` (asumiendo 2 clases semanales obligatorias).
 
 Esto provocaba:

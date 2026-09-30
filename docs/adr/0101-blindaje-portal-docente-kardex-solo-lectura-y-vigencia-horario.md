@@ -6,7 +6,7 @@ Aprobado (v1.9.0) — 16 de Septiembre, 2026
 ## Contexto
 1. **Discrepancia de Nombres en Portal Docente (Fernando)**:
    - Al consultar `/teacher/agenda` o el Kiosco `/teacher/`, la búsqueda de alumnos activos utilizaba `normSt.includes(normL)`.
-   - El nombre registrado en PostgreSQL es `"Camila Valentina Pastor Conco"` mientras que el horario contiene `"Camila Pastor Conco"`.
+   - El nombre registrado en PostgreSQL es `"Alumna C.P."` mientras que el horario contiene `"Alumna C.P."`.
    - Dado que la comparación de subcadenas devolvía `false`, el portal docente consideraba que la alumna no estaba activa, mostrando 0 clases en la agenda de Fernando.
    - Además, `MinimalAgendaCalendar` mantenía un valor fijo para Agosto 2026 (`getMonthWeeks(2026, 7)`), imposibilitando visualizar las clases reales de Setiembre.
 2. **Exposición de Clases Fantasma para Otros Profesores (Jeremy, Nathaly)**:
@@ -14,7 +14,7 @@ Aprobado (v1.9.0) — 16 de Septiembre, 2026
    - Si la caché de `localStorage` o el filtrado por nombre no operaba de forma determinista, los profesores visualizaban un padrón masivo obsoleto en lugar de un portal limpio con 0 alumnos.
    - En `/teacher/alumnos`, el filtro por profesor no reaccionaba a los cambios de cuenta en `RoleSwitcher`.
 3. **Clases Previas a la Matrícula en la Agenda de Administración**:
-   - En `/admin/agenda`, Camila Pastor Conco continuaba apareciendo en Semana 1 (Martes 1 y Jueves 3 de Setiembre) porque el selector `visible` solo discriminaba a nivel de mes (`selectedYearMonthStr < startMonth`), sin comprobar el día calendario contra la fecha de inicio del alumno (`dayInfo.dateStr < studentProfile.planStartDate`).
+   - En `/admin/agenda`, Alumna C.P. continuaba apareciendo en Semana 1 (Martes 1 y Jueves 3 de Setiembre) porque el selector `visible` solo discriminaba a nivel de mes (`selectedYearMonthStr < startMonth`), sin comprobar el día calendario contra la fecha de inicio del alumno (`dayInfo.dateStr < studentProfile.planStartDate`).
 4. **Ausencia de Fecha de Inicio en Formulario de Horario**:
    - `ScheduleStudentForm` permitía configurar salas, días y profesores pero carecía de un selector explícito para la fecha oficial de inicio de clases (`planStartDate`), impidiendo que secretaría indicara la vigencia al momento de agendar.
 5. **Kardex Editable en Modo Visualización**:
@@ -45,8 +45,8 @@ Aprobado (v1.9.0) — 16 de Septiembre, 2026
    - Se incrementó el identificador de persistencia a `cadencia-app-v30` con purga de versiones 1 a 29 y restricción del horario activo exclusivamente a alumnos con estado `"activo"`.
 
 ## Consecuencias
-- El profesor Fernando visualiza correctamente a Camila Pastor en sus clases de Martes y Jueves 17:30 a partir del 10 de Setiembre.
+- El profesor Fernando visualiza correctamente a Alumna C.P. en sus clases de Martes y Jueves 17:30 a partir del 10 de Setiembre.
 - Los profesores Jeremy y Nathaly disponen de un portal 100% limpio (0 alumnos asignados y 0 clases) hasta que secretaría les asigne alumnos activos reales.
-- La Agenda de Administración en Semana 1 de Setiembre (1 y 3 de Setiembre) y Semana 2 (8 de Setiembre) queda libre de sesiones de Camila Pastor.
+- La Agenda de Administración en Semana 1 de Setiembre (1 y 3 de Setiembre) y Semana 2 (8 de Setiembre) queda libre de sesiones de Alumna C.P..
 - Secretaría puede fijar la fecha de inicio al programar cualquier clase mediante `+ Horario`.
 - El Kardex protege la integridad de los datos evitando ediciones no deseadas fuera de "Editar Ficha".

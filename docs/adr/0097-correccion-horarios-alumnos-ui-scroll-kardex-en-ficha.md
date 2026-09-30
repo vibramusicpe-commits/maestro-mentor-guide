@@ -8,8 +8,8 @@ Aceptado e Implementado en Producción
 
 ## Contexto
 Tras la reactivación 1 a 1 de alumnos en `/admin/alumnos`, el equipo de administración detectó cuatro incidencias operativas:
-1. **Clase Inexistente los Viernes 19:00 en Camila Pastor (`sch-113`)**:
-   - En la agenda aparecía Camila Pastor Conco con 3 clases semanales: Martes 17:30, Jueves 17:30 y Viernes 19:00 (marcada con categoría Juvenil en vez de Junior).
+1. **Clase Inexistente los Viernes 19:00 en Alumna C.P. (`sch-113`)**:
+   - En la agenda aparecía Alumna C.P. con 3 clases semanales: Martes 17:30, Jueves 17:30 y Viernes 19:00 (marcada con categoría Juvenil en vez de Junior).
    - Camila está en Plan Regular (2 clases semanales); la clase del viernes provenía de una entrada residual del Excel histórico de Nayeli incorporado en `official-seeds.ts`.
 2. **Botón de Aceptar/Guardar Inaccesible en el Modal de Horario (`ScheduleStudentForm`)**:
    - Al intentar reorganizar el horario con el botón `+ Horario`, el modal `DialogContent` no tenía scroll vertical ni altura máxima restringida (`max-h-[...]`). En pantallas de laptops o navegadores con barras de herramientas, el contenido empujaba los botones "Cancelar" y "Guardar Horario Completo" fuera de la pantalla.

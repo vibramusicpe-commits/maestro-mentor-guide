@@ -4,7 +4,7 @@
 Aceptado
 
 ## Contexto e Incidente
-En la operación en producción de Vibra Music Staff, se reportó un caso crítico al reprogramar una falta de la alumna **Yasumi Cielo Chamorro Amasifuen** (Piano, Prof. Fernando, Sala B, Plan Regular de 8 clases). La alumna presentaba 6 clases asistidas (`presente`) y 2 faltas (`ausente`), acumulando créditos para recuperar ambas sesiones.
+En la operación en producción de Vibra Music Staff, se reportó un caso crítico al reprogramar una falta de la alumna **Alumna Y.C.** (Piano, Prof. Fernando, Sala B, Plan Regular de 8 clases). La alumna presentaba 6 clases asistidas (`presente`) y 2 faltas (`ausente`), acumulando créditos para recuperar ambas sesiones.
 
 Al intentar reprogramar una de sus faltas para el **Martes 29/09/2026**:
 1. La otra falta existente en el historial desapareció visualmente del Kardex.
@@ -67,23 +67,23 @@ En el algoritmo de corte de cuota:
 
 ### 5. Saneamiento Quirúrgico de la Base de Datos en Producción (PostgreSQL)
 Se identificaron y sanearon los registros de alumnos activos en producción:
-1. **Yasumi Cielo Chamorro Amasifuen** (`227ffd56-44c2-4672-a3ce-d5000a8b6bf0`):
+1. **Alumna Y.C.** (`227ffd56-44c2-4672-a3ce-d5000a8b6bf0`):
    - Depurados los logs espurios de regularización en `attendance_logs` (17/09 ausente y 22/09 presente).
    - Eliminadas las lecciones de recuperación temporales en `emergency_contact.scheduleLessons`.
    - `excludedWeeks: []` y `excludedDates: []` en sus lecciones base de Martes y Jueves.
    - Restablecida su vigencia original a `planStartDate: "2026-08-20"` y `planEndDate: "2026-09-19"`, mostrando **exactamente sus 8 clases originales** (6 presentes y 2 faltas: 25/08 y 03/09).
    - Ahora secretaría puede reprogramar manualmente en el Kardex la falta del Martes 25/08 hacia el Jueves 17/09 en 1 clic.
-2. **Karlitoz Pazos Huatuco** (`10ab2288-40ea-4032-84c2-ec168d98880f`):
+2. **Alumno K.P.** (`10ab2288-40ea-4032-84c2-ec168d98880f`):
    - `excludedWeeks: []` en lecciones de Lun y Mié, manteniendo sus `excludedDates` e historiales intactos (8 de 8 sesiones completas).
-3. **Mia Lucero Bellido Alvan** (`892bcc0b-d635-465e-a823-1dc339eafe74`):
+3. **Alumna M.B.** (`892bcc0b-d635-465e-a823-1dc339eafe74`):
    - `excludedWeeks: []` en lecciones de Vie y Sáb, manteniendo sus `excludedDates` y makeups activos (8 de 8 sesiones completas).
 
 ---
 
 ## Verificación y Resultados
 - **Simulación y Kardex Calculator**:
-  - `Yasumi Cielo Chamorro Amasifuen`: Exactamente 8 clases en su estado base (6 presentes + 2 faltas: 25/08 y 03/09). Al reprogramar 25/08 al 17/09, proyecta exactamente 8 clases (6 presentes + 1 falta en 03/09 + 1 reprogramada el 17/09).
-  - `Karlitoz Pazos Huatuco`: 8 clases exactas proyectadas.
-  - `Mia Lucero Bellido Alvan`: 8 clases exactas proyectadas.
+  - `Alumna Y.C.`: Exactamente 8 clases en su estado base (6 presentes + 2 faltas: 25/08 y 03/09). Al reprogramar 25/08 al 17/09, proyecta exactamente 8 clases (6 presentes + 1 falta en 03/09 + 1 reprogramada el 17/09).
+  - `Alumno K.P.`: 8 clases exactas proyectadas.
+  - `Alumna M.B.`: 8 clases exactas proyectadas.
 - **Build de Producción**:
   - `npm run build` ejecutado exitosamente con 0 errores TypeScript y compresión Nitro limpia en 726ms.

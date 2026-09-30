@@ -24,7 +24,7 @@ Al realizar la trazabilidad técnica profunda entre el backend (PostgreSQL en In
    - Nathaly dicta Lunes, Martes, Miércoles, Jueves y Sábados (0 clases los viernes).
    - Sin un aviso claro de qué días dicta el docente, el auditor asumía que el horario se había borrado o roto.
 5. **Cierre de vigencia contractual (ADR-0108)**:
-   - Alumnos cuyos ciclos de 8 clases finalizaron a mediados de mes (ej. Ethan Jara al 16-Sep y Yasumi Chamorro al 19-Sep) no proyectan clases pendientes en la Semana 4 por regla de vigencia contractual.
+   - Alumnos cuyos ciclos de 8 clases finalizaron a mediados de mes (ej. Alumno E.J. al 16-Sep y Alumna Y.C. al 19-Sep) no proyectan clases pendientes en la Semana 4 por regla de vigencia contractual.
 
 ## Decisiones Técnicas
 

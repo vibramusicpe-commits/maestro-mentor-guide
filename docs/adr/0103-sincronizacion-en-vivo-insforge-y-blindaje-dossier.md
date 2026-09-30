@@ -5,7 +5,7 @@ Aprobado (v1.9.2) — 17 de Septiembre, 2026
 
 ## Contexto
 1. **Pérdida de Cambios en Dossier tras Limpieza de Caché**:
-   - Al editar datos de un alumno en la tabla/dossier de alumnos (ejemplo: **Emma Micaela Sevilla Perez**), las modificaciones se reflejaban en la UI pero al limpiar la caché del navegador o recargar con Ctrl+Shift+R se perdían.
+   - Al editar datos de un alumno en la tabla/dossier de alumnos (ejemplo: **Alumna E.S.**), las modificaciones se reflejaban en la UI pero al limpiar la caché del navegador o recargar con Ctrl+Shift+R se perdían.
 2. **Rechazo Silencioso en PostgREST (401 Unauthorized)**:
    - En `src/lib/services/auth.service.ts`, el inicio de sesión generaba un token de simulación con formato `jwt-token-${role}-${Date.now()}`.
    - En `src/lib/insforge.ts` (`buildHeaders`), este string se enviaba en la cabecera `Authorization: Bearer <token>`.

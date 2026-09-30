@@ -226,12 +226,12 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
 
 ### 16. Sincronización e Inmutabilidad de Lecciones con Fecha Exacta en Horario y Agenda (ADR-0115)
 1. **Aislamiento de `weekIndex` en Clases con Fecha Exacta (`dateStr`)**:
-   - En `AgendaBoard`, toda lección con `dateStr` se valida exclusivamente contra los días de la semana visualizada (`currentWeekObj.days.some(d => d.dateStr === l.dateStr)`), omitiendo incondicionalmente el filtro de coincidencia fija `l.weekIndex !== safeWeekIndex`. Esto garantiza que recuperaciones y reprogramaciones puntuales (ej. Mia Lucero Bellido) se muestren en la semana de su fecha real y no sean filtradas por el índice de la clase original ausente.
+   - En `AgendaBoard`, toda lección con `dateStr` se valida exclusivamente contra los días de la semana visualizada (`currentWeekObj.days.some(d => d.dateStr === l.dateStr)`), omitiendo incondicionalmente el filtro de coincidencia fija `l.weekIndex !== safeWeekIndex`. Esto garantiza que recuperaciones y reprogramaciones puntuales (ej. Alumna M.B.) se muestren en la semana de su fecha real y no sean filtradas por el índice de la clase original ausente.
    - En `rescheduleLesson` (`app-store.ts`), al crear una reprogramación de alcance *"Solo esta sesión"* con `newDateStr`, `weekIndex` se fija en `undefined` para evitar heredar índices estáticos obsoletos.
 2. **Soporte de Fechas Excluidas en Celdas de Horario (`excludedDates`)**:
    - `AgendaBoard` valida `l.excludedDates?.includes(lessonDayInfo.dateStr)` para ocultar la clase original en el día específico en que fue reprogramada, evitando duplicidades visuales.
 3. **Ampliación de Ventana Lectiva 2026**:
-   - El límite inferior del año 2026 en `AgendaBoard` se amplía a Julio 2026 (`selectedMonth < 6`) para permitir la renderización de paquetes flexibles y ciclos iniciados a mitad de año (ej. Andrea Fernanda Meza).
+   - El límite inferior del año 2026 en `AgendaBoard` se amplía a Julio 2026 (`selectedMonth < 6`) para permitir la renderización de paquetes flexibles y ciclos iniciados a mitad de año (ej. Alumna A.M.).
 
 ---
 
@@ -242,7 +242,7 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
    - Todo alumno activo cuenta exactamente con 1 recibo activo en `invoices` reflejando su plan, costo real, monto abonado y saldo.
    - Cada abono inicial o fraccionado se audita en `payment_audit_logs` con rol responsable, fecha y método de pago.
 3. **Depuración de Recibos Obsoletos o Duplicados**:
-   - Se eliminan recibos pendientes generados de semillas antiguas que duplican perfiles ya pagados (ej. duplicado previo de Mia Bellido), asegurando que `/admin/facturacion` reporte cuentas claras y consistentes en todos los dispositivos.
+   - Se eliminan recibos pendientes generados de semillas antiguas que duplican perfiles ya pagados (ej. duplicado previo de Alumna M.B.), asegurando que `/admin/facturacion` reporte cuentas claras y consistentes en todos los dispositivos.
 
 ---
 
@@ -265,9 +265,9 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
 1. **Botón Táctil de Sincronización con PostgreSQL en Admin y Kiosco**:
    - Se incorpora el botón de rehidratación instantánea `<RotateCw />` en la cabecera de la Agenda Administrativa (`/admin/agenda`) y en el Kiosco Docente (`/teacher`), permitiendo a directores, secretarias y profesores forzar la sincronización en vivo con PostgreSQL con un solo clic/toque en pantalla, mostrando animación de giro y confirmación toast.
 2. **Preservación Incondicional de Clases con Fecha Específica (`dateStr`)**:
-   - En `isLessonInStudentCycle` (`src/lib/student-cycle.ts`), las sesiones que cuentan con una fecha exacta asignada (`lesson.dateStr && lesson.dateStr === lessonDateStr`) se aprueban incondicionalmente (`return true;`). Esto evita que filtros de cuota mensuales oculten clases reprogramadas o recuperaciones válidas (ej. Mia Lucero Bellido y Karlitoz Pazos en Septiembre 2026).
+   - En `isLessonInStudentCycle` (`src/lib/student-cycle.ts`), las sesiones que cuentan con una fecha exacta asignada (`lesson.dateStr && lesson.dateStr === lessonDateStr`) se aprueban incondicionalmente (`return true;`). Esto evita que filtros de cuota mensuales oculten clases reprogramadas o recuperaciones válidas (ej. Alumna M.B. y Alumno K.P. en Septiembre 2026).
 3. **Corrección del Escaneo Multimensual en Kardex de Asistencias**:
-   - En `student-attendance-kardex.tsx`, la validación de semana se realiza comparando `lesson.weekIndex` contra la semana dentro del mes consultado (`curWeekInMonth = weekIdx`), en vez de calcular semanas transcurridas desde `planStartDate` (`Math.floor(offset / 7)`). Esto soluciona la desaparición de clases en la previsualización del Kardex para alumnos con inicio previo al mes en curso (ej. Andrea Fernanda Meza Llallahui, cuyo plan inició en Julio).
+   - En `student-attendance-kardex.tsx`, la validación de semana se realiza comparando `lesson.weekIndex` contra la semana dentro del mes consultado (`curWeekInMonth = weekIdx`), en vez de calcular semanas transcurridas desde `planStartDate` (`Math.floor(offset / 7)`). Esto soluciona la desaparición de clases en la previsualización del Kardex para alumnos con inicio previo al mes en curso (ej. Alumna A.M., cuyo plan inició en Julio).
 4. **Prioridad Absoluta de Horarios Persistidos en PostgreSQL (`emergency_contact.scheduleLessons`)**:
    - En `hydrateFromBackend` (`app-store.ts`), las clases del horario local solo se conservan si el alumno no cuenta con clases oficiales guardadas en PostgreSQL. Al existir `scheduleLessons` en la base de datos, estas tienen prioridad total y sustituyen cualquier caché local obsoleta entre diferentes navegadores y computadoras.
 5. **Persistencia Directa de Asistencias desde Kiosco Docente hacia PostgreSQL**:
@@ -277,7 +277,7 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
 
 ### 20. ⚠️ Cero Confianza en Caché Local para Estado Transaccional — Post-Mortem del Incidente Admin/Profesor (ADR-0119)
 
-> **Origen de esta regla**: el 21 de septiembre de 2026 se detectó que la Agenda del Profesor (`MinimalAgendaCalendar`, ruta `/teacher/agenda`) no mostraba dos clases de recuperación (Mia Lucero Bellido y Karlitoz Pazos, ambas con Prof. Nathaly) que sí eran visibles correctamente en la Agenda Admin (`AgendaBoard`, ruta `/admin/agenda`), en la misma sesión y con los mismos datos en PostgreSQL. Una sesión de depuración exhaustiva confirmó, línea por línea, que: los datos existían correctamente en `emergency_contact.scheduleLessons`; el emparejamiento de docente (`teacherClean`) era correcto; la comparación de `dateStr` contra `dayInfo.dateStr` era correcta; `isLessonInStudentCycle` debía devolver `true` por `attendanceByDate`; y `hydrateFromBackend` debía dar prioridad absoluta a PostgreSQL (ver ADR-0118.4). **Ninguna de estas verificaciones estáticas reveló el bug.** La sesión se quedó sin presupuesto de tokens (~30% del total consumido en un solo incidente) sin confirmar la causa raíz. La hipótesis más fuerte que quedó pendiente de verificar en tiempo de ejecución es que el snapshot persistido en `localStorage` (vía Zustand `persist`) en el dispositivo/navegador del profesor nunca llega a ser completamente sustituido por el resultado de `hydrateFromBackend`, o que existe una condición de carrera entre el primer pintado (desde `initialSchedule`/`localStorage`) y la sincronización asíncrona con PostgreSQL — lo cual contradice directamente el principio fundacional de ADR-001.3 ("Postgres como única fuente de verdad... nunca almacenar estado transaccional" fuera de la base de datos).
+> **Origen de esta regla**: el 21 de septiembre de 2026 se detectó que la Agenda del Profesor (`MinimalAgendaCalendar`, ruta `/teacher/agenda`) no mostraba dos clases de recuperación (Alumna M.B. y Alumno K.P., ambas con Prof. Nathaly) que sí eran visibles correctamente en la Agenda Admin (`AgendaBoard`, ruta `/admin/agenda`), en la misma sesión y con los mismos datos en PostgreSQL. Una sesión de depuración exhaustiva confirmó, línea por línea, que: los datos existían correctamente en `emergency_contact.scheduleLessons`; el emparejamiento de docente (`teacherClean`) era correcto; la comparación de `dateStr` contra `dayInfo.dateStr` era correcta; `isLessonInStudentCycle` debía devolver `true` por `attendanceByDate`; y `hydrateFromBackend` debía dar prioridad absoluta a PostgreSQL (ver ADR-0118.4). **Ninguna de estas verificaciones estáticas reveló el bug.** La sesión se quedó sin presupuesto de tokens (~30% del total consumido en un solo incidente) sin confirmar la causa raíz. La hipótesis más fuerte que quedó pendiente de verificar en tiempo de ejecución es que el snapshot persistido en `localStorage` (vía Zustand `persist`) en el dispositivo/navegador del profesor nunca llega a ser completamente sustituido por el resultado de `hydrateFromBackend`, o que existe una condición de carrera entre el primer pintado (desde `initialSchedule`/`localStorage`) y la sincronización asíncrona con PostgreSQL — lo cual contradice directamente el principio fundacional de ADR-001.3 ("Postgres como única fuente de verdad... nunca almacenar estado transaccional" fuera de la base de datos).
 
 1. **Prohibición Explícita de Confiar en `localStorage`/`persist` para Datos Transaccionales**:
    - Ningún componente (Admin, Profesor, Kiosco) debe leer alumnos, `schedule`/`scheduleLessons`, `attendanceByDate`/`attendance_logs`, `invoices` o `payment_audit_logs` asumiendo que el snapshot de `localStorage` (Zustand `persist`) ya está sincronizado con PostgreSQL.
@@ -292,7 +292,7 @@ Este documento establece las reglas arquitectónicas, decisiones técnicas (ADR)
 4. **Protocolo de Cierre para Incidentes de Paridad Admin/Profesor/Kiosco**:
    - Antes de dar por resuelta cualquier tarea de este tipo, se debe confirmar en el dispositivo real donde ocurría el problema (no solo en desarrollo) que: (a) se inspeccionó el `localStorage` real de ese dispositivo, (b) se purgó o reconcilió si contenía datos obsoletos, y (c) el fix se verificó con datos frescos de PostgreSQL y no solo con lectura estática del código.
 5. **Resolución Confirmada y Eliminación de Caching Local Transaccional**:
-   - Se validó mediante simulación en tiempo de ejecución directa (`scratch/test-runtime-pure.mjs`) con datos en vivo de Insforge PostgreSQL que las 4 clases de Mia Lucero Bellido y Karlitoz Pazos (incluyendo recuperaciones con `dateStr`) son aprobadas y renderizadas en la Semana 4 (Lunes 21 de Setiembre).
+   - Se validó mediante simulación en tiempo de ejecución directa (`scratch/test-runtime-pure.mjs`) con datos en vivo de Insforge PostgreSQL que las 4 clases de Alumna M.B. y Alumno K.P. (incluyendo recuperaciones con `dateStr`) son aprobadas y renderizadas en la Semana 4 (Lunes 21 de Setiembre).
    - NOTA DE CORRECCIÓN (2026-09-22): la afirmación anterior de que `schedule`, `adminStudents` e `invoices` se desacoplaron de `localStorage` en `partialize` era incorrecta; `src/store/app-store.ts:2866-2880` todavía los persiste. No volver a afirmar el desacople sin verificar el código.
    - Se limpiaron las menciones de "Nayeli" en el pie de WhatsApp de `minimal-agenda-calendar.tsx` y en las pestañas de `agenda-board.tsx`.
 6. **Causa Raíz Confirmada con Evidencia de Consola en Producción (2026-09-22)**:
@@ -603,9 +603,9 @@ inferencia.
    - El Kiosco Docente (`/teacher`) y las Agendas (`/teacher/agenda`, `/admin/agenda`) deben compartir **el mismo motor determinista de ciclo contractual**.
    - `isLessonInDay` en `teacher.index.tsx` **DEBE** invocar obligatoriamente `isLessonInStudentCycle(studentProfile, lesson, dateStr, lesson.time, schedule)` y verificar `excludedWeeks` además de `excludedDates`.
 2. **Erradicación de Clases "Fantasma" en Sesiones Reprogramadas o Adelantadas**:
-   - Si una clase puntual fue justificada y adelantada a otro día de la semana (ej. Mia Lucero Bellido Alvan, cuya clase del viernes 25 se adelantó al jueves 24 y fue asistida con `🟢 PRESENTE`), la sesión original **NO DEBE** figurar como pendiente en el Kiosco ni sumar al contador del día original.
+   - Si una clase puntual fue justificada y adelantada a otro día de la semana (ej. Alumna M.B., cuya clase del viernes 25 se adelantó al jueves 24 y fue asistida con `🟢 PRESENTE`), la sesión original **NO DEBE** figurar como pendiente en el Kiosco ni sumar al contador del día original.
 3. **Erradicación de Semillas Obsoletas Duplicadas**:
-   - Si un alumno activo cuenta con clases oficiales persistidas en `studentProfile.scheduleLessons`, cualquier semilla antigua residual (ej. Sasha Contreras `sch-34` a las 17:30) debe ser invalidada por `isLessonInStudentCycle`, asegurando que el Kiosco y la Agenda muestren exactamente la misma cantidad de clases (ej. 1 sola clase a las 18:15 en Martes).
+   - Si un alumno activo cuenta con clases oficiales persistidas en `studentProfile.scheduleLessons`, cualquier semilla antigua residual (ej. Alumna S.C. `sch-34` a las 17:30) debe ser invalidada por `isLessonInStudentCycle`, asegurando que el Kiosco y la Agenda muestren exactamente la misma cantidad de clases (ej. 1 sola clase a las 18:15 en Martes).
 4. **Resolución de Asistencia Prioritaria desde Ficha Oficial**:
    - Al renderizar el estado de asistencia (`status`) en la tarjeta del Kiosco, se debe consultar prioritariamente `studentProfile.scheduleLessons` para que cualquier marca guardada en Kardex o rehidratada de PostgreSQL se refleje instantáneamente sin depender de la rehidratación asíncrona de `schedule`.
 
@@ -622,7 +622,7 @@ inferencia.
    - Las sesiones impartidas o evaluadas previas a la fecha de corte conservan inmutablemente su instrumento, sala, docente y asistencias registradas en `attendanceByDate` y `attendance_logs`.
    - Las sesiones posteriores a la fecha de corte se asignan al nuevo instrumento, docente y sala (cumpliendo estrictamente la especialidad docente ADR-0102: Jeremy -> Sala A, Fernando -> Sala B, Nathaly -> Sala C).
 4. **Preservación Incondicional de Créditos de Recuperación ("La clase no se pierde, se recupera")**:
-   - Las faltas acumuladas por inasistencias médicas o justificadas en el curso anterior (ej. las 2 faltas de salud de Sasha en Canto) se trasladan íntegramente como créditos de recuperación disponibles para ser programados en el nuevo instrumento con el nuevo docente.
+   - Las faltas acumuladas por inasistencias médicas o justificadas en el curso anterior (ej. las 2 faltas de salud de un alumno en Canto) se trasladan íntegramente como créditos de recuperación disponibles para ser programados en el nuevo instrumento con el nuevo docente.
 5. **Persistencia Estándar vía `backgroundSyncStudentToDB`**:
    - La acción `transitionStudentCourse` actualiza el store de Zustand y delega la sincronización con PostgreSQL al pipeline estándar con debounce de 350ms, garantizando la consistencia transaccional y la emisión limpia de eventos inter-pestañas post-escritura.
 6. **Eliminación de Desbordamiento Horizontal y Proporciones Responsivas en Kardex**:
@@ -672,13 +672,13 @@ inferencia.
 ### 32. Calibración Exclusiva de Paneles de Cobros y Reportes con Alumnos Activos en Tiempo Real (ADR-0132)
 1. **Scoping Estricto a la Base Activa Oficial (13 Alumnos)**:
    - Los paneles de gestión institucional `/admin/facturacion` y `/admin/reportes` operan **exclusivamente sobre alumnos con `status === "activo"`** (los 13 alumnos productivos oficiales de PostgreSQL Insforge).
-   - Queda **TERMINANTEMENTE PROHIBIDO** que estos paneles incorporen en sus métricas, tablas, alertas o exportaciones a los 58 alumnos en `pausa` o 24 en `baja` (como Emma Sevilla), o semillas dummy de versiones antiguas.
+   - Queda **TERMINANTEMENTE PROHIBIDO** que estos paneles incorporen en sus métricas, tablas, alertas o exportaciones a los 58 alumnos en `pausa` o 24 en `baja` (como registros inactivos), o semillas dummy de versiones antiguas.
 2. **Sincronización Bidireccional en Tiempo Real (`useInsforgeSync`)**:
    - Ambos paneles incorporan el hook `useInsforgeSync()` y un botón interactivo:
      👉 **`[🔄 Sincronizar en Vivo]`** en su barra superior de acciones, permitiendo revalidar al instante los datos con PostgreSQL, con indicación de estado de red (`isSyncing`) y distintivos visuales `PostgreSQL en Vivo ({activeStudents.length} Activos)`.
 3. **Deduplicación Quirúrgica y Cálculo Financiero Exacto (`activeInvoices`)**:
    - En `/admin/facturacion`, `activeInvoices` vincula recibos a alumnos activos por coincidencia exacta o normalizada de nombre, familia o ID de recibo. Deduplica registros duplicados por alumno y concepto base (`${studentId}-${baseConcept}`), priorizando la versión más reciente con comprobantes auditados.
-   - Se mantiene el balance financiero exacto: **Total Facturado S/ 4,505.00**, **Total Cobrado S/ 3,717.00** y **Saldo Pendiente S/ 788.00** correspondiente a las 4 familias con cuotas pendientes (Fernanda Fajardo S/ 297, Karlitoz Pazos S/ 277, Marco Mamani S/ 17 y Sasha Contreras S/ 197).
+   - Se mantiene el balance financiero exacto: **Total Facturado S/ 4,505.00**, **Total Cobrado S/ 3,717.00** y **Saldo Pendiente S/ 788.00** correspondiente a las 4 familias con cuotas pendientes (Alumna F.F. S/ 297, Alumno K.P. S/ 277, Alumno M.M. S/ 17 y Alumna S.C. S/ 197).
 4. **Matriz Anual y Reporte Maestro Dinámicos**:
    - En `/admin/facturacion`, la Matriz Anual erradica cualquier referencia estática heredada (`(99 Alumnos Oficiales)`) y adopta dinámicamente `(${activeStudents.length} Alumnos Activos Oficiales)`.
    - En `/admin/reportes`, las 5 tarjetas KPI superiores (Alumnos Activos, Al Día en Pagos, Con Saldo Pendiente, Deuda por Cobrar, Asistencia Promedio) y la exportación oficial a CSV computan sus datos única y exclusivamente sobre los alumnos activos.
@@ -709,11 +709,11 @@ inferencia.
 1. **Principio Pedagógico Innegociable ("Las clases no se pierden, se recuperan")**:
    - En Vibra Music Staff, ninguna inasistencia de un alumno activo (`ausente` o `justificada`) se cancela ni se pierde: genera automáticamente un derecho/crédito de recuperación (`makeupCredits` / `makeupCreditsAvailable`).
 2. **Migración de Créditos por Transición Inter-Instrumento**:
-   - Si un alumno realiza un cambio de instrumento a mitad de ciclo lectivo (por ejemplo, Sasha Dharma Contreras de la Cruz: de Canto a Guitarra), **los créditos acumulados por inasistencias en el instrumento previo no se anulan ni se descartan**: migran íntegramente al nuevo instrumento.
+   - Si un alumno realiza un cambio de instrumento a mitad de ciclo lectivo (por ejemplo, Alumna S.C.: de Canto a Guitarra), **los créditos acumulados por inasistencias en el instrumento previo no se anulan ni se descartan**: migran íntegramente al nuevo instrumento.
    - En la Ficha de Auditoría y en el Kardex, el desglose matemático se estructura de forma transparente:
      - **Clases Regulares de Cuota Pendientes en el Nuevo Instrumento**: Restan exactamente las clases necesarias para completar la cuota mensual contractual (ej. 3 clases de cuota en Guitarra para completar las 8).
      - **Créditos Acumulados a Recuperar**: Las inasistencias del curso previo (ej. 2 faltas del 15/09 y 17/09 en Canto) pasan como `+2 créditos` a favor en Guitarra.
-     - **Total de Clases Efectivas por Impartir en el Nuevo Instrumento**: `regularPending + makeupCreditsMigrated` (ej. 3 regulares + 2 créditos = **5 clases totales** que el Prof. Jeremy dictará a Sasha).
+     - **Total de Clases Efectivas por Impartir en el Nuevo Instrumento**: `regularPending + makeupCreditsMigrated` (ej. 3 regulares + 2 créditos = **5 clases totales** que el Prof. Jeremy dictará al alumno).
 3. **Normalización Universal de Días (`normalizeDayKey`)**:
    - `kardex-calculator.ts` implementa `normalizeDayKey`, homologando de forma bidireccional formatos cortos (`"Mar"`, `"Jue"`) con nombres completos (`"Martes"`, `"Jueves"`), erradicando descalces que provocaban la visualización de 0 sesiones en alumnos con horario guardado en PostgreSQL.
 4. **Trazabilidad Visual y Semántica en la Auditoría**:
@@ -730,19 +730,19 @@ inferencia.
 ### 35. Matriz Oficial de 3 Rubros Financieros (1. Matrícula · 2. Mensualidad · 3. Libros), Deduplicación de Recibos y Totales Consolidados de Cartera (ADR-0135)
 1. **Estructura Financiera Canónica de 3 Rubros**:
    - En toda la plataforma y en especial en la Ficha Oficial de Auditoría (`student-audit-report-dialog.tsx`, `kardex-calculator.ts`), la situación financiera de cualquier alumno se audita a través de una matriz estricta y automatizada de 3 rubros:
-     1. **1. Matrícula Institucional**: Evalúa `student.matriculaType` (Regular S/ 120, Promo Demo S/ 30, o Exonerada S/ 0). En alumnos con beca o convenio (como Sasha Dharma Contreras), se audita como `Exonerada (S/ 0.00 / 0.00 / 0.00)`.
+     1. **1. Matrícula Institucional**: Evalúa `student.matriculaType` (Regular S/ 120, Promo Demo S/ 30, o Exonerada S/ 0). En alumnos con beca o convenio (como Alumna S.C.), se audita como `Exonerada (S/ 0.00 / 0.00 / 0.00)`.
      2. **2. Mensualidad (Plan Contratado)**: Refleja la cuota del ciclo lectivo activo (ej. S/ 297.00), monto abonado (ej. S/ 100.00), saldo restante (ej. S/ 197.00), método de pago y referencia/voucher auditado (`paymentLogs`). Se deduplica estrictamente para que exista exactamente **1 fila** por ciclo lectivo, erradicando filas duplicadas o triplicadas.
-     3. **3. Libros y Material Didáctico (Pack de Útiles)**: Evalúa `student.packUtilesCost`, `student.packUtilesAmountPaid`, `student.packUtilesStatus`, `student.packUtilesDelivered` y `student.packUtilesNotes`. Si el costo es 0 o está exonerado (como en Sasha), se audita como `Exonerado / Incluido (S/ 0.00)`. Si aplica costo estándar (S/ 67.00), audita el abono, saldo pendiente y entrega física en sala.
+     3. **3. Libros y Material Didáctico (Pack de Útiles)**: Evalúa `student.packUtilesCost`, `student.packUtilesAmountPaid`, `student.packUtilesStatus`, `student.packUtilesDelivered` y `student.packUtilesNotes`. Si el costo es 0 o está exonerado (como en Alumna S.C.), se audita como `Exonerado / Incluido (S/ 0.00)`. Si aplica costo estándar (S/ 67.00), audita el abono, saldo pendiente y entrega física en sala.
 2. **Deduplicación Estricta de Recibos contra PostgreSQL (`hydrateFromBackend`)**:
    - En `src/store/app-store.ts`, al fusionar recibos remotos de PostgreSQL con cachés locales en vuelo de `localStorage`, se compara no solo por `inv.id`, sino por `${studentName}-${baseConcept}`. Si PostgreSQL ya cuenta con un recibo formal para ese alumno y concepto (ej. UUID `a4b3fe8a...`), se descartan copias locales o mock residuales, impidiendo que un recibo aparezca multiplicado.
 3. **Totales Consolidados de Cartera (Table Footer, Badges, Markdown y WhatsApp)**:
    - Toda tabla financiera incorpora un pie consolidado (`tfoot`) con la suma matemática exacta:
-     - `Total Facturado`: Suma de cuotas oficiales de los 3 rubros (ej. Sasha: S/ 0 + S/ 297 + S/ 0 = S/ 297.00).
-     - `Total Abonado`: Suma de pagos efectivos (ej. Sasha: S/ 0 + S/ 100 + S/ 0 = S/ 100.00).
-     - `Total Saldo Deuda`: Deuda real exigible (ej. Sasha: S/ 0 + S/ 197 + S/ 0 = S/ 197.00).
+     - `Total Facturado`: Suma de cuotas oficiales de los 3 rubros (ej. Alumna S.C.: S/ 0 + S/ 297 + S/ 0 = S/ 297.00).
+     - `Total Abonado`: Suma de pagos efectivos (ej. Alumna S.C.: S/ 0 + S/ 100 + S/ 0 = S/ 100.00).
+     - `Total Saldo Deuda`: Deuda real exigible (ej. Alumna S.C.: S/ 0 + S/ 197 + S/ 0 = S/ 197.00).
    - Esta cifra se refleja unificadamente en el badge de cabecera (`⚠ DEUDA: S/ 197.00`), en el Cuadro de Liquidación Oficial del Ciclo, en el exportable `.md` para LLMs y en el mensaje generado para WhatsApp.
 4. **Universalidad para Todos los Alumnos**:
-   - Si bien se tomó a Sasha Dharma Contreras como caso de calibración, la lógica de `computeStudentFinancialAudit` es 100% universal y calcula de forma automática y reactiva la matriz contable para cualquier alumno activo del colegio.
+   - Si bien se tomó a Alumna S.C. como caso de calibración, la lógica de `computeStudentFinancialAudit` es 100% universal y calcula de forma automática y reactiva la matriz contable para cualquier alumno activo del colegio.
 
 ---
 
@@ -849,7 +849,7 @@ inferencia.
 
 ### 41. Pauta Anti-Colisión de Homónimos, Fuzzy Matching Fonético y UI/UX Google Flow (ADR-0141)
 1. **Pauta Multidimensional Anti-Colisión de Alumnos**:
-   - En una escuela con múltiples homónimos (ej. varias alumnas llamadas "Sasha"), Laya **NUNCA asume identidades a ciegas ni adivina**.
+   - En una escuela con múltiples homónimos (ej. varios alumnos con el mismo nombre de pila), Laya **NUNCA asume identidades a ciegas ni adivina**.
    - Evalúa similitud fonética (Levenshtein $\le 1$), coincidencia de bigramas y contexto secundario (instrumento, profesor, nombre de apoderado en ficha de PostgreSQL).
    - Si existen 2 o más candidatos cercanos en puntuación (diferencia $< 25$ pts), activa el **Estado de Desambiguación Obligatoria** (`isAmbiguous: true`), desplegando un selector interactivo en 1 clic para que secretaría confirme la alumna antes de procesar cualquier respuesta o acción.
 2. **Consulta en Vivo de Clases Faltantes y Cuotas Contractuales**:
@@ -865,7 +865,7 @@ inferencia.
 1. **Autocompletado con Tecla `Tab`**:
    - Al pulsar `Tab` en la caja de texto de Laya, si existe un candidato sugerido en "Alumno Identificado en PostgreSQL", se autocompleta inmediatamente como `@Nombre Completo `.
 2. **Sintaxis y Desambiguación con `@Menciones`**:
-   - Si la secretaria escribe o selecciona `@Nombre Completo` (ej. `@Sasha Dharma Contreras de la Cruz`), el motor de búsqueda en tiempo real fija al alumno con 100% de confianza inmediata, evitando colisiones con homónimos (ej. `@Sasha Gómez`).
+   - Si la secretaria escribe o selecciona `@Nombre Completo` (ej. `@Estudiante Ejemplo A`), el motor de búsqueda en tiempo real fija al alumno con 100% de confianza inmediata, evitando colisiones con homónimos (ej. `@Estudiante Ejemplo B`).
    - Al hacer clic en una tarjeta de desambiguación de candidatas, se inserta automáticamente la mención `@Nombre` en el texto.
 3. **Ocultamiento Total Exclusivo en Vista Lateral (`EyeOff`)**:
    - En la cabecera del panel lateral derecho (sidebar) se ubica un botón de ojo (`EyeOff`).
@@ -912,10 +912,10 @@ inferencia.
      - **Total Cobrado en Caja:** S/ 3,425.00 PEN (81.3% recaudado).
      - **Saldo Pendiente de Cobro:** S/ 788.00 PEN (18.7%).
      - **Semáforo de Deudores Oficial:** Exactamente 4 alumnos con deuda:
-       1. *Fernanda Sofía Fajardo Condo*: Debe S/ 297.00.
-       2. *Karlitoz Pazos Huatuco*: Debe S/ 277.00.
-       3. *Sasha Dharma Contreras de la Cruz*: Debe S/ 197.00.
-       4. *Marco Antonio Adrian Mamani Caro*: Debe S/ 17.00.
+       1. *Alumna F.F.*: Debe S/ 297.00.
+       2. *Alumno K.P.*: Debe S/ 277.00.
+       3. *Alumna S.C.*: Debe S/ 197.00.
+       4. *Alumno M.M.*: Debe S/ 17.00.
      - **Alumnos al Día:** Exactamente los 9 alumnos restantes con saldo S/ 0.00.
 2. **Barra de Accesibilidad Senior y Perfil Dual (`SeniorAccessibilityBar`)**:
    - Conmutador instantáneo entre `💼 Vista Dueña (Caja y Cobranza)` y `📑 Vista Contador (Bancos y Cuadre)`.

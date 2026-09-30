@@ -5,9 +5,9 @@ Aceptado
 
 ## Contexto
 En producción, se detectó una discrepancia crítica entre el **Kiosco de Clase del Profesor** (`/teacher`) y las vistas de **Agenda** (`/teacher/agenda` y `/admin/agenda`):
-- En el Kiosco docente (`/teacher`), la alumna **Mia Lucero Bellido Alvan** (alumna de Canto de la Prof. Nathaly) figuraba el Viernes 25 de Setiembre a las 16:00 como clase `• PENDIENTE` con contador `Vie 1`.
+- En el Kiosco docente (`/teacher`), la alumna **Alumna M.B.** (alumna de Canto de la Prof. Nathaly) figuraba el Viernes 25 de Setiembre a las 16:00 como clase `• PENDIENTE` con contador `Vie 1`.
 - En la Agenda docente (`/teacher/agenda`) y en la Agenda administrativa (`/admin/agenda`), el Viernes 25 de Setiembre figuraba con `0 clases` (`Vie -`).
-- En Martes, el Kiosco docente contabilizaba 2 clases mientras que la Agenda contabilizaba 1 clase (Sasha Dharma a las 18:15).
+- En Martes, el Kiosco docente contabilizaba 2 clases mientras que la Agenda contabilizaba 1 clase (Alumna S.C. a las 18:15).
 
 ### Causa Raíz
 1. **Asimetría de Motores de Filtrado**:
@@ -20,7 +20,7 @@ En producción, se detectó una discrepancia crítica entre el **Kiosco de Clase
    - Por lo tanto, la clase del Viernes 25 ya había sido impartida y consumida el Jueves 24 (`excludedDates: ["2026-09-25"]`).
    - La Agenda reflejaba la realidad contractual y pedagógica correcta (0 clases el viernes), mientras que el Kiosco mostraba una clase "fantasma" pendiente por falta de validación de ciclo.
 3. **Colisión de Semillas Antiguas en Martes**:
-   - En `schedule` coexistía una semilla antigua (`sch-34`, Sasha Contreras, 17:30) con la lección oficial de PostgreSQL (`sch-1789837710698-rj1p`, Sasha Dharma, 18:15). Sin validación de ciclo, el Kiosco contaba ambas clases.
+   - En `schedule` coexistía una semilla antigua (`sch-34`, Alumna S.C., 17:30) con la lección oficial de PostgreSQL (`sch-1789837710698-rj1p`, Alumna S.C., 18:15). Sin validación de ciclo, el Kiosco contaba ambas clases.
 
 ## Decisiones Técnicas
 1. **Unificación Determinista del Motor de Filtrado en Kiosco (`isLessonInDay`)**:
