@@ -7,8 +7,8 @@
 | **Documento** | Especificación de Requisitos de Software (SRS) |
 |---|---|
 | **Proyecto** | Vibra Music Staff — Webapp Integral |
-| **Versión** | 2.1.2 (Producción / Dossier de Auditoría Oficial & Calibración A4) |
-| **Fecha de Emisión** | 28 de Setiembre 2026 (Actualización de Producción) |
+| **Versión** | 2.2.0 (Producción / Blindaje Financiero, Purga 13 Alumnos, Control Libros & Matriz Anual) |
+| **Fecha de Emisión** | 30 de Setiembre 2026 (Actualización de Producción) |
 | **Autor Institucional** | Equipo de Ingeniería de Software & Arquitectura de Sistemas |
 | **Cliente / Institución** | Escuela de Música Vibra Music (Tacna, Perú) |
 | **Estado del Documento** | Aprobado para Operación y Auditoría |
@@ -1265,9 +1265,9 @@ Para garantizar la continuidad operativa ininterrumpida de la escuela, se establ
 
 ---
 
-# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0143)
+# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0146)
 
-El sistema cuenta con un archivo vivo de **44 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
+El sistema cuenta con un archivo vivo de **46 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
 
 * **ADR-001**: Adopción de TanStack Start, Nitro, PostgreSQL Insforge y WhatsApp Cloud API oficial de Meta.
 * **ADR-0052 & 0053**: Autonomía de secretaría en la edición y eliminación directa de clases y supervisión de 8 clases en Regular y 4 en Intensivo.
@@ -1304,6 +1304,8 @@ El sistema cuenta con un archivo vivo de **44 Decisiones Arquitectónicas (ADR)*
 * **ADR-0142**: Reglas pedagógicas de cursos Intensivos (90m en Jue/Vie/Sáb) vs Recuperaciones de Regular (45m en Viernes/Sábados con salas libres), sistema de autocompletado con tecla Tab y sintaxis @Menciones, botón EyeOff para ocultar totalmente el agente, y módulo de inducción técnica/operativa para resolver preguntas de negocio con guardrails de seguridad financiera (bloqueo estricto de tarjetas y credenciales de dueños).
 * **ADR-0143**: Base de Conocimiento Pedagógico en Copiloto Laya (Categorías por Edad, Equivalencia Master = Adulto y Convivencia de Planes): Integración en Sistema 1 de resolución determinista de categorías (Infantil 5-6 años, Piano Infantil 4-8 con Nathaly en Sala C, Junior 7-12, Juvenil 13-17 y Master 18+). Equivalencia oficial e innegociable Master = Adulto con persistencia transparente en PostgreSQL (`ADULTO`) y etiqueta visual `MASTER (18+)`. Reglas de convivencia en sala: Junior y Master prohibidos juntos; 45 min no convive con 90 min; Viernes/Sábados habilitados para recuperaciones de 45m si hay aforo (<5 alumnos). Formateo automático de respuestas estructuradas para WhatsApp Web.
 * **ADR-0144**: Rediseño Integral de Cobros y Abonos Accesible para Personas Mayores (Senior-Friendly) con Perfil Dual Dueña/Contador y Cero Mock Data: Erradicación absoluta de arrays simulados (`billingTrend`, `recurringConcepts`). Cálculos 100% en tiempo real contra PostgreSQL (13 alumnos activos, S/ 4,213 facturado, S/ 3,425 cobrado en caja, S/ 788 por cobrar, semáforo de 4 alumnos deudores y 9 alumnos al día). Componente `SeniorAccessibilityBar` con selector dual (Dueña vs Contador), selector de zoom de tipografía (A, A+, A++ Senior con objetivos táctiles de 48px), botón interactivo de Laya Explainer, WhatsApp de cobranza respetuosa en 1 clic y exportación de Libro Diario Contable en CSV UTF-8 BOM para Microsoft Excel.
+* **ADR-0145**: Purga de Semillas Heredadas, Respaldo Histórico en CSV y Blindaje de Facturación para 13 Alumnos Activos: Respaldo íntegro de los 142 registros históricos en archivo externo CSV (`archivo_historico_base_antigua_alumnos_vibra_music.csv`) con UTF-8 BOM. Inicialización limpia de `adminStudents: AdminStudent[] = []` en `src/store/admin-seeds.ts`, actualización de persistencia Zustand a `v32` y purga de versiones anteriores de `localStorage`. Blindaje del modal de facturación masiva de recibos en `/admin/facturacion` para procesar estrictamente a los 13 alumnos activos confirmados y sincronizar con PostgreSQL. Preservación incondicional de la papelera de reciclaje (`deletedStudents`) bajo la máxima "Ningún dato se pierde".
+* **ADR-0146**: Control Oficial de Material Escolar / Libros (S/ 67) y Matriz Anual Dinámica con Estados de Culminación: Módulo y pestaña senior-friendly `📚 Material Escolar / Libros (S/ 67)` con 5 tarjetas KPI métricas, filtros rápidos, toggle interactivo 1-clic para alternar `📦 Entregado en Sala` vs `⚠️ Pendiente de Entrega` sincronizado a PostgreSQL (`emergency_contact.packUtilesDelivered`), botón de cobro directo y WhatsApp. En la Matriz Anual 2026, reemplazo de registros estáticos por cálculo dinámico reactivo mes a mes conectado a PostgreSQL e integrando `computeStudentRetentionStatus` para renderizar la insignia morada oficial `🎓 Culminado (8/8)` en alumnos que completaron sus clases (como Ethan Jara, Valerie Angulo y Yasumi Chamorro).
 
 ---
 

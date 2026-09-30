@@ -42,3 +42,7 @@ dist-ssr
 # MCP Graph & Index Caches
 .graphify/
 .codeatlas-sa/
+
+# White-Label SaaS Distribution (Privado)
+saas_white_label_pack/
+
