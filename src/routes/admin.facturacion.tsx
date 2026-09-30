@@ -32,6 +32,10 @@ import {
   ChevronUp,
   Users,
   Check,
+  BookOpen,
+  PackageCheck,
+  PackageX,
+  GraduationCap,
 } from "lucide-react";
 import {
   useAppStore,
@@ -43,6 +47,10 @@ import {
   type Invoice,
   type PaymentLog,
 } from "@/store/admin-seeds";
+import {
+  computeStudentCycleSessions,
+  computeStudentRetentionStatus,
+} from "@/lib/kardex-calculator";
 import {
   SeniorAccessibilityBar,
   type SeniorFontSize,
@@ -152,6 +160,8 @@ function AdminFacturacionPage() {
   const activeRole = useAppStore((s) => s.activeRole);
   const invoices = useAppStore((s) => s.invoices);
   const adminStudents = useAppStore((s) => s.adminStudents);
+  const schedule = useAppStore((s) => s.schedule);
+  const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
   const recordPaymentAbono = useAppStore((s) => s.recordPaymentAbono);
   const recordNewDirectAbono = useAppStore((s) => s.recordNewDirectAbono);
   const importBatchPayments = useAppStore((s) => s.importBatchPayments);
@@ -159,7 +169,7 @@ function AdminFacturacionPage() {
   const generateMonthlyInvoices = useAppStore((s) => s.generateMonthlyInvoices);
   const { syncNow, isSyncing, lastSyncTime } = useInsforgeSync();
 
-  const [activeTab, setActiveTab] = useState<"recibos" | "anual" | "vouchers" | "resumen">("recibos");
+  const [activeTab, setActiveTab] = useState<"recibos" | "anual" | "utiles" | "vouchers" | "resumen">("recibos");
   const [selectedStudentHistory, setSelectedStudentHistory] = useState<any | null>(null);
   const [whatsappModalData, setWhatsappModalData] = useState<{
     isOpen: boolean;
@@ -239,6 +249,71 @@ function AdminFacturacionPage() {
     () => adminStudents.filter((st) => st.status === "activo"),
     [adminStudents],
   );
+
+  const studentCycleInfoMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        retention: any;
+        targetQuota: number;
+        sessions: any[];
+      }
+    >();
+
+    activeStudents.forEach((st) => {
+      const modalityStr = (st.modality || "").toLowerCase();
+      const isIntensive = modalityStr.includes("inten") || modalityStr.includes("90 min");
+      const targetQuota = isIntensive ? 4 : (st.packageTotalSessions || 8);
+      const sessions = computeStudentCycleSessions({
+        student: st,
+        allSchedule: schedule,
+      });
+      const retention = computeStudentRetentionStatus(st, sessions, targetQuota);
+      map.set(st.id, { retention, targetQuota, sessions });
+    });
+
+    return map;
+  }, [activeStudents, schedule]);
+
+  const packUtilesStats = useMemo(() => {
+    let totalRequired = 0;
+    let totalCollected = 0;
+    let totalPending = 0;
+    let totalDelivered = 0;
+    let totalPendingDelivery = 0;
+    let totalExonerated = 0;
+
+    activeStudents.forEach((st) => {
+      const cost = st.packUtilesCost !== undefined ? st.packUtilesCost : 67;
+      const isExonerated = st.packUtilesStatus === "exonerado" || cost === 0;
+      const paid = st.packUtilesAmountPaid !== undefined ? st.packUtilesAmountPaid : (st.packUtilesPaid ? cost : 0);
+      const delivered = st.packUtilesDelivered !== undefined ? st.packUtilesDelivered : (st.packUtilesPaid !== false);
+
+      if (isExonerated) {
+        totalExonerated++;
+      } else {
+        totalRequired++;
+        totalCollected += paid;
+        totalPending += Math.max(0, cost - paid);
+      }
+
+      if (delivered) {
+        totalDelivered++;
+      } else {
+        totalPendingDelivery++;
+      }
+    });
+
+    return {
+      totalStudents: activeStudents.length,
+      totalRequired,
+      totalCollected,
+      totalPending,
+      totalDelivered,
+      totalPendingDelivery,
+      totalExonerated,
+    };
+  }, [activeStudents]);
 
   const activeInvoices = useMemo(() => {
     // 1. Filtrar solo los recibos que corresponden a los alumnos activos oficiales de PostgreSQL
@@ -531,6 +606,61 @@ function AdminFacturacionPage() {
     setNote("");
   };
 
+  const handleToggleBookDelivery = (studentId: string, currentDelivered: boolean) => {
+    const nextStatus = !currentDelivered;
+    updateStudentDetails(studentId, { packUtilesDelivered: nextStatus });
+    toast.success(
+      nextStatus
+        ? "Libro marcado como ENTREGADO físicamente en sala"
+        : "Libro marcado como PENDIENTE de entrega",
+      {
+        description: "Estado actualizado y sincronizado en PostgreSQL.",
+      }
+    );
+  };
+
+  const handleOpenBookPaymentModal = (st: any) => {
+    const cost = st.packUtilesCost !== undefined && st.packUtilesCost > 0 ? st.packUtilesCost : 67;
+    const paid = st.packUtilesAmountPaid || 0;
+    const pendingAmount = Math.max(0, cost - paid);
+    setDirectFamily(st.name);
+    setDirectConcept(`Material Escolar: Libro Método Vibra (S/ 67) — ${st.name}`);
+    setDirectAmount(String(pendingAmount > 0 ? pendingAmount : 67));
+    setDirectNote("Abono oficial de Material Escolar y Libro del Método Vibra");
+    setDirectMethod("Yape");
+    setDirectVoucherRef("");
+    setDirectVoucherImage("");
+    setIsDirectAbonoOpen(true);
+  };
+
+  const handleSendBookWhatsApp = (st: any) => {
+    const phone = st.phone || st.emergencyContact?.phone || "";
+    const cleanPhone = phone.replace(/\D/g, "");
+    const cost = st.packUtilesCost ?? 67;
+    const paid = st.packUtilesAmountPaid ?? (st.packUtilesPaid ? cost : 0);
+    const balance = Math.max(0, cost - paid);
+    const isPaid = st.packUtilesStatus === "cancelado" || paid >= cost;
+    const isDelivered = st.packUtilesDelivered ?? false;
+
+    let msg = "";
+    if (!isPaid && !isDelivered) {
+      msg = `¡Hola Familia ${st.family || st.name}! 🎶 Te saludamos de la secretaría de Vibra Music. Te recordamos que ya se encuentra disponible el libro oficial del Método Vibra (Pack de Útiles y Partituras: S/ ${cost}.00) para ${st.name}. Pueden abonarlo por Yape/Plin o transferencia para hacerle entrega en su próxima clase. ¡Muchas gracias!`;
+    } else if (!isPaid && isDelivered) {
+      msg = `¡Hola Familia ${st.family || st.name}! 🎶 Te saludamos de secretaría de Vibra Music. Les confirmamos que a ${st.name} ya se le hizo entrega física de su libro en sala. Les recordamos que el saldo pendiente por el material escolar es de S/ ${balance}.00. ¿Desean regularizarlo por Yape o Plin?`;
+    } else if (isPaid && !isDelivered) {
+      msg = `¡Hola Familia ${st.family || st.name}! 🎶 Les saludamos de Vibra Music para avisarles que el libro del Método Vibra de ${st.name} (ya cancelado) está listo en recepción para ser entregado en su próxima clase. ¡Que tengan excelente día!`;
+    } else {
+      msg = `¡Hola Familia ${st.family || st.name}! 🎶 Te saludamos de Vibra Music para confirmar que el material escolar y libro de ${st.name} se encuentra 100% cancelado y entregado. ¡Muchas gracias por su compromiso!`;
+    }
+
+    if (cleanPhone) {
+      const waUrl = `https://wa.me/51${cleanPhone}?text=${encodeURIComponent(msg)}`;
+      window.open(waUrl, "_blank");
+    } else {
+      toast.error("No se encontró teléfono de contacto registrado para este alumno.");
+    }
+  };
+
   // Manejo de lectura de imagen, compresión automática a WebP y pegado directo (Ctrl+V)
   const processImageFile = async (fileOrBlob: File | Blob, setImageState: (b64: string) => void) => {
     if (fileOrBlob instanceof File && !fileOrBlob.type.startsWith("image/")) {
@@ -603,6 +733,23 @@ function AdminFacturacionPage() {
       voucherImage: directVoucherImage,
       paymentTime: directPaymentTime || new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
     });
+
+    if (directConcept.toLowerCase().includes("libro") || directConcept.toLowerCase().includes("útiles") || directConcept.toLowerCase().includes("material")) {
+      const targetSt = activeStudents.find((st) => isMatchingStudentName(st.name, directFamily));
+      if (targetSt) {
+        const cost = targetSt.packUtilesCost !== undefined && targetSt.packUtilesCost > 0 ? targetSt.packUtilesCost : 67;
+        const currentPaid = targetSt.packUtilesAmountPaid || 0;
+        const totalPaid = currentPaid + amountNum;
+        const newStatus = totalPaid >= cost ? "cancelado" : "parcial";
+        updateStudentDetails(targetSt.id, {
+          packUtilesCost: cost,
+          packUtilesStatus: newStatus,
+          packUtilesAmountPaid: totalPaid,
+          packUtilesPaid: newStatus === "cancelado",
+          packUtilesDelivered: true,
+        });
+      }
+    }
 
     setIsDirectAbonoOpen(false);
     setDirectFamily("");
@@ -745,6 +892,143 @@ function AdminFacturacionPage() {
       : fontSize === "mediano"
       ? "text-2xl sm:text-3xl font-black"
       : "text-xl sm:text-2xl font-black";
+
+  const ANNUAL_MONTHS = [
+    { key: "Junio", label: "Junio", monthStr: "2026-06", index: 5 },
+    { key: "Julio", label: "Julio", monthStr: "2026-07", index: 6 },
+    { key: "Agosto", label: "Agosto", monthStr: "2026-08", index: 7 },
+    { key: "Septiembre", label: "Septiembre", monthStr: "2026-09", index: 8 },
+    { key: "Octubre", label: "Octubre", monthStr: "2026-10", index: 9 },
+    { key: "Noviembre", label: "Noviembre", monthStr: "2026-11", index: 10 },
+    { key: "Diciembre", label: "Diciembre", monthStr: "2026-12", index: 11 },
+  ];
+
+  const renderDynamicMonthBadge = (st: any, monthObj: typeof ANNUAL_MONTHS[0]) => {
+    const startMonth = st.planStartDate ? st.planStartDate.slice(0, 7) : "2026-08";
+    const endMonth = st.planEndDate ? st.planEndDate.slice(0, 7) : "2026-09";
+    const currentMonthStr = "2026-09";
+
+    const cycleInfo = studentCycleInfoMap.get(st.id);
+    const isCulminated = cycleInfo?.retention?.category === "culminado";
+
+    // 1. Meses previos al ingreso del alumno
+    if (monthObj.monthStr < startMonth) {
+      return <span className="text-muted-foreground/30 text-[10px]">—</span>;
+    }
+
+    // 2. Alumnos con ciclo culminado (100% de clases o fecha final cumplida)
+    if (isCulminated && monthObj.monthStr >= endMonth) {
+      const attended = cycleInfo?.retention?.attendedCount ?? (cycleInfo?.targetQuota || 8);
+      const quota = cycleInfo?.targetQuota || 8;
+      return (
+        <span
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-800 dark:text-purple-300 font-black text-[10px] border border-purple-500/30 shadow-xs"
+          title={`Completó al 100% sus clases contratadas (${attended}/${quota}). Listo para renovación.`}
+        >
+          <GraduationCap className="h-3 w-3" /> Culminado ({attended}/{quota})
+        </span>
+      );
+    }
+
+    // 3. Buscar recibo oficial emitido para este alumno y mes
+    const monthInv = invoices.find((inv) => {
+      const isMatch =
+        isMatchingStudentName(inv.student || "", st.name) ||
+        (inv.concept && isMatchingStudentName(inv.concept.split("—")[1]?.trim() || "", st.name)) ||
+        (inv.family && st.family && inv.family.toLowerCase().trim() === st.family.toLowerCase().trim());
+      const matchMonth =
+        (inv.dueDate && inv.dueDate.startsWith(monthObj.monthStr)) ||
+        (inv.issueDate && inv.issueDate.startsWith(monthObj.monthStr));
+      return isMatch && matchMonth;
+    });
+
+    if (monthInv) {
+      if (monthInv.status === "pagada" || monthInv.remainingBalance === 0) {
+        return (
+          <span
+            className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-500/20"
+            title={`Cancelado · Recibo ${monthInv.id}`}
+          >
+            S/ {monthInv.amount}
+          </span>
+        );
+      }
+      if ((monthInv.amountPaid || 0) > 0 && (monthInv.remainingBalance || 0) > 0) {
+        return (
+          <span
+            className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold text-[10px] border border-amber-500/20"
+            title={`Abono parcial · Debe S/ ${monthInv.remainingBalance}`}
+          >
+            S/ {monthInv.amountPaid}
+          </span>
+        );
+      }
+      return (
+        <span
+          className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-300 font-black text-[10px] border border-rose-500/20"
+          title={`Deudor · Debe S/ ${monthInv.remainingBalance ?? monthInv.amount}`}
+        >
+          S/ {monthInv.remainingBalance ?? monthInv.amount}
+        </span>
+      );
+    }
+
+    // 4. Resolución contextual para meses activos sin recibo emitido explícito
+    if (monthObj.monthStr === currentMonthStr) {
+      if (st.balance && st.balance > 0) {
+        if (st.amountPaid && st.amountPaid > 0) {
+          return (
+            <span
+              className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold text-[10px] border border-amber-500/20"
+              title={`Abonó S/ ${st.amountPaid} · Debe S/ ${st.balance}`}
+            >
+              S/ {st.amountPaid}
+            </span>
+          );
+        }
+        return (
+          <span
+            className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-300 font-black text-[10px] border border-rose-500/20"
+            title={`Deudor · Debe S/ ${st.balance}`}
+          >
+            S/ {st.balance}
+          </span>
+        );
+      }
+      return (
+        <span
+          className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-500/20"
+          title="Al día · Cancelado"
+        >
+          S/ {st.planPrice || 297}
+        </span>
+      );
+    }
+
+    if (monthObj.monthStr < currentMonthStr) {
+      return (
+        <span
+          className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-500/20"
+          title="Mes previo cancelado"
+        >
+          S/ {st.planPrice || 297}
+        </span>
+      );
+    }
+
+    if (monthObj.monthStr > currentMonthStr) {
+      if (monthObj.monthStr <= endMonth) {
+        return (
+          <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">
+            Prog. S/ {st.planPrice || 297}
+          </span>
+        );
+      }
+      return <span className="text-muted-foreground/30 text-[10px]">—</span>;
+    }
+
+    return <span className="text-muted-foreground/40 text-[10px]">—</span>;
+  };
 
   return (
     <div className="w-full max-w-full space-y-6">
@@ -1354,6 +1638,18 @@ function AdminFacturacionPage() {
           </button>
 
           <button
+            onClick={() => setActiveTab("utiles")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+              activeTab === "utiles"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <BookOpen className="h-3.5 w-3.5 text-amber-500" />
+            Material Escolar / Libro ({packUtilesStats.totalRequired})
+          </button>
+
+          <button
             onClick={() => setActiveTab("vouchers")}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
               activeTab === "vouchers"
@@ -1381,7 +1677,7 @@ function AdminFacturacionPage() {
         </div>
 
         {/* Buscador y Filtro de Estado */}
-        {(activeTab === "recibos" || activeTab === "anual") && (
+        {(activeTab === "recibos" || activeTab === "anual" || activeTab === "utiles") && (
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -1556,7 +1852,7 @@ function AdminFacturacionPage() {
         </Card>
       )}
 
-      {/* PESTAÑA 2: MATRIZ ANUAL (EXCEL INTERACTIVO 2026) */}
+      {/* PESTAÑA 2: MATRIZ ANUAL (EXCEL INTERACTIVO 2026 DINÁMICO) */}
       {activeTab === "anual" && (
         <Card className="shadow-xs overflow-hidden border-border">
           <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border flex flex-wrap items-center justify-between gap-2">
@@ -1566,10 +1862,10 @@ function AdminFacturacionPage() {
                 Matriz Anual de Control de Pagos 2026 ({activeStudents.length} Alumnos Activos Oficiales)
               </CardTitle>
               <CardDescription className="text-xs">
-                Reemplazo interactivo del Excel con historial mes a mes (Junio a Diciembre), montos y notas específicas de los alumnos activos de Vibra Music.
+                Reemplazo interactivo del Excel con historial mes a mes (Junio a Diciembre), montos en vivo y estado de culminación de ciclo de los alumnos activos de Vibra Music.
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 text-[11px]">
+            <div className="flex items-center gap-2.5 text-[11px] flex-wrap">
               <span className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-300">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Cancelado
               </span>
@@ -1578,6 +1874,9 @@ function AdminFacturacionPage() {
               </span>
               <span className="flex items-center gap-1 font-bold text-amber-700 dark:text-amber-300">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Parcial
+              </span>
+              <span className="flex items-center gap-1 font-bold text-purple-700 dark:text-purple-300">
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> 🎓 Culminado (8/8)
               </span>
             </div>
           </CardHeader>
@@ -1592,12 +1891,14 @@ function AdminFacturacionPage() {
                     <TableHead className="font-black text-right">Mensualidad</TableHead>
                     <TableHead className="font-black text-center">Junio</TableHead>
                     <TableHead className="font-black text-center">Julio</TableHead>
-                    <TableHead className="font-black text-center bg-primary/5">Agosto (Actual)</TableHead>
-                    <TableHead className="font-black text-center">Septiembre</TableHead>
+                    <TableHead className="font-black text-center">Agosto</TableHead>
+                    <TableHead className="font-black text-center bg-primary/10 text-primary border-x border-primary/20 font-black">
+                      Septiembre (Actual)
+                    </TableHead>
                     <TableHead className="font-black text-center">Octubre</TableHead>
                     <TableHead className="font-black text-center">Noviembre</TableHead>
                     <TableHead className="font-black text-center">Diciembre</TableHead>
-                    <TableHead className="font-black">Observaciones</TableHead>
+                    <TableHead className="font-black">Observaciones / Ciclo</TableHead>
                     <TableHead className="font-black text-right">Acción</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1609,54 +1910,22 @@ function AdminFacturacionPage() {
                       return st.name.toLowerCase().includes(q) || (st.teacherNote && st.teacherNote.toLowerCase().includes(q));
                     })
                     .map((st: any, idx) => {
-                      const records = st.annualRecords || {};
                       const dayVal = st.planStartDate ? st.planStartDate.split("-")[2] : "1";
-
-                      const renderBadge = (rec?: any) => {
-                        if (!rec || !rec.rawText) {
-                          return <span className="text-muted-foreground/40 text-[10px]">—</span>;
-                        }
-                        const t = rec.rawText;
-                        if (rec.status === "pagado") {
-                          return (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px]">
-                              {t}
-                            </span>
-                          );
-                        }
-                        if (rec.status === "deudor") {
-                          return (
-                            <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-300 font-black text-[10px]">
-                              {t}
-                            </span>
-                          );
-                        }
-                        if (rec.status === "parcial") {
-                          return (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold text-[10px]">
-                              {t}
-                            </span>
-                          );
-                        }
-                        if (rec.status === "personalizado") {
-                          return (
-                            <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-800 dark:text-cyan-300 font-bold text-[10px]">
-                              {t}
-                            </span>
-                          );
-                        }
-                        return (
-                          <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">
-                            {t}
-                          </span>
-                        );
-                      };
+                      const cycleInfo = studentCycleInfoMap.get(st.id);
+                      const isCulminated = cycleInfo?.retention?.category === "culminado";
 
                       return (
                         <TableRow key={st.id} className="hover:bg-muted/30 text-xs">
                           <TableCell className="text-muted-foreground font-mono text-[10px]">{idx + 1}</TableCell>
                           <TableCell className="font-bold text-foreground max-w-[200px] truncate" title={st.name}>
-                            {st.name}
+                            <div className="flex items-center gap-1.5">
+                              <span>{st.name}</span>
+                              {isCulminated && (
+                                <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 text-[9px] px-1 py-0 font-bold shrink-0">
+                                  Culminado
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-center font-mono font-bold">
                             <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">
@@ -1666,15 +1935,22 @@ function AdminFacturacionPage() {
                           <TableCell className="text-right font-mono font-bold">
                             {st.rawMontoText || money(st.planPrice || 297)}
                           </TableCell>
-                          <TableCell className="text-center">{renderBadge(records.Junio)}</TableCell>
-                          <TableCell className="text-center">{renderBadge(records.Julio)}</TableCell>
-                          <TableCell className="text-center bg-primary/5 font-bold">{renderBadge(records.Agosto)}</TableCell>
-                          <TableCell className="text-center">{renderBadge(records.Septiembre)}</TableCell>
-                          <TableCell className="text-center">{renderBadge(records.Octubre)}</TableCell>
-                          <TableCell className="text-center">{renderBadge(records.Noviembre)}</TableCell>
-                          <TableCell className="text-center">{renderBadge(records.Diciembre)}</TableCell>
-                          <TableCell className="text-muted-foreground text-[11px] max-w-[220px] truncate" title={st.teacherNote}>
-                            {st.teacherNote || "—"}
+                          {ANNUAL_MONTHS.map((m) => {
+                            const isCurrent = m.monthStr === "2026-09";
+                            return (
+                              <TableCell
+                                key={m.key}
+                                className={`text-center ${isCurrent ? "bg-primary/5 font-bold" : ""}`}
+                              >
+                                {renderDynamicMonthBadge(st, m)}
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell className="text-muted-foreground text-[11px] max-w-[220px] truncate" title={st.teacherNote || cycleInfo?.retention?.badgeTooltip}>
+                            {cycleInfo?.retention?.badgeLabel ? (
+                              <span className="font-semibold text-foreground/80">{cycleInfo.retention.badgeLabel} · </span>
+                            ) : null}
+                            {st.teacherNote || "Sin notas"}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
@@ -1682,7 +1958,7 @@ function AdminFacturacionPage() {
                               variant="outline"
                               onClick={() => {
                                 setDirectFamily(st.name);
-                                setDirectAmount(String(st.planPrice || 297));
+                                setDirectAmount(String(st.balance && st.balance > 0 ? st.balance : (st.planPrice || 297)));
                                 setIsDirectAbonoOpen(true);
                               }}
                               className="h-6 px-2 text-[10px] font-bold gap-1 text-primary border-primary/30"
@@ -1698,6 +1974,230 @@ function AdminFacturacionPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* PESTAÑA NUEVA: CONTROL DE MATERIAL ESCOLAR / LIBROS (S/ 67) */}
+      {activeTab === "utiles" && (
+        <div className="space-y-4">
+          <Card className="shadow-xs overflow-hidden border-border bg-card">
+            <CardHeader className="py-3 px-4 bg-amber-500/10 border-b border-border flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <BookOpen className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  Control Oficial de Material Escolar y Libros (S/ 67.00)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Seguimiento del Método Vibra, libros de partituras, comprobantes de pago de S/ 67 y entrega física a alumnos activos.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2 text-[11px]">
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 font-bold">
+                  <PackageCheck className="h-3.5 w-3.5 mr-1" /> {packUtilesStats.totalDelivered} Entregados
+                </Badge>
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 font-bold">
+                  <PackageX className="h-3.5 w-3.5 mr-1" /> {packUtilesStats.totalPendingDelivery} Pendientes de Entrega
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              {/* Tarjetas de Métricas Senior-Friendly */}
+              <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-4">
+                <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide block">
+                    Libros Requeridos
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-foreground">{packUtilesStats.totalRequired}</span>
+                    <span className="text-xs text-muted-foreground">de {packUtilesStats.totalStudents} activos</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                    {packUtilesStats.totalExonerated} alumnos exonerados
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide block">
+                    Recaudado en Libros
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300">
+                      {money(packUtilesStats.totalCollected)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400 mt-0.5 block">
+                    {packUtilesStats.totalRequired > 0 ? Math.round((packUtilesStats.totalCollected / (packUtilesStats.totalRequired * 67)) * 100) : 0}% de cumplimiento
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                  <span className="text-[11px] font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wide block">
+                    Saldo Pendiente Libros
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-rose-700 dark:text-rose-300">
+                      {money(packUtilesStats.totalPending)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-rose-600/80 dark:text-rose-400 mt-0.5 block">
+                    {packUtilesStats.totalPending > 0 ? "Cobranza prioritaria en recepción" : "Sin deuda de libros"}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                  <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide block">
+                    Entregados en Sala
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-purple-700 dark:text-purple-300">
+                      {packUtilesStats.totalDelivered}
+                    </span>
+                    <span className="text-xs text-muted-foreground">de {packUtilesStats.totalStudents}</span>
+                  </div>
+                  <span className="text-[10px] text-purple-600/80 dark:text-purple-400 mt-0.5 block">
+                    {packUtilesStats.totalPendingDelivery} por entregar físicamente
+                  </span>
+                </div>
+              </div>
+
+              {/* Tabla de Material Escolar */}
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 text-[11px]">
+                      <TableHead className="font-black">#</TableHead>
+                      <TableHead className="font-black">Alumno / Instrumento</TableHead>
+                      <TableHead className="font-black">Apoderado / Contacto</TableHead>
+                      <TableHead className="text-right font-black">Costo Libro</TableHead>
+                      <TableHead className="text-center font-black">Estado Pago</TableHead>
+                      <TableHead className="text-right font-black">Abonado</TableHead>
+                      <TableHead className="text-right font-black">Debe</TableHead>
+                      <TableHead className="text-center font-black">Entrega en Sala</TableHead>
+                      <TableHead className="text-right font-black">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activeStudents
+                      .filter((st) => {
+                        if (!searchQuery) return true;
+                        const q = searchQuery.toLowerCase();
+                        return (
+                          st.name.toLowerCase().includes(q) ||
+                          (st.family && st.family.toLowerCase().includes(q)) ||
+                          (st.instrument && st.instrument.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((st: any, idx) => {
+                        const cost = st.packUtilesCost !== undefined ? st.packUtilesCost : 67;
+                        const isExonerated = st.packUtilesStatus === "exonerado" || cost === 0;
+                        const paid = st.packUtilesAmountPaid !== undefined ? st.packUtilesAmountPaid : (st.packUtilesPaid ? cost : 0);
+                        const balance = isExonerated ? 0 : Math.max(0, cost - paid);
+                        const isPaid = isExonerated || st.packUtilesStatus === "cancelado" || paid >= cost;
+                        const isDelivered = st.packUtilesDelivered !== undefined ? st.packUtilesDelivered : (st.packUtilesPaid !== false);
+
+                        const guardianName = st.emergencyContact?.name || st.family || "Apoderado";
+                        const guardianPhone = st.phone || st.emergencyContact?.phone || "";
+
+                        return (
+                          <TableRow key={st.id} className="hover:bg-muted/30 text-xs">
+                            <TableCell className="text-muted-foreground font-mono text-[10px]">{idx + 1}</TableCell>
+                            <TableCell>
+                              <p className="font-bold text-foreground">{st.name}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {st.instrument} · Prof. {st.teacher || "Por asignar"}
+                              </p>
+                            </TableCell>
+                            <TableCell>
+                              <p className="font-medium text-foreground">{guardianName}</p>
+                              <p className="text-[11px] font-mono text-muted-foreground">
+                                {guardianPhone || "Sin teléfono"}
+                              </p>
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-bold">
+                              {isExonerated ? "S/ 0.00" : money(cost)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {isExonerated ? (
+                                <Badge variant="outline" className="bg-muted text-muted-foreground text-[10px] font-bold">
+                                  Exonerado
+                                </Badge>
+                              ) : isPaid ? (
+                                <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-bold">
+                                  ✓ Cancelado
+                                </Badge>
+                              ) : paid > 0 ? (
+                                <Badge className="bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/30 text-[10px] font-bold">
+                                  Parcial ({money(paid)})
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 text-[10px] font-black">
+                                  Pendiente
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              {money(paid)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-black text-rose-600 dark:text-rose-400">
+                              {balance > 0 ? money(balance) : "S/ 0.00"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleToggleBookDelivery(st.id, isDelivered)}
+                                className={`h-7 px-2.5 text-[11px] font-bold gap-1.5 transition-colors ${
+                                  isDelivered
+                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20"
+                                    : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
+                                }`}
+                                title="Haz clic para alternar el estado de entrega física en sala"
+                              >
+                                {isDelivered ? (
+                                  <>
+                                    <PackageCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                    Entregado
+                                  </>
+                                ) : (
+                                  <>
+                                    <PackageX className="h-3.5 w-3.5 text-amber-600" />
+                                    Por Entregar
+                                  </>
+                                )}
+                              </Button>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {!isPaid && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOpenBookPaymentModal(st)}
+                                    className="h-7 px-2 text-[10px] font-bold gap-1 text-primary border-primary/30"
+                                    title="Registrar pago o abono del libro"
+                                  >
+                                    <DollarSign className="h-3 w-3" /> Cobrar S/ {balance > 0 ? balance : 67}
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleSendBookWhatsApp(st)}
+                                  className="h-7 w-7 p-0 text-emerald-600 hover:bg-emerald-500/10"
+                                  title="Enviar recordatorio o confirmación por WhatsApp"
+                                >
+                                  <Smartphone className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* PESTAÑA 3: HISTORIAL DE ABONOS Y GALERÍA DE VOUCHERS */}

@@ -951,4 +951,20 @@ inferencia.
 5. **Preservación Incondicional de la Papelera de Reciclaje**:
    - Bajo el principio *"Ninguna clase se pierde, ningún dato se pierde"*, el sistema de papelera (`deletedStudents`, `deleteStudent`, `deleteStudents`, `restoreStudentLog`) permanece 100% activo en el store y la interfaz para documentar cualquier baja manual con su snapshot completo y motivo.
 
+---
+
+### 46. Control de Material Escolar / Libros (S/ 67) y Matriz Anual Dinámica con Estados de Culminación (ADR-0146)
+1. **Pestaña Senior-Friendly Dedicada para Material Escolar y Libros (S/ 67)**:
+   - Se incorpora la pestaña `📚 Material Escolar / Libros (S/ 67)` en `/admin/facturacion` con 5 tarjetas KPI métricas de alto contraste: Alumnos con Libro Requerido, Total Facturado, Total Recaudado, Saldo Pendiente por Cobrar y Libros Entregados vs Pendientes.
+   - Filtros rápidos por estado (`Todos`, `Pendientes de Pago`, `Pendientes de Entrega`, `Cancelados`, `Exonerados`).
+   - Botón interactivo a 1-clic para alternar entre `📦 Entregado en Sala` y `⚠️ Pendiente de Entrega`, sincronizado con PostgreSQL (`emergency_contact.packUtilesDelivered`) vía `updateStudentDetails`.
+   - Botón `Cobrar Libro` con precarga del saldo del libro y sincronización atómica con `packUtilesStatus`, `packUtilesAmountPaid`, `packUtilesPaid` y `packUtilesDelivered`.
+   - Botón de WhatsApp con mensaje formal preconfigurado para cobrar o confirmar entrega del libro escolar con 1 clic.
+2. **Matriz Anual Dinámica Conectada a PostgreSQL y Kardex Pedagógico**:
+   - Sustitución de `annualRecords` estático por `renderDynamicMonthBadge`, que computa mes a mes (Junio a Diciembre) la situación real de los 13 alumnos activos.
+   - Integración con el motor pedagógico (`computeStudentRetentionStatus` y `computeStudentCycleSessions`): si el alumno completó sus clases o culminó su vigencia, la matriz renderiza la insignia morada `🎓 Culminado (8/8)`.
+   - Para meses lectivos activos, mapea las facturas en `invoices`: `✓ Cancelado` (Verde), `⏳ Parcial` (Ámbar) o `⚠️ Deudor` (Rojo).
+   - Inclusión en la leyenda superior del estado oficial `🎓 Culminado (8/8)` y resaltado dinámico de la columna del mes en curso (`Septiembre (Actual)`).
+
+
 
