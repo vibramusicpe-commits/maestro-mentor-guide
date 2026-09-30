@@ -22,6 +22,7 @@
    - 1.1. Qué debe hacer la aplicación
    - 1.2. Cómo debe comportarse antes de comenzar la construcción (Contratos y Precondiciones)
    - 1.3. Principios de determinismo, trazabilidad y cero pérdida de datos
+   - 1.4. Trazabilidad y Reconciliación Canónica de la Población Estudiantil (83 ➔ 43 ➔ 13 Alumnos Activos Oficiales)
 2. [CAPA 1: ALCANCE DEL PROYECTO](#2-capa-1-alcance-del-proyecto)
    - 2.1. Propósito y Límites del Sistema
    - 2.2. Módulos que componen la solución
@@ -89,6 +90,7 @@
     - 10.2. Seguridad, Autenticación y Control de Acceso (RNF-05 a RNF-08)
     - 10.3. Integridad, Persistencia y Tolerancia a Fallos (RNF-09 a RNF-12)
     - 10.4. Usabilidad, Ergonomía y Fidelidad de Marca (RNF-13 a RNF-16)
+    - 10.5. Marco de Privacidad, Protección de Datos de Menores y Cumplimiento Normativo (Ley N° 29733 - Perú)
 11. [ENTREGABLE 2: GESTIÓN ÁGIL EN TRELLO (SCRUM + KANBAN)](#11-entregable-2-gestión-ágil-en-trello-scrum--kanban)
     - 11.1. Estructura y Políticas del Tablero Trello Oficial
     - 11.2. Flujo de Estados de Tarjetas (Backlog ➔ En Curso ➔ Testeado ➔ Sprint Entregable)
@@ -137,7 +139,21 @@ Antes de ejecutar cualquier transacción en la base de datos o modificar el esta
 * **Persistencia Inmutable**: Los registros de asistencia (`attendance_logs`) y de cobros (`payment_audit_logs`) constituyen pistas de auditoría de solo adición (*append-only*).
 * **Protocolo STOP & VERIFY**: Queda prohibida la ejecución de instrucciones que causen pérdida masiva e irreversible de datos (`DROP TABLE`, `TRUNCATE` o `DELETE` sin cláusula WHERE).
 
+## 1.4. Trazabilidad y Reconciliación Canónica de la Población Estudiantil (83 ➔ 43 ➔ 13 Alumnos Activos Oficiales)
+A lo largo de los sprints de ingeniería y auditorías operativas, el documento refleja distintas métricas de alumnos que corresponden a fases cronológicas específicas de saneamiento de datos:
+1. **Fase 1 — Importación Bruta del Excel Histórico (83 / 99 Registros · Agosto 2026, ADR-0061)**:
+   * Al iniciar el proyecto, secretaría operaba con un Excel heredado que acumulaba registros históricos de varios años, inscripciones incompletas, duplicados y alumnos retirados.
+   * La importación inicial cargó 83 entidades individuales para digitalizar todo el acervo previo.
+2. **Fase 2 — Saneamiento Intermedio de Duplicados (43 Alumnos Activos · Septiembre 2026, ADR-0132)**:
+   * Primera depuración profunda en PostgreSQL que eliminó homónimos ficticios y normalizó relaciones referenciales entre `students`, `families` e `invoices`.
+3. **Fase 3 — Auditoría Definitiva de Producción y Purga de Semillas (13 Alumnos Activos Oficiales · 30 Septiembre 2026, ADR-0145)**:
+   * Al conciliar la caja real con la dueña y el contador, se identificó que la academia cuenta con **exactamente 13 alumnos activos confirmados y matriculados** en Septiembre 2026.
+   * Para evitar que la base antigua sucia contaminara la lógica de facturación (como el intento erróneo de emitir 97 recibos), la totalidad de los 142 registros históricos antiguos fue **desacoplada del runtime de la aplicación y respaldada en un archivo externo CSV independiente (`archivo_historico_base_antigua_alumnos_vibra_music.csv`) con UTF-8 BOM**.
+   * El sistema en producción opera **exclusivamente con los 13 alumnos activos oficiales**.
+   * Cualquier incorporación de nuevos alumnos o reactivación de ex-alumnos se realiza **manualmente 1 a 1** desde la ficha de matrícula. El panel de depuración (`student-cleanup-panel.tsx`) permanece únicamente como herramienta administrativa de referencia y auditoría, garantizando cero contaminación en los cálculos contables.
+
 ---
+
 
 # 2. CAPA 1: ALCANCE DEL PROYECTO
 
@@ -1076,7 +1092,24 @@ erDiagram
 * **RNF-15 (Diseño Responsive Integral)**: Interfaz adaptada ergonómicamente para computadoras de escritorio, laptops, tablets de sala (Kiosco) y teléfonos móviles de apoderados.
 * **RNF-16 (Accesibilidad Táctil)**: Todos los botones interactivos del Kiosco docente deben tener un área mínima de pulsación táctil de $48 \times 48\text{ px}$.
 
+## 10.5. Marco de Privacidad, Protección de Datos de Menores y Cumplimiento Normativo (Ley N° 29733 - Perú)
+* **RNF-17 (Consentimiento Parental y Tutela de Menores - Art. 28 D.S. 003-2013-JUS)**:
+  * Al gestionar datos personales sensibles de estudiantes menores de edad (niños de 4 a 17 años), el sistema exige indefectiblemente el registro y consentimiento del padre, madre o tutor legal en la entidad `families`.
+  * La ficha del alumno (`students`) mantiene integridad referencial obligatoria mediante clave foránea `family_id` hacia `families`, garantizando que ningún menor figure en la base de datos sin un apoderado legalmente responsable de sus datos y autorizaciones.
+* **RNF-18 (Principio de Calidad y Minimización de Datos - Art. 6 Ley N° 29733)**:
+  * Los datos personales deben ser veraces, exactos y limitados estrictamente a la finalidad educativa y de cobranza.
+  * En estricto cumplimiento de este principio, se ejecutó la purga definitiva de las semillas y bases de datos históricas no activas del entorno de producción (ADR-0145). Los 142 registros pasados se resguardaron en un archivo externo CSV cifrado/seguro fuera del runtime de la aplicación, evitando la circulación innecesaria de datos personales en desuso.
+* **RNF-19 (Seguridad de la Información y Acceso Basado en Roles / RLS)**:
+  * El sistema implementa Row-Level Security (RLS) en PostgreSQL:
+    * Los profesores solo pueden visualizar los nombres e instrumentos de los alumnos asignados a su sala, con bloqueo estricto de números telefónicos de apoderados, direcciones o datos financieros de tarjetas/cuentas.
+    * Las familias solo acceden a través de su portal (`/family`) a la información de sus propios hijos.
+    * Los datos de cobranza y auditoría (`payment_audit_logs`) solo son accesibles para perfiles autorizados (SuperAdmin / Dirección y Contabilidad).
+* **RNF-20 (Aislamiento de Datos para Distribución Comercial White-Label)**:
+  * En la eventual comercialización, licenciamiento o despliegue del software para terceros (otras academias o profesores), queda estrictamente prohibida la transferencia de cualquier base de datos de producción de Vibra Music.
+  * La distribución como producto SaaS se realiza exclusivamente mediante el esquema DDL neutro (`04_CLEAN_DATABASE_SCHEMA.sql`), el cual contiene 0 registros personales, 0 números telefónicos y 0 datos de menores.
+
 ---
+
 
 # 11. ENTREGABLE 2: GESTIÓN ÁGIL EN TRELLO (SCRUM + KANBAN)
 
