@@ -1298,9 +1298,9 @@ Para garantizar la continuidad operativa ininterrumpida de la escuela, se establ
 
 ---
 
-# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0146)
+# 16. ANEXO: HISTORIAL DE DECISIONES ARQUITECTÓNICAS (ADR-001 AL ADR-0147)
 
-El sistema cuenta con un archivo vivo de **46 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
+El sistema cuenta con un archivo vivo de **47 Decisiones Arquitectónicas (ADR)** documentadas y auditadas en `docs/adr/`. A continuación se sintetizan las más trascendentes para el comportamiento de la solución:
 
 * **ADR-001**: Adopción de TanStack Start, Nitro, PostgreSQL Insforge y WhatsApp Cloud API oficial de Meta.
 * **ADR-0052 & 0053**: Autonomía de secretaría en la edición y eliminación directa de clases y supervisión de 8 clases en Regular y 4 en Intensivo.
@@ -1339,6 +1339,7 @@ El sistema cuenta con un archivo vivo de **46 Decisiones Arquitectónicas (ADR)*
 * **ADR-0144**: Rediseño Integral de Cobros y Abonos Accesible para Personas Mayores (Senior-Friendly) con Perfil Dual Dueña/Contador y Cero Mock Data: Erradicación absoluta de arrays simulados (`billingTrend`, `recurringConcepts`). Cálculos 100% en tiempo real contra PostgreSQL (13 alumnos activos, S/ 4,213 facturado, S/ 3,425 cobrado en caja, S/ 788 por cobrar, semáforo de 4 alumnos deudores y 9 alumnos al día). Componente `SeniorAccessibilityBar` con selector dual (Dueña vs Contador), selector de zoom de tipografía (A, A+, A++ Senior con objetivos táctiles de 48px), botón interactivo de Laya Explainer, WhatsApp de cobranza respetuosa en 1 clic y exportación de Libro Diario Contable en CSV UTF-8 BOM para Microsoft Excel.
 * **ADR-0145**: Purga de Semillas Heredadas, Respaldo Histórico en CSV y Blindaje de Facturación para 13 Alumnos Activos: Respaldo íntegro de los 142 registros históricos en archivo externo CSV (`archivo_historico_base_antigua_alumnos_vibra_music.csv`) con UTF-8 BOM. Inicialización limpia de `adminStudents: AdminStudent[] = []` en `src/store/admin-seeds.ts`, actualización de persistencia Zustand a `v32` y purga de versiones anteriores de `localStorage`. Blindaje del modal de facturación masiva de recibos en `/admin/facturacion` para procesar estrictamente a los 13 alumnos activos confirmados y sincronizar con PostgreSQL. Preservación incondicional de la papelera de reciclaje (`deletedStudents`) bajo la máxima "Ningún dato se pierde".
 * **ADR-0146**: Control Oficial de Material Escolar / Libros (S/ 67) y Matriz Anual Dinámica con Estados de Culminación: Módulo y pestaña senior-friendly `📚 Material Escolar / Libros (S/ 67)` con 5 tarjetas KPI métricas, filtros rápidos, toggle interactivo 1-clic para alternar `📦 Entregado en Sala` vs `⚠️ Pendiente de Entrega` sincronizado a PostgreSQL (`emergency_contact.packUtilesDelivered`), botón de cobro directo y WhatsApp. En la Matriz Anual 2026, reemplazo de registros estáticos por cálculo dinámico reactivo mes a mes conectado a PostgreSQL e integrando `computeStudentRetentionStatus` para renderizar la insignia morada oficial `🎓 Culminado (8/8)` en alumnos que completaron sus clases (como Ethan Jara, Valerie Angulo y Yasumi Chamorro).
+* **ADR-0147**: Regla Inquebrantable de Transformación de Sala por Instrumento y Colindancia de Edades: Al ingresar el primer alumno, la sala en ese turno se transforma y queda reservada exclusivamente para ese instrumento. Prohibido mezclar instrumentos dispares en sala (ej. Batería con Guitarra en Sala A con Jeremy; Piano con Violín en Sala B; o Piano Infantil con Canto en Sala C). Convivencia etaria colindante obligatoria (Junior 7-12 convive con Junior o Juvenil 13-17; prohibido Junior con Master 18+). Excepción temporal para Guitarra clásica y eléctrica. Alerta crítica en rojo y desactivación de guardado con confirmación obligatoria de excepción en `ScheduleStudentForm`.
 
 ---
 

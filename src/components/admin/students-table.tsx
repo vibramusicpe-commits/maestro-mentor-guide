@@ -5721,25 +5721,28 @@ function ScheduleStudentForm({
             ...l,
             category: (l.category || stProfile?.ageCategory || stProfile?.category) as AgeCategory,
             modality: stProfile?.modality,
+            instrument: l.instrument || stProfile?.instrument,
           };
         });
     },
     [schedule, liveStudent.name, adminStudents]
   );
 
-  // Diagnóstico Reactivo de Compatibilidad Pedagógica y Convivencia de Salas (ADR-0121)
+  // Diagnóstico Reactivo de Compatibilidad Pedagógica y Convivencia de Salas (ADR-0121 / ADR-0147)
   const [pedagogicalOverrideConfirmed, setPedagogicalOverrideConfirmed] = useState(false);
 
   // Resetear confirmación si cambia cualquier parámetro del horario
   useEffect(() => {
     setPedagogicalOverrideConfirmed(false);
-  }, [day1, time1, room1, day2, time2, room2, teacher, category]);
+  }, [day1, time1, room1, day2, time2, room2, teacher, category, instrument]);
 
   const pedagogicalReport = useMemo(() => {
     const isPersonalized = category === "PERSONALIZADA";
+    const currentInstrument = instrument || liveStudent.instrument;
     const lessons1 = getRoomActiveLessons(day1, time1, room1);
     const diag1 = evaluateSlotPedagogicalCompatibility({
       studentName: liveStudent.name,
+      instrument: currentInstrument,
       category,
       modality: selectedModality,
       isPersonalized,
@@ -5753,6 +5756,7 @@ function ScheduleStudentForm({
       const lessons2 = getRoomActiveLessons(day2, time2, room2);
       diag2 = evaluateSlotPedagogicalCompatibility({
         studentName: liveStudent.name,
+        instrument: currentInstrument,
         category,
         modality: selectedModality,
         isPersonalized,
@@ -6298,43 +6302,95 @@ function ScheduleStudentForm({
           )}
         </div>
       ) : pedagogicalReport.hasWarning ? (
-        <div
-          data-tour="pedagogical-warning-banner"
-          className="rounded-2xl border border-amber-500/50 bg-amber-500/10 p-3.5 space-y-3 shadow-sm"
-        >
-          <div className="flex items-start gap-2.5">
-            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-            <div className="space-y-1.5 text-xs flex-1">
-              <p className="font-bold text-amber-700 dark:text-amber-400 text-sm flex items-center gap-1.5">
-                ⚠️ Advertencia de Convivencia Pedagógica (Matriz Oficial):
-              </p>
-              <ul className="space-y-1 text-xs text-foreground font-medium list-disc list-inside">
-                {pedagogicalReport.warnings.map((w, idx) => (
-                  <li key={idx}>
-                    <strong>{w.session === 1 ? `Sesión 1 (${w.day} ${w.time} · ${w.room})` : `Sesión 2 (${w.day} ${w.time} · ${w.room})`}</strong>:{" "}
-                    <span className="text-amber-800 dark:text-amber-300 font-semibold">{w.message}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-amber-500/30 flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="override-pedagogical-check"
-              checked={pedagogicalOverrideConfirmed}
-              onChange={(e) => setPedagogicalOverrideConfirmed(e.target.checked)}
-              className="h-4 w-4 rounded border-amber-500 text-amber-600 focus:ring-amber-500 cursor-pointer"
-            />
-            <label
-              htmlFor="override-pedagogical-check"
-              className="text-xs font-bold text-amber-900 dark:text-amber-200 cursor-pointer select-none"
+        (() => {
+          const hasInstrumentConflict = pedagogicalReport.warnings.some(
+            (w) => w.type === "instrument_incompatibility"
+          );
+          return (
+            <div
+              data-tour="pedagogical-warning-banner"
+              className={`rounded-2xl border p-3.5 space-y-3 shadow-sm ${
+                hasInstrumentConflict
+                  ? "border-red-500/60 bg-red-500/10"
+                  : "border-amber-500/50 bg-amber-500/10"
+              }`}
             >
-              Comprendo la incompatibilidad pedagógica y deseo confirmar este turno excepcionalmente
-            </label>
-          </div>
-        </div>
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle
+                  className={`h-5 w-5 shrink-0 mt-0.5 ${
+                    hasInstrumentConflict ? "text-red-500" : "text-amber-500"
+                  }`}
+                />
+                <div className="space-y-1.5 text-xs flex-1">
+                  <p
+                    className={`font-bold text-sm flex items-center gap-1.5 ${
+                      hasInstrumentConflict
+                        ? "text-red-700 dark:text-red-400"
+                        : "text-amber-700 dark:text-amber-400"
+                    }`}
+                  >
+                    {hasInstrumentConflict
+                      ? "🚨 Conflicto Crítico de Instrumentos en Sala (ADR-0147):"
+                      : "⚠️ Advertencia de Convivencia Pedagógica (Matriz Oficial):"}
+                  </p>
+                  <ul className="space-y-1 text-xs text-foreground font-medium list-disc list-inside">
+                    {pedagogicalReport.warnings.map((w, idx) => (
+                      <li key={idx}>
+                        <strong>
+                          {w.session === 1
+                            ? `Sesión 1 (${w.day} ${w.time} · ${w.room})`
+                            : `Sesión 2 (${w.day} ${w.time} · ${w.room})`}
+                        </strong>
+                        :{" "}
+                        <span
+                          className={`font-semibold ${
+                            w.type === "instrument_incompatibility"
+                              ? "text-red-700 dark:text-red-300 font-bold"
+                              : "text-amber-800 dark:text-amber-300"
+                          }`}
+                        >
+                          {w.message}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div
+                className={`pt-2 border-t flex items-center gap-2 ${
+                  hasInstrumentConflict
+                    ? "border-red-500/30"
+                    : "border-amber-500/30"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  id="override-pedagogical-check"
+                  checked={pedagogicalOverrideConfirmed}
+                  onChange={(e) => setPedagogicalOverrideConfirmed(e.target.checked)}
+                  className={`h-4 w-4 rounded cursor-pointer ${
+                    hasInstrumentConflict
+                      ? "border-red-500 text-red-600 focus:ring-red-500"
+                      : "border-amber-500 text-amber-600 focus:ring-amber-500"
+                  }`}
+                />
+                <label
+                  htmlFor="override-pedagogical-check"
+                  className={`text-xs font-bold cursor-pointer select-none ${
+                    hasInstrumentConflict
+                      ? "text-red-900 dark:text-red-200"
+                      : "text-amber-900 dark:text-amber-200"
+                  }`}
+                >
+                  {hasInstrumentConflict
+                    ? "Comprendo la incompatibilidad de instrumentos y confirmo este agendamiento por excepción autorizada por Dirección"
+                    : "Comprendo la incompatibilidad pedagógica y deseo confirmar este turno excepcionalmente"}
+                </label>
+              </div>
+            </div>
+          );
+        })()
       ) : (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-200">
           <span className="flex items-center gap-2 font-bold">

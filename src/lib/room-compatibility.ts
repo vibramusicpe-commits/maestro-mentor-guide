@@ -16,6 +16,7 @@
 import type { AgeCategory, ScheduledLesson } from "@/store/admin-seeds";
 
 export type PedagogicalWarningType =
+  | "instrument_incompatibility"
   | "age_incompatibility"
   | "duration_incompatibility"
   | "single_student_conflict"
@@ -44,6 +45,61 @@ export function normalizeCategory(cat?: string | null): string {
   if (upper.includes("PERSON")) return "PERSONALIZADA";
   if (upper.includes("RECUP")) return "RECUPERACION";
   return upper;
+}
+
+/**
+ * Normaliza cualquier instrumento a su familia canónica.
+ * Regla oficial Vibra Music:
+ * - BATERÍA: Batería y percusión (familia aislada, presión sonora alta).
+ * - GUITARRA: Guitarra clásica, eléctrica, acústica, bajo y ukelele (conviven entre sí temporalmente).
+ * - PIANO: Piano estándar y teclado (Fernando, Sala B).
+ * - PIANO_INFANTIL: Piano infantil para niños de 4 a 8 años (Nathaly, Sala C).
+ * - VIOLIN: Violín clásico (Fernando, Sala B).
+ * - CANTO: Canto y técnica vocal (Nathaly, Sala C).
+ * - ESTIMULACION: Estimulación musical (Claudia, Sala D).
+ */
+export function normalizeInstrumentFamily(inst?: string | null): string {
+  if (!inst) return "DESCONOCIDO";
+  const lower = inst.trim().toLowerCase();
+  if (lower.includes("bater") || lower.includes("percu")) return "BATERIA";
+  if (lower.includes("guitar") || lower.includes("bajo") || lower.includes("ukelel")) return "GUITARRA";
+  if (lower.includes("infantil") && lower.includes("piano")) return "PIANO_INFANTIL";
+  if (lower.includes("piano") || lower.includes("teclad")) return "PIANO";
+  if (lower.includes("viol")) return "VIOLIN";
+  if (lower.includes("canto") || lower.includes("vocal")) return "CANTO";
+  if (lower.includes("estimul")) return "ESTIMULACION";
+  return lower.toUpperCase();
+}
+
+/**
+ * Evalúa si dos instrumentos pueden coexistir en la misma sala y turno (ADR-0147).
+ * Regla Inquebrantable de Transformación de Sala:
+ * Al ingresar el primer alumno, la sala SE TRANSFORMA al instrumento de ese alumno.
+ * No se permite mezclar Batería con Guitarra, ni Piano con Violín, ni Canto con Piano Infantil.
+ * Excepción temporal: Guitarra clásica y Guitarra eléctrica sí conviven entre sí (familia GUITARRA).
+ */
+export function checkInstrumentCompatibility(
+  instA?: string | null,
+  instB?: string | null
+): { compatible: boolean; reason?: string } {
+  if (!instA || !instB) return { compatible: true };
+  const famA = normalizeInstrumentFamily(instA);
+  const famB = normalizeInstrumentFamily(instB);
+
+  // Misma familia instrumental (ej. Batería con Batería, o Guitarra Clásica con Guitarra Eléctrica)
+  if (famA === famB) {
+    return { compatible: true };
+  }
+
+  // Desconocido no bloquea ciegamente
+  if (famA === "DESCONOCIDO" || famB === "DESCONOCIDO") {
+    return { compatible: true };
+  }
+
+  return {
+    compatible: false,
+    reason: `Incompatibilidad Crítica de Instrumento: La sala en este turno se transformó a ${instB}. No se permite combinar ${instB} con ${instA} en la misma sala.`,
+  };
 }
 
 /**
@@ -151,6 +207,7 @@ export function getDurationMinutesFromModality(modality?: string): number {
 
 export interface EvaluateCompatibilityParams {
   studentName: string;
+  instrument?: string;
   category: string | AgeCategory;
   modality: string;
   isPersonalized?: boolean;
@@ -159,6 +216,7 @@ export interface EvaluateCompatibilityParams {
   existingRoomLessons: Array<
     Pick<ScheduledLesson, "student" | "teacher" | "room" | "category" | "status"> & {
       modality?: string;
+      instrument?: string;
     }
   >;
 }
@@ -168,6 +226,7 @@ export interface EvaluateCompatibilityParams {
  */
 export function evaluateSlotPedagogicalCompatibility({
   studentName,
+  instrument,
   category,
   modality,
   isPersonalized = false,
@@ -208,7 +267,32 @@ export function evaluateSlotPedagogicalCompatibility({
     };
   }
 
-  // 1. Regla de Alumno Único (Personalizada o Demo Nivelación)
+  // 1. Incompatibilidad de Instrumento (Regla de Transformación de Sala - ADR-0147)
+  if (instrument) {
+    for (const exLesson of otherLessonsInRoom) {
+      if (exLesson.instrument) {
+        const instComp = checkInstrumentCompatibility(instrument, exLesson.instrument);
+        if (!instComp.compatible) {
+          const alreadyHasThisConflict = warnings.some(
+            (w) =>
+              w.type === "instrument_incompatibility" &&
+              w.conflictingStudentName === exLesson.student
+          );
+          if (!alreadyHasThisConflict) {
+            warnings.push({
+              type: "instrument_incompatibility",
+              title: "Incompatibilidad de Instrumento en Sala",
+              message: `${instComp.reason} (${studentName} [${instrument}] vs ${exLesson.student} [${exLesson.instrument}]).`,
+              studentName,
+              conflictingStudentName: exLesson.student,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Regla de Alumno Único (Personalizada o Demo Nivelación)
   if (isSingle || proposedCat === "PERSONALIZADA") {
     warnings.push({
       type: "single_student_conflict",

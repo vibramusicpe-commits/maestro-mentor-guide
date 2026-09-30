@@ -966,5 +966,21 @@ inferencia.
    - Para meses lectivos activos, mapea las facturas en `invoices`: `✓ Cancelado` (Verde), `⏳ Parcial` (Ámbar) o `⚠️ Deudor` (Rojo).
    - Inclusión en la leyenda superior del estado oficial `🎓 Culminado (8/8)` y resaltado dinámico de la columna del mes en curso (`Septiembre (Actual)`).
 
+---
+
+### 47. Regla Inquebrantable de Transformación de Sala por Instrumento y Colindancia de Edades (ADR-0147)
+1. **Regla de Transformación de Sala por Instrumento**:
+   - Cuando el primer alumno entra a una sala en un turno específico, **la sala en ese turno se transforma y queda reservada exclusivamente para ese instrumento**.
+   - Queda **TERMINANTEMENTE PROHIBIDO** mezclar instrumentos distintos en la misma sala y turno (ej. un alumno de Batería y uno de Guitarra con Jeremy en Sala A; o Piano y Violín con Fernando en Sala B; o Piano Infantil y Canto con Nathaly en Sala C).
+   - Excepción temporal autorizada: Guitarra clásica y Guitarra eléctrica sí pueden convivir entre sí (familia `GUITARRA`) mientras se captan alumnos, pero jamás con Batería.
+2. **Convivencia por Colindancia de Rangos de Edad (dentro del mismo instrumento)**:
+   - Junior (7 a 12 años) puede compartir con Junior (7 a 12) o con Juvenil (13 a 17) por ser rangos colindantes.
+   - Juvenil (13 a 17 años) puede compartir con Junior (7 a 12) o con Master (18+).
+   - Junior (7 a 12 años) y Master (18+) tienen **PROHIBIDO** compartir sala (no son colindantes).
+3. **Alerta Crítica y Bloqueo en Horarios (`ScheduleStudentForm`)**:
+   - `evaluateSlotPedagogicalCompatibility` en `room-compatibility.ts` evalúa `checkInstrumentCompatibility`.
+   - Al detectar conflicto de instrumento, se renderiza una alerta en rojo crítico (`🚨 Conflicto Crítico de Instrumentos en Sala`) y se desactiva el guardado hasta que secretaría marque la confirmación obligatoria de excepción autorizada por Dirección.
+
+
 
 

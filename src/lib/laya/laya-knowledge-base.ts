@@ -295,6 +295,14 @@ export function resolveAcademyKnowledge(text: string): AcademyKnowledgeResponse 
     norm.includes("cruces de sala") ||
     norm.includes("mezclar alumnos") ||
     norm.includes("mezclar edades") ||
+    norm.includes("mezclar instrumentos") ||
+    norm.includes("combinar instrumentos") ||
+    (norm.includes("bateria") && norm.includes("guitarra")) ||
+    (norm.includes("guitarra") && norm.includes("bateria")) ||
+    (norm.includes("piano") && norm.includes("violin")) ||
+    (norm.includes("canto") && norm.includes("piano")) ||
+    (norm.includes("sala vacia") && (norm.includes("bateria") || norm.includes("guitarra"))) ||
+    norm.includes("transforma") ||
     (norm.includes("junior") && norm.includes("master")) ||
     (norm.includes("master") && norm.includes("junior")) ||
     norm.includes("junior puede") ||
@@ -308,17 +316,26 @@ export function resolveAcademyKnowledge(text: string): AcademyKnowledgeResponse 
       isMatch: true,
       isRestricted: false,
       category: "convivencia_salas",
-      title: "🏛️ Reglas Pedagógicas de Convivencia y Cruces en Sala (ADR-0121)",
+      title: "🏛️ Reglas Pedagógicas de Convivencia y Cruces en Sala (ADR-0121 / ADR-0147)",
       markdownContent:
-        "Pautas oficiales de convivencia para agendar clases sin cruces pedagógicos:\n\n" +
-        "• **Convivencia Etaria (¿Quiénes pueden compartir sala?)**:\n" +
-        "  - ✅ **Junior (7-12) + Juvenil (13-17)**: SÍ está permitido.\n" +
-        "  - ✅ **Juvenil (13-17) + Master (18+)**: SÍ está permitido.\n" +
-        "  - ❌ **Junior (7-12) + Master (18+)**: **TERMINANTEMENTE PROHIBIDO**.\n" +
+        "Pautas oficiales de convivencia para agendar clases sin cruces pedagógicos ni acústicos:\n\n" +
+        "• **Regla Inquebrantable de Transformación de Sala por Instrumento (ADR-0147)**:\n" +
+        "  - ⚡ **La sala se transforma al instrumento del primer alumno que ingresa al turno**:\n" +
+        "    - Si en una sala vacía entra un alumno de **Batería**, la sala en ese turno se convierte en **SALA DE BATERÍA**.\n" +
+        "    - ❌ **NO pueden ingresar alumnos de Guitarra** de ninguna categoría (ni clásica ni eléctrica) por incompatibilidad acústica y pedagógica.\n" +
+        "    - ✅ **SÍ pueden ingresar otros alumnos de Batería** de su misma categoría (Junior) o de categoría colindante (Juvenil).\n" +
+        "    - ❌ **NO puede ingresar un alumno de Batería Master (18+)** si ya hay un Junior (7-12) en la sala (Junior con Master está prohibido).\n" +
+        "  - 🎻 **Sala B (Fernando)**: Si entra Piano, se transforma a Piano (no entra Violín). Si entra Violín, no entra Piano.\n" +
+        "  - 🎤 **Sala C (Nathaly)**: Si entra Canto, no entra Piano Infantil. Si entra Piano Infantil, no entra Canto.\n" +
+        "  - 🎸 **Convivencia Instrumental Temporal**: Guitarra clásica y Guitarra eléctrica **SÍ** pueden convivir entre sí (familia Guitarra) mientras se captan alumnos, pero **NUNCA** con Batería.\n\n" +
+        "• **Convivencia Etaria (¿Quiénes pueden compartir sala dentro del mismo instrumento?)**:\n" +
+        "  - ✅ **Junior (7-12) + Juvenil (13-17)**: SÍ está permitido (rangos colindantes).\n" +
+        "  - ✅ **Juvenil (13-17) + Master (18+)**: SÍ está permitido (rangos colindantes).\n" +
+        "  - ❌ **Junior (7-12) + Master (18+)**: **TERMINANTEMENTE PROHIBIDO** (no son colindantes).\n" +
         "  - ❌ **Estimulación (4-5) e Infantil (5-6)**: **Sala Única** (jamás se mezclan con otras categorías).\n" +
         "  - ❌ **Personalizado**: Aforo estricto de 1 alumno (aislamiento absoluto).\n\n" +
         "• **Convivencia por Duración de Sesión (45 min vs. 90 min)**:\n" +
-        "  - ✅ **Sesiones de 45 min** (Regular 2x, Regular 1x y Flexible 45m) SÍ pueden convivir en la misma sala hasta 5 alumnos si respetan la edad.\n" +
+        "  - ✅ **Sesiones de 45 min** (Regular 2x, Regular 1x y Flexible 45m) SÍ pueden convivir en la misma sala hasta 5 alumnos si respetan instrumento y edad.\n" +
         "  - ❌ **Sesiones de 90 min (Intensivo)** NO pueden convivir con sesiones de 45 min porque la entrada y salida de alumnos interrumpe la concentración (salvo Paquete Flexible de 90m).",
     };
   }
