@@ -303,9 +303,15 @@ export function StudentAttendanceKardex({
           if (lesson.day !== dayKey) return;
         }
 
-        // C. Si la lección tiene fechas excluidas (reprogramada fuera de este día), omitir
+        // C. Si la lección tiene fechas excluidas (reprogramada fuera de este día), omitir a menos que tenga asistencia evaluada
         if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-          return;
+          const hasEvaluated =
+            lesson.attendanceByDate &&
+            lesson.attendanceByDate[curDateStr] &&
+            lesson.attendanceByDate[curDateStr] !== "pendiente";
+          if (!hasEvaluated) {
+            return;
+          }
         }
 
         // C.1. 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
@@ -404,42 +410,38 @@ export function StudentAttendanceKardex({
       }
     });
 
-    // 3. Respetar cuota contractual (8 para Regular, 4 para Intensivo)
+    // 3. Respetar cuota contractual (8 para Regular, 4 para Intensivo, N para Paquete Flexible)
     let finalSessions: StudentSessionItem[] = [];
-    if (isFlexiblePackage) {
-      finalSessions = deduped.slice(0, targetQuota);
+    if (deduped.length <= targetQuota) {
+      finalSessions = deduped;
     } else {
-      if (deduped.length <= targetQuota) {
-        finalSessions = deduped;
+      // Separar clases ya evaluadas (asistió, falta, tarde, justificada) de las pendientes
+      const evaluated = deduped.filter((s) => s.status !== "pendiente");
+      const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
+      const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
+
+      // 🛡️ REGLA ADR-0105 & ADR-0134: Las clases de recuperación pendientes (isMakeup: true)
+      // JAMÁS deben descartarse si el alumno tiene inasistencias por recuperar, porque son la vía
+      // para alcanzar sus clases asistidas efectivas ("Las clases no se pierden, se recuperan").
+      const attendedCount = evaluated.filter((s) => s.status === "presente").length;
+      const attendedOrScheduled = attendedCount + pendingMakeups.length;
+
+      if (evaluated.length >= targetQuota && attendedOrScheduled >= targetQuota && pendingMakeups.length === 0) {
+        // Si ya completó o superó su cuota con clases reales evaluadas y no tiene makeups pendientes
+        finalSessions = evaluated.slice(0, targetQuota);
       } else {
-        // Separar clases ya evaluadas (asistió, falta, tarde, justificada) de las pendientes
-        const evaluated = deduped.filter((s) => s.status !== "pendiente");
-        const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
-        const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
+        // Mantener todas las evaluadas, TODAS las recuperaciones pendientes agendadas,
+        // y completar con las próximas pendientes regulares hasta llegar exactamente a targetQuota
+        const slotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
+        const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
 
-        // 🛡️ REGLA ADR-0105 & ADR-0134: Las clases de recuperación pendientes (isMakeup: true)
-        // JAMÁS deben descartarse si el alumno tiene inasistencias por recuperar, porque son la vía
-        // para alcanzar sus 8 clases asistidas efectivas ("Las clases no se pierden, se recuperan").
-        const attendedCount = evaluated.filter((s) => s.status === "presente").length;
-        const attendedOrScheduled = attendedCount + pendingMakeups.length;
-
-        if (evaluated.length >= targetQuota && attendedOrScheduled >= targetQuota && pendingMakeups.length === 0) {
-          // Si ya completó o superó su cuota con clases reales evaluadas y no tiene makeups pendientes
-          finalSessions = evaluated.slice(0, targetQuota);
-        } else {
-          // Mantener todas las evaluadas, TODAS las recuperaciones pendientes agendadas,
-          // y completar con las próximas pendientes regulares hasta llegar exactamente a targetQuota
-          const slotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
-          const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
-
-          const combined = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
-          combined.sort((a, b) => {
-            const cmp = a.dateStr.localeCompare(b.dateStr);
-            if (cmp !== 0) return cmp;
-            return a.time.localeCompare(b.time);
-          });
-          finalSessions = combined.slice(0, targetQuota);
-        }
+        const combined = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
+        combined.sort((a, b) => {
+          const cmp = a.dateStr.localeCompare(b.dateStr);
+          if (cmp !== 0) return cmp;
+          return a.time.localeCompare(b.time);
+        });
+        finalSessions = combined.slice(0, targetQuota);
       }
     }
 

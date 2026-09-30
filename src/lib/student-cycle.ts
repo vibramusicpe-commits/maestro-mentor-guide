@@ -109,7 +109,7 @@ export function computeStudentCycle(
     ? Math.max(90, Math.ceil((new Date(effectiveEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
     : (isFlexiblePackage ? 180 : 90);
   const maxDaysToScan = Math.max(isFlexiblePackage ? 180 : 90, daysToEnd);
-  const pendingCandidates: Array<{ dateStr: string; time: string; slot: string }> = [];
+  const pendingCandidates: Array<{ dateStr: string; time: string; slot: string; isMakeup?: boolean }> = [];
 
   if (!isCycleCompleted) {
     for (let offset = 0; offset < maxDaysToScan; offset++) {
@@ -135,9 +135,10 @@ export function computeStudentCycle(
           if (lesson.day !== dayKey) return;
         }
 
-        // Validación de fechas excluidas
+        // Validación de fechas excluidas (a menos que ya esté evaluada)
         if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-          return;
+          const hasEvaluated = lesson.attendanceByDate && lesson.attendanceByDate[curDateStr] && lesson.attendanceByDate[curDateStr] !== "pendiente";
+          if (!hasEvaluated) return;
         }
 
         // Validación de vigencia limitada por transición (effectiveUntil / effectiveFrom)
@@ -158,6 +159,7 @@ export function computeStudentCycle(
           dateStr: curDateStr,
           time: lesson.time || "16:00",
           slot,
+          isMakeup: !!lesson.isMakeup,
         });
       });
     }
@@ -172,13 +174,16 @@ export function computeStudentCycle(
 
   // 3. Consolidar slots válidos:
   // Si el ciclo ya culminó, ÚNICAMENTE las sesiones evaluadas son válidas.
-  // Si falta completar la cuota, sumar exactamente las próximas N clases pendientes necesarias.
+  // Si falta completar la cuota, sumar recuperaciones pendientes agendadas y próximas clases pendientes.
   const validSlots = new Set<string>(evaluatedSlots);
   const validDates = new Set<string>(evaluatedDates);
 
   if (!isCycleCompleted) {
-    const slotsNeeded = targetQuota - evaluatedCount;
-    const chosenPending = pendingCandidates.slice(0, Math.max(0, slotsNeeded));
+    const pendingMakeups = pendingCandidates.filter((p) => p.isMakeup);
+    const pendingRegular = pendingCandidates.filter((p) => !p.isMakeup);
+    const slotsNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length);
+    const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
+    const chosenPending = [...pendingMakeups, ...chosenPendingRegular];
 
     chosenPending.forEach((p) => {
       validSlots.add(p.slot);
@@ -216,18 +221,18 @@ export function isLessonInStudentCycle(
     return false;
   }
 
-  // A. Exclusiones directas por fecha puntual
+  // A. Preservación incondicional de asistencias evaluadas en esta fecha
+  const evaluatedAtt = lesson.attendanceByDate?.[lessonDateStr];
+  if (evaluatedAtt && evaluatedAtt !== "pendiente") {
+    return true;
+  }
+
+  // B. Exclusiones directas por fecha puntual
   if (lesson.excludedDates && lesson.excludedDates.includes(lessonDateStr)) {
     return false;
   }
   if (lesson.dateStr && lesson.dateStr !== lessonDateStr) {
     return false;
-  }
-
-  // B. Preservación incondicional de asistencias evaluadas en esta fecha
-  const evaluatedAtt = lesson.attendanceByDate?.[lessonDateStr];
-  if (evaluatedAtt && evaluatedAtt !== "pendiente") {
-    return true;
   }
 
   // B.1. Límites de vigencia por transición de curso para sesiones no evaluadas

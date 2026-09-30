@@ -3156,6 +3156,10 @@ function NewStudentDialog() {
         : `Padres y apoderados vinculados. Matrícula: ${enrollmentDate || todayStr} | Inicio: ${planStartDate || "03/08/2026"}.`,
     });
     setOpen(false);
+    resetForm();
+  };
+
+  const resetForm = () => {
     setName("");
     setFamily("");
     setIsAdult(false);
@@ -3167,6 +3171,9 @@ function NewStudentDialog() {
     setEmergencyPhone("");
     setEmergencyRelation("Abuela");
     setSelectedCategory("AUTO");
+    setIsPersonalized(false);
+    setModality("Regular (8 clases / 45 min)");
+    setPlanType("Mensual");
     setEnrollmentDate(todayStr);
     setPlanStartDate(todayStr);
     setPaymentMethod("Yape / Plin");
@@ -3180,11 +3187,25 @@ function NewStudentDialog() {
     setPackageTotalSessions(24);
     setCustomPriceReason("");
     setAllowDuplicateConfirmed(false);
+    setMatriculaType("Promo Demo (S/ 30)");
   };
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <Button data-tour="btn-new-student" onClick={() => setOpen(true)} className="ml-auto font-bold gap-2">
+    <Sheet
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) resetForm();
+      }}
+    >
+      <Button
+        data-tour="btn-new-student"
+        onClick={() => {
+          resetForm();
+          setOpen(true);
+        }}
+        className="ml-auto font-bold gap-2"
+      >
         <PlusCircle className="h-4 w-4" /> Registrar Nuevo Alumno
       </Button>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
@@ -3404,6 +3425,10 @@ function NewStudentDialog() {
                       const defaultPrice = VIBRA_PRICING[val]?.priceMonthly ?? 297;
                       setPlanPrice(defaultPrice);
                       setAmountPaid(defaultPrice);
+                      if (modality.includes("Flexible") || modality.includes("Demo")) {
+                        setModality("Regular (8 clases / 45 min)");
+                      }
+                      setIsPersonalized(false);
                     }
                   }}
                   className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs font-medium"
@@ -3834,6 +3859,13 @@ function NewStudentDialog() {
                   setPlanPrice(500);
                   setAmountPaid(500);
                   setPackageTotalSessions(24);
+                } else {
+                  if (planType === "Paquete Flexible" || planType === "Demo Nivelación" || planType === "Paquete Especial") {
+                    setPlanType("Mensual");
+                    setPlanPrice(297);
+                    setAmountPaid(297);
+                  }
+                  setIsPersonalized(false);
                 }
               }}
             >
@@ -4180,6 +4212,7 @@ function EditStudentSheetInner({
       (Array.isArray(student.scheduleLessons) && student.scheduleLessons.length > 0)
     );
   }, [schedule, student.name, student.scheduleLessons]);
+  const [allowChangeModality, setAllowChangeModality] = useState(false);
   const [age, setAge] = useState<number>(initialAge);
   const rawCat =
     student.ageCategory === "ADULTO" || initialAge >= 18 || (student.age || 0) >= 18
@@ -5045,9 +5078,15 @@ function EditStudentSheetInner({
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-semibold">Modalidad y Frecuencia</label>
                 {hasSavedSchedule ? (
-                  <Badge variant="outline" className="text-[9px] font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">
-                    🔒 Horario activo
-                  </Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAllowChangeModality((prev) => !prev)}
+                    className="h-6 text-[10px] px-2 font-bold border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+                  >
+                    {allowChangeModality ? "🔓 Desbloqueada" : "🔒 Horario activo (Desbloquear)"}
+                  </Button>
                 ) : (
                   <Badge variant="outline" className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
                     Editable (Sin horario)
@@ -5056,7 +5095,7 @@ function EditStudentSheetInner({
               </div>
               <Select
                 value={modality}
-                disabled={hasSavedSchedule}
+                disabled={hasSavedSchedule && !allowChangeModality}
                 onValueChange={(v) => {
                   const mod = v as LessonModality;
                   setModality(mod);
@@ -5438,6 +5477,7 @@ function ScheduleStudentForm({
   const [selectedModality, setSelectedModality] = useState<string>(
     liveStudent.modality || "Regular (8 clases / 45 min)"
   );
+  const [allowChangeModality, setAllowChangeModality] = useState(false);
 
   useEffect(() => {
     if (liveStudent.modality && liveStudent.modality !== selectedModality) {
@@ -5923,9 +5963,15 @@ function ScheduleStudentForm({
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-bold text-foreground">Modalidad y Frecuencia:</span>
             {hasSavedSchedule ? (
-              <Badge variant="outline" className="text-[9px] font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">
-                🔒 Horario activo
-              </Badge>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAllowChangeModality((prev) => !prev)}
+                className="h-6 text-[10px] px-2 font-bold border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+              >
+                {allowChangeModality ? "🔓 Desbloqueada" : "🔒 Horario activo (Desbloquear)"}
+              </Button>
             ) : (
               <Badge variant="outline" className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
                 Editable (Sin horario fijado)
@@ -5935,12 +5981,12 @@ function ScheduleStudentForm({
           <div className="flex items-center gap-2">
             <Select
               value={selectedModality}
-              disabled={hasSavedSchedule}
+              disabled={hasSavedSchedule && !allowChangeModality}
               onValueChange={(val) => {
                 setSelectedModality(val);
               }}
             >
-              <SelectTrigger className={`h-8 text-xs bg-background min-w-[240px] font-bold border-primary/30 ${hasSavedSchedule ? "opacity-75 cursor-not-allowed" : ""}`}>
+              <SelectTrigger className={`h-8 text-xs bg-background min-w-[240px] font-bold border-primary/30 ${hasSavedSchedule && !allowChangeModality ? "opacity-75 cursor-not-allowed" : ""}`}>
                 <SelectValue placeholder="Seleccionar modalidad" />
               </SelectTrigger>
               <SelectContent>
