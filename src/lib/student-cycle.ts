@@ -106,7 +106,7 @@ export function computeStudentCycle(
   // 2. Proyectar candidatas pendientes desde planStartDate respetando días de la semana y horas
   // Escaneo dinámico: para Paquetes Flexibles o vigencias extendidas, proyectar hasta la fecha fin (mínimo 180 días)
   const daysToEnd = effectiveEndDate
-    ? Math.max(90, Math.ceil((new Date(effectiveEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
+    ? Math.max(isFlexiblePackage ? 180 : 90, Math.ceil((new Date(effectiveEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
     : (isFlexiblePackage ? 180 : 90);
   const maxDaysToScan = Math.max(isFlexiblePackage ? 180 : 90, daysToEnd);
   const pendingCandidates: Array<{ dateStr: string; time: string; slot: string; isMakeup?: boolean }> = [];
@@ -123,9 +123,9 @@ export function computeStudentCycle(
       if (jsDay === 0) continue; // Domingos no lectivos
       const dayKey = WEEKDAYS_ORDER[jsDay - 1];
 
-      // Si supera la fecha o mes de fin del plan, no proyectar clases pendientes
-      if (effectiveEndDate && curDateStr > effectiveEndDate) continue;
-      if (effectiveEndMonth && curDateStr.slice(0, 7) > effectiveEndMonth) continue;
+      // 🛡️ REGLA (ADR-0113 & ADR-0150): Paquetes Flexibles se rigen por clases consumidas (no por mes calendario rígido)
+      if (!isFlexiblePackage && effectiveEndDate && curDateStr > effectiveEndDate) continue;
+      if (!isFlexiblePackage && effectiveEndMonth && curDateStr.slice(0, 7) > effectiveEndMonth) continue;
 
       studentLessons.forEach((lesson) => {
         // Validación de fecha puntual o día de semana

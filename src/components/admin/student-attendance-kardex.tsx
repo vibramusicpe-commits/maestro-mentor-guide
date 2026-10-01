@@ -29,7 +29,10 @@ import {
 import { CourseTransitionDialog } from "@/components/admin/course-transition-dialog";
 import { StudentAuditReportDialog } from "@/components/admin/student-audit-report-dialog";
 import { RenewStudentCycleDialog } from "@/components/admin/renew-student-cycle-dialog";
-import { computeStudentRetentionStatus } from "@/lib/kardex-calculator";
+import {
+  computeStudentRetentionStatus,
+  computeStudentMonthSessions,
+} from "@/lib/kardex-calculator";
 import { toast } from "sonner";
 import {
   useAppStore,
@@ -290,7 +293,7 @@ export function StudentAttendanceKardex({
       }
     });
 
-    const maxDaysToScan = Math.max(isFlexiblePackage ? 180 : 90, daysToEnd, maxLessonDays);
+    const maxDaysToScan = Math.max(isFlexiblePackage ? 240 : 90, daysToEnd, maxLessonDays);
 
     for (let offset = 0; offset < maxDaysToScan; offset++) {
       const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + offset);
@@ -304,7 +307,8 @@ export function StudentAttendanceKardex({
       const dayKey = WEEKDAYS_ORDER[jsDay - 1];
 
       // Si supera la fecha fin del plan, solo incluir si ya tiene asistencia evaluada o es recuperación
-      const isBeyondEnd = effectivePlanEndDate ? curDateStr > effectivePlanEndDate : false;
+      // 🛡️ REGLA (ADR-0150): Los paquetes flexibles se rigen por cuota consumida, nunca por fecha calendario arbitraria
+      const isBeyondEnd = (!isFlexiblePackage && effectivePlanEndDate) ? curDateStr > effectivePlanEndDate : false;
 
       studentLessons.forEach((lesson) => {
         if (lesson.month !== undefined && lesson.month !== curM) return;
@@ -473,12 +477,14 @@ export function StudentAttendanceKardex({
       return allCycleSessions;
     }
 
-    // Modo Por Mes Calendario: Filtrar sesiones del ciclo correspondientes al mes/año
-    return allCycleSessions.filter((s) => {
-      const [y, m] = s.dateStr.split("-").map(Number);
-      return y === selectedYear && (m - 1) === selectedMonth;
+    // Modo Por Mes Calendario: Computar dinámicamente las sesiones del mes calendario (ADR-0150)
+    return computeStudentMonthSessions({
+      student: liveStudent,
+      allSchedule: studentLessons,
+      selectedYear,
+      selectedMonth,
     });
-  }, [viewTab, allCycleSessions, selectedYear, selectedMonth]);
+  }, [viewTab, allCycleSessions, liveStudent, studentLessons, selectedYear, selectedMonth]);
 
   // Total de asistencias en todo el ciclo contractual
   const cycleAttendedTotal = useMemo(() => {
@@ -921,10 +927,21 @@ export function StudentAttendanceKardex({
             <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
               <button
                 type="button"
+                onClick={() => setSelectedMonth(6)}
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${
+                  selectedMonth === 6
+                    ? "bg-primary text-primary-foreground shadow-2xs font-black"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Julio
+              </button>
+              <button
+                type="button"
                 onClick={() => setSelectedMonth(7)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${
                   selectedMonth === 7
-                    ? "bg-background text-foreground shadow-2xs font-black"
+                    ? "bg-primary text-primary-foreground shadow-2xs font-black"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -933,14 +950,25 @@ export function StudentAttendanceKardex({
               <button
                 type="button"
                 onClick={() => setSelectedMonth(8)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                   selectedMonth === 8
                     ? "bg-primary text-primary-foreground shadow-2xs font-black"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Setiembre
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {selectedMonth === 8 && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedMonth(9)}
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${
+                  selectedMonth === 9
+                    ? "bg-primary text-primary-foreground shadow-2xs font-black"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Octubre
               </button>
               <Select
                 value={String(selectedMonth)}

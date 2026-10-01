@@ -5854,21 +5854,29 @@ function ScheduleStudentForm({
 
     // Extraer año y mes del alumno a partir de su fecha oficial de inicio elegida
     const startStr = startDate || liveStudent.planStartDate || "2026-09-10";
-    const [yStr, mStr] = startStr.split("-");
+    const [yStr, mStr, dStr] = startStr.split("-");
     const lessonYear = parseInt(yStr || "2026", 10);
     const lessonMonth = parseInt(mStr || "9", 10) - 1; // 0-indexed (8 para Setiembre)
+    const lessonDay = parseInt(dStr || "1", 10);
 
     // Calcular fecha de vencimiento según modalidad (preservar ventana de vigencia acordada para Paquete Flexible)
     let calculatedEndDate = liveStudent.planEndDate;
-    if (!isFlexible) {
+    if (isFlexible) {
+      // Paquete Flexible (A demanda): Se rige por la bolsa de horas contratadas (mínimo hasta fin de año)
+      if (!calculatedEndDate || calculatedEndDate < "2026-12-31") {
+        calculatedEndDate = "2026-12-31";
+      }
+    } else {
       try {
-        const d = new Date(startStr);
-        if (!isNaN(d.getTime())) {
-          const monthsToAdd = isRegular1x ? 2 : 1;
-          d.setMonth(d.getMonth() + monthsToAdd);
-          d.setDate(d.getDate() - 1);
-          calculatedEndDate = d.toISOString().slice(0, 10);
-        }
+        // Cálculo con fecha local para prevenir desfases de zona horaria UTC (ADR-0150)
+        const d = new Date(lessonYear, lessonMonth, lessonDay);
+        const monthsToAdd = isRegular1x ? 2 : 1;
+        d.setMonth(d.getMonth() + monthsToAdd);
+        d.setDate(d.getDate() - 1);
+        const endY = d.getFullYear();
+        const endM = String(d.getMonth() + 1).padStart(2, "0");
+        const endD = String(d.getDate()).padStart(2, "0");
+        calculatedEndDate = `${endY}-${endM}-${endD}`;
       } catch {}
     }
 
@@ -5885,8 +5893,8 @@ function ScheduleStudentForm({
     });
 
     // Agendar clases semanales reemplazando atómicamente cualquier horario previo
-    // Las clases regulares son recurrentes semanales (sin fijar un mes único) para que generen
-    // automáticamente todas las clases contratadas en el Kardex y en la agenda semanal.
+    // Las clases regulares son recurrentes semanales pero cuentan con effectiveFrom: startStr
+    // para garantizar que NUNCA se proyecten antes de la fecha oficial de inicio elegida (ADR-0150)
     const lessonsToSet: Omit<ScheduledLesson, "id">[] = [
       {
         student: liveStudent.name,
@@ -5899,6 +5907,7 @@ function ScheduleStudentForm({
         sessionNumber: 1,
         status: "programada",
         year: lessonYear,
+        effectiveFrom: startStr,
       },
     ];
 
@@ -5914,6 +5923,7 @@ function ScheduleStudentForm({
         sessionNumber: 2,
         status: "programada",
         year: lessonYear,
+        effectiveFrom: startStr,
       });
     }
 

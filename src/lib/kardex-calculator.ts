@@ -224,7 +224,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   const startDate = new Date(sy, sm - 1, sd);
   const rawCandidates: StudentSessionItem[] = [];
   const daysToEnd = effectivePlanEndDate
-    ? Math.max(90, Math.ceil((new Date(effectivePlanEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
+    ? Math.max(isFlexiblePackage ? 180 : 90, Math.ceil((new Date(effectivePlanEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
     : (isFlexiblePackage ? 180 : 90);
 
   let maxLessonDays = 0;
@@ -254,7 +254,8 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
     if (jsDay === 0) continue; // No domingos
     const dayKey = WEEKDAYS_ORDER[jsDay - 1]; // "Lun", "Mar", etc.
 
-    const isBeyondEnd = effectivePlanEndDate ? curDateStr > effectivePlanEndDate : false;
+    // 🛡️ REGLA (ADR-0113 & ADR-0150): Para Paquete Flexible, la vigencia se rige por clases consumidas (no por mes calendario rígido)
+    const isBeyondEnd = (!isFlexiblePackage && effectivePlanEndDate) ? curDateStr > effectivePlanEndDate : false;
 
     studentLessons.forEach((lesson) => {
       if (lesson.month !== undefined && lesson.month !== curM) return;
@@ -404,6 +405,154 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   });
 
   return finalSessions;
+}
+
+export interface ComputeMonthSessionsOptions {
+  student: AdminStudent;
+  allSchedule: ScheduledLesson[];
+  selectedYear: number;
+  selectedMonth: number; // 0-indexed (0=Ene... 6=Jul, 7=Ago, 8=Set, 9=Oct)
+}
+
+/**
+ * Calcula todas las sesiones correspondientes a un mes calendario específico
+ * respetando fechas de inicio (planStartDate), barreras de horario y asistencias (ADR-0150).
+ */
+export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions): StudentSessionItem[] {
+  const { student, allSchedule, selectedYear, selectedMonth } = options;
+  if (!student || student.status !== "activo") return [];
+
+  // Filtrar lecciones del alumno fusionando allSchedule con student.scheduleLessons
+  const studentLessonsMap = new Map<string, ScheduledLesson>();
+  allSchedule
+    .filter((l) => isMatchingStudentName(l.student, student.name))
+    .forEach((l) => studentLessonsMap.set(l.id, l));
+  (student.scheduleLessons || []).forEach((l) => studentLessonsMap.set(l.id, l));
+  const studentLessons = Array.from(studentLessonsMap.values());
+
+  const effectivePlanStartDate = student.planStartDate || student.joinedAt || undefined;
+  const effectivePlanEndDate = student.planEndDate || undefined;
+  const modalityStr = (student.modality || "Regular").toLowerCase();
+  const isFlexiblePackage = modalityStr.includes("flexible") || modalityStr.includes("demanda") || modalityStr.includes("paquete");
+
+  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+  const rawCandidates: StudentSessionItem[] = [];
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const curDate = new Date(selectedYear, selectedMonth, d);
+    const curY = curDate.getFullYear();
+    const curM = curDate.getMonth();
+    const curD = curDate.getDate();
+    const curDateStr = `${curY}-${String(curM + 1).padStart(2, "0")}-${String(curD).padStart(2, "0")}`;
+
+    const jsDay = curDate.getDay();
+    if (jsDay === 0) continue; // Domingos no lectivos
+    const dayKey = WEEKDAYS_ORDER[jsDay - 1];
+
+    // 🛡️ REGLA (ADR-0150): No proyectar sesiones antes de la fecha oficial de inicio elegida
+    if (effectivePlanStartDate && curDateStr < effectivePlanStartDate) {
+      continue;
+    }
+
+    // Para no flexibles, validar fin de plan en sesiones no evaluadas ni recuperaciones
+    const isBeyondEnd = (!isFlexiblePackage && effectivePlanEndDate) ? curDateStr > effectivePlanEndDate : false;
+
+    studentLessons.forEach((lesson) => {
+      if (lesson.month !== undefined && lesson.month !== curM) return;
+      if (lesson.year !== undefined && lesson.year !== curY) return;
+
+      // A. Fecha exacta fija (makeups, adelantos, etc.)
+      if (lesson.dateStr) {
+        if (lesson.dateStr !== curDateStr) return;
+      } else {
+        // B. Recurrente semanal
+        if (normalizeDayKey(lesson.day) !== dayKey) return;
+      }
+
+      // C. Fechas excluidas (por reprogramación) a menos que esté evaluada
+      if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
+        const hasEvaluated =
+          lesson.attendanceByDate &&
+          lesson.attendanceByDate[curDateStr] &&
+          lesson.attendanceByDate[curDateStr] !== "pendiente";
+        if (!hasEvaluated) return;
+      }
+
+      // C.1. Barreras temporales absolutas (effectiveFrom / effectiveUntil)
+      if (lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) return;
+      if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) return;
+
+      let currentStatus: StudentSessionItem["status"] = "pendiente";
+      if (lesson.attendanceByDate && lesson.attendanceByDate[curDateStr]) {
+        currentStatus = lesson.attendanceByDate[curDateStr]!;
+      }
+
+      if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup) {
+        return;
+      }
+
+      const [hh, mm] = (lesson.time || "16:00").split(":").map((v) => parseInt(v, 10));
+      const endMinuteTotal = (hh || 16) * 60 + (mm || 0) + 45;
+      const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
+      const endM = String(endMinuteTotal % 60).padStart(2, "0");
+      const timeEnd = `${endH}:${endM}`;
+
+      const monthName = MONTHS_NAME[curM] || "";
+      const fullDayName = WEEKDAY_FULL_NAMES[dayKey] || dayKey;
+
+      rawCandidates.push({
+        id: `${lesson.id}-${curDateStr}`,
+        lessonId: lesson.id,
+        sessionIndex: 0,
+        weekIndex: Math.floor((d - 1) / 7),
+        weekLabel: `Semana ${Math.floor((d - 1) / 7) + 1}`,
+        dateStr: curDateStr,
+        dayNum: curD,
+        dayName: `${fullDayName} ${String(curD).padStart(2, "0")} de ${monthName} ${curY}`,
+        dayShort: `${dayKey} ${String(curD).padStart(2, "0")} ${monthName.slice(0, 3)}`,
+        dayKey,
+        time: lesson.time,
+        timeEnd,
+        teacher: lesson.teacher || student.teacher || "Por asignar",
+        room: lesson.room || student.room || "Sala A",
+        instrument: lesson.instrument || student.instrument || "Música",
+        isMakeup: !!lesson.isMakeup,
+        recoveringLessonDate: lesson.recoveringLessonDate,
+        status: currentStatus,
+      });
+    });
+  }
+
+  // Ordenar cronológicamente con prioridad a evaluadas y makeups
+  rawCandidates.sort((a, b) => {
+    const cmp = a.dateStr.localeCompare(b.dateStr);
+    if (cmp !== 0) return cmp;
+    const timeCmp = a.time.localeCompare(b.time);
+    if (timeCmp !== 0) return timeCmp;
+    const aEval = a.status !== "pendiente" ? 1 : 0;
+    const bEval = b.status !== "pendiente" ? 1 : 0;
+    if (aEval !== bEval) return bEval - aEval;
+    const aMakeup = a.isMakeup ? 1 : 0;
+    const bMakeup = b.isMakeup ? 1 : 0;
+    if (aMakeup !== bMakeup) return bMakeup - aMakeup;
+    return 0;
+  });
+
+  const seenSlots = new Set<string>();
+  const deduped: StudentSessionItem[] = [];
+  rawCandidates.forEach((item) => {
+    const slotKey = `${item.dateStr}-${item.time}`;
+    if (!seenSlots.has(slotKey)) {
+      seenSlots.add(slotKey);
+      deduped.push(item);
+    }
+  });
+
+  deduped.forEach((item, idx) => {
+    item.sessionIndex = idx + 1;
+  });
+
+  return deduped;
 }
 
 /**

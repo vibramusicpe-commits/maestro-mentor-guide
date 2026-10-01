@@ -1006,3 +1006,25 @@ inferencia.
    - En la fila de cada falta (`ausente`), se añade un badge informativo que enlaza directamente con su clase de recuperación agendada (`🔄 Recup.: [Día] [Hora] ([Estado: ✓ Asistió | ⏳ Pendiente])`), otorgando total transparencia a secretaría y dirección.
 5. **Fallback y Deduplicación Preventiva en `rescheduleLesson`**:
    - `rescheduleLesson` en `app-store.ts` busca la lección en `s.schedule` y en `adminStudents[...].scheduleLessons`. Además, si se reprograma nuevamente una inasistencia que tenía un makeup previo sin evaluar, actualiza la sesión previa en lugar de crear duplicados fantasma.
+
+---
+
+### 50. Blindaje de Fechas de Inicio de Clases, Soporte Integral de Paquetes Flexibles (24 Clases) y Reactivación Dinámica de Vista por Mes en Kardex (ADR-0150)
+1. **Inyección Estricta de `effectiveFrom` en Horario Semanal (`ScheduleStudentForm`)**:
+   - Toda lección recurrente generada en `ScheduleStudentForm` incluye explícitamente `effectiveFrom: startStr`.
+   - El cálculo de `planEndDate` se realiza mediante aritmética de fechas local de calendario (`Date(y, m + durationMonths, d)` formateada a `YYYY-MM-DD`), erradicando la regresión horaria provocada por `toISOString()` (UTC frente a UTC-5).
+   - Para planes de Paquete Flexible (A demanda), la fecha límite contractual se extiende automáticamente (mínimo a fin de año) para permitir el consumo fluido de toda la bolsa de clases.
+2. **Exención de `isBeyondEnd` para Paquetes Flexibles en Kardex y Proyección de Ciclos**:
+   - En `computeStudentCycleSessions` (`kardex-calculator.ts`) y `allCycleSessions` (`student-attendance-kardex.tsx`), la condición de corte por fin de vigencia:
+     `const isBeyondEnd = (!isFlexiblePackage && effectivePlanEndDate) ? curDateStr > effectivePlanEndDate : false;`
+     exime formalmente a los paquetes flexibles.
+   - La vigencia de un Paquete Flexible está determinada exclusivamente por la cantidad de sesiones consumidas frente a la cuota contratada (`packageTotalSessions`, ej. 24 clases), nunca por un candado rígido de mes calendario de 30 días.
+   - La ventana de escaneo para paquetes flexibles se amplía a 240 días (`maxDaysToScan = 240`), garantizando que las 24 sesiones se proyecten de forma continua a través de todos los meses necesarios (julio, agosto, setiembre, octubre).
+3. **Computación Dinámica del Mes Calendario vía `computeStudentMonthSessions`**:
+   - Se implementó y exportó la función `computeStudentMonthSessions` en `src/lib/kardex-calculator.ts`, la cual calcula en tiempo real todas las sesiones pertenecientes al mes y año calendario seleccionados:
+     - Respeta `effectivePlanStartDate` como piso temporal absoluto (no proyecta clases previas al inicio).
+     - Evalúa marcas de asistencia existentes (`attendanceByDate[dateStr]`), reprogramaciones puntuales (`dateStr`) y exclusiones (`excludedDates`).
+     - Aplica barreras temporales absolutas de transición (`effectiveFrom` / `effectiveUntil`).
+   - En `student-attendance-kardex.tsx`, cuando la pestaña activa es `"calendar"`, se invoca directamente `computeStudentMonthSessions`, permitiendo navegar libremente entre Julio, Agosto, Setiembre, Octubre y cualquier mes con datos en vivo.
+   - Se expandió la interfaz de usuario con botones de acceso rápido para Julio, Agosto, Setiembre y Octubre, además del selector desplegable completo.
+
