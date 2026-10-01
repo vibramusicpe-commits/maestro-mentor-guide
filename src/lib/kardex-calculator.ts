@@ -226,7 +226,22 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   const daysToEnd = effectivePlanEndDate
     ? Math.max(90, Math.ceil((new Date(effectivePlanEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
     : (isFlexiblePackage ? 180 : 90);
-  const maxDaysToScan = Math.max(isFlexiblePackage ? 180 : 90, daysToEnd);
+
+  let maxLessonDays = 0;
+  studentLessons.forEach((l) => {
+    if (l.dateStr) {
+      const [ly, lm, ld] = l.dateStr.split("-").map(Number);
+      if (ly && lm && ld) {
+        const lDate = new Date(ly, lm - 1, ld);
+        const diffDays = Math.ceil((lDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays > maxLessonDays) {
+          maxLessonDays = diffDays + 14;
+        }
+      }
+    }
+  });
+
+  const maxDaysToScan = Math.max(isFlexiblePackage ? 180 : 90, daysToEnd, maxLessonDays);
 
   for (let offset = 0; offset < maxDaysToScan; offset++) {
     const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + offset);
@@ -360,36 +375,28 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
     }
   });
 
-  // 3. Respetar cuota contractual (8 para Regular, 4 para Intensivo, N para Paquete Flexible)
-  let finalSessions: StudentSessionItem[] = [];
-  if (deduped.length <= targetQuota) {
-    finalSessions = deduped;
-  } else {
-    const evaluated = deduped.filter((s) => s.status !== "pendiente");
-    const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
-    const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
+  // 3. 🛡️ FILOSOFÍA VIBRA MUSIC (ADR-0105 & ADR-0149):
+  // - TODAS las sesiones evaluadas (presente, ausente, tarde, justificada) son hechos históricos intocables y se PRESERVAN.
+  // - TODAS las sesiones de recuperación (isMakeup: true), tanto evaluadas como pendientes, se PRESERVAN incondicionalmente
+  //   para que el alumno pueda recuperar todas sus inasistencias sin límites arbitrarios ("Las clases no se pierden, se recuperan").
+  // - Solo se acotan las sesiones regulares pendientes (status === "pendiente" && !isMakeup) para que el ciclo proyecte
+  //   exactamente las clases necesarias para completar la cuota contratada.
+  const evaluated = deduped.filter((s) => s.status !== "pendiente");
+  const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
+  const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
 
-    // 🛡️ REGLA ADR-0105 & ADR-0134: Las clases de recuperación pendientes (isMakeup: true)
-    // JAMÁS deben descartarse si el alumno tiene inasistencias por recuperar, porque son la vía
-    // para alcanzar sus 8 clases asistidas efectivas ("Las clases no se pierden, se recuperan").
-    const attendedCount = evaluated.filter((s) => s.status === "presente").length;
-    const attendedOrScheduled = attendedCount + pendingMakeups.length;
+  const attendedCount = evaluated.filter((s) => s.status === "presente" || s.status === "tarde").length;
+  const scheduledCount = attendedCount + pendingMakeups.length;
 
-    if (evaluated.length >= targetQuota && attendedOrScheduled >= targetQuota && pendingMakeups.length === 0) {
-      finalSessions = evaluated.slice(0, targetQuota);
-    } else {
-      const slotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
-      const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
+  const regularSlotsNeeded = Math.max(0, targetQuota - scheduledCount);
+  const chosenPendingRegular = pendingRegular.slice(0, regularSlotsNeeded);
 
-      const combined = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
-      combined.sort((a, b) => {
-        const cmp = a.dateStr.localeCompare(b.dateStr);
-        if (cmp !== 0) return cmp;
-        return a.time.localeCompare(b.time);
-      });
-      finalSessions = combined.slice(0, targetQuota);
-    }
-  }
+  const finalSessions = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
+  finalSessions.sort((a, b) => {
+    const cmp = a.dateStr.localeCompare(b.dateStr);
+    if (cmp !== 0) return cmp;
+    return a.time.localeCompare(b.time);
+  });
 
   // 4. Numerar secuencialmente (Sesión 1 a N)
   finalSessions.forEach((item, idx) => {

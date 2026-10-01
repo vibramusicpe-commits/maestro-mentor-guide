@@ -275,7 +275,22 @@ export function StudentAttendanceKardex({
     const daysToEnd = effectivePlanEndDate
       ? Math.max(90, Math.ceil((new Date(effectivePlanEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
       : (isFlexiblePackage ? 180 : 90);
-    const maxDaysToScan = Math.max(isFlexiblePackage ? 180 : 90, daysToEnd);
+
+    let maxLessonDays = 0;
+    studentLessons.forEach((l) => {
+      if (l.dateStr) {
+        const [ly, lm, ld] = l.dateStr.split("-").map(Number);
+        if (ly && lm && ld) {
+          const lDate = new Date(ly, lm - 1, ld);
+          const diffDays = Math.ceil((lDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays > maxLessonDays) {
+            maxLessonDays = diffDays + 14;
+          }
+        }
+      }
+    });
+
+    const maxDaysToScan = Math.max(isFlexiblePackage ? 180 : 90, daysToEnd, maxLessonDays);
 
     for (let offset = 0; offset < maxDaysToScan; offset++) {
       const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + offset);
@@ -410,40 +425,28 @@ export function StudentAttendanceKardex({
       }
     });
 
-    // 3. Respetar cuota contractual (8 para Regular, 4 para Intensivo, N para Paquete Flexible)
-    let finalSessions: StudentSessionItem[] = [];
-    if (deduped.length <= targetQuota) {
-      finalSessions = deduped;
-    } else {
-      // Separar clases ya evaluadas (asistió, falta, tarde, justificada) de las pendientes
-      const evaluated = deduped.filter((s) => s.status !== "pendiente");
-      const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
-      const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
+    // 3. 🛡️ FILOSOFÍA VIBRA MUSIC (ADR-0105 & ADR-0149):
+    // - TODAS las sesiones evaluadas (presente, ausente, tarde, justificada) son hechos históricos intocables y se PRESERVAN.
+    // - TODAS las sesiones de recuperación (isMakeup: true), tanto evaluadas como pendientes, se PRESERVAN incondicionalmente
+    //   para que el alumno pueda recuperar todas sus inasistencias sin límites arbitrarios ("Las clases no se pierden, se recuperan").
+    // - Solo se acotan las sesiones regulares pendientes (status === "pendiente" && !isMakeup) para que el ciclo proyecte
+    //   exactamente las clases necesarias para completar la cuota contratada.
+    const evaluated = deduped.filter((s) => s.status !== "pendiente");
+    const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
+    const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
 
-      // 🛡️ REGLA ADR-0105 & ADR-0134: Las clases de recuperación pendientes (isMakeup: true)
-      // JAMÁS deben descartarse si el alumno tiene inasistencias por recuperar, porque son la vía
-      // para alcanzar sus clases asistidas efectivas ("Las clases no se pierden, se recuperan").
-      const attendedCount = evaluated.filter((s) => s.status === "presente").length;
-      const attendedOrScheduled = attendedCount + pendingMakeups.length;
+    const attendedCount = evaluated.filter((s) => s.status === "presente" || s.status === "tarde").length;
+    const scheduledCount = attendedCount + pendingMakeups.length;
 
-      if (evaluated.length >= targetQuota && attendedOrScheduled >= targetQuota && pendingMakeups.length === 0) {
-        // Si ya completó o superó su cuota con clases reales evaluadas y no tiene makeups pendientes
-        finalSessions = evaluated.slice(0, targetQuota);
-      } else {
-        // Mantener todas las evaluadas, TODAS las recuperaciones pendientes agendadas,
-        // y completar con las próximas pendientes regulares hasta llegar exactamente a targetQuota
-        const slotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
-        const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
+    const regularSlotsNeeded = Math.max(0, targetQuota - scheduledCount);
+    const chosenPendingRegular = pendingRegular.slice(0, regularSlotsNeeded);
 
-        const combined = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
-        combined.sort((a, b) => {
-          const cmp = a.dateStr.localeCompare(b.dateStr);
-          if (cmp !== 0) return cmp;
-          return a.time.localeCompare(b.time);
-        });
-        finalSessions = combined.slice(0, targetQuota);
-      }
-    }
+    const finalSessions = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
+    finalSessions.sort((a, b) => {
+      const cmp = a.dateStr.localeCompare(b.dateStr);
+      if (cmp !== 0) return cmp;
+      return a.time.localeCompare(b.time);
+    });
 
     // 4. Numerar secuencialmente (Sesión 1 a N)
     finalSessions.forEach((item, idx) => {
@@ -636,15 +639,19 @@ export function StudentAttendanceKardex({
     });
   };
 
-  // 🔄 Helper: Obtener fecha exacta en la misma semana para reprogramación
-  const getTargetDateInSameWeek = (originDateStr: string, targetDay: WeekDay): string => {
+  // 🔄 Helper: Obtener fecha exacta en el futuro para reprogramación
+  const getTargetDateInFuture = (originDateStr: string, targetDay: WeekDay): string => {
     const [y, m, d] = originDateStr.split("-").map(Number);
     const origin = new Date(y, m - 1, d);
     const originJsDay = origin.getDay(); // 0 Dom, 1 Lun, 2 Mar, 3 Mié, 4 Jue, 5 Vie, 6 Sáb
     const dayOrder: Record<WeekDay, number> = { Lun: 1, Mar: 2, Mié: 3, Jue: 4, Vie: 5, Sáb: 6 };
     const targetJsDay = dayOrder[targetDay] || 1;
     const jsDayNormalized = originJsDay === 0 ? 7 : originJsDay;
-    const diffDays = targetJsDay - jsDayNormalized;
+    let diffDays = targetJsDay - jsDayNormalized;
+    // Si el día objetivo es igual o anterior al origen, proyectar a la siguiente semana para asegurar fecha futura
+    if (diffDays <= 0) {
+      diffDays += 7;
+    }
     const targetDate = new Date(origin.getFullYear(), origin.getMonth(), origin.getDate() + diffDays);
     return `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}-${String(targetDate.getDate()).padStart(2, "0")}`;
   };
@@ -656,15 +663,19 @@ export function StudentAttendanceKardex({
     if (!slots.includes(reschedTime)) {
       setReschedTime(slots[0] || "16:00");
     }
-    if (rescheduleSession?.dateStr) {
-      setReschedDate(getTargetDateInSameWeek(rescheduleSession.dateStr, newDay));
+    if (reschedDate) {
+      setReschedDate(getTargetDateInFuture(reschedDate, newDay));
+    } else if (rescheduleSession?.dateStr) {
+      setReschedDate(getTargetDateInFuture(rescheduleSession.dateStr, newDay));
     }
   };
 
   const handleOpenReschedule = (session: StudentSessionItem) => {
     setRescheduleSession(session);
     setReschedDay(session.dayKey);
-    setReschedDate(session.dateStr);
+    // Calcular automáticamente una fecha sugerida en el futuro (mínimo +7 días o siguiente día correspondiente)
+    const suggested = session.dateStr ? getTargetDateInFuture(session.dateStr, session.dayKey) : "";
+    setReschedDate(suggested);
     const slots = session.dayKey === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
     setReschedTime(slots.includes(session.time) ? session.time : slots[0] || "16:00");
     setReschedTeacher(
@@ -1300,6 +1311,9 @@ export function StudentAttendanceKardex({
           <div className="divide-y divide-border">
             {sessions.map((item) => {
               const isPast = new Date(item.dateStr).getTime() <= new Date().getTime();
+              const linkedMakeup = allCycleSessions.find(
+                (m) => m.isMakeup && m.recoveringLessonDate === item.dateStr
+              );
 
               return (
                 <div
@@ -1369,6 +1383,26 @@ export function StudentAttendanceKardex({
                       {item.status === "justificada" && "🔵 Justificada"}
                       {item.status === "pendiente" && "⚪ Sin marcar"}
                     </Badge>
+
+                    {/* 🔄 Badge informativo de Recuperación agendada para esta falta */}
+                    {linkedMakeup && (
+                      <Badge className="bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold gap-1 flex items-center">
+                        <CalendarSync className="h-3 w-3 text-amber-500 shrink-0" />
+                        <span>
+                          Recup.: {linkedMakeup.dayShort} {linkedMakeup.time} (
+                          {linkedMakeup.status === "presente"
+                            ? "✓ Asistió"
+                            : linkedMakeup.status === "ausente"
+                            ? "✗ Faltó"
+                            : linkedMakeup.status === "tarde"
+                            ? "⏰ Tardanza"
+                            : linkedMakeup.status === "justificada"
+                            ? "🔵 Justificada"
+                            : "⏳ Pendiente"}
+                          )
+                        </span>
+                      </Badge>
+                    )}
 
                     {/* 🔄 Botón directo de Reprogramar si tiene Falta, Tardanza o Justificada */}
                     {(item.status === "ausente" || item.status === "tarde" || item.status === "justificada") && (
@@ -1535,9 +1569,17 @@ export function StudentAttendanceKardex({
                 </p>
               </div>
 
-              {/* Selector de Fecha Específica */}
+              {/* Selector de Nueva Fecha de Recuperación */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Fecha Específica a Reprogramar</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-primary" />
+                    <span>Nueva Fecha para la Recuperación</span>
+                  </label>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md">
+                    {WEEKDAY_FULL_NAMES[reschedDay] || reschedDay}
+                  </span>
+                </div>
                 <Input
                   type="date"
                   value={reschedDate}
@@ -1551,11 +1593,18 @@ export function StudentAttendanceKardex({
                       if (jsDay >= 1 && jsDay <= 6) {
                         const newD = WEEKDAYS_ORDER[jsDay - 1];
                         setReschedDay(newD);
+                        const slots = newD === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
+                        if (!slots.includes(reschedTime)) {
+                          setReschedTime(slots[0] || "16:00");
+                        }
                       }
                     }
                   }}
-                  className="h-9 rounded-xl text-xs bg-background"
+                  className="h-9 rounded-xl text-xs bg-background font-mono font-medium"
                 />
+                <p className="text-[10px] text-muted-foreground">
+                  El alumno asistirá en esta fecha para recuperar la falta del {rescheduleSession.dayName}.
+                </p>
               </div>
 
               {/* Formulario de Nueva Fecha y Horario */}

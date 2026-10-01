@@ -1350,7 +1350,16 @@ export const useAppStore = create<AppState>()(
         newDateStr
       ) =>
         set((s) => {
-          const targetLesson = s.schedule.find((l) => l.id === id);
+          let targetLesson = s.schedule.find((l) => l.id === id);
+          if (!targetLesson) {
+            for (const st of s.adminStudents) {
+              const found = (st.scheduleLessons || []).find((l) => l.id === id);
+              if (found) {
+                targetLesson = { ...found, student: found.student || st.name };
+                break;
+              }
+            }
+          }
           if (!targetLesson) return s;
 
           const newTeacher = teacher || targetLesson.teacher;
@@ -1390,8 +1399,17 @@ export const useAppStore = create<AppState>()(
               recoveringLessonDate: originalDateStr,
             };
 
+            // Filtrar duplicados pendientes previos que recuperaban esta misma inasistencia aún sin evaluar
+            const isPendingMakeupForSameDate = (l: ScheduledLesson) =>
+              Boolean(originalDateStr && l.isMakeup && l.recoveringLessonDate === originalDateStr &&
+                (!l.attendanceByDate || Object.values(l.attendanceByDate).every((st) => st === "pendiente")));
+
+            const baseSchedule = s.schedule.filter((l) => !isPendingMakeupForSameDate(l));
+            const hasOriginalInSchedule = baseSchedule.some((l) => l.id === id);
             const updatedSchedule = [
-              ...s.schedule.map((l) => (l.id === id ? updatedOriginal : l)),
+              ...(hasOriginalInSchedule
+                ? baseSchedule.map((l) => (l.id === id ? updatedOriginal : l))
+                : [...baseSchedule, updatedOriginal]),
               newSingleWeekLesson,
             ];
 
@@ -1399,9 +1417,12 @@ export const useAppStore = create<AppState>()(
             const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, targetLesson.student));
             let updatedAdminStudents = s.adminStudents;
             if (targetSt) {
-              const currentLessons = targetSt.scheduleLessons || [];
+              const currentLessons = (targetSt.scheduleLessons || []).filter((l) => !isPendingMakeupForSameDate(l));
+              const hasOriginalInPersisted = currentLessons.some((l) => l.id === id);
               const updatedPersisted = [
-                ...currentLessons.map((l) => (l.id === id ? updatedOriginal : l)),
+                ...(hasOriginalInPersisted
+                  ? currentLessons.map((l) => (l.id === id ? updatedOriginal : l))
+                  : [...currentLessons, updatedOriginal]),
                 newSingleWeekLesson,
               ];
               updatedAdminStudents = s.adminStudents.map((st) =>

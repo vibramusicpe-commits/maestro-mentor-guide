@@ -981,6 +981,28 @@ inferencia.
    - `evaluateSlotPedagogicalCompatibility` en `room-compatibility.ts` evalúa `checkInstrumentCompatibility`.
    - Al detectar conflicto de instrumento, se renderiza una alerta en rojo crítico (`🚨 Conflicto Crítico de Instrumentos en Sala`) y se desactiva el guardado hasta que secretaría marque la confirmación obligatoria de excepción autorizada por Dirección.
 
+---
 
+### 48. Desbloqueo Controlado de Modalidad y Aislamiento de Formularios de Matrícula (ADR-0148)
+1. **Reseteo Atómico de Formularios (`resetForm`)**:
+   - En `AddNewStudentDialog`, invocar `resetForm()` al abrir y cerrar el modal para garantizar que cada nuevo alumno comience con el estado predeterminado limpio (`modality: "Regular (8 clases / 45 min)"`), eliminando la contaminación cruzada entre formularios de matrícula sucesivos.
+2. **Candado Interactivo de Desbloqueo Controlado**:
+   - Implementar el botón toggle interactivo `[🔒 Desbloquear para Cambiar]` / `[🔓 Modalidad Desbloqueada]` tanto en `ScheduleStudentForm` como en `EditStudentSheetInner`, permitiendo correcciones administrativas explícitas sin romper las restricciones de horario.
+3. **Universalización de Prioridad de Makeups en Paquetes Flexibles**:
+   - Garantizar que las recuperaciones puntuales (`isMakeup: true`) aisladas por `dateStr` en `excludedDates` coexistan y tengan prioridad sobre lecciones recurrentes sin recortar la cuota total de sesiones contratadas (`packageTotalSessions`).
 
+---
 
+### 49. Desbloqueo Ilimitado de Reprogramaciones en Kardex y Preservación Integral de Asistencias y Makeups (ADR-0149)
+1. **Preservación Incondicional de Evaluadas y Makeups**:
+   - Todas las sesiones evaluadas (`status !== "pendiente"`) se preservan de manera inmutable como hechos históricos en el Kardex y en el Horario.
+   - Todas las sesiones de recuperación (`isMakeup: true`), tanto evaluadas como pendientes, se preservan incondicionalmente, cumpliendo el principio fundacional: *"Las clases no se pierden, se recuperan"*.
+   - Queda **TERMINANTEMENTE PROHIBIDO** aplicar `.slice(0, targetQuota)` sobre sesiones evaluadas o makeups. Solo se acotan las sesiones regulares pendientes (`status === "pendiente" && !isMakeup`) necesarias para completar la cuota contractual: `regularSlotsNeeded = Math.max(0, targetQuota - (attendedCount + pendingMakeups.length))`.
+2. **Ventana Dinámica de Proyección (`maxLessonDays`)**:
+   - `maxDaysToScan` calcula dinámicamente la fecha más lejana entre todas las lecciones del alumno (`lesson.dateStr`), asegurando que cualquier clase reprogramada a futuro (a 90, 120 o 180 días) sea alcanzada e incorporada en la proyección mensual y de ciclo.
+3. **Proyección Proactiva hacia el Futuro (`getTargetDateInFuture`)**:
+   - Al abrir el diálogo de reprogramación en el Kardex, `reschedDate` se calcula hacia el futuro (`getTargetDateInFuture`), garantizando que la fecha sugerida sea posterior a la falta y sincronizada bidireccionalmente con el día de semana seleccionado (`reschedDay`).
+4. **Distintivo Visual de Recuperación Enlazada en Kardex**:
+   - En la fila de cada falta (`ausente`), se añade un badge informativo que enlaza directamente con su clase de recuperación agendada (`🔄 Recup.: [Día] [Hora] ([Estado: ✓ Asistió | ⏳ Pendiente])`), otorgando total transparencia a secretaría y dirección.
+5. **Fallback y Deduplicación Preventiva en `rescheduleLesson`**:
+   - `rescheduleLesson` en `app-store.ts` busca la lección en `s.schedule` y en `adminStudents[...].scheduleLessons`. Además, si se reprograma nuevamente una inasistencia que tenía un makeup previo sin evaluar, actualiza la sesión previa en lugar de crear duplicados fantasma.
