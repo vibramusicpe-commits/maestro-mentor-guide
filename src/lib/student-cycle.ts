@@ -94,6 +94,10 @@ export function computeStudentCycle(
   studentLessons.forEach((l) => {
     if (l.attendanceByDate) {
       Object.entries(l.attendanceByDate).forEach(([dateStr, att]) => {
+        // 🛡️ REGLA (ADR-0105 & ADR-0152): Si la fecha está excluida por reprogramación, no considerar evaluación huérfana
+        if (l.excludedDates && l.excludedDates.includes(dateStr)) {
+          return;
+        }
         if (att && att !== "pendiente") {
           const slot = `${dateStr}-${l.time || "16:00"}`;
           evaluatedSlots.add(slot);
@@ -151,10 +155,9 @@ export function computeStudentCycle(
           if (lesson.day !== dayKey) return;
         }
 
-        // Validación de fechas excluidas (a menos que ya esté evaluada)
+        // Validación de fechas excluidas (ADR-0105 & ADR-0152: exclusión incondicional)
         if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-          const hasEvaluated = lesson.attendanceByDate && lesson.attendanceByDate[curDateStr] && lesson.attendanceByDate[curDateStr] !== "pendiente";
-          if (!hasEvaluated) return;
+          return;
         }
 
         // Validación de vigencia limitada por transición (effectiveUntil / effectiveFrom)
@@ -240,18 +243,18 @@ export function isLessonInStudentCycle(
     return false;
   }
 
-  // A. Preservación incondicional de asistencias evaluadas en esta fecha
-  const evaluatedAtt = lesson.attendanceByDate?.[lessonDateStr];
-  if (evaluatedAtt && evaluatedAtt !== "pendiente") {
-    return true;
-  }
-
-  // B. Exclusiones directas por fecha puntual
+  // A. Exclusiones directas por fecha puntual (ADR-0105 & ADR-0152: Si la fecha fue excluida por reprogramación, no mostrar)
   if (lesson.excludedDates && lesson.excludedDates.includes(lessonDateStr)) {
     return false;
   }
   if (lesson.dateStr && lesson.dateStr !== lessonDateStr) {
     return false;
+  }
+
+  // B. Preservación incondicional de asistencias evaluadas en esta fecha
+  const evaluatedAtt = lesson.attendanceByDate?.[lessonDateStr];
+  if (evaluatedAtt && evaluatedAtt !== "pendiente") {
+    return true;
   }
 
   // B.1. Límites de vigencia por transición de curso para sesiones no evaluadas

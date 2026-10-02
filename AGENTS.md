@@ -1047,4 +1047,23 @@ inferencia.
    - Evita la degradación a 8 clases o corte a 30 días cuando PostgreSQL devuelve `'Regular (8 clases / 45 min)'` en la columna SQL `modality`.
    - En `students-table.tsx`, al editar `planStartDate`, se detecta la condición de Paquete Flexible para preservar su `planEndDate` extendido (`2026-12-31`).
 
+---
+
+### 52. Exclusión Incondicional por Reprogramación, Erradicación de Clases Fantasma y Proyección Integral de Paquetes Flexibles (ADR-0152)
+1. **Exclusión Incondicional por Reprogramación (`excludedDates`)**:
+   - Toda fecha presente en `lesson.excludedDates` queda excluida **incondicionalmente** en `student-attendance-kardex.tsx`, `kardex-calculator.ts` (`computeStudentCycleSessions` y `computeStudentMonthSessions`) y `student-cycle.ts` (`computeStudentCycle` y `isLessonInStudentCycle`).
+   - Queda **TERMINANTEMENTE PROHIBIDO** evaluar excepciones como `if (!hasEvaluated) return;` que permitan que clases con faltas previas permanezcan visibles en su fecha original tras haber sido reprogramadas a otra fecha.
+   - En `isLessonInStudentCycle`, la verificación de `excludedDates` se ejecuta prioritariamente antes de evaluar `attendanceByDate`, impidiendo que fechas reprogramadas sangren en el cálculo del ciclo lectivo.
+   - En `computeStudentCycle`, se omite la recolección de asistencias evaluadas en fechas pertenecientes a `excludedDates`.
+2. **Limpieza Atómica de Asistencia en `rescheduleLesson` (`app-store.ts`)**:
+   - Al reprogramar una lección puntual (`originalDateStr`):
+     - Se eliminan las marcas previas `cleanAttendanceByDate[originalDateStr]` y `cleanAttendanceByWeek[targetWeekIndex]`.
+     - Se recalculan de forma reactiva `attendanceRate` y `recentAttendance` en el perfil del alumno en Zustand y PostgreSQL para eliminar falsas inasistencias (0% de asistencia).
+     - Se invoca `postgrestDelete("attendance_logs", { student_id: targetSt.id, note: like.*originalDateStr* })` para purgar los registros de asistencia huérfanos en PostgreSQL.
+3. **Reprogramación Directa en Estado Pendiente (`isEditMode` / `status === "pendiente"`)**:
+   - El botón `🔄 Reprogramar` permanece visible y habilitado tanto en sesiones evaluadas (`ausente`, `tarde`, `justificada`) como en sesiones `pendiente` (sin marcar) y en modo edición (`isEditMode`), permitiendo la coordinación anticipada de cambios de horario sin requerir forzar marcas de falta previas.
+4. **Proyección Matemática de 24 Clases en Paquetes Flexibles**:
+   - Al detectar un Paquete Flexible (`isFlexiblePackage`), el Kardex y el ciclo escanean con una ventana extendida de hasta 240 días, proyectando la totalidad de la bolsa contratada (`packageTotalSessions`, ej. 24 clases a demanda) a lo largo de todos los meses lectivos sin recortes de fin de mes calendario.
+
+
 

@@ -275,15 +275,9 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
         if (normalizeDayKey(lesson.day) !== dayKey) return;
       }
 
-      // C. Fechas excluidas por reprogramación (preservar si ya está evaluada)
+      // C. Fechas excluidas por reprogramación (omisión incondicional)
       if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-        const hasEvaluated =
-          lesson.attendanceByDate &&
-          lesson.attendanceByDate[curDateStr] &&
-          lesson.attendanceByDate[curDateStr] !== "pendiente";
-        if (!hasEvaluated) {
-          return;
-        }
+        return;
       }
 
       // C.1. Barreras temporales absolutas por transición de curso (ADR-0131)
@@ -481,13 +475,9 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
         if (normalizeDayKey(lesson.day) !== dayKey) return;
       }
 
-      // C. Fechas excluidas (por reprogramación) a menos que esté evaluada
+      // C. Fechas excluidas por reprogramación (omisión incondicional)
       if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-        const hasEvaluated =
-          lesson.attendanceByDate &&
-          lesson.attendanceByDate[curDateStr] &&
-          lesson.attendanceByDate[curDateStr] !== "pendiente";
-        if (!hasEvaluated) return;
+        return;
       }
 
       // C.1. Barreras temporales absolutas (effectiveFrom / effectiveUntil)

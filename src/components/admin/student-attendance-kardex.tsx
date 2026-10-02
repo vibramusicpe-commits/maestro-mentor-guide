@@ -326,15 +326,9 @@ export function StudentAttendanceKardex({
           if (lesson.day !== dayKey) return;
         }
 
-        // C. Si la lección tiene fechas excluidas (reprogramada fuera de este día), omitir a menos que tenga asistencia evaluada
+        // C. Si la lección tiene fechas excluidas (reprogramada fuera de este día), omitir incondicionalmente
         if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-          const hasEvaluated =
-            lesson.attendanceByDate &&
-            lesson.attendanceByDate[curDateStr] &&
-            lesson.attendanceByDate[curDateStr] !== "pendiente";
-          if (!hasEvaluated) {
-            return;
-          }
+          return;
         }
 
         // C.1. 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
@@ -1446,13 +1440,13 @@ export function StudentAttendanceKardex({
                         </Button>
                       </div>
                     ) : (
-                      /* Si aún no tiene recuperación agendada: mostrar botón directo de Reprogramar */
-                      (item.status === "ausente" || item.status === "tarde" || item.status === "justificada") && (
+                      /* Si aún no tiene recuperación agendada: mostrar botón directo de Reprogramar (habilitado para faltas, tardanzas, justificadas o anticipadamente en pendientes) */
+                      (item.status === "ausente" || item.status === "tarde" || item.status === "justificada" || item.status === "pendiente" || isEditMode) && (
                         <Button
                           size="sm"
                           onClick={() => handleOpenReschedule(item)}
                           className="h-7 px-2.5 text-[11px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs flex items-center gap-1.5 transition-transform active:scale-95"
-                          title="Reprogramar esta clase para recuperar la sesión"
+                          title="Reprogramar esta clase para otra fecha u hora"
                         >
                           <CalendarSync className="h-3.5 w-3.5" />
                           <span>🔄 Reprogramar</span>

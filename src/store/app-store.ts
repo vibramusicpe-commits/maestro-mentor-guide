@@ -1380,8 +1380,19 @@ export const useAppStore = create<AppState>()(
             const excludedWeeks = targetLesson.excludedWeeks || [];
             const excludedDates = targetLesson.excludedDates || [];
 
+            const cleanAttendanceByDate = { ...(targetLesson.attendanceByDate || {}) };
+            const cleanAttendanceByWeek = { ...(targetLesson.attendanceByWeek || {}) };
+            if (originalDateStr) {
+              delete cleanAttendanceByDate[originalDateStr];
+            }
+            if (targetWeekIndex !== undefined) {
+              delete cleanAttendanceByWeek[targetWeekIndex];
+            }
+
             const updatedOriginal: ScheduledLesson = {
               ...targetLesson,
+              attendanceByDate: cleanAttendanceByDate,
+              attendanceByWeek: cleanAttendanceByWeek,
               // 🛡️ REGLA ADR-0105: Si la reprogramación es por fecha exacta (originalDateStr),
               // NO debe inyectar índices relativos en excludedWeeks que contaminen otros meses.
               excludedWeeks: !originalDateStr && targetWeekIndex !== undefined
@@ -1449,13 +1460,56 @@ export const useAppStore = create<AppState>()(
                 ? Math.max(0, (targetSt.makeupCredits ?? 0) - 1)
                 : (targetSt.makeupCredits ?? 0);
 
+              // Recalcular asistencia sin la marca de la fecha reprogramada
+              let recalculatedRate = targetSt.attendanceRate;
+              let recalculatedRecent = targetSt.recentAttendance;
+              if (isRecoveringAbsence) {
+                let pres = 0;
+                let aus = 0;
+                let tar = 0;
+                const recList: ("presente" | "ausente" | "tarde")[] = [];
+                updatedPersisted.forEach((l) => {
+                  if (l.attendanceByDate) {
+                    Object.entries(l.attendanceByDate).forEach(([dKey, att]) => {
+                      if (dKey === originalDateStr) return;
+                      if (att === "presente") { pres++; recList.push("presente"); }
+                      else if (att === "tarde") { tar++; recList.push("tarde"); }
+                      else if (att === "ausente") { aus++; recList.push("ausente"); }
+                    });
+                  }
+                });
+                const totalEval = pres + tar + aus;
+                recalculatedRate = totalEval > 0 ? Math.round(((pres + tar) / totalEval) * 100) : 0;
+                recalculatedRecent = recList.slice(-5);
+              }
+
               updatedAdminStudents = s.adminStudents.map((st) =>
-                isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: updatedPersisted, makeupCredits: newCredits } : st
+                isSameStudentId(st.id, targetSt.id)
+                  ? {
+                      ...st,
+                      scheduleLessons: updatedPersisted,
+                      makeupCredits: newCredits,
+                      attendanceRate: recalculatedRate,
+                      recentAttendance: recalculatedRecent,
+                    }
+                  : st
               );
               backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
                 scheduleLessons: updatedPersisted,
                 makeupCredits: newCredits,
+                attendanceRate: recalculatedRate,
+                recentAttendance: recalculatedRecent,
               });
+
+              if (originalDateStr) {
+                import("@/lib/insforge").then(async ({ postgrestDelete }) => {
+                  await postgrestDelete("attendance_logs", {
+                    student_id: `eq.${targetSt.id}`,
+                    note: `like.*${originalDateStr}*`,
+                  }).catch(() => {});
+                  triggerDataSyncBroadcast("attendance-deleted");
+                }).catch(() => {});
+              }
             }
 
             return {
