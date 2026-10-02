@@ -1565,12 +1565,7 @@ export function AgendaBoard() {
                                               )}
                                                {/* Indicador de Asistencia Marcada por Profesor / Secretaría */}
                                                {(() => {
-                                                 const cardAtt =
-                                                   lesson.attendanceByDate?.[dayInfo.dateStr] ??
-                                                   lesson.attendanceByWeek?.[safeWeekIndex] ??
-                                                   (lesson.weekIndex === safeWeekIndex
-                                                     ? lesson.attendanceStatus
-                                                     : undefined);
+                                                 const cardAtt = lesson.attendanceByDate?.[dayInfo.dateStr];
                                                  if (!cardAtt) return null;
                                                  return (
                                                    <div
@@ -1995,12 +1990,7 @@ export function AgendaBoard() {
                                                </span>
                                                {(() => {
                                                  const currentDayDateStr = currentWeekObj.days.find((d) => d.dayKey === currentDayName)?.dateStr;
-                                                 const cardAtt =
-                                                   (currentDayDateStr ? lesson.attendanceByDate?.[currentDayDateStr] : undefined) ??
-                                                   lesson.attendanceByWeek?.[safeWeekIndex] ??
-                                                   (lesson.weekIndex === safeWeekIndex
-                                                     ? lesson.attendanceStatus
-                                                     : undefined);
+                                                 const cardAtt = currentDayDateStr ? lesson.attendanceByDate?.[currentDayDateStr] : undefined;
                                                  if (!cardAtt) {
                                                    return (
                                                      <span className={`font-bold ${catStyle.text} opacity-80 text-[8.5px] group-hover:opacity-100 group-hover:underline`}>
@@ -2192,12 +2182,7 @@ export function AgendaBoard() {
                                     <span className="truncate">{lesson.instrument}</span>
                                     <div className="flex items-center gap-1">
                                       {(() => {
-                                        const cardAtt =
-                                          lesson.attendanceByDate?.[dayInfo.dateStr] ??
-                                          lesson.attendanceByWeek?.[safeWeekIndex] ??
-                                          (lesson.weekIndex === safeWeekIndex
-                                            ? lesson.attendanceStatus
-                                            : undefined);
+                                        const cardAtt = lesson.attendanceByDate?.[dayInfo.dateStr];
                                         if (!cardAtt) return null;
                                         return (
                                           <span
@@ -2351,12 +2336,7 @@ export function AgendaBoard() {
                                   <span className="truncate">{lesson.instrument}</span>
                                   <div className="flex items-center gap-1">
                                     {(() => {
-                                      const cardAtt =
-                                        lesson.attendanceByDate?.[saturdayDayInfo.dateStr] ??
-                                        lesson.attendanceByWeek?.[safeWeekIndex] ??
-                                        (lesson.weekIndex === safeWeekIndex
-                                          ? lesson.attendanceStatus
-                                          : undefined);
+                                      const cardAtt = lesson.attendanceByDate?.[saturdayDayInfo.dateStr];
                                       if (!cardAtt) return null;
                                       return (
                                         <span
@@ -2463,12 +2443,7 @@ export function AgendaBoard() {
                 {/* PANEL DE ASISTENCIA RÁPIDA (AISLADO POR SEMANA ESPECÍFICA) */}
                 {(() => {
                   const selectedDayDateStr = currentWeekObj.days.find((d) => d.dayKey === selected.day)?.dateStr;
-                  const currentAttendance =
-                    (selectedDayDateStr ? selected.attendanceByDate?.[selectedDayDateStr] : undefined) ??
-                    selected.attendanceByWeek?.[safeWeekIndex] ??
-                    (selected.weekIndex === safeWeekIndex
-                      ? selected.attendanceStatus
-                      : undefined);
+                  const currentAttendance = selectedDayDateStr ? selected.attendanceByDate?.[selectedDayDateStr] : undefined;
                   return (
                     <div className="space-y-3 rounded-2xl border-2 border-primary/20 p-4 bg-card shadow-xs">
                       <div className="flex items-center justify-between">
@@ -5138,14 +5113,7 @@ export function AgendaBoard() {
                           if (lesson.weekIndex !== undefined && lesson.weekIndex !== week.weekIndex) return;
                           if (lesson.excludedWeeks && lesson.excludedWeeks.includes(week.weekIndex)) return;
 
-                          const status =
-                            (lesson.attendanceByDate && dayInfo.dateStr && lesson.attendanceByDate[dayInfo.dateStr])
-                              ? lesson.attendanceByDate[dayInfo.dateStr]!
-                              : (lesson.attendanceByWeek && lesson.attendanceByWeek[week.weekIndex])
-                              ? lesson.attendanceByWeek[week.weekIndex]!
-                              : lesson.weekIndex === week.weekIndex && lesson.attendanceStatus
-                              ? lesson.attendanceStatus
-                              : "pendiente";
+                          const status = (lesson.attendanceByDate && dayInfo.dateStr && lesson.attendanceByDate[dayInfo.dateStr]) ? lesson.attendanceByDate[dayInfo.dateStr]! : "pendiente";
 
                           if (status === "presente") presentes++;
                           else if (status === "ausente") ausentes++;

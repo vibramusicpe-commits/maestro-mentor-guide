@@ -455,10 +455,7 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
     if (jsDay === 0) continue; // Domingos no lectivos
     const dayKey = WEEKDAYS_ORDER[jsDay - 1];
 
-    // 🛡️ REGLA (ADR-0150): No proyectar sesiones antes de la fecha oficial de inicio elegida
-    if (effectivePlanStartDate && curDateStr < effectivePlanStartDate) {
-      continue;
-    }
+    // 🛡️ REGLA (ADR-0153 & Regla 3.3 AGENTS.md): En vista de mes calendario, proyectar las clases regulares del mes sin truncar
 
     // Para no flexibles, validar fin de plan en sesiones no evaluadas ni recuperaciones
     const isBeyondEnd = (!isFlexiblePackage && effectivePlanEndDate) ? curDateStr > effectivePlanEndDate : false;

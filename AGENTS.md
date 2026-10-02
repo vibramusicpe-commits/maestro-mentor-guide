@@ -1065,5 +1065,17 @@ inferencia.
 4. **Proyección Matemática de 24 Clases en Paquetes Flexibles**:
    - Al detectar un Paquete Flexible (`isFlexiblePackage`), el Kardex y el ciclo escanean con una ventana extendida de hasta 240 días, proyectando la totalidad de la bolsa contratada (`packageTotalSessions`, ej. 24 clases a demanda) a lo largo de todos los meses lectivos sin recortes de fin de mes calendario.
 
+---
+
+### 53. Erradicación de Asistencia Semanal Relativa en Celdas de Calendario y Conteo Estricto de Bolsas Flexibles (ADR-0153)
+1. **Aislamiento por Fecha Exacta en Celdas de Calendario (`agenda-board.tsx` y `teacher.index.tsx`)**:
+   - Toda celda de calendario que represente un día específico (`dayInfo.dateStr` o `targetDateStr`) debe resolver su asistencia **exclusivamente** mediante `lesson.attendanceByDate?.[dateStr]`.
+   - Queda **TERMINANTEMENTE PROHIBIDO** utilizar fallbacks a índices de semana relativos (`attendanceByWeek?.[safeWeekIndex]`), los cuales carecen de año y mes y contaminaban la semana 1 de nuevos meses (como Octubre) con asistencias de meses anteriores (como Setiembre), provocando falsas asistencias en días futuros (ej. Sábado 03 de Octubre).
+2. **Conteo Fiel de Clases Consumidas en Bolsas Flexibles (`totalPackageAttended`)**:
+   - `totalPackageAttended` calcula el número de fechas únicas donde el alumno asistió efectivamente (`"presente"` o `"tarde"`), descartando cancelaciones o exclusiones de reprogramación. Se elimina cualquier fallback que infle artificialmente la bolsa si el alumno cuenta con 0 asistencias reales.
+3. **Preservación de Clases en Vista de Mes Calendario (Regla 3.3 AGENTS.md)**:
+   - En `computeStudentMonthSessions` (`kardex-calculator.ts`), la vista de mes calendario proyecta las sesiones regulares agendadas del mes seleccionado sin truncar fechas previas a `planStartDate`, permitiendo auditar el cronograma de meses pasados y en curso con total integridad.
+
+
 
 

@@ -385,12 +385,7 @@ export function TeacherKiosk() {
                     );
                     const effectiveAttendanceByDate = profileLesson?.attendanceByDate || lesson.attendanceByDate;
 
-                    const status =
-                      (targetDateStr && effectiveAttendanceByDate?.[targetDateStr])
-                        ? effectiveAttendanceByDate[targetDateStr]!
-                        : (lesson.attendanceByWeek && lesson.attendanceByWeek[safeWeekIndex])
-                          ? lesson.attendanceByWeek[safeWeekIndex]!
-                          : (lesson.weekIndex !== undefined && lesson.attendanceStatus ? lesson.attendanceStatus : "pendiente");
+                    const status = (targetDateStr && effectiveAttendanceByDate?.[targetDateStr]) ? effectiveAttendanceByDate[targetDateStr]! : "pendiente";
 
                     return (
                       <div

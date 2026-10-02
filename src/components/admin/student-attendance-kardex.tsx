@@ -519,28 +519,20 @@ export function StudentAttendanceKardex({
     return computeStudentRetentionStatus(liveStudent, sessions, targetQuota);
   }, [liveStudent, sessions, targetQuota]);
 
-  // Para alumnos con Paquete Flexible: conteo global de todas las clases consumidas en su bolsa histórica
+  // Para alumnos con Paquete Flexible: conteo global de todas las clases consumidas en su bolsa histórica (ADR-0153)
   const totalPackageAttended = useMemo(() => {
-    let count = 0;
+    const attendedDates = new Set<string>();
     studentLessons.forEach((lesson) => {
       if (lesson.attendanceByDate) {
-        Object.values(lesson.attendanceByDate).forEach((st) => {
-          if (st === "presente" || st === "tarde") count++;
+        Object.entries(lesson.attendanceByDate).forEach(([dStr, st]) => {
+          if ((st === "presente" || st === "tarde") && (!lesson.excludedDates || !lesson.excludedDates.includes(dStr))) {
+            attendedDates.add(dStr);
+          }
         });
-      } else if (lesson.attendanceByWeek) {
-        Object.values(lesson.attendanceByWeek).forEach((st) => {
-          if (st === "presente" || st === "tarde") count++;
-        });
-      } else if (lesson.attendanceStatus === "presente" || lesson.attendanceStatus === "tarde") {
-        count++;
       }
     });
-
-    if (count === 0 && Array.isArray(liveStudent.recentAttendance) && liveStudent.recentAttendance.length > 0) {
-      count = liveStudent.recentAttendance.filter((st) => st === "presente" || st === "tarde").length;
-    }
-    return count;
-  }, [studentLessons, liveStudent.recentAttendance]);
+    return attendedDates.size;
+  }, [studentLessons]);
 
   const remainingPackageClasses = Math.max(0, packageTotal - totalPackageAttended);
   const isPackageCompleted = isFlexiblePackage && totalPackageAttended >= packageTotal;
