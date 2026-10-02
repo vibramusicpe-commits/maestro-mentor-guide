@@ -166,11 +166,15 @@ export function StudentAttendanceKardex({
       ? "2026-09-27"
       : undefined);
 
+  const modalityStr = (liveStudent.modality || "").toLowerCase();
   const isFlexiblePackage =
-    liveStudent.modality?.includes("Flexible") ||
-    liveStudent.modality?.includes("Irregular") ||
+    modalityStr.includes("flex") ||
+    modalityStr.includes("demanda") ||
+    modalityStr.includes("paquete") ||
+    modalityStr.includes("irregular") ||
     liveStudent.planType === "Paquete Flexible" ||
-    liveStudent.planType === "Paquete Especial";
+    liveStudent.planType === "Paquete Especial" ||
+    (typeof liveStudent.packageTotalSessions === "number" && liveStudent.packageTotalSessions > 8);
 
   const isDemoNivelacion =
     liveStudent.modality?.toLowerCase().includes("nivelaci") ||
@@ -1412,37 +1416,48 @@ export function StudentAttendanceKardex({
                       {item.status === "pendiente" && "⚪ Sin marcar"}
                     </Badge>
 
-                    {/* 🔄 Badge informativo de Recuperación agendada para esta falta */}
-                    {linkedMakeup && (
-                      <Badge className="bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold gap-1 flex items-center">
-                        <CalendarSync className="h-3 w-3 text-amber-500 shrink-0" />
-                        <span>
-                          Recup.: {linkedMakeup.dayShort} {linkedMakeup.time} (
-                          {linkedMakeup.status === "presente"
-                            ? "✓ Asistió"
-                            : linkedMakeup.status === "ausente"
-                            ? "✗ Faltó"
-                            : linkedMakeup.status === "tarde"
-                            ? "⏰ Tardanza"
-                            : linkedMakeup.status === "justificada"
-                            ? "🔵 Justificada"
-                            : "⏳ Pendiente"}
-                          )
-                        </span>
-                      </Badge>
-                    )}
-
-                    {/* 🔄 Botón directo de Reprogramar si tiene Falta, Tardanza o Justificada */}
-                    {(item.status === "ausente" || item.status === "tarde" || item.status === "justificada") && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleOpenReschedule(item)}
-                        className="h-7 px-2.5 text-[11px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs flex items-center gap-1.5 transition-transform active:scale-95"
-                        title="Reprogramar esta clase para recuperar la sesión"
-                      >
-                        <CalendarSync className="h-3.5 w-3.5" />
-                        <span>🔄 Reprogramar</span>
-                      </Button>
+                    {/* 🔄 Estado de Reprogramación: Si ya tiene recuperación agendada, mostrar badge enlazado con opción de modificar */}
+                    {linkedMakeup ? (
+                      <div className="flex items-center gap-1.5">
+                        <Badge className="bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold gap-1 flex items-center shadow-xs">
+                          <CalendarSync className="h-3 w-3 text-amber-500 shrink-0" />
+                          <span>
+                            Recup.: {linkedMakeup.dayShort} {linkedMakeup.time} (
+                            {linkedMakeup.status === "presente"
+                              ? "✓ Asistió"
+                              : linkedMakeup.status === "ausente"
+                              ? "✗ Faltó"
+                              : linkedMakeup.status === "tarde"
+                              ? "⏰ Tardanza"
+                              : linkedMakeup.status === "justificada"
+                              ? "🔵 Justificada"
+                              : "⏳ Agendada"}
+                            )
+                          </span>
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleOpenReschedule(item)}
+                          className="h-6 px-1.5 text-[10px] font-bold text-muted-foreground hover:text-foreground rounded-lg"
+                          title="Cambiar fecha u hora de la recuperación"
+                        >
+                          ✏️ Modificar
+                        </Button>
+                      </div>
+                    ) : (
+                      /* Si aún no tiene recuperación agendada: mostrar botón directo de Reprogramar */
+                      (item.status === "ausente" || item.status === "tarde" || item.status === "justificada") && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleOpenReschedule(item)}
+                          className="h-7 px-2.5 text-[11px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs flex items-center gap-1.5 transition-transform active:scale-95"
+                          title="Reprogramar esta clase para recuperar la sesión"
+                        >
+                          <CalendarSync className="h-3.5 w-3.5" />
+                          <span>🔄 Reprogramar</span>
+                        </Button>
+                      )
                     )}
 
                     {/* ➕ Botón rápido de clase de corrido (+45m contiguo) */}

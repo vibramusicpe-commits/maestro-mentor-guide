@@ -54,9 +54,16 @@ export function computeStudentCycle(
     return cached.result;
   }
 
-  const isDemoNivelacion = studentProfile.modality?.toLowerCase().includes("nivelaci") || studentProfile.planType === "Demo Nivelación";
-  const isIntensivo = studentProfile.modality?.includes("Intensivo");
-  const isFlexiblePackage = studentProfile.modality?.includes("Paquete Flexible") || studentProfile.planType === "Paquete Flexible" || (studentProfile.packageTotalSessions !== undefined && studentProfile.packageTotalSessions > 8);
+  const modalityStr = (studentProfile.modality || "").toLowerCase();
+  const isDemoNivelacion = modalityStr.includes("nivelaci") || studentProfile.planType === "Demo Nivelación";
+  const isIntensivo = modalityStr.includes("inten") || modalityStr.includes("90 min") || (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"));
+  const isFlexiblePackage =
+    modalityStr.includes("flex") ||
+    modalityStr.includes("demanda") ||
+    modalityStr.includes("paquete") ||
+    studentProfile.planType === "Paquete Flexible" ||
+    studentProfile.planType === "Paquete Especial" ||
+    (studentProfile.packageTotalSessions !== undefined && studentProfile.packageTotalSessions > 8);
   const targetQuota = studentProfile.packageTotalSessions || (isDemoNivelacion ? 1 : isFlexiblePackage ? 24 : isIntensivo ? 4 : 8);
 
   const startStr = studentProfile.planStartDate || "2026-08-01";
@@ -80,6 +87,8 @@ export function computeStudentCycle(
   // 1. Recolectar todas las clases que ya cuentan con evaluación real
   const evaluatedSlots = new Set<string>();
   const evaluatedDates = new Set<string>();
+  const attendedSlots = new Set<string>();
+  const attendedDates = new Set<string>();
   let latestEvaluatedDate = "";
 
   studentLessons.forEach((l) => {
@@ -89,6 +98,10 @@ export function computeStudentCycle(
           const slot = `${dateStr}-${l.time || "16:00"}`;
           evaluatedSlots.add(slot);
           evaluatedDates.add(dateStr);
+          if (att === "presente" || att === "tarde") {
+            attendedSlots.add(slot);
+            attendedDates.add(dateStr);
+          }
           if (!latestEvaluatedDate || dateStr > latestEvaluatedDate) {
             latestEvaluatedDate = dateStr;
           }
@@ -98,7 +111,10 @@ export function computeStudentCycle(
   });
 
   const evaluatedCount = evaluatedDates.size;
-  const isCycleCompleted = evaluatedCount >= targetQuota;
+  const attendedCount = attendedDates.size;
+  // 🛡️ REGLA (ADR-0134 & ADR-0149): Un ciclo lectivo solo se considera formalmente culminado
+  // cuando el alumno ha asistido efectivamente a todas las clases contratadas (attendedCount >= targetQuota)
+  const isCycleCompleted = attendedCount >= targetQuota;
 
   const effectiveEndDate = studentProfile.planEndDate;
   const effectiveEndMonth = studentProfile.planEndMonth || (effectiveEndDate ? effectiveEndDate.slice(0, 7) : undefined);
@@ -181,7 +197,10 @@ export function computeStudentCycle(
   if (!isCycleCompleted) {
     const pendingMakeups = pendingCandidates.filter((p) => p.isMakeup);
     const pendingRegular = pendingCandidates.filter((p) => !p.isMakeup);
-    const slotsNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length);
+    // 🛡️ REGLA (ADR-0134 & ADR-0149): Las inasistencias (faltas) NO consumen cupos regulares de instrucción.
+    // Solo las clases asistidas efectivas (attendedCount) y las recuperaciones ya agendadas descuentan de la cuota.
+    const scheduledCount = attendedCount + pendingMakeups.length;
+    const slotsNeeded = Math.max(0, targetQuota - scheduledCount);
     const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
     const chosenPending = [...pendingMakeups, ...chosenPendingRegular];
 

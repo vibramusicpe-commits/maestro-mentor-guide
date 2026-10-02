@@ -970,10 +970,21 @@ export const useAppStore = create<AppState>()(
                   isMatchingStudentName(dbSt.name, "Jonathan Ticona Cachay") ||
                   isMatchingStudentName(dbSt.name, "Ticona Cachay, Jonathan");
 
+                const isFlexibleStudent =
+                  isJonathan ||
+                  (typeof dbSt.packageTotalSessions === "number" && dbSt.packageTotalSessions > 8) ||
+                  (typeof localSt.packageTotalSessions === "number" && localSt.packageTotalSessions > 8) ||
+                  dbSt.planType === "Paquete Flexible" ||
+                  localSt.planType === "Paquete Flexible" ||
+                  (typeof dbSt.modality === "string" && dbSt.modality.includes("Flexible")) ||
+                  (typeof localSt.modality === "string" && localSt.modality.includes("Flexible"));
+
                 const effectiveStartDate = dbSt.planStartDate || localSt.planStartDate || (isEmma ? "2026-08-28" : (isJonathan ? "2026-08-18" : "2026-08-01"));
-                const effectiveEndDate = dbSt.planEndDate || localSt.planEndDate || (isEmma ? "2026-09-27" : (isJonathan ? "2026-12-31" : "2026-09-30"));
-                const effectivePackage = isJonathan
-                  ? 24
+                const effectiveEndDate = isFlexibleStudent
+                  ? (dbSt.planEndDate && dbSt.planEndDate >= "2026-12-31" ? dbSt.planEndDate : "2026-12-31")
+                  : (dbSt.planEndDate || localSt.planEndDate || (isEmma ? "2026-09-27" : "2026-09-30"));
+                const effectivePackage = isFlexibleStudent
+                  ? (dbSt.packageTotalSessions || localSt.packageTotalSessions || 24)
                   : (dbSt.packageTotalSessions || localSt.packageTotalSessions || (dbSt.modality?.includes("Intensivo") ? 4 : 8));
 
                 const hasAttendanceHistory = (localSt.recentAttendance && localSt.recentAttendance.length > 0) || (dbSt.recentAttendance && dbSt.recentAttendance.length > 0);
@@ -989,8 +1000,8 @@ export const useAppStore = create<AppState>()(
                   id: dbSt.id,
                   status: "activo",
                   teacher: keepLocalTeacher ? localSt.teacher : (dbSt.teacher && dbSt.teacher !== "Prof. por Asignar" ? dbSt.teacher : localSt.teacher),
-                  modality: isJonathan ? "Paquete Flexible (A demanda)" : (dbSt.modality || localSt.modality || "Regular (8 clases / 45 min)"),
-                  planType: isJonathan ? "Paquete Flexible" : (dbSt.planType || localSt.planType),
+                  modality: isFlexibleStudent ? "Paquete Flexible (A demanda)" : (dbSt.modality || localSt.modality || "Regular (8 clases / 45 min)"),
+                  planType: isFlexibleStudent ? "Paquete Flexible" : (dbSt.planType || localSt.planType),
                   scheduleLessons: dbSt.scheduleLessons?.length ? dbSt.scheduleLessons : localSt.scheduleLessons,
                   recentAttendance: localSt.recentAttendance?.length ? localSt.recentAttendance : dbSt.recentAttendance,
                   attendanceRate: resolvedAttendanceRate,
@@ -1425,10 +1436,26 @@ export const useAppStore = create<AppState>()(
                   : [...currentLessons, updatedOriginal]),
                 newSingleWeekLesson,
               ];
-              updatedAdminStudents = s.adminStudents.map((st) =>
-                isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: updatedPersisted } : st
+              // 🛡️ REGLA: Si la reprogramación recupera una inasistencia (originalDateStr era falta/tardanza/justificada),
+              // se consume 1 crédito de recuperación disponible para reflejar que la sesión ya está agendada
+              const isRecoveringAbsence = Boolean(
+                originalDateStr && (
+                  targetLesson.attendanceByDate?.[originalDateStr] === "ausente" ||
+                  targetLesson.attendanceByDate?.[originalDateStr] === "justificada" ||
+                  targetLesson.attendanceByDate?.[originalDateStr] === "tarde"
+                )
               );
-              backgroundSyncStudentToDB(s.activeRole, targetSt.id, { scheduleLessons: updatedPersisted });
+              const newCredits = isRecoveringAbsence
+                ? Math.max(0, (targetSt.makeupCredits ?? 0) - 1)
+                : (targetSt.makeupCredits ?? 0);
+
+              updatedAdminStudents = s.adminStudents.map((st) =>
+                isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: updatedPersisted, makeupCredits: newCredits } : st
+              );
+              backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
+                scheduleLessons: updatedPersisted,
+                makeupCredits: newCredits,
+              });
             }
 
             return {

@@ -198,7 +198,13 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
 
   const modalityStr = (student.modality || "").toLowerCase();
   const isIntensive = modalityStr.includes("inten") || modalityStr.includes("90 min") || (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"));
-  const isFlexiblePackage = modalityStr.includes("flexible") || modalityStr.includes("demanda") || modalityStr.includes("paquete");
+  const isFlexiblePackage =
+    modalityStr.includes("flexible") ||
+    modalityStr.includes("demanda") ||
+    modalityStr.includes("paquete") ||
+    student.planType === "Paquete Flexible" ||
+    student.planType === "Paquete Especial" ||
+    (typeof student.packageTotalSessions === "number" && student.packageTotalSessions > 8);
 
   let targetQuota = 8;
   if (isIntensive) targetQuota = 4;
@@ -433,7 +439,13 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
   const effectivePlanStartDate = student.planStartDate || student.joinedAt || undefined;
   const effectivePlanEndDate = student.planEndDate || undefined;
   const modalityStr = (student.modality || "Regular").toLowerCase();
-  const isFlexiblePackage = modalityStr.includes("flexible") || modalityStr.includes("demanda") || modalityStr.includes("paquete");
+  const isFlexiblePackage =
+    modalityStr.includes("flexible") ||
+    modalityStr.includes("demanda") ||
+    modalityStr.includes("paquete") ||
+    student.planType === "Paquete Flexible" ||
+    student.planType === "Paquete Especial" ||
+    (typeof student.packageTotalSessions === "number" && student.packageTotalSessions > 8);
 
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
   const rawCandidates: StudentSessionItem[] = [];

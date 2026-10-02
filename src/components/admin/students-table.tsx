@@ -1554,11 +1554,22 @@ export function StudentsTable() {
 
                           // Calcular fecha exacta de fin según el plan
                           const [y, m, d] = newStartDate.split("-").map((v) => parseInt(v, 10));
+                          const modalityStr = (selectedStudent.modality || "").toLowerCase();
+                          const isFlexiblePlan =
+                            modalityStr.includes("flex") ||
+                            modalityStr.includes("demanda") ||
+                            modalityStr.includes("paquete") ||
+                            selectedStudent.planType === "Paquete Flexible" ||
+                            selectedStudent.planType === "Paquete Especial" ||
+                            (typeof selectedStudent.packageTotalSessions === "number" && selectedStudent.packageTotalSessions > 8);
+                          const isRegular1xPlan = modalityStr.includes("1x/sem") || modalityStr.includes("1x");
                           const durationMonths =
                             selectedStudent.planType === "Trimestral"
                               ? 3
                               : selectedStudent.planType === "Anual"
                               ? 12
+                              : isRegular1xPlan
+                              ? 2
                               : 1;
 
                           // Fecha de fin = +N meses menos 1 día
@@ -1568,9 +1579,9 @@ export function StudentsTable() {
                           const endY = endD.getFullYear();
                           const endM = String(endD.getMonth() + 1).padStart(2, "0");
                           const endDay = String(endD.getDate()).padStart(2, "0");
-                          const calculatedEndDate = `${endY}-${endM}-${endDay}`;
+                          const calculatedEndDate = isFlexiblePlan ? (selectedStudent.planEndDate || "2026-12-31") : `${endY}-${endM}-${endDay}`;
                           const startMonthStr = `${y}-${String(m).padStart(2, "0")}`;
-                          const endMonthStr = `${endY}-${endM}`;
+                          const endMonthStr = isFlexiblePlan ? (selectedStudent.planEndMonth || "2026-12") : `${endY}-${endM}`;
 
                           updateStudentDetails(selectedStudent.id, {
                             planStartDate: newStartDate,
@@ -1579,7 +1590,9 @@ export function StudentsTable() {
                             planEndMonth: endMonthStr,
                           });
                           toast.success(`Inicio fijado al ${newStartDate}`, {
-                            description: `Vence el: ${calculatedEndDate} (${durationMonths} meses de clases)`,
+                            description: isFlexiblePlan
+                              ? `Vigencia por clases consumidas (vence el: ${calculatedEndDate})`
+                              : `Vence el: ${calculatedEndDate} (${durationMonths} meses de clases)`,
                           });
                         }}
                         className="text-xs h-8 bg-background"

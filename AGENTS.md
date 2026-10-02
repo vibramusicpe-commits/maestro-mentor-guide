@@ -1028,3 +1028,23 @@ inferencia.
    - En `student-attendance-kardex.tsx`, cuando la pestaña activa es `"calendar"`, se invoca directamente `computeStudentMonthSessions`, permitiendo navegar libremente entre Julio, Agosto, Setiembre, Octubre y cualquier mes con datos en vivo.
    - Se expandió la interfaz de usuario con botones de acceso rápido para Julio, Agosto, Setiembre y Octubre, además del selector desplegable completo.
 
+---
+
+### 51. Consumo Simétrico de Créditos de Recuperación, Vinculación Visual en Kardex y Preservación de Cuota Regular (ADR-0151)
+1. **Consumo y Restauración Simétrica de Créditos (`makeupCredits`)**:
+   - Al agendar una reprogramación (`rescheduleLesson`) que recupera una inasistencia (`ausente`, `tarde` o `justificada`), se consume de inmediato 1 crédito: `makeupCredits = Math.max(0, makeupCredits - 1)`.
+   - Al revertir o cancelar una clase de recuperación (`revertMakeupLesson`), se restaura automáticamente el crédito: `makeupCredits = makeupCredits + 1`.
+   - Ambas mutaciones se persisten de inmediato en Zustand y PostgreSQL vía `backgroundSyncStudentToDB`.
+2. **Vinculación Visual y Trazabilidad en Kardex (`linkedMakeup`)**:
+   - Cada fila de sesión evalúa si existe una recuperación agendada asociada (`recoveringLessonDate === item.dateStr`).
+   - Si existe una recuperación agendada (`linkedMakeup`), se oculta el botón `[🔄 Reprogramar]` y se muestra un badge interactivo con el estado de la sesión (`🔄 Recup.: ${dayShort} ${time} (⏳ Agendada / ✓ Asistió)`) acompañado del botón `✏️ Modificar`.
+   - El banner de la filosofía Vibra `{liveStudent.makeupCredits} clase(s) pendiente(s) por recuperar` refleja fielmente los créditos no agendados.
+3. **Preservación Incondicional de Clases Regulares en Ciclo Lectivo (`student-cycle.ts`)**:
+   - El ciclo lectivo solo se considera formalmente culminado cuando el alumno ha asistido a la totalidad de clases contratadas (`attendedCount >= targetQuota`). Las inasistencias (faltas) **NO** culminan el ciclo.
+   - El cálculo de cupos pendientes necesarios (`slotsNeeded`) descuenta únicamente las clases asistidas (`attendedCount`) y las recuperaciones ya agendadas (`pendingMakeups`), impidiendo que las faltas y makeups canibalicen las clases regulares de las semanas finales del ciclo (ej. Semana 4).
+4. **Detección Universal de Paquetes Flexibles y Preservación de Vigencia**:
+   - Se unificó la detección de Paquete Flexible de manera insensible a mayúsculas/minúsculas comprobando `modalityStr.includes("flex") || modalityStr.includes("demanda") || modalityStr.includes("paquete") || planType === "Paquete Flexible" || packageTotalSessions > 8` en `kardex-calculator.ts`, `student-cycle.ts`, `student-attendance-kardex.tsx` y `hydrateFromBackend` (`app-store.ts`).
+   - Evita la degradación a 8 clases o corte a 30 días cuando PostgreSQL devuelve `'Regular (8 clases / 45 min)'` en la columna SQL `modality`.
+   - En `students-table.tsx`, al editar `planStartDate`, se detecta la condición de Paquete Flexible para preservar su `planEndDate` extendido (`2026-12-31`).
+
+
