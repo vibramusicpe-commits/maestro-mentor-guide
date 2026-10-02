@@ -174,13 +174,13 @@ export function StudentAttendanceKardex({
     modalityStr.includes("irregular") ||
     liveStudent.planType === "Paquete Flexible" ||
     liveStudent.planType === "Paquete Especial" ||
-    (typeof liveStudent.packageTotalSessions === "number" && liveStudent.packageTotalSessions > 8);
+    (Boolean(liveStudent.packageTotalSessions) && Number(liveStudent.packageTotalSessions) > 8);
 
   const isDemoNivelacion =
     liveStudent.modality?.toLowerCase().includes("nivelaci") ||
     liveStudent.planType === "Demo Nivelación";
 
-  const packageTotal = liveStudent.packageTotalSessions || (isDemoNivelacion ? 1 : 24);
+  const packageTotal = Number(liveStudent.packageTotalSessions) || (isDemoNivelacion ? 1 : 24);
   const isIntensivo = liveStudent.modality?.toLowerCase().includes("inten");
   const targetQuota = isFlexiblePackage ? packageTotal : isDemoNivelacion ? 1 : isIntensivo ? 4 : 8;
 
@@ -440,7 +440,7 @@ export function StudentAttendanceKardex({
     const attendedCount = evaluated.filter((s) => s.status === "presente" || s.status === "tarde").length;
     const scheduledCount = attendedCount + pendingMakeups.length;
 
-    const regularSlotsNeeded = Math.max(0, targetQuota - scheduledCount);
+    const regularSlotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
     const chosenPendingRegular = pendingRegular.slice(0, regularSlotsNeeded);
 
     const finalSessions = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
@@ -1433,7 +1433,7 @@ export function StudentAttendanceKardex({
                       </div>
                     ) : (
                       /* Si aún no tiene recuperación agendada: mostrar botón directo de Reprogramar (habilitado para faltas, tardanzas, justificadas o anticipadamente en pendientes) */
-                      (item.status === "ausente" || item.status === "tarde" || item.status === "justificada" || item.status === "pendiente" || isEditMode) && (
+                      ((item.status === "ausente" || item.status === "tarde" || item.status === "justificada") || isEditMode) && (
                         <Button
                           size="sm"
                           onClick={() => handleOpenReschedule(item)}

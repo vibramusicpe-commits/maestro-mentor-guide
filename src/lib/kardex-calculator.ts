@@ -204,11 +204,11 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
     modalityStr.includes("paquete") ||
     student.planType === "Paquete Flexible" ||
     student.planType === "Paquete Especial" ||
-    (typeof student.packageTotalSessions === "number" && student.packageTotalSessions > 8);
+    (Boolean(student.packageTotalSessions) && Number(student.packageTotalSessions) > 8);
 
   let targetQuota = 8;
   if (isIntensive) targetQuota = 4;
-  else if (isFlexiblePackage) targetQuota = student.packageTotalSessions || 24;
+  else if (isFlexiblePackage) targetQuota = Number(student.packageTotalSessions) || 24;
 
   const effectivePlanStartDate = student.planStartDate || student.joinedAt || undefined;
   const effectivePlanEndDate = student.planEndDate || undefined;
@@ -386,10 +386,11 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
   const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
 
-  const attendedCount = evaluated.filter((s) => s.status === "presente" || s.status === "tarde").length;
-  const scheduledCount = attendedCount + pendingMakeups.length;
-
-  const regularSlotsNeeded = Math.max(0, targetQuota - scheduledCount);
+  // 🛡️ REGLA (ADR-0105 & ADR-0154): Cumplimiento estricto de cuota contractual.
+  // Todas las sesiones evaluadas (presentes, faltas, tardanzas, justificadas) más las recuperaciones
+  // agendadas consumen cupos del ciclo. Solo se toman las clases regulares pendientes necesarias
+  // para que el total de clases proyectadas sume exactamente la cuota contratada (targetQuota).
+  const regularSlotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
   const chosenPendingRegular = pendingRegular.slice(0, regularSlotsNeeded);
 
   const finalSessions = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
@@ -439,7 +440,7 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
     modalityStr.includes("paquete") ||
     student.planType === "Paquete Flexible" ||
     student.planType === "Paquete Especial" ||
-    (typeof student.packageTotalSessions === "number" && student.packageTotalSessions > 8);
+    (Boolean(student.packageTotalSessions) && Number(student.packageTotalSessions) > 8);
 
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
   const rawCandidates: StudentSessionItem[] = [];

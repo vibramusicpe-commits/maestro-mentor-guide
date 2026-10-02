@@ -200,10 +200,11 @@ export function computeStudentCycle(
   if (!isCycleCompleted) {
     const pendingMakeups = pendingCandidates.filter((p) => p.isMakeup);
     const pendingRegular = pendingCandidates.filter((p) => !p.isMakeup);
-    // 🛡️ REGLA (ADR-0134 & ADR-0149): Las inasistencias (faltas) NO consumen cupos regulares de instrucción.
-    // Solo las clases asistidas efectivas (attendedCount) y las recuperaciones ya agendadas descuentan de la cuota.
-    const scheduledCount = attendedCount + pendingMakeups.length;
-    const slotsNeeded = Math.max(0, targetQuota - scheduledCount);
+    // 🛡️ REGLA (ADR-0105 & ADR-0154): Cumplimiento estricto de cuota contractual.
+    // Todas las sesiones evaluadas (presentes, faltas, tardanzas, justificadas) más las recuperaciones
+    // agendadas consumen cupos del ciclo. Solo se toman las clases regulares pendientes necesarias
+    // para que el ciclo proyecte exactamente la cuota contratada (targetQuota).
+    const slotsNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length);
     const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
     const chosenPending = [...pendingMakeups, ...chosenPendingRegular];
 

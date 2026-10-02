@@ -1076,6 +1076,19 @@ inferencia.
 3. **Preservación de Clases en Vista de Mes Calendario (Regla 3.3 AGENTS.md)**:
    - En `computeStudentMonthSessions` (`kardex-calculator.ts`), la vista de mes calendario proyecta las sesiones regulares agendadas del mes seleccionado sin truncar fechas previas a `planStartDate`, permitiendo auditar el cronograma de meses pasados y en curso con total integridad.
 
+---
+
+### 54. Restitución de la Cuota Estricta Contractual en Kardex y Corrección de Visibilidad del Botón Reprogramar (ADR-0154)
+1. **Cumplimiento Estricto de la Cuota Contractual (`targetQuota`)**:
+   - En `kardex-calculator.ts`, `student-attendance-kardex.tsx` y `student-cycle.ts`, el número de clases regulares pendientes a proyectar se rige estrictamente por:
+     `const regularSlotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);`
+   - Todas las sesiones ya evaluadas (`presente`, `ausente`, `tarde`, `justificada`) más las recuperaciones agendadas (`pendingMakeups`) consumen formalmente cupos dentro del ciclo lectivo.
+   - Queda **TERMINANTEMENTE PROHIBIDO** omitir las inasistencias en el cálculo de cupos consumidos, impidiendo la inflación artificial del contrato a 9 o 10 clases en alumnos regulares de 8 sesiones (como Mia Lucero, Sasha Dharma o Gael Mathias).
+2. **Aislamiento del Botón `[ 🔄 Reprogramar ]` en Modo Consulta**:
+   - En `student-attendance-kardex.tsx`, el botón directo `[ 🔄 Reprogramar ]` solo se renderiza si la sesión tiene una inasistencia evaluada (`item.status === "ausente" || item.status === "tarde" || item.status === "justificada"`) o si el usuario ha habilitado activamente el `[ ✏️ Modo Edición ]` (`isEditMode === true`).
+   - Las clases regulares pendientes (`⚪ Sin marcar`) en Modo Consulta no muestran el botón por defecto, eliminando la falsa percepción de que las clases están "por defecto en reprogramado".
+3. **Normalización Numérica de `packageTotalSessions` para Bolsas Flexibles**:
+   - En `students.service.ts` y Zustand (`app-store.ts`), `packageTotalSessions` se normaliza numéricamente mediante `Number(packageTotalSessions) > 8`, garantizando que alumnos con bolsa flexible (como Andrea Fernanda, con 24 clases a demanda) proyecten la totalidad de sus 24 sesiones sin recortes accidentales a cuotas de 8 clases.
 
 
 

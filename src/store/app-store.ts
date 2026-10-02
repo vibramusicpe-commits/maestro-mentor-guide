@@ -972,8 +972,8 @@ export const useAppStore = create<AppState>()(
 
                 const isFlexibleStudent =
                   isJonathan ||
-                  (typeof dbSt.packageTotalSessions === "number" && dbSt.packageTotalSessions > 8) ||
-                  (typeof localSt.packageTotalSessions === "number" && localSt.packageTotalSessions > 8) ||
+                  (Boolean(dbSt.packageTotalSessions) && Number(dbSt.packageTotalSessions) > 8) ||
+                  (Boolean(localSt.packageTotalSessions) && Number(localSt.packageTotalSessions) > 8) ||
                   dbSt.planType === "Paquete Flexible" ||
                   localSt.planType === "Paquete Flexible" ||
                   (typeof dbSt.modality === "string" && dbSt.modality.includes("Flexible")) ||

@@ -156,7 +156,7 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     planType: ec.planType || (isJonathanDB ? "Paquete Flexible" : "Mensual"),
     planPrice,
     amountPaid,
-    packageTotalSessions: typeof ec.packageTotalSessions === "number" ? ec.packageTotalSessions : (isJonathanDB ? 24 : 8),
+    packageTotalSessions: ec.packageTotalSessions ? Number(ec.packageTotalSessions) : (isJonathanDB ? 24 : 8),
     matriculaType: ec.matriculaType || "Promo Demo (S/ 30)",
     enrollmentDate: ec.enrollmentDate || (db.created_at ? db.created_at.slice(0, 10) : "2026-08-01"),
     paymentMethod: ec.paymentMethod || "Yape / Plin",
