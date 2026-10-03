@@ -1090,5 +1090,19 @@ inferencia.
 3. **Normalización Numérica de `packageTotalSessions` para Bolsas Flexibles**:
    - En `students.service.ts` y Zustand (`app-store.ts`), `packageTotalSessions` se normaliza numéricamente mediante `Number(packageTotalSessions) > 8`, garantizando que alumnos con bolsa flexible (como Andrea Fernanda, con 24 clases a demanda) proyecten la totalidad de sus 24 sesiones sin recortes accidentales a cuotas de 8 clases.
 
+---
+
+### 55. Blindaje de Categoría de Recuperación en Agenda y Saneamiento de Horarios Recurrentes (ADR-0155)
+1. **Definición Estricta de Recuperación en Agenda (`agenda-board.tsx`)**:
+   - Una clase de recuperación es **exclusivamente puntual**: debe tener `lesson.isMakeup === true` o contar con una fecha específica acotada (`lesson.dateStr`) junto con `lesson.category === "RECUPERACION"`.
+   - Está **TERMINANTEMENTE PROHIBIDO** clasificar o renderizar como recuperación (`isRecup = true`, chip `🔴 Recuperación` o color rojo) a ninguna lección de plantilla semanal recurrente abierta (`!lesson.dateStr && !lesson.isMakeup`).
+2. **Resolución Jerárquica de Categoría Cromática (`catKey`)**:
+   - Si la lección no cumple los criterios puntuales de recuperación, `catKey` se resuelve jerárquicamente a partir de su categoría pedagógica real (`lesson.category`) si es distinta de `"RECUPERACION"`, o con fallback inmediato a la categoría de edad del alumno (`studentProfile?.ageCategory ?? "JUNIOR"`).
+   - Esto blinda las 4 vistas de la agenda (salas, docentes, grilla semanal y sábados) contra residuos históricos en metadatos.
+3. **Preservación de Trazabilidad Histórica y Datos Limpios**:
+   - Los registros de plantilla recurrente en `emergency_contact->'scheduleLessons'` de PostgreSQL deben mantener siempre la categoría pedagógica correspondiente (`ESTIMULACION`, `INFANTIL`, `JUNIOR`, `JUVENIL`, `MASTER`, `ADULTO`).
+   - Las recuperaciones efectivas en PostgreSQL siempre deben almacenar `isMakeup: true`, `recoveringLessonDate` y la fecha puntual (`dateStr`).
+
+
 
 

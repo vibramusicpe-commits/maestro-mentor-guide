@@ -4,6 +4,28 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.25] - 2026-10-02
+
+### Blindaje de Categoría de Recuperación en Agenda y Saneamiento de Horarios Recurrentes (ADR-0155)
+- **Definición Inequívoca de Clase de Recuperación en Agenda**:
+  - En `src/components/admin/agenda-board.tsx` (vista de salas, vista de docentes, grilla semanal y grilla de sábados), se erradicó la asignación indiscriminada de clases en rojo `🔴 Recuperación` provocada por plantillas semanales recurrentes con residuos de categoría.
+  - La evaluación de recuperación ahora exige estrictamente `Boolean(lesson.isMakeup || (lesson.dateStr && lesson.category === "RECUPERACION"))`.
+  - Si una sesión recurrente no es recuperación, resuelve prioritariamente a su categoría de edad real (`ageCategory`) o categoría pedagógica, impidiendo que clases regulares se pinten de rojo.
+- **Saneamiento Quirúrgico en Base de Datos PostgreSQL**:
+  - En el alumno Aaron (`0a899060-3aaf-4574-b1ea-71163953dbae`), se sanearon sus dos clases semanales recurrentes (Lunes 16:00 y Miércoles 16:00 con Fernando en Sala B) cambiando `category` de `"RECUPERACION"` a `"JUNIOR"`, preservando inalteradas sus 4 recuperaciones puntuales legítimas pasadas.
+- **Normalización de Semillas Oficiales (`official-seeds.ts`)**:
+  - Se corrigió la categoría en las plantillas de Aaron Balarezo (`JUNIOR`), Karen Gutierrez (`ADULTO`) y Fabiana Arroyo (`JUNIOR`).
+
+### Restitución de Cuota Contractual Estricta en Kardex y Visibilidad de Reprogramaciones (ADR-0154)
+- **Restitución Matemática de Cuota en Kardex**:
+  - En `src/lib/kardex-calculator.ts`, `src/components/admin/student-attendance-kardex.tsx` y `src/lib/student-cycle.ts`, se ajustó la fórmula de proyección de clases regulares pendientes:
+    `regularSlotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length)`.
+  - Garantiza que los planes regulares muestren exactamente 8/8 sesiones y los paquetes flexibles (Andrea Fernanda, 24 clases) proyecten exactamente sus 24 sesiones contratadas sin desbordamiento a 10 o 12 clases.
+- **Apertura de Modal de Reprogramación en Modo Consulta**:
+  - En `student-attendance-kardex.tsx`, se retiró el bloqueo `item.status === "pendiente"` del botón `🔄 Reprogramar`, permitiendo reprogramar clases futuras no evaluadas desde la vista de consulta.
+- **Normalización Numérica Robusta de `packageTotalSessions`**:
+  - En `students.service.ts` y `app-store.ts`, se implementó parsing numérico robusto `Number(raw) > 8` para paquetes flexibles.
+
 ## [2.0.24] - 2026-09-29
 
 ### Erradicación de ExcludedWeeks Relativos, Prioridad de Slot en Deduplicación y Cuota de Makeups (ADR-0138)

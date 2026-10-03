@@ -2132,7 +2132,7 @@ export const officialSchedule: ScheduledLesson[] = [
     "student": "Aaron Balarezo Sosa",
     "teacher": "Fernando",
     "instrument": "Violín",
-    "category": "RECUPERACION",
+    "category": "JUNIOR",
     "status": "programada"
   },
   {
@@ -2321,7 +2321,7 @@ export const officialSchedule: ScheduledLesson[] = [
     "student": "Karen Gutierrez",
     "teacher": "Nathaly",
     "instrument": "Canto",
-    "category": "RECUPERACION",
+    "category": "ADULTO",
     "status": "programada"
   },
   {
@@ -2708,7 +2708,7 @@ export const officialSchedule: ScheduledLesson[] = [
     "student": "Fabiana Arroyo Tineo",
     "teacher": "Fernando",
     "instrument": "Piano",
-    "category": "RECUPERACION",
+    "category": "JUNIOR",
     "status": "programada"
   },
   {

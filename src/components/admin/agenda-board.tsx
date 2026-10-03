@@ -1502,10 +1502,14 @@ export function AgendaBoard() {
                                     ) : (
                                       <div className="flex flex-col sm:flex-row h-full min-h-[48px] divide-y sm:divide-y-0 sm:divide-x border-slate-300">
                                         {lessons.map((lesson) => {
-                                          const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
-                                          const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
-                                          const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
                                           const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
+                                          const isRecup = Boolean(lesson.isMakeup || (lesson.dateStr && lesson.category === "RECUPERACION"));
+                                          const catKey = isRecup
+                                            ? "RECUPERACION"
+                                            : ((lesson.category && lesson.category !== "RECUPERACION")
+                                                ? lesson.category
+                                                : (studentProfile?.ageCategory ?? "JUNIOR"));
+                                          const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
 
                                           // Detección de Categoría de Edad para Clases Personalizadas
                                           const studentAgeCat =
@@ -1898,10 +1902,14 @@ export function AgendaBoard() {
                                   ) : (
                                     <div className="flex flex-col gap-1 h-full justify-center">
                                       {lessonsForTeacher.map((lesson) => {
-                                        const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
-                                        const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
-                                        const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
                                         const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
+                                        const isRecup = Boolean(lesson.isMakeup || (lesson.dateStr && lesson.category === "RECUPERACION"));
+                                        const catKey = isRecup
+                                          ? "RECUPERACION"
+                                          : ((lesson.category && lesson.category !== "RECUPERACION")
+                                              ? lesson.category
+                                              : (studentProfile?.ageCategory ?? "JUNIOR"));
+                                        const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
                                         
                                         // Detección de Categoría de Edad para Clases Personalizadas
                                         const studentAgeCat =
@@ -2105,10 +2113,14 @@ export function AgendaBoard() {
                             className="border-l border-border/60 p-1 min-h-[3.2rem] flex flex-col gap-1 justify-start bg-background/50"
                           >
                             {cell.map((lesson) => {
-                              const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
-                              const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
-                              const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
                               const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
+                              const isRecup = Boolean(lesson.isMakeup || (lesson.dateStr && lesson.category === "RECUPERACION"));
+                              const catKey = isRecup
+                                ? "RECUPERACION"
+                                : ((lesson.category && lesson.category !== "RECUPERACION")
+                                    ? lesson.category
+                                    : (studentProfile?.ageCategory ?? "JUNIOR"));
+                              const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
                               
                               const studentAgeCat =
                                 studentProfile?.ageCategory ||
@@ -2261,10 +2273,14 @@ export function AgendaBoard() {
                         </div>
                         <div className="border-l border-border/60 p-1 min-h-[3rem] flex flex-wrap gap-1 items-center bg-background/50">
                           {cell.map((lesson) => {
-                            const isRecup = lesson.isMakeup || lesson.category === "RECUPERACION";
-                            const catKey = isRecup ? "RECUPERACION" : (lesson.category ?? "JUNIOR");
-                            const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
                             const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
+                            const isRecup = Boolean(lesson.isMakeup || (lesson.dateStr && lesson.category === "RECUPERACION"));
+                            const catKey = isRecup
+                              ? "RECUPERACION"
+                              : ((lesson.category && lesson.category !== "RECUPERACION")
+                                  ? lesson.category
+                                  : (studentProfile?.ageCategory ?? "JUNIOR"));
+                            const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
                             
                             const studentAgeCat =
                               studentProfile?.ageCategory ||
