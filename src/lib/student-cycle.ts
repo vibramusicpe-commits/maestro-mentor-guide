@@ -56,7 +56,8 @@ export function computeStudentCycle(
 
   const modalityStr = (studentProfile.modality || "").toLowerCase();
   const isDemoNivelacion = modalityStr.includes("nivelaci") || studentProfile.planType === "Demo Nivelación";
-  const isIntensivo = modalityStr.includes("inten") || modalityStr.includes("90 min") || (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"));
+  const isIntensive = modalityStr.includes("inten") || modalityStr.includes("90 min") || (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"));
+  const isIntensivo = isIntensive;
   const isFlexiblePackage =
     modalityStr.includes("flex") ||
     modalityStr.includes("demanda") ||
@@ -202,6 +203,7 @@ export function computeStudentCycle(
 
   if (!isCycleCompleted) {
     const pendingMakeups = pendingCandidates.filter((p) => p.isMakeup);
+    const pendingRegular = pendingCandidates.filter((p) => !p.isMakeup);
     let chosenPendingRegular: typeof pendingRegular = [];
     if (isIntensive) {
       // 🛡️ REGLA ADR-0157: Plan Intensivo (4 clases / 90 min).

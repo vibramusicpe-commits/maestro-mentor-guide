@@ -20,8 +20,9 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - **Saneamiento en Base de Datos PostgreSQL (Insforge)**:
   - **Liam Renato Miranda Carbajal (`ebe12ee5-466c-4929-9471-79b316f22725`)**: Saneado con `packageTotalSessions: 4`, `planStartDate: "2026-10-03"`, dos bloques de 45m (09:00 y 09:45) con asistencia `presente` y registro oficial en `attendance_logs` para el `2026-10-03`.
   - **Benjamin Baltazar Espinoza (`57db57ae-ad12-4e58-bedc-659ac7dbef24`)**: Saneado con `packageTotalSessions: 4` y dos bloques de 45m (10:30 y 11:15) en Sala A con Jeremy.
-- **Corrección de ReferenceError `hh is not defined` (`src/lib/kardex-calculator.ts`)**:
+- **Corrección de ReferenceError `hh is not defined` (`src/lib/kardex-calculator.ts`) y `isIntensive is not defined` (`src/lib/student-cycle.ts`)**:
   - En `computeStudentCycleSessions`, se inicializó explícitamente `const [hh, mm] = (lesson.time || "16:00").split(":").map((v) => parseInt(v, 10))` antes de calcular `endMinuteTotal` para sesiones de Plan Intensivo, restaurando la estabilidad en `/admin/alumnos`.
+  - En `computeStudentCycle` (`src/lib/student-cycle.ts`), se definieron `isIntensive` y `pendingRegular`, restaurando el acceso normal a la Agenda de Clases (`/admin/agenda`).
 
 ## [2.0.26] - 2026-10-05
 
