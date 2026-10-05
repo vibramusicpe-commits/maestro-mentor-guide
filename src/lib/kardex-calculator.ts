@@ -319,6 +319,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
       }
 
       const durationMin = isIntensive ? 90 : 45;
+      const [hh, mm] = (lesson.time || "16:00").split(":").map((v) => parseInt(v, 10));
       const endMinuteTotal = (hh || 16) * 60 + (mm || 0) + durationMin;
       const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
       const endM = String(endMinuteTotal % 60).padStart(2, "0");
