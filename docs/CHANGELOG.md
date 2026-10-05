@@ -4,6 +4,18 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.26] - 2026-10-05
+
+### Aislamiento Estricto de Slots en Reprogramaciones y Erradicación de Clases Duplicadas (ADR-0156)
+- **Validación Estricta de Slots en `isLessonInStudentCycle` (`src/lib/student-cycle.ts`)**:
+  - Se eliminó el fallback laxo por fecha `(cycle.validDates.has(lessonDateStr) && !lesson.dateStr)` que permitía la renderización de plantillas semanales abiertas en días donde el alumno ya contaba con una reprogramación o recuperación que satisfacía su cuota contractual (ej. Mia Lucero con reprogramación el sábado 10/10/2026 a las 09:00 duplicando la clase de las 10:30).
+  - La inclusión al cronograma semanal activo ahora exige la coincidencia exacta de la franja horaria: `cycle.validSlots.has(slotKey)`.
+- **Sincronización en Kardex Vista Mes Calendario (`src/lib/kardex-calculator.ts`)**:
+  - En `computeStudentMonthSessions`, para alumnos que no están en Paquete Flexible, dentro de su período activo (`curDateStr >= planStartDate`), las sesiones regulares pendientes no se proyectan si su slot no pertenece a `cycle.validSlots`, erradicando duplicados en la visualización mensual.
+- **Escudo Defensivo Intra-Celda (`dedupeLessonsForCell`)**:
+  - En `src/components/admin/agenda-board.tsx` (`renderSingleDayTable`, vista semanal y vista diaria), `src/components/agenda/minimal-agenda-calendar.tsx` y `src/routes/teacher.index.tsx`:
+  - Se implementó `dedupeLessonsForCell` para garantizar que una misma celda/franja horaria nunca renderice tarjetas duplicadas para el mismo alumno, dando prioridad matemática a sesiones evaluadas o reprogramaciones puntuales con fecha fija.
+
 ## [2.0.25] - 2026-10-02
 
 ### Blindaje de Categoría de Recuperación en Agenda y Saneamiento de Horarios Recurrentes (ADR-0155)

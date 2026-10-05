@@ -119,7 +119,23 @@ export function MinimalAgendaCalendar({
       }
 
       const list = map.get(d) || [];
-      list.push(l);
+      const existingIdx = list.findIndex(
+        (ex) =>
+          (ex as ScheduledLesson).time === l.time &&
+          (ex as ScheduledLesson).student?.toLowerCase().trim() === l.student?.toLowerCase().trim()
+      );
+      if (existingIdx === -1) {
+        list.push(l);
+      } else {
+        const ex = list[existingIdx] as ScheduledLesson;
+        const lIsEval = Boolean(schL.attendanceByDate?.[dayInfo.dateStr] && schL.attendanceByDate[dayInfo.dateStr] !== "pendiente");
+        const exIsEval = Boolean(ex.attendanceByDate?.[dayInfo.dateStr] && ex.attendanceByDate[dayInfo.dateStr] !== "pendiente");
+        if (lIsEval && !exIsEval) {
+          list[existingIdx] = l;
+        } else if (!exIsEval && (schL.dateStr || schL.isMakeup) && (!ex.dateStr && !ex.isMakeup)) {
+          list[existingIdx] = l;
+        }
+      }
       map.set(d, list);
     });
 

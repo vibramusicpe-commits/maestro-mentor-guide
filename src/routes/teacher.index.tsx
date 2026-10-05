@@ -199,9 +199,27 @@ export function TeacherKiosk() {
 
   // Clases del día seleccionado ORDENADAS CRONOLÓGICAMENTE
   const dayLessons = useMemo(() => {
-    return teacherScheduleLessons
+    const raw = teacherScheduleLessons
       .filter((l) => isLessonInDay(l, selectedDay, targetDateStr))
       .sort((a, b) => a.time.localeCompare(b.time));
+
+    const dedupedMap = new Map<string, ScheduledLesson>();
+    raw.forEach((l) => {
+      const key = `${l.time}-${l.student.toLowerCase().trim()}`;
+      const existing = dedupedMap.get(key);
+      if (!existing) {
+        dedupedMap.set(key, l);
+      } else {
+        const lIsEval = Boolean(targetDateStr && l.attendanceByDate?.[targetDateStr] && l.attendanceByDate[targetDateStr] !== "pendiente");
+        const exIsEval = Boolean(targetDateStr && existing.attendanceByDate?.[targetDateStr] && existing.attendanceByDate[targetDateStr] !== "pendiente");
+        if (lIsEval && !exIsEval) {
+          dedupedMap.set(key, l);
+        } else if (!exIsEval && (l.dateStr || l.isMakeup) && (!existing.dateStr && !existing.isMakeup)) {
+          dedupedMap.set(key, l);
+        }
+      }
+    });
+    return Array.from(dedupedMap.values());
   }, [teacherScheduleLessons, selectedDay, targetDateStr, safeWeekIndex, adminStudents, schedule]);
 
   // Agrupadas por bloque horario (e.g. 16:00, 16:45, 17:30...)

@@ -132,6 +132,34 @@ function toneFor(instrument: string) {
   return instrumentTone[instrument] ?? "border-border bg-muted text-foreground";
 }
 
+/**
+ * Deduplica lecciones en la misma celda/franja horaria para el mismo alumno (ADR-0105 & ADR-0156).
+ * Prioridad de resolución:
+ * 1. Asistencia evaluada en esa fecha (presente, ausente, tarde, justificada).
+ * 2. Lección puntual con fecha asignada (dateStr) o recuperación (isMakeup).
+ * 3. Plantilla semanal recurrente abierta.
+ */
+function dedupeLessonsForCell(lessons: ScheduledLesson[], dateStr?: string): ScheduledLesson[] {
+  if (lessons.length <= 1) return lessons;
+  const map = new Map<string, ScheduledLesson>();
+  lessons.forEach((l) => {
+    const sKey = l.student.toLowerCase().trim();
+    const existing = map.get(sKey);
+    if (!existing) {
+      map.set(sKey, l);
+    } else {
+      const lIsEval = Boolean(dateStr && l.attendanceByDate?.[dateStr] && l.attendanceByDate[dateStr] !== "pendiente");
+      const exIsEval = Boolean(dateStr && existing.attendanceByDate?.[dateStr] && existing.attendanceByDate[dateStr] !== "pendiente");
+      if (lIsEval && !exIsEval) {
+        map.set(sKey, l);
+      } else if (!exIsEval && (l.dateStr || l.isMakeup) && (!existing.dateStr && !existing.isMakeup)) {
+        map.set(sKey, l);
+      }
+    }
+  });
+  return Array.from(map.values());
+}
+
 export function AgendaBoard() {
   const activeRole = useAppStore((s) => s.activeRole);
   const schedule = useAppStore((s) => s.schedule);
@@ -1468,7 +1496,7 @@ export function AgendaBoard() {
 
                               {/* 4 Columnas por Profesor y Sala */}
                               {mainTeachersList.map((tInfo, tIdx) => {
-                                const lessons = dayLessonsForTable.filter((l) => {
+                                const rawLessons = dayLessonsForTable.filter((l) => {
                                   if (l.time !== timeSlot) return false;
                                   const teacherMatches = l.teacher.toLowerCase().includes(tInfo.name.toLowerCase());
                                   if (teacherMatches) return true;
@@ -1478,6 +1506,7 @@ export function AgendaBoard() {
                                   }
                                   return false;
                                 });
+                                const lessons = dedupeLessonsForCell(rawLessons, dayInfo.dateStr);
 
                                 return (
                                   <td
@@ -1870,12 +1899,14 @@ export function AgendaBoard() {
 
                             {/* 4 Columnas para los 4 Profesores y Salas */}
                             {mainTeachersList.map((tInfo) => {
-                              const lessonsForTeacher = dayLessons.filter(
+                              const currentDayInfo = currentWeekObj.days[selectedDayIndex] || currentWeekObj.days[0]!;
+                              const rawLessonsForTeacher = dayLessons.filter(
                                 (l) =>
                                   l.time === timeSlot &&
                                   (l.teacher.toLowerCase().includes(tInfo.name.toLowerCase()) ||
                                    l.room.toLowerCase().trim() === tInfo.room.toLowerCase().trim())
                               );
+                              const lessonsForTeacher = dedupeLessonsForCell(rawLessonsForTeacher, currentDayInfo.dateStr);
 
                               return (
                                 <div
@@ -2106,7 +2137,8 @@ export function AgendaBoard() {
                       </div>
                       {(["Lun", "Mar", "Mié", "Jue", "Vie"] as WeekDay[]).map((day, dIdx) => {
                         const dayInfo = currentWeekObj.days[dIdx] || currentWeekObj.days[0]!;
-                        const cell = visible.filter((l) => l.day === day && l.time === slot);
+                        const rawCell = visible.filter((l) => l.day === day && l.time === slot);
+                        const cell = dedupeLessonsForCell(rawCell, dayInfo.dateStr);
                         return (
                           <div
                             key={`cell-${day}-${slot}`}
@@ -2261,8 +2293,9 @@ export function AgendaBoard() {
 
                   {/* Filas Sábados */}
                   {timeSlotsSaturday.map((slot) => {
-                    const cell = visible.filter((l) => l.day === "Sáb" && l.time === slot);
                     const saturdayDayInfo = currentWeekObj.days.find((d) => d.dayKey === "Sáb") || currentWeekObj.days[5] || currentWeekObj.days[0]!;
+                    const rawCell = visible.filter((l) => l.day === "Sáb" && l.time === slot);
+                    const cell = dedupeLessonsForCell(rawCell, saturdayDayInfo.dateStr);
                     return (
                       <div
                         key={`saturday-${slot}`}

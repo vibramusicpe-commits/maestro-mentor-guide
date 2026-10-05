@@ -1103,6 +1103,18 @@ inferencia.
    - Los registros de plantilla recurrente en `emergency_contact->'scheduleLessons'` de PostgreSQL deben mantener siempre la categoría pedagógica correspondiente (`ESTIMULACION`, `INFANTIL`, `JUNIOR`, `JUVENIL`, `MASTER`, `ADULTO`).
    - Las recuperaciones efectivas en PostgreSQL siempre deben almacenar `isMakeup: true`, `recoveringLessonDate` y la fecha puntual (`dateStr`).
 
+---
 
-
-
+### 56. Aislamiento Estricto de Slots en Reprogramaciones, Deduplicación Intra-Celda y Erradicación de Clases Duplicadas (ADR-0156)
+1. **Validación Estricta por Franja Horaria en Ciclo Contractual (`cycle.validSlots.has(slotKey)`)**:
+   - En `isLessonInStudentCycle` (`src/lib/student-cycle.ts`), queda **TERMINANTEMENTE PROHIBIDO** utilizar fallbacks por fecha como `|| (cycle.validDates.has(lessonDateStr) && !lesson.dateStr)`.
+   - La aprobación de una lección semanal abierta dentro del ciclo lectivo requiere **obligatoriamente** que su franja horaria exacta (`dateStr-time`) forme parte del conjunto `cycle.validSlots`.
+   - Si un alumno ya completó o cubrió su cuota contractual (ej. 8 de 8 clases) mediante una reprogramación o recuperación puntual en una fecha dada (ej. sábado 10/10/2026 a las 09:00 para Mia Lucero), la plantilla semanal regular de esa misma fecha (ej. 10:30) queda **automáticamente excluida**, eliminando duplicados visuales y previniendo la inflación ilícita del contrato.
+2. **Sincronización en Vista de Mes Calendario (`computeStudentMonthSessions`)**:
+   - En `src/lib/kardex-calculator.ts`, para alumnos regulares (`!isFlexiblePackage`), dentro de su período activo (`curDateStr >= planStartDate`), las sesiones regulares pendientes no se proyectan si su slot (`curDateStr-time`) no pertenece a `cycle.validSlots`.
+   - Esto mantiene la concordancia matemática absoluta entre el Kardex mensual y el Horario de Clases.
+3. **Escudo de Deduplicación Intra-Celda (`dedupeLessonsForCell`)**:
+   - En `agenda-board.tsx` (`renderSingleDayTable`, vista semanal `renderWeeklyGrid` y vista diaria `renderDailyView`), `minimal-agenda-calendar.tsx` y `teacher.index.tsx`, toda celda/franja horaria aplica `dedupeLessonsForCell` para garantizar que un mismo alumno jamás figure más de una vez en la misma casilla:
+     1. Prevalece la sesión con asistencia evaluada en esa fecha (`presente`, `ausente`, `tarde`, `justificada`).
+     2. Prevalece la sesión puntual con fecha asignada (`dateStr`) o recuperación (`isMakeup`).
+     3. Descarta la plantilla semanal abierta redundante.

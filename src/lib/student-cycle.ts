@@ -280,8 +280,12 @@ export function isLessonInStudentCycle(
   const cycle = computeStudentCycle(studentProfile, allScheduleLessons);
   const slotKey = `${lessonDateStr}-${lessonTime || lesson.time || "16:00"}`;
 
-  // Si la celda coincide con un slot válido del ciclo (evaluado o pendiente necesario)
-  if (cycle.validSlots.has(slotKey) || (cycle.validDates.has(lessonDateStr) && !lesson.dateStr)) {
+  // 🛡️ REGLA (ADR-0105, ADR-0108 & ADR-0156):
+  // La sesión solo se aprueba si su franja horaria exacta (dateStr-time) forma parte de los slots
+  // válidos del ciclo (evaluados, recuperaciones o regulares pendientes necesarios para la cuota).
+  // No usar fallback por fecha para lecciones abiertas (!lesson.dateStr) porque causaría duplicados
+  // cuando una clase fue reprogramada para ese mismo día con otra hora (ej. Mia Lucero 09:00 vs 10:30).
+  if (cycle.validSlots.has(slotKey)) {
     return true;
   }
 

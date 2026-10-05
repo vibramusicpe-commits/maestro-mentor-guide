@@ -17,6 +17,7 @@
 
 import type { AdminStudent, ScheduledLesson, WeekDay, Invoice, DBPaymentAuditLog } from "@/store/app-store";
 import { isMatchingStudentName } from "@/lib/student-matching";
+import { computeStudentCycle } from "@/lib/student-cycle";
 
 export const WEEKDAYS_ORDER: WeekDay[] = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -442,6 +443,7 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
     student.planType === "Paquete Especial" ||
     (Boolean(student.packageTotalSessions) && Number(student.packageTotalSessions) > 8);
 
+  const cycle = !isFlexiblePackage ? computeStudentCycle(student, studentLessons) : null;
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
   const rawCandidates: StudentSessionItem[] = [];
 
@@ -489,6 +491,17 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
 
       if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup) {
         return;
+      }
+
+      // 🛡️ REGLA (ADR-0105, ADR-0108 & ADR-0156):
+      // Si el alumno no es de paquete flexible, dentro de su ciclo activo (fecha >= planStartDate),
+      // no proyectar lecciones regulares pendientes que no pertenezcan a los slots válidos del ciclo.
+      // Esto elimina duplicados cuando una clase fue reprogramada para ese mismo día (ej. Mia Lucero 09:00 vs 10:30).
+      if (!isFlexiblePackage && cycle && currentStatus === "pendiente" && !lesson.isMakeup) {
+        const planStart = student.planStartDate || "2026-08-01";
+        if (curDateStr >= planStart && !cycle.validSlots.has(`${curDateStr}-${lesson.time || "16:00"}`)) {
+          return;
+        }
       }
 
       const [hh, mm] = (lesson.time || "16:00").split(":").map((v) => parseInt(v, 10));
