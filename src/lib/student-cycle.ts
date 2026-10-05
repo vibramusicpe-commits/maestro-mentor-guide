@@ -164,13 +164,16 @@ export function computeStudentCycle(
         if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
           return;
         }
-        if (lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) {
-          return;
+        // 🛡️ REGLA ADR-0157: effectiveFrom solo aplica a plantillas recurrentes (sin dateStr)
+        if (!lesson.dateStr && lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) {
+          if (!studentProfile.planStartDate || curDateStr < studentProfile.planStartDate) {
+            return;
+          }
         }
 
         const slot = `${curDateStr}-${lesson.time || "16:00"}`;
         // Si ya está evaluada, no duplicar como pendiente
-        if (evaluatedSlots.has(slot) || evaluatedDates.has(curDateStr)) {
+        if (evaluatedSlots.has(slot) || (!isIntensive && evaluatedDates.has(curDateStr))) {
           return;
         }
 
@@ -199,13 +202,19 @@ export function computeStudentCycle(
 
   if (!isCycleCompleted) {
     const pendingMakeups = pendingCandidates.filter((p) => p.isMakeup);
-    const pendingRegular = pendingCandidates.filter((p) => !p.isMakeup);
-    // 🛡️ REGLA (ADR-0105 & ADR-0154): Cumplimiento estricto de cuota contractual.
-    // Todas las sesiones evaluadas (presentes, faltas, tardanzas, justificadas) más las recuperaciones
-    // agendadas consumen cupos del ciclo. Solo se toman las clases regulares pendientes necesarias
-    // para que el ciclo proyecte exactamente la cuota contratada (targetQuota).
-    const slotsNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length);
-    const chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
+    let chosenPendingRegular: typeof pendingRegular = [];
+    if (isIntensive) {
+      // 🛡️ REGLA ADR-0157: Plan Intensivo (4 clases / 90 min).
+      // Cada fecha lectiva consta de 2 bloques contiguos de 45 min.
+      // Se acotan las fechas pendientes completas para cumplir exactamente la cuota de targetQuota fechas.
+      const uniqueDates = Array.from(new Set(pendingRegular.map((p) => p.dateStr)));
+      const datesNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length);
+      const chosenDates = new Set(uniqueDates.slice(0, datesNeeded));
+      chosenPendingRegular = pendingRegular.filter((p) => chosenDates.has(p.dateStr));
+    } else {
+      const slotsNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length);
+      chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
+    }
     const chosenPending = [...pendingMakeups, ...chosenPendingRegular];
 
     chosenPending.forEach((p) => {
@@ -258,17 +267,19 @@ export function isLessonInStudentCycle(
     return true;
   }
 
+  // C. Si la clase tiene fecha puntual exacta fijada por reprogramación/adelanto y coincide con la fecha
+  if (lesson.dateStr && lesson.dateStr === lessonDateStr) {
+    return true;
+  }
+
   // B.1. Límites de vigencia por transición de curso para sesiones no evaluadas
   if (lesson.effectiveUntil && lessonDateStr > lesson.effectiveUntil) {
     return false;
   }
-  if (lesson.effectiveFrom && lessonDateStr < lesson.effectiveFrom) {
-    return false;
-  }
-
-  // C. Si la clase tiene fecha puntual exacta fijada por reprogramación/adelanto y coincide con la fecha
-  if (lesson.dateStr && lesson.dateStr === lessonDateStr) {
-    return true;
+  if (!lesson.dateStr && lesson.effectiveFrom && lessonDateStr < lesson.effectiveFrom) {
+    if (!studentProfile.planStartDate || lessonDateStr < studentProfile.planStartDate) {
+      return false;
+    }
   }
 
   // D. Límites de inicio de plan

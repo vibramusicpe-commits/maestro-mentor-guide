@@ -1126,7 +1126,7 @@ export const useAppStore = create<AppState>()(
 
             const isLessonEligibleForDate = (lesson: ScheduledLesson, dStr: string) => {
               // A. Barreras temporales de transición
-              if (lesson.effectiveFrom && dStr < lesson.effectiveFrom) return false;
+              if (!lesson.dateStr && lesson.effectiveFrom && dStr < lesson.effectiveFrom) return false;
               if (lesson.effectiveUntil && dStr > lesson.effectiveUntil) return false;
 
               // B. Fechas excluidas (reprogramada fuera de este día)
@@ -1412,6 +1412,7 @@ export const useAppStore = create<AppState>()(
               room: newRoom,
               dateStr: newDateStr, // Fecha exacta YYYY-MM-DD
               weekIndex: newDateStr ? undefined : targetWeekIndex,
+              effectiveFrom: undefined, // 🛡️ Una lección reprogramada puntual jamás hereda barreras effectiveFrom que la bloqueen (ADR-0157)
               excludedWeeks: undefined,
               excludedDates: undefined,
               attendanceStatus: undefined,

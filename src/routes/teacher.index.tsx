@@ -169,7 +169,7 @@ export function TeacherKiosk() {
 
     // 2.1 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
     if (dateStr) {
-      if (lesson.effectiveFrom && dateStr < lesson.effectiveFrom) return false;
+      if (!lesson.dateStr && lesson.effectiveFrom && dateStr < lesson.effectiveFrom) return false;
       if (lesson.effectiveUntil && dateStr > lesson.effectiveUntil) return false;
     }
 

@@ -4,6 +4,23 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.27] - 2026-10-05
+
+### Soporte Integral para Plan Intensivo de 90 min y Criterio Estricto del Botón Reprogramar (ADR-0157)
+- **Criterio Estricto de Reprogramación en Kardex (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - El botón `🔄 Reprogramar` ahora solo se muestra ante inasistencias reales: **Falta (`ausente`)** o **Justificada (`justificada`)**, o clases `pendiente` cuando se activa el Modo Edición (`isEditMode`).
+  - Queda estrictamente deshabilitado para clases evaluadas como `presente` o `tarde`, preservando la regla pedagógica de que la tardanza computa como asistencia consumida.
+- **Soporte de Doble Bloque Contiguo para Plan Intensivo (`src/components/admin/students-table.tsx`)**:
+  - En `ScheduleStudentForm`, el Plan Intensivo (4 clases / 90 min) ahora agenda automáticamente dos bloques contiguos de 45 minutos (ej. 09:00 - 09:45 y 09:45 - 10:30 para Liam; 10:30 - 11:15 y 11:15 - 12:00 para Benjamin) en el mismo día, sala y profesor.
+  - Se añadieron verificaciones de cupos (`conflictReport`) y convivencia pedagógica (`pedagogicalReport`) que abarcan ambos bloques y alertan si no hay turno consecutivo disponible.
+  - Se fija automáticamente `packageTotalSessions: 4` y se sincroniza la fecha oficial de inicio elegida (`planStartDate`).
+- **Consolidación de Sesiones en Kardex y Desbloqueo de Fechas de Inicio (`src/lib/kardex-calculator.ts` y `src/lib/student-cycle.ts`)**:
+  - En `kardex-calculator.ts`, las sesiones de Plan Intensivo consolidan ambos bloques contiguos bajo su fecha (`item.dateStr`) para reflejar una única sesión de 90 min (`09:00 - 10:30`), garantizando la cuota contractual exacta de 4 clases al mes.
+  - Se corrigió la barrera `effectiveFrom`: solo aplica a plantillas recurrentes abiertas (`!lesson.dateStr`). Las reprogramaciones y clases puntuales con `dateStr` no son filtradas, resolviendo el bug de Liam donde el sábado 03/10 se ocultaba.
+- **Saneamiento en Base de Datos PostgreSQL (Insforge)**:
+  - **Liam Renato Miranda Carbajal (`ebe12ee5-466c-4929-9471-79b316f22725`)**: Saneado con `packageTotalSessions: 4`, `planStartDate: "2026-10-03"`, dos bloques de 45m (09:00 y 09:45) con asistencia `presente` y registro oficial en `attendance_logs` para el `2026-10-03`.
+  - **Benjamin Baltazar Espinoza (`57db57ae-ad12-4e58-bedc-659ac7dbef24`)**: Saneado con `packageTotalSessions: 4` y dos bloques de 45m (10:30 y 11:15) en Sala A con Jeremy.
+
 ## [2.0.26] - 2026-10-05
 
 ### Aislamiento Estricto de Slots en Reprogramaciones y Erradicación de Clases Duplicadas (ADR-0156)

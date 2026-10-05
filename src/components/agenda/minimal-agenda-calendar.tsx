@@ -110,8 +110,8 @@ export function MinimalAgendaCalendar({
 
       if (schL.excludedDates?.includes(dayInfo.dateStr)) return;
 
-      // 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
-      if (schL.effectiveFrom && dayInfo.dateStr < schL.effectiveFrom) return;
+      // 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131 & ADR-0157)
+      if (!schL.dateStr && schL.effectiveFrom && dayInfo.dateStr < schL.effectiveFrom) return;
       if (schL.effectiveUntil && dayInfo.dateStr > schL.effectiveUntil) return;
 
       if (!isLessonInStudentCycle(studentProfile, schL, dayInfo.dateStr, l.time, schedule)) {

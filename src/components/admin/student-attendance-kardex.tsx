@@ -1433,7 +1433,7 @@ export function StudentAttendanceKardex({
                       </div>
                     ) : (
                       /* Si aún no tiene recuperación agendada: mostrar botón directo de Reprogramar (habilitado para faltas, tardanzas, justificadas o anticipadamente en pendientes) */
-                      ((item.status === "ausente" || item.status === "tarde" || item.status === "justificada") || isEditMode) && (
+                      ((item.status === "ausente" || item.status === "justificada") || (isEditMode && item.status === "pendiente")) && (
                         <Button
                           size="sm"
                           onClick={() => handleOpenReschedule(item)}

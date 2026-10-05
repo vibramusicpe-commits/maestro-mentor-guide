@@ -281,9 +281,11 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
         return;
       }
 
-      // C.1. Barreras temporales absolutas por transición de curso (ADR-0131)
-      if (lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) {
-        return;
+      // C.1. Barreras temporales absolutas por transición de curso (ADR-0131 & ADR-0157)
+      if (!lesson.dateStr && lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) {
+        if (!effectivePlanStartDate || curDateStr < effectivePlanStartDate) {
+          return;
+        }
       }
       if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
         return;
@@ -316,8 +318,8 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
         return;
       }
 
-      const [hh, mm] = (lesson.time || "16:00").split(":").map((v) => parseInt(v, 10));
-      const endMinuteTotal = (hh || 16) * 60 + (mm || 0) + 45;
+      const durationMin = isIntensive ? 90 : 45;
+      const endMinuteTotal = (hh || 16) * 60 + (mm || 0) + durationMin;
       const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
       const endM = String(endMinuteTotal % 60).padStart(2, "0");
       const timeEnd = `${endH}:${endM}`;
@@ -370,7 +372,9 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   const seenSlots = new Set<string>();
   const deduped: StudentSessionItem[] = [];
   rawCandidates.forEach((item) => {
-    const slotKey = `${item.dateStr}-${item.time}`;
+    // 🛡️ REGLA ADR-0157: Para Plan Intensivo (4 clases / 90 min), múltiples bloques contiguos en la misma fecha
+    // se consolidan en una única sesión de 90 minutos para esa fecha en el Kardex.
+    const slotKey = isIntensive ? item.dateStr : `${item.dateStr}-${item.time}`;
     if (!seenSlots.has(slotKey)) {
       seenSlots.add(slotKey);
       deduped.push(item);

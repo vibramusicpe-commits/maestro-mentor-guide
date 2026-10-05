@@ -5439,6 +5439,15 @@ function EditStudentSheetInner({
   );
 }
 
+function getNextConsecutiveSlot(day: string, time: string): string | null {
+  const slots = day === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
+  const idx = slots.indexOf(time);
+  if (idx !== -1 && idx + 1 < slots.length) {
+    return slots[idx + 1];
+  }
+  return null;
+}
+
 function ScheduleStudentForm({
   student,
   availableTeachers,
@@ -5520,6 +5529,12 @@ function ScheduleStudentForm({
         : "2026-09-01")
   );
 
+  useEffect(() => {
+    if (liveStudent.planStartDate && liveStudent.planStartDate !== startDate) {
+      setStartDate(liveStudent.planStartDate);
+    }
+  }, [liveStudent.planStartDate]);
+
   const existingL1 = existingLessons[0];
   const existingL2 = existingLessons.length > 1 ? existingLessons[1] : null;
 
@@ -5580,6 +5595,8 @@ function ScheduleStudentForm({
   const [room2, setRoom2] = useState(
     existingL2?.room || existingL1?.room || liveStudent.room || getDefaultRoomForTeacher(teacher)
   );
+
+  const intensiveSecondTime = isIntensive ? getNextConsecutiveSlot(day1, time1) : null;
 
   const handleTeacherChange = (newTeacher: string) => {
     setTeacher(newTeacher);
@@ -5673,13 +5690,30 @@ function ScheduleStudentForm({
     [schedule, finalTeacher, liveStudent.name, adminStudents]
   );
 
-  // Diagnóstico Reactivo de Conflictos en Tiempo Real (1 Día vs 2 Días)
+  // Diagnóstico Reactivo de Conflictos en Tiempo Real (1 Día vs 2 Días vs Plan Intensivo 90m)
   const conflictReport = useMemo(() => {
     const s1 = getSlotDetails(day1, time1, room1);
-    const s2 = isRegular ? getSlotDetails(day2, time2, room2) : null;
+    let s2: ReturnType<typeof getSlotDetails> | null = null;
+    let s2HasConflict = false;
+    let s2Reason: string | null = null;
+
+    if (isRegular) {
+      s2 = getSlotDetails(day2, time2, room2);
+      s2HasConflict = s2.hasConflict;
+      s2Reason = s2.reason;
+    } else if (isIntensive) {
+      if (!intensiveSecondTime) {
+        s2HasConflict = true;
+        s2Reason = `No hay franja contigua de 45m después de las ${time1} para completar los 90 min del Plan Intensivo`;
+      } else {
+        s2 = getSlotDetails(day1, intensiveSecondTime, room1);
+        s2HasConflict = s2.hasConflict;
+        s2Reason = s2.reason;
+      }
+    }
 
     const hasConflict1 = s1.hasConflict;
-    const hasConflict2 = s2 ? s2.hasConflict : false;
+    const hasConflict2 = s2HasConflict;
     const conflictingDaysCount = (hasConflict1 ? 1 : 0) + (hasConflict2 ? 1 : 0);
 
     return {
@@ -5693,18 +5727,18 @@ function ScheduleStudentForm({
         enrolled: s1.enrolled,
         reason: s1.reason,
       },
-      session2: s2
+      session2: isRegular || isIntensive
         ? {
             hasConflict: hasConflict2,
-            day: day2,
-            time: time2,
-            room: room2,
-            enrolled: s2.enrolled,
-            reason: s2.reason,
+            day: isIntensive ? day1 : day2,
+            time: isIntensive ? (intensiveSecondTime || time1) : time2,
+            room: isIntensive ? room1 : room2,
+            enrolled: s2 ? s2.enrolled : 0,
+            reason: s2Reason,
           }
         : null,
     };
-  }, [getSlotDetails, day1, time1, room1, day2, time2, room2, isRegular]);
+  }, [getSlotDetails, day1, time1, room1, day2, time2, room2, isRegular, isIntensive, intensiveSecondTime]);
 
   // Sugerencias Dinámicas de Franjas Horarias Disponibles con Vacantes
   const suggestedSlots = useMemo(() => {
@@ -5732,6 +5766,19 @@ function ScheduleStudentForm({
           minVacancies: minVac,
           label: `${day1} + ${day2} a las ${t} (${minVac} ${minVac === 1 ? "vacante libre" : "vacantes libres"})`,
         });
+      } else if (isIntensive) {
+        const t2 = getNextConsecutiveSlot(day1, t);
+        if (!t2) return;
+        const s2 = getSlotDetails(day1, t2, room1);
+        if (s2.isFull || s2.hasConflict) return;
+        const minVac = Math.min(s1.vacancies, s2.vacancies);
+        suggestions.push({
+          time: t,
+          vacancies1: s1.vacancies,
+          vacancies2: s2.vacancies,
+          minVacancies: minVac,
+          label: `${day1} ${t} a ${t2} (+45m) (90m · ${minVac} vacantes)`,
+        });
       } else {
         suggestions.push({
           time: t,
@@ -5743,7 +5790,7 @@ function ScheduleStudentForm({
     });
 
     return suggestions.slice(0, 3);
-  }, [getSlotDetails, day1, day2, room1, room2, isRegular, saturdayTimes, weekdayTimes]);
+  }, [getSlotDetails, day1, day2, room1, room2, isRegular, isIntensive, saturdayTimes, weekdayTimes]);
 
   // Helper para obtener las clases activas en una sala y turno específico (ADR-0121)
   const getRoomActiveLessons = useCallback(
@@ -5817,11 +5864,29 @@ function ScheduleStudentForm({
         room: room2,
         existingRoomLessons: lessons2,
       });
+    } else if (isIntensive && intensiveSecondTime) {
+      const lessons2 = getRoomActiveLessons(day1, intensiveSecondTime, room1);
+      diag2 = evaluateSlotPedagogicalCompatibility({
+        studentName: liveStudent.name,
+        instrument: currentInstrument,
+        category,
+        modality: selectedModality,
+        isPersonalized,
+        teacher: finalTeacher,
+        room: room1,
+        existingRoomLessons: lessons2,
+      });
     }
 
     const allWarnings = [
       ...diag1.warnings.map((w) => ({ ...w, session: 1, day: day1, time: time1, room: room1 })),
-      ...diag2.warnings.map((w) => ({ ...w, session: 2, day: day2, time: time2, room: room2 })),
+      ...diag2.warnings.map((w) => ({
+        ...w,
+        session: 2,
+        day: isIntensive ? day1 : day2,
+        time: isIntensive ? (intensiveSecondTime || time1) : time2,
+        room: isIntensive ? room1 : room2,
+      })),
     ];
 
     return {
@@ -5837,10 +5902,14 @@ function ScheduleStudentForm({
     time2,
     room2,
     isRegular,
+    isIntensive,
+    intensiveSecondTime,
     liveStudent.name,
     category,
     selectedModality,
     finalTeacher,
+    instrument,
+    liveStudent.instrument,
   ]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -5903,6 +5972,7 @@ function ScheduleStudentForm({
       teacher: finalTeacher,
       instrument: instrument,
       room: room1,
+      ...(isIntensive ? { packageTotalSessions: 4 } : {}),
     });
 
     // Agendar clases semanales reemplazando atómicamente cualquier horario previo
@@ -5938,6 +6008,21 @@ function ScheduleStudentForm({
         year: lessonYear,
         effectiveFrom: startStr,
       });
+    } else if (isIntensive && intensiveSecondTime) {
+      // Plan Intensivo (4 clases de 90 min): Ocupa DOS bloques contiguos de 45m en la agenda física (ADR-0157)
+      lessonsToSet.push({
+        student: liveStudent.name,
+        teacher: finalTeacher,
+        instrument: instrument,
+        day: day1,
+        time: intensiveSecondTime,
+        room: room1,
+        category: category,
+        sessionNumber: 2,
+        status: "programada",
+        year: lessonYear,
+        effectiveFrom: startStr,
+      });
     }
 
     setStudentSchedule(liveStudent.name, lessonsToSet);
@@ -5954,7 +6039,7 @@ function ScheduleStudentForm({
         ? `Plan Regular (8 clases): ${day1} ${time1} (${room1}) y ${day2} ${time2} (${room2}) con Prof. ${finalTeacher}.`
         : isRegular1x
         ? `Plan Regular 1x/sem (8 clases · 2 meses): ${day1} ${time1} (${room1}) con Prof. ${finalTeacher}.`
-        : `Plan Intensivo (4 clases): ${day1} ${time1} (${room1}) con Prof. ${finalTeacher}.`,
+        : `Plan Intensivo (4 clases de 90 min): ${day1} ${time1} a ${intensiveSecondTime || time1} (${room1}) con Prof. ${finalTeacher}.`,
     });
 
     onSaved();
@@ -6478,7 +6563,7 @@ function ScheduleStudentForm({
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" />
-            {isRegular2x ? "Primera Clase Semanal (Día 1)" : isRegular1x ? "Clase Semanal (45 min)" : "Horario Semanal Oficial"}
+            {isRegular2x ? "Primera Clase Semanal (Día 1)" : isRegular1x ? "Clase Semanal (45 min)" : isIntensive ? "Horario Intensivo (90 min de corrido)" : "Horario Semanal Oficial"}
           </span>
           {scheduleMode === "pareadas" && isRegular2x && (
             <Badge variant="outline" className="text-[10px] text-primary border-primary/30">
@@ -6543,6 +6628,17 @@ function ScheduleStudentForm({
             </Select>
           </div>
         </div>
+
+        {isIntensive && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 flex items-center justify-between text-xs">
+            <span className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+              ⚡ Bloque 1: <strong>{time1}</strong> (45m) + Bloque 2: <strong>{intensiveSecondTime || "Sin turno contiguo"}</strong> (45m)
+            </span>
+            <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold">
+              Total 90 min en {room1}
+            </Badge>
+          </div>
+        )}
       </div>
 
       {/* Bloque Sesión 2 (Si es Plan Regular 2x/sem o Paquete Flexible 2x) */}

@@ -492,8 +492,8 @@ export function AgendaBoard() {
             return false;
           }
 
-          // 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
-          if (lessonDayInfo && l.effectiveFrom && lessonDayInfo.dateStr < l.effectiveFrom) {
+          // 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131 & ADR-0157)
+          if (lessonDayInfo && !l.dateStr && l.effectiveFrom && lessonDayInfo.dateStr < l.effectiveFrom) {
             return false;
           }
           if (lessonDayInfo && l.effectiveUntil && lessonDayInfo.dateStr > l.effectiveUntil) {

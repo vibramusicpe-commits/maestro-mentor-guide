@@ -1118,3 +1118,22 @@ inferencia.
      1. Prevalece la sesión con asistencia evaluada en esa fecha (`presente`, `ausente`, `tarde`, `justificada`).
      2. Prevalece la sesión puntual con fecha asignada (`dateStr`) o recuperación (`isMakeup`).
      3. Descarta la plantilla semanal abierta redundante.
+
+---
+
+### 57. Soporte Integral para Plan Intensivo (90 min), Doble Bloque Contiguo y Criterio Estricto de Reprogramación en Kardex (ADR-0157)
+1. **Criterio Estricto de Reprogramación en Kardex (`student-attendance-kardex.tsx`)**:
+   - El botón directo `[ 🔄 Reprogramar ]` en el Kardex de asistencias **SOLO** se muestra ante inasistencias reales: **Falta (`ausente`)** o **Justificada (`justificada`)**, o ante sesiones pendientes (`pendiente`) cuando secretaría activa el Modo Edición (`isEditMode`).
+   - Las sesiones marcadas como **`presente`** o **`tarde`** tienen terminantemente prohibido mostrar el botón de reprogramación, respetando la regla pedagógica de que la tardanza computa como asistencia consumida en sala.
+2. **Doble Bloque Contiguo de 45m para Plan Intensivo en Agenda Física (`ScheduleStudentForm`)**:
+   - Las clases de Plan Intensivo tienen una duración de 90 minutos continuos (1h 30m).
+   - En la grilla física de horarios (módulos de 45 minutos), el agendamiento del Plan Intensivo genera **DOS sesiones contiguas de 45 minutos** en el mismo día, sala y docente:
+     - Bloque 1: Franja horaria inicial (`time1`, ej. 09:00 - 09:45).
+     - Bloque 2: Franja horaria consecutiva (`getNextConsecutiveSlot`, ej. 09:45 - 10:30).
+   - El formulario valida aforo y convivencia pedagógica de ambos turnos en tiempo real, bloqueando el turno si no existe franja consecutiva disponible.
+3. **Consolidación de Sesiones en Kardex de Asistencias (`kardex-calculator.ts`)**:
+   - En el Kardex del alumno, las dos lecciones de 45m del mismo día se consolidan por fecha (`slotKey = item.dateStr`), calculando la duración total como 90 minutos (`09:00 - 10:30`) y proyectando exactamente **4 sesiones al mes** (`targetQuota = 4`).
+4. **Desbloqueo de Fechas de Inicio y Aislamiento de `effectiveFrom`**:
+   - La barrera temporal `effectiveFrom` aplica **exclusivamente** a plantillas recurrentes abiertas (`!lesson.dateStr`).
+   - Las sesiones puntuales con fecha (`lesson.dateStr`) y reprogramaciones (`isMakeup`) jamás son filtradas por `effectiveFrom`, permitiendo registrar e iniciar clases en la fecha exacta acordada (ej. caso Liam Renato el sábado 03/10/2026).
+
