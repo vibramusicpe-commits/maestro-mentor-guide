@@ -4,6 +4,22 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.30] - 2026-10-06
+
+### Asignación Docente y de Sala Estricta para Piano Infantil (Caso Ethan Paolo Jara Saldarriaga) (ADR-0160)
+- **Cumplimiento Invariable de la Regla Pedagógica ADR-0102**:
+  - Alumnos de 4 a 8 años en Piano corresponden estrictamente a la **Prof. Nathaly** en **Sala C** (Piano Infantil), nunca a Prof. Fernando (Piano estándar / Sala B).
+  - Se saneó en PostgreSQL Insforge la ficha de **Ethan Paolo Jara Saldarriaga** (`ee03db47-1a4d-492a-a442-99bdabd8d66f`, 7 años, categoría `INFANTIL`):
+    - `instrument`: `"Piano Infantil"`.
+    - `assigned_teacher_id`: `"00000000-0000-0000-0000-000000000005"` (Prof. Nathaly).
+    - `emergency_contact.teacher`: `"Nathaly"`.
+    - `emergency_contact.room`: `"Sala C"`.
+    - `emergency_contact.ageCategory`: `"INFANTIL"`.
+    - Lecciones recurrentes (`sch-1790119019904-f6g0` Lun 17:30 y `sch-1790119019904-pegg` Mié 17:30) y recuperaciones puntuales (23/09 y 05/10 a las 18:15) asignadas a Nathaly en Sala C.
+- **Visibilidad Integral en Kiosco Docente y Horarios Centrales**:
+  - Ethan figura inmediatamente en el Kiosco Docente de Prof. Nathaly (`/teacher`) y en su agenda (`/teacher/agenda`) con sus marcas de asistencia (`2026-10-05: "presente"`).
+  - En la Agenda Central (`/admin/agenda`), Ethan aparece correctamente ubicado en la columna de Sala C (Nathaly) sin cruces ilícitos en Sala B.
+
 ## [2.0.29] - 2026-10-05
 
 ### Exclusión Estricta de Alumnos Inactivos en Seguimiento & Renovación (ADR-0159)

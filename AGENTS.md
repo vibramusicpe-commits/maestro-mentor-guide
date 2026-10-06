@@ -1137,3 +1137,39 @@ inferencia.
    - La barrera temporal `effectiveFrom` aplica **exclusivamente** a plantillas recurrentes abiertas (`!lesson.dateStr`).
    - Las sesiones puntuales con fecha (`lesson.dateStr`) y reprogramaciones (`isMakeup`) jamás son filtradas por `effectiveFrom`, permitiendo registrar e iniciar clases en la fecha exacta acordada (ej. caso Liam Renato el sábado 03/10/2026).
 
+---
+
+### 58. Selector Dinámico de Mes y Semanas en Portal Docente (Octubre - Diciembre 2026) (ADR-0158)
+1. **Navegación Mensual y Semanal en Kiosco Docente (`/teacher`) y Mi Horario (`/teacher/agenda`)**:
+   - Se incorporó un selector dinámico de Mes (Julio 2026 a Diciembre 2026) y selector de Semanas (`monthWeeks`) en `src/routes/teacher.index.tsx`, `src/routes/teacher.agenda.tsx` y `src/components/agenda/minimal-agenda-calendar.tsx`.
+   - Permite a los docentes navegar y gestionar asistencias de meses en curso y futuros (Octubre, Noviembre y Diciembre 2026), erradicando el bloqueo visual que confinaba la vista hasta Setiembre 2026.
+   - Sincroniza dinámicamente la semana activa según la fecha del sistema (`getCurrentWeekIndex`).
+
+---
+
+### 59. Restricción Estricta de Métricas a Cartera Activa en Seguimiento & Renovación (ADR-0159)
+1. **Erradicación de Conteos Inflados con Base Histórica Inactiva**:
+   - En `src/components/admin/student-renewals-retention-panel.tsx`, se eliminaron métricas de cartera global acumulada (como "Total Alumnos 93").
+   - Las 4 tarjetas de indicadores clave operan **únicamente** sobre la base de alumnos con `status === 'activo'`:
+     - Alumnos Activos en Cartera.
+     - Próximos a Vencer (conteo y lista focalizada).
+     - Cuota Completada (100% de clases asistidas / evaluadas).
+     - Alumnos Al Día en Pagos.
+
+---
+
+### 60. Asignación Docente y de Sala Estricta para Piano Infantil (Caso Ethan Paolo Jara Saldarriaga) (ADR-0160)
+1. **Cumplimiento Invariable de Regla Pedagógica ADR-0102**:
+   - Alumnos de 4 a 8 años en Piano corresponden **exclusivamente** a la **Prof. Nathaly** en **Sala C** (Piano Infantil), nunca a Prof. Fernando (Piano estándar / Sala B).
+   - Se actualizó el registro de **Ethan Paolo Jara Saldarriaga** (`ee03db47-1a4d-492a-a442-99bdabd8d66f`, 7 años, nacido en 2019) en Insforge PostgreSQL:
+     - `instrument`: `"Piano Infantil"`.
+     - `assigned_teacher_id`: `"00000000-0000-0000-0000-000000000005"` (Prof. Nathaly).
+     - `emergency_contact.teacher`: `"Nathaly"`.
+     - `emergency_contact.room`: `"Sala C"`.
+     - `emergency_contact.ageCategory`: `"INFANTIL"`.
+     - Lecciones semanales recurrentes (`sch-1790119019904-f6g0` Lun 17:30 y `sch-1790119019904-pegg` Mié 17:30) y recuperaciones puntuales (23/09 y 05/10 a las 18:15) asignadas a Nathaly en Sala C.
+2. **Visibilidad en Kiosco Docente y Agenda Central**:
+   - Ethan figura con sus marcas de asistencia en el portal de Prof. Nathaly (`/teacher` y `/teacher/agenda`) y en la columna de Sala C en `/admin/agenda`.
+   - Se eliminaron cruces indebidos de sala en Sala B en la fecha 05/10/2026.
+
+
