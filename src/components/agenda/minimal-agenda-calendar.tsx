@@ -47,7 +47,7 @@ export function MinimalAgendaCalendar({
   subtitle = "Horarios y clases programadas",
   userType,
   defaultYear = 2026,
-  defaultMonth = 8,
+  defaultMonth,
 }: MinimalAgendaCalendarProps) {
   // Determinar el día de hoy por defecto (0=Dom, 1=Lun... 6=Sáb)
   const todayDayIndex = useMemo(() => {
@@ -56,15 +56,24 @@ export function MinimalAgendaCalendar({
     return Math.min(5, d - 1);
   }, []);
 
+  const resolvedDefaultMonth = useMemo(() => {
+    if (defaultMonth !== undefined) return defaultMonth;
+    const now = new Date();
+    if (now.getFullYear() === defaultYear && now.getMonth() >= 6) {
+      return now.getMonth();
+    }
+    return 9; // Octubre 2026 por defecto
+  }, [defaultMonth, defaultYear]);
+
   const [selectedDayIndex, setSelectedDayIndex] = useState(todayDayIndex);
   const [selectedYear, setSelectedYear] = useState<number>(defaultYear);
-  const [selectedMonth, setSelectedMonth] = useState<number>(defaultMonth); // 8 = Setiembre por defecto
+  const [selectedMonth, setSelectedMonth] = useState<number>(resolvedDefaultMonth);
 
   // Semana activa calculada dinámicamente según la fecha actual real
   const initialWeek = useMemo(() => {
-    const curIdx = getCurrentWeekIndex(defaultYear, defaultMonth);
+    const curIdx = getCurrentWeekIndex(defaultYear, resolvedDefaultMonth);
     return Math.max(1, curIdx + 1);
-  }, [defaultYear, defaultMonth]);
+  }, [defaultYear, resolvedDefaultMonth]);
   const [selectedWeek, setSelectedWeek] = useState<number>(initialWeek);
 
   const schedule = useAppStore((s) => s.schedule);
@@ -176,6 +185,8 @@ export function MinimalAgendaCalendar({
             <option value={7}>Agosto 2026</option>
             <option value={8}>Setiembre 2026</option>
             <option value={9}>Octubre 2026</option>
+            <option value={10}>Noviembre 2026</option>
+            <option value={11}>Diciembre 2026</option>
           </select>
 
           {/* Selector de Semanas del Mes Dinámico */}

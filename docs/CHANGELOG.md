@@ -4,6 +4,19 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.28] - 2026-10-05
+
+### Navegación Dinámica Mensual y Desbloqueo de Horarios de Octubre en Portal Docente (ADR-0158)
+- **Navegación Mensual y Semanal en Kiosco Docente (`src/routes/teacher.index.tsx`)**:
+  - Se eliminó el mes fijo hardcodeado `getMonthWeeks(2026, 8)` y `getCurrentWeekIndex(2026, 8)` que mantenía al Kiosco Docente bloqueado permanentemente en la última semana de Setiembre 2026.
+  - Se implementó selector de mes dinámico (`selectedYear` y `selectedMonth`) con opciones desde Julio hasta Diciembre 2026, inicializado en el mes en curso (Octubre 2026).
+  - Se agregaron controles interactivos de cambio de semana (`Sem 1`, `Sem 2`, `Sem 3`, `Sem 4`, `Sem 5`) y visualización del número de día (`Lun 5`, `Mar 6`, etc.) para una orientación temporal inmediata del profesor.
+- **Dinamización de Mes en Mi Agenda y MinimalAgendaCalendar (`src/routes/teacher.agenda.tsx` y `src/components/agenda/minimal-agenda-calendar.tsx`)**:
+  - Se eliminó `defaultMonth={8}` hardcodeado en `teacher.agenda.tsx`.
+  - En `MinimalAgendaCalendar`, `resolvedDefaultMonth` ahora detecta y selecciona dinámicamente el mes actual en curso (Octubre 2026), y se ampliaron las opciones del selector de meses para incluir Noviembre y Diciembre 2026.
+- **Sincronización con el Ciclo Contractual del Kardex**:
+  - Al seleccionar Octubre 2026, el Kiosco Docente y la Agenda proyectan con total precisión los alumnos activos cuyas cuotas contractuales continúan o inician en Octubre (Liam, Benjamín, Sylvia, Alonso, Boris, Bruno, JHAN, Alejandro, Eithan David, etc.), evaluados rigurosamente mediante `isLessonInStudentCycle`.
+
 ## [2.0.27] - 2026-10-05
 
 ### Soporte Integral para Plan Intensivo de 90 min y Criterio Estricto del Botón Reprogramar (ADR-0157)

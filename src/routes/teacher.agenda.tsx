@@ -134,7 +134,6 @@ function TeacherAgendaPage() {
         subtitle="Clases asignadas y salas de la sede"
         userType="teacher"
         defaultYear={2026}
-        defaultMonth={8}
       />
     </div>
   );

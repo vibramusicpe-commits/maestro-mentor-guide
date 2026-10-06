@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
@@ -77,10 +77,38 @@ export function TeacherKiosk() {
 
   const [selectedDay, setSelectedDay] = useState<WeekDay>(todayDayShort);
 
-  // Semanas lectivas del mes actual (Setiembre 2026)
-  const monthWeeks = useMemo(() => getMonthWeeks(2026, 8), []);
-  const activeWeekIndex = useMemo(() => getCurrentWeekIndex(2026, 8), []);
-  const safeWeekIndex = Math.min(Math.max(0, activeWeekIndex), monthWeeks.length - 1);
+  // Navegación de Mes y Semana dinámicos (ADR-0158)
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    const now = new Date();
+    return now.getFullYear() === 2026 ? 2026 : now.getFullYear();
+  });
+
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => {
+    const now = new Date();
+    if (now.getFullYear() === 2026 && now.getMonth() >= 6) {
+      return now.getMonth();
+    }
+    return 9; // Octubre 2026 por defecto
+  });
+
+  // Semanas lectivas del mes seleccionado
+  const monthWeeks = useMemo(() => getMonthWeeks(selectedYear, selectedMonth), [selectedYear, selectedMonth]);
+
+  // Semana activa calculada dinámicamente según la fecha actual dentro del mes seleccionado
+  const computedWeekIndex = useMemo(() => {
+    const curIdx = getCurrentWeekIndex(selectedYear, selectedMonth);
+    return Math.max(0, Math.min(curIdx, monthWeeks.length - 1));
+  }, [selectedYear, selectedMonth, monthWeeks.length]);
+
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(computedWeekIndex);
+
+  // Sincronizar semana activa cuando cambia el mes
+  useEffect(() => {
+    const curIdx = getCurrentWeekIndex(selectedYear, selectedMonth);
+    setSelectedWeekIndex(Math.max(0, Math.min(curIdx, monthWeeks.length - 1)));
+  }, [selectedYear, selectedMonth, monthWeeks.length]);
+
+  const safeWeekIndex = Math.min(Math.max(0, selectedWeekIndex), Math.max(0, monthWeeks.length - 1));
   const currentWeekObj = monthWeeks[safeWeekIndex] || monthWeeks[0];
   const targetDayInfo = currentWeekObj?.days.find((d) => d.dayKey === selectedDay);
   const targetDateStr = targetDayInfo?.dateStr;
@@ -287,14 +315,59 @@ export function TeacherKiosk() {
         </div>
       </div>
 
+      {/* 📅 NAVEGACIÓN TEMPORAL: SELECTOR DE MES Y SEMANAS (ADR-0158) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-2xl bg-card border border-border shadow-xs">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-primary shrink-0" />
+          <select
+            value={selectedMonth}
+            onChange={(e) => {
+              const newM = Number(e.target.value);
+              setSelectedMonth(newM);
+              const curW = getCurrentWeekIndex(selectedYear, newM);
+              setSelectedWeekIndex(Math.max(0, Math.min(curW, getMonthWeeks(selectedYear, newM).length - 1)));
+            }}
+            className="bg-background px-3 py-1.5 rounded-xl border border-border text-xs font-bold text-foreground cursor-pointer shadow-2xs focus:ring-2 focus:ring-primary outline-none"
+          >
+            <option value={6}>Julio 2026</option>
+            <option value={7}>Agosto 2026</option>
+            <option value={8}>Setiembre 2026</option>
+            <option value={9}>Octubre 2026</option>
+            <option value={10}>Noviembre 2026</option>
+            <option value={11}>Diciembre 2026</option>
+          </select>
+        </div>
+
+        {/* Píldoras de Semanas (Sem 1, Sem 2, etc.) */}
+        <div className="flex items-center gap-1 overflow-x-auto p-1 bg-muted/60 rounded-xl border border-border/80">
+          {monthWeeks.map((w) => {
+            const isSelected = safeWeekIndex === w.weekIndex;
+            return (
+              <button
+                key={w.weekIndex}
+                onClick={() => setSelectedWeekIndex(w.weekIndex)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all whitespace-nowrap ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground shadow-xs scale-102"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background"
+                }`}
+                title={`Semana ${w.weekIndex + 1}: ${w.dateRangeLabel}`}
+              >
+                Sem {w.weekIndex + 1}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* 🗓️ SELECTOR DE DÍAS EN TABS MÓVILES (LUN..SÁB) */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between px-1">
           <p className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-primary" /> Horario por Día · {teacherDisplayName}
+            <Calendar className="h-3.5 w-3.5 text-primary" /> {currentWeekObj?.fullLabel || `Semana ${safeWeekIndex + 1}`}
           </p>
           <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
-            {dayLessons.length} {dayLessons.length === 1 ? "alumno" : "alumnos"} el {selectedDayFull}
+            {dayLessons.length} {dayLessons.length === 1 ? "alumno" : "alumnos"} · {selectedDayFull} {targetDayInfo?.dayNum ? `(${targetDayInfo.dayNum})` : ""}
           </span>
         </div>
 
@@ -302,21 +375,23 @@ export function TeacherKiosk() {
           {DAYS_OF_WEEK.map((day) => {
             const isSelected = selectedDay === day.short;
             const count = countsByDay.get(day.short) || 0;
+            const dayInfo = currentWeekObj?.days.find((cd) => cd.dayKey === day.short);
 
             return (
               <button
                 key={day.short}
                 onClick={() => setSelectedDay(day.short)}
-                className={`flex flex-col items-center justify-center py-2.5 rounded-xl transition-all ${
+                className={`flex flex-col items-center justify-center py-2 rounded-xl transition-all ${
                   isSelected
                     ? "bg-primary text-primary-foreground font-black shadow-md scale-105"
                     : "text-foreground/80 font-semibold hover:bg-muted hover:text-foreground"
                 }`}
               >
                 <span className="text-xs font-bold">{day.short}</span>
+                {dayInfo?.dayNum && <span className="text-[9px] opacity-75 font-semibold">{dayInfo.dayNum}</span>}
                 {count > 0 ? (
                   <span
-                    className={`mt-1 text-[9px] px-1.5 py-0.2 rounded-full font-black ${
+                    className={`mt-0.5 text-[9px] px-1.5 py-0.2 rounded-full font-black ${
                       isSelected
                         ? "bg-primary-foreground/25 text-primary-foreground"
                         : "bg-primary/15 text-primary"
@@ -325,7 +400,7 @@ export function TeacherKiosk() {
                     {count}
                   </span>
                 ) : (
-                  <span className="mt-1 text-[9px] opacity-40">-</span>
+                  <span className="mt-0.5 text-[9px] opacity-40">-</span>
                 )}
               </button>
             );
