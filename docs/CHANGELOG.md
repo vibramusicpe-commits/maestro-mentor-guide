@@ -4,6 +4,20 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.29] - 2026-10-05
+
+### Exclusión Estricta de Alumnos Inactivos en Seguimiento & Renovación (ADR-0159)
+- **Aislamiento Exclusivo de la Base Activa (`src/components/admin/student-renewals-retention-panel.tsx`)**:
+  - Se eliminó la inyección de alumnos históricos inactivos (`inactiveStudents` en pausa o baja administrativa) que inflaba falsamente el total del panel a 93 alumnos ("Cartera global").
+  - El motor de cálculo `computedData` ahora opera de manera estricta y exclusiva sobre alumnos con `status === "activo"`, en total consonancia con el badge del encabezado de la pestaña (`Seguimiento & Renovación`).
+- **Rediseño de Métricas y Filtros a 4 Columnas**:
+  - Se reestructuraron las tarjetas de métricas a 4 columnas:
+    1. **Total Alumnos Activos**: Base activa oficial.
+    2. **🔴 Culminados**: Alumnos listos para renovar mes.
+    3. **🟡 Por Culminar**: Alumnos en alerta preventiva (≤ 2 clases restantes).
+    4. **🟢 En Curso**: Progreso regular (> 2 clases restantes).
+  - Se retiró la categoría y el botón de filtro `⚪ Pausa / Baja`, manteniendo el enfoque 100% operativo en la retención de alumnos vigentes.
+
 ## [2.0.28] - 2026-10-05
 
 ### Navegación Dinámica Mensual y Desbloqueo de Horarios de Octubre en Portal Docente (ADR-0158)

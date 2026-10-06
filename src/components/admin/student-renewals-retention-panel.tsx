@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/table";
 import { isSameStudentId, isMatchingStudentName, normalizeStudentName } from "@/lib/student-matching";
 
-type RetentionFilter = "todos" | "culminado" | "proximo_culminar" | "en_curso" | "pausa_baja";
+type RetentionFilter = "todos" | "culminado" | "proximo_culminar" | "en_curso";
 
 export function StudentRenewalsRetentionPanel() {
   const students = useAppStore((s) => s.adminStudents);
@@ -46,33 +46,23 @@ export function StudentRenewalsRetentionPanel() {
   const [renewStudent, setRenewStudent] = useState<AdminStudent | null>(null);
   const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
 
-  // Calcular el estado de retención y seguimiento para alumnos activos e inactivos deduplicados
+  // 🛡️ REGLA FUNDAMENTAL (ADR-0106 & ADR-0159):
+  // El Panel de Seguimiento & Renovación trabaja EXCLUSIVAMENTE con la base de datos activa oficial.
+  // Los registros históricos inactivos se preservan únicamente en el panel de Depuración & Reactivación.
   const computedData = useMemo(() => {
-    // 1. Alumnos activos oficiales
     const activeStudents = students.filter((st) => st.status === "activo");
-    const activeNormNames = new Set(activeStudents.map((st) => normalizeStudentName(st.name)));
 
-    // 2. Alumnos en pausa o baja que no tengan homónimo activo registrado
-    const inactiveStudents = students.filter((st) => {
-      if (st.status === "activo") return false;
-      return !activeNormNames.has(normalizeStudentName(st.name));
-    });
-
-    const allStudents = [...activeStudents, ...inactiveStudents];
-
-    return allStudents.map((st) => {
+    return activeStudents.map((st) => {
       const modalityStr = (st.modality || "").toLowerCase();
       const isIntensive = modalityStr.includes("inten") || modalityStr.includes("90 min");
       const targetQuota = isIntensive ? 4 : (st.packageTotalSessions || 8);
 
-      const sessions = st.status === "activo"
-        ? computeStudentCycleSessions({
-            student: st,
-            allSchedule: schedule,
-            selectedYear: new Date().getFullYear(),
-            selectedMonth: new Date().getMonth(),
-          })
-        : [];
+      const sessions = computeStudentCycleSessions({
+        student: st,
+        allSchedule: schedule,
+        selectedYear: new Date().getFullYear(),
+        selectedMonth: new Date().getMonth(),
+      });
 
       const retention = computeStudentRetentionStatus(st, sessions, targetQuota);
 
@@ -83,18 +73,16 @@ export function StudentRenewalsRetentionPanel() {
     });
   }, [students, schedule]);
 
-  // Contadores de métricas por categoría
+  // Contadores de métricas por categoría (exclusivamente alumnos activos)
   const metrics = useMemo(() => {
     let culminados = 0;
     let proximoCulminar = 0;
     let enCurso = 0;
-    let pausaBaja = 0;
 
     computedData.forEach(({ retention }) => {
       if (retention.category === "culminado") culminados++;
       else if (retention.category === "proximo_culminar") proximoCulminar++;
       else if (retention.category === "en_curso") enCurso++;
-      else if (retention.category === "pausa_baja") pausaBaja++;
     });
 
     return {
@@ -102,7 +90,6 @@ export function StudentRenewalsRetentionPanel() {
       culminados,
       proximoCulminar,
       enCurso,
-      pausaBaja,
     };
   }, [computedData]);
 
@@ -110,14 +97,12 @@ export function StudentRenewalsRetentionPanel() {
   // 1. 🔴 Rojos (Culminados - Urgencia máxima de renovación o liberación de vacante)
   // 2. 🟡 Amarillos (Próximos a culminar - Alerta preventiva de 1 ó 2 clases restantes)
   // 3. 🟢 Verdes (En curso - Ciclo lectivo normal > 2 clases)
-  // 4. ⚪ Blancos (Pausa / Baja)
   const filteredList = useMemo(() => {
     const list = computedData.filter(({ student, retention }) => {
       // Filtro por categoría de retención
       if (filter === "culminado" && retention.category !== "culminado") return false;
       if (filter === "proximo_culminar" && retention.category !== "proximo_culminar") return false;
       if (filter === "en_curso" && retention.category !== "en_curso") return false;
-      if (filter === "pausa_baja" && retention.category !== "pausa_baja") return false;
 
       // Filtro por búsqueda
       if (search.trim() !== "") {
@@ -183,9 +168,9 @@ export function StudentRenewalsRetentionPanel() {
         </div>
       </div>
 
-      {/* Tarjetas de Métricas Superior Ordenadas por Urgencia */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {/* 1. Todos */}
+      {/* Tarjetas de Métricas Superior Ordenadas por Urgencia (Exclusivamente Alumnos Activos) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* 1. Todos los Alumnos Activos */}
         <div
           onClick={() => setFilter("todos")}
           className={`p-3 rounded-xl border transition-all cursor-pointer ${
@@ -195,11 +180,11 @@ export function StudentRenewalsRetentionPanel() {
           }`}
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold">
-            <span>Total Alumnos</span>
+            <span>Total Alumnos Activos</span>
             <UserCheck className="h-4 w-4 text-primary" />
           </div>
           <p className="text-2xl font-black text-foreground mt-1">{metrics.total}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Cartera global</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Base activa oficial</p>
         </div>
 
         {/* 2. 🔴 Culminados */}
@@ -258,25 +243,6 @@ export function StudentRenewalsRetentionPanel() {
           </p>
           <p className="text-[10px] text-muted-foreground mt-0.5">Progreso regular (&gt;2)</p>
         </div>
-
-        {/* 5. ⚪ Pausa / Baja */}
-        <div
-          onClick={() => setFilter("pausa_baja")}
-          className={`p-3 rounded-xl border transition-all cursor-pointer ${
-            filter === "pausa_baja"
-              ? "bg-zinc-500/15 border-zinc-400 shadow-sm ring-1 ring-zinc-400/40"
-              : "bg-muted/40 border-border hover:bg-muted/70"
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-            <span>⚪ Pausa / Baja</span>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <p className="text-2xl font-black text-muted-foreground mt-1">
-            {metrics.pausaBaja}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Inactivos en sala</p>
-        </div>
       </div>
 
       {/* Barra de Filtros y Buscador */}
@@ -323,14 +289,6 @@ export function StudentRenewalsRetentionPanel() {
             className="h-7 text-xs font-bold gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
           >
             🟢 En Curso ({metrics.enCurso})
-          </Button>
-          <Button
-            size="sm"
-            variant={filter === "pausa_baja" ? "default" : "ghost"}
-            onClick={() => setFilter("pausa_baja")}
-            className="h-7 text-xs font-bold gap-1 text-zinc-500 hover:text-foreground"
-          >
-            ⚪ Pausa/Baja ({metrics.pausaBaja})
           </Button>
         </div>
 
@@ -474,16 +432,6 @@ export function StudentRenewalsRetentionPanel() {
                             >
                               <RotateCw className="h-3.5 w-3.5" />
                               <span>Renovar</span>
-                            </Button>
-                          ) : student.status !== "activo" ? (
-                            <Button
-                              size="sm"
-                              disabled
-                              variant="ghost"
-                              className="text-xs text-muted-foreground opacity-50 cursor-not-allowed"
-                              title="Alumno en pausa o baja administrativa"
-                            >
-                              <span>{student.status === "pausa" ? "Pausa" : "Baja"}</span>
                             </Button>
                           ) : (
                             <Button
