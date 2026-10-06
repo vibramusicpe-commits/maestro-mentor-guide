@@ -4,6 +4,19 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.31] - 2026-10-06
+
+### Cómputo de Evaluaciones por Vigencia de Ciclo Activo y Saneamiento de Ficha/Pago para Alejandro Huarca (ADR-0161)
+- **Aislamiento de Evaluaciones al Ciclo Activo (`src/lib/student-cycle.ts`)**:
+  - En `computeStudentCycle`, `cycleEvaluatedDates` y `cycleAttendedDates` acotan las evaluaciones del ciclo contractual al período activo del alumno (`dateStr >= studentProfile.planStartDate`).
+  - Las evaluaciones de ciclos anteriores se preservan en `evaluatedSlots`/`evaluatedDates` para mantener visible el historial de meses pasados en el calendario, pero ya no agotan la cuota del nuevo ciclo renovado.
+  - Esto erradicó el bloqueo que impedía a alumnos renovados proyectar sus clases pendientes del mes actual (ej. Alejandro Huarca, quien tras renovar el 05/10 solo veía su clase del 05/10 y no las 7 clases restantes de Octubre).
+- **Saneamiento en PostgreSQL Insforge de Alejandro Huarca (`d3765829-7338-4524-b7ee-88f1dcd51ce8`)**:
+  - `full_name`: `"Alejandro Huarca"`.
+  - `emergency_contact`: Saldo actualizado a 0 (`balance: 0`), monto abonado actualizado a 594 (`amountPaid: 594`) y estado `"al-dia"`.
+  - Recibo de renovación (`ca3be401-5b42-404f-8262-20483d37220d`): `amount_paid: 297.00`, `remaining_balance: 0.00`, `status: "pagado"`.
+  - `payment_audit_logs`: Insertado el registro oficial de pago por S/ 297 vía Yape (`RENOVACION-PAGO`).
+
 ## [2.0.30] - 2026-10-06
 
 ### Asignación Docente y de Sala Estricta para Piano Infantil (Caso Ethan Paolo Jara Saldarriaga) (ADR-0160)

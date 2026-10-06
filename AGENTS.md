@@ -1172,4 +1172,20 @@ inferencia.
    - Ethan figura con sus marcas de asistencia en el portal de Prof. Nathaly (`/teacher` y `/teacher/agenda`) y en la columna de Sala C en `/admin/agenda`.
    - Se eliminaron cruces indebidos de sala en Sala B en la fecha 05/10/2026.
 
+---
+
+### 61. Cómputo de Evaluaciones por Vigencia de Ciclo Activo y Saneamiento de Ficha/Pago para Alejandro Huarca (ADR-0161)
+1. **Aislamiento de Evaluaciones al Ciclo Activo (`dateStr >= planStartDate`) en `computeStudentCycle`**:
+   - En `src/lib/student-cycle.ts`, `cycleEvaluatedDates` y `cycleAttendedDates` acotan las evaluaciones consideradas para el cumplimiento de la cuota (`targetQuota`) estrictamente a aquellas ocurridas dentro de la vigencia del ciclo contractual activo (`dateStr >= studentProfile.planStartDate`).
+   - Las evaluaciones históricas anteriores a `planStartDate` (ej. las 8 clases de Agosto/Setiembre de un alumno que renovó para Octubre) se preservan en `evaluatedSlots` y `evaluatedDates` para que permanezcan visibles con sus marcas en meses pasados, pero **jamás saturan o agotan la cuota del nuevo ciclo**.
+   - Esto erradica el bloqueo donde un alumno renovado (ej. Alejandro Huarca con inicio de nuevo ciclo el 05/10/2026) figuraba falsamente como "ciclo culminado" tras asistir a su primera clase, desbloqueando la proyección de sus 7 clases restantes en Octubre y Noviembre tanto en el Horario de Clases como en el Kardex.
+2. **Saneamiento en PostgreSQL Insforge de Alejandro Huarca (`d3765829-7338-4524-b7ee-88f1dcd51ce8`)**:
+   - `full_name`: `"Alejandro Huarca"`.
+   - `emergency_contact.amountPaid`: 594 (297 ciclo 1 + 297 renovación ciclo 2).
+   - `emergency_contact.balance`: 0.
+   - `emergency_contact.payment`: `"al-dia"`.
+   - `invoices` (`ca3be401-5b42-404f-8262-20483d37220d`): `amount_paid: 297.00`, `remaining_balance: 0.00`, `status: "pagado"`, `concept: "Plan Regular (8 clases / 45 min) (Violín) — Alejandro Huarca (Renovación Ciclo)"`.
+   - `payment_audit_logs`: Registro oficial de auditoría de pago por S/ 297 vía Yape con referencia `RENOVACION-PAGO`.
+
+
 

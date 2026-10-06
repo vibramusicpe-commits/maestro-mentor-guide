@@ -92,6 +92,16 @@ export function computeStudentCycle(
   const attendedDates = new Set<string>();
   let latestEvaluatedDate = "";
 
+  // 🛡️ REGLA INSTITUCIONAL DE RENOVACIÓN DE CICLO (ADR-0139 & ADR-0161):
+  // Evaluaciones y asistencias acotadas a la vigencia del ciclo contractual activo (dateStr >= planStartDate).
+  // Esto permite que al renovar mes con un nuevo planStartDate, las 8 clases del mes anterior no agoten
+  // falsamente la cuota del nuevo ciclo. Al mismo tiempo, evaluatedSlots/evaluatedDates conserva el historial
+  // global para que las marcas de asistencia pasadas sigan visibles en el calendario.
+  const cycleEvaluatedSlots = new Set<string>();
+  const cycleEvaluatedDates = new Set<string>();
+  const cycleAttendedSlots = new Set<string>();
+  const cycleAttendedDates = new Set<string>();
+
   studentLessons.forEach((l) => {
     if (l.attendanceByDate) {
       Object.entries(l.attendanceByDate).forEach(([dateStr, att]) => {
@@ -110,15 +120,25 @@ export function computeStudentCycle(
           if (!latestEvaluatedDate || dateStr > latestEvaluatedDate) {
             latestEvaluatedDate = dateStr;
           }
+
+          // Computar para el ciclo activo si coincide con o es posterior a planStartDate
+          if (!studentProfile.planStartDate || dateStr >= studentProfile.planStartDate) {
+            cycleEvaluatedSlots.add(slot);
+            cycleEvaluatedDates.add(dateStr);
+            if (att === "presente" || att === "tarde") {
+              cycleAttendedSlots.add(slot);
+              cycleAttendedDates.add(dateStr);
+            }
+          }
         }
       });
     }
   });
 
-  const evaluatedCount = evaluatedDates.size;
-  const attendedCount = attendedDates.size;
-  // 🛡️ REGLA (ADR-0134 & ADR-0149): Un ciclo lectivo solo se considera formalmente culminado
-  // cuando el alumno ha asistido efectivamente a todas las clases contratadas (attendedCount >= targetQuota)
+  const evaluatedCount = cycleEvaluatedDates.size;
+  const attendedCount = cycleAttendedDates.size;
+  // 🛡️ REGLA (ADR-0134, ADR-0149 & ADR-0161): Un ciclo lectivo solo se considera formalmente culminado
+  // cuando el alumno ha asistido efectivamente a todas las clases contratadas de su ciclo activo (attendedCount >= targetQuota)
   const isCycleCompleted = attendedCount >= targetQuota;
 
   const effectiveEndDate = studentProfile.planEndDate;
