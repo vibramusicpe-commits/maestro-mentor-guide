@@ -1187,5 +1187,21 @@ inferencia.
    - `invoices` (`ca3be401-5b42-404f-8262-20483d37220d`): `amount_paid: 297.00`, `remaining_balance: 0.00`, `status: "pagado"`, `concept: "Plan Regular (8 clases / 45 min) (Violín) — Alejandro Huarca (Renovación Ciclo)"`.
    - `payment_audit_logs`: Registro oficial de auditoría de pago por S/ 297 vía Yape con referencia `RENOVACION-PAGO`.
 
+---
 
+### 62. Consolidación Integral de 90 Minutos para Plan Intensivo (4 clases / 90 min) en Kardex y Horario de Clases (ADR-0162)
+1. **Consolidación de Bloques Contiguos en Kardex (`src/lib/kardex-calculator.ts`)**:
+   - En `computeStudentMonthSessions`, se implementó la detección de `isIntensive` (`modalityStr.includes("inten") || modalityStr.includes("90 min") || (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"))`).
+   - Se corrigió el cálculo de duración de la sesión en el Kardex: `durationMin = isIntensive ? 90 : 45`, garantizando que `timeEnd` abarque los 90 minutos reglamentarios (ej. `10:30 - 12:00`, `09:00 - 10:30`, `16:00 - 17:30`).
+   - Tanto en la proyección mensual como en la del ciclo completo, múltiples bloques contiguos de 45 minutos asignados a una misma fecha se consolidan en una única fila de sesión de 90 minutos para esa fecha (`slotKey = isIntensive ? item.dateStr : ...`), actualizando automáticamente su estado a evaluado si cualquiera de los bloques cuenta con marca de asistencia en sala.
+2. **Ocultamiento del Botón `+ De corrido (+45m)` en Sesiones Intensivas (`src/components/admin/student-attendance-kardex.tsx`)**:
+   - Se condicionó el botón de clase contigua a `{!isIntensivo && ...}`, impidiendo agregar 45 minutos adicionales sobre una sesión que por diseño contractual ya cubre 90 minutos.
+3. **Sincronización Reactiva de Asistencias entre Bloques Contiguos (`src/store/app-store.ts`)**:
+   - En `setStudentAttendance` y `setStudentSessionAttendance`, al evaluar una sesión de un alumno de Plan Intensivo (ej. marcar "Presente"), el estado se replica en ambos bloques contiguos de esa fecha, preservando la coherencia entre el Kardex, la Agenda central y el Kiosco docente.
+4. **Saneamiento Quirúrgico en PostgreSQL Insforge**:
+   - **Antonella** (`8c322418-4959-43eb-8fe8-7224451dee7e`): Horario oficial corregido a Viernes de 09:00 a 09:45 y 09:45 a 10:30 (Jeremy, Sala A, Piano, 2 bloques contiguos). Asistencias de 18/09, 25/09 y 02/10 preservadas como `presente`. Le resta su última clase el 09/10 para completar su ciclo de 4 sesiones de 90 min.
+   - **Benjamin** (`57db57ae-ad12-4e58-bedc-659ac7dbef24`): Asignados 2 bloques contiguos los Sábados: 10:30 a 11:15 y 11:15 a 12:00 (Jeremy, Sala A, Piano). Asistencias de 26/09 y 03/10 preservadas como `presente`.
+   - **Eitan Anton** (`482dd79d-630e-41dd-91d8-4730e73651d8`): Asignados 2 bloques contiguos los Sábados: 09:00 a 09:45 y 09:45 a 10:30 (Fernando, Sala B, Piano). Se corrigió `packageTotalSessions` a 4. Asistencias de 12/09 y 26/09 (recuperación de 19/09) preservadas como `presente`.
+   - **Flavia Nicole Concepcion** (`4834995a-a8df-4531-b1de-ddaec8d2550f`): Asignados 2 bloques contiguos los Viernes: 16:00 a 16:45 y 16:45 a 17:30 (Fernando, Sala B, Piano). Asistencias de 04/09, 11/09 y 18/09 preservadas como `presente` y recuperación programada para el 09/10 en ambos bloques.
+   - **Viernes Completo**: Confirmada la nómina de 4 alumnos activos los Viernes: Antonella (09:00 - 10:30, Sala A), Flavia Nicole (16:00 - 17:30, Sala B), Mia Lucero Bellido (16:00 - 16:45, Sala C) y Kamila Valentina (17:30 - 19:00, Sala A).
 

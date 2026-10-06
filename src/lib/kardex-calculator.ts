@@ -370,15 +370,20 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   });
 
   // 2. Deduplicar por fecha y hora exactas
-  const seenSlots = new Set<string>();
+  const seenSlots = new Map<string, StudentSessionItem>();
   const deduped: StudentSessionItem[] = [];
   rawCandidates.forEach((item) => {
-    // 🛡️ REGLA ADR-0157: Para Plan Intensivo (4 clases / 90 min), múltiples bloques contiguos en la misma fecha
+    // 🛡️ REGLA ADR-0157 & ADR-0162: Para Plan Intensivo (4 clases / 90 min), múltiples bloques contiguos en la misma fecha
     // se consolidan en una única sesión de 90 minutos para esa fecha en el Kardex.
     const slotKey = isIntensive ? item.dateStr : `${item.dateStr}-${item.time}`;
     if (!seenSlots.has(slotKey)) {
-      seenSlots.add(slotKey);
+      seenSlots.set(slotKey, item);
       deduped.push(item);
+    } else if (isIntensive) {
+      const existing = seenSlots.get(slotKey)!;
+      if (existing.status === "pendiente" && item.status !== "pendiente") {
+        existing.status = item.status;
+      }
     }
   });
 
@@ -440,6 +445,10 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
   const effectivePlanStartDate = student.planStartDate || student.joinedAt || undefined;
   const effectivePlanEndDate = student.planEndDate || undefined;
   const modalityStr = (student.modality || "Regular").toLowerCase();
+  const isIntensive =
+    modalityStr.includes("inten") ||
+    modalityStr.includes("90 min") ||
+    (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"));
   const isFlexiblePackage =
     modalityStr.includes("flexible") ||
     modalityStr.includes("demanda") ||
@@ -509,8 +518,9 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
         }
       }
 
+      const durationMin = isIntensive ? 90 : 45;
       const [hh, mm] = (lesson.time || "16:00").split(":").map((v) => parseInt(v, 10));
-      const endMinuteTotal = (hh || 16) * 60 + (mm || 0) + 45;
+      const endMinuteTotal = (hh || 16) * 60 + (mm || 0) + durationMin;
       const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
       const endM = String(endMinuteTotal % 60).padStart(2, "0");
       const timeEnd = `${endH}:${endM}`;
@@ -556,13 +566,20 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
     return 0;
   });
 
-  const seenSlots = new Set<string>();
+  const seenSlots = new Map<string, StudentSessionItem>();
   const deduped: StudentSessionItem[] = [];
   rawCandidates.forEach((item) => {
-    const slotKey = `${item.dateStr}-${item.time}`;
+    // 🛡️ REGLA ADR-0157 & ADR-0162: Para Plan Intensivo (4 clases / 90 min), múltiples bloques contiguos en la misma fecha
+    // se consolidan en una única sesión de 90 minutos para esa fecha en el Kardex mensual.
+    const slotKey = isIntensive ? item.dateStr : `${item.dateStr}-${item.time}`;
     if (!seenSlots.has(slotKey)) {
-      seenSlots.add(slotKey);
+      seenSlots.set(slotKey, item);
       deduped.push(item);
+    } else if (isIntensive) {
+      const existing = seenSlots.get(slotKey)!;
+      if (existing.status === "pendiente" && item.status !== "pendiente") {
+        existing.status = item.status;
+      }
     }
   });
 

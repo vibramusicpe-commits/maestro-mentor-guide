@@ -181,7 +181,10 @@ export function StudentAttendanceKardex({
     liveStudent.planType === "Demo Nivelación";
 
   const packageTotal = Number(liveStudent.packageTotalSessions) || (isDemoNivelacion ? 1 : 24);
-  const isIntensivo = liveStudent.modality?.toLowerCase().includes("inten");
+  const isIntensivo =
+    modalityStr.includes("inten") ||
+    modalityStr.includes("90 min") ||
+    (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"));
   const targetQuota = isFlexiblePackage ? packageTotal : isDemoNivelacion ? 1 : isIntensivo ? 4 : 8;
 
   const now = new Date();
@@ -1446,17 +1449,19 @@ export function StudentAttendanceKardex({
                       )
                     )}
 
-                    {/* ➕ Botón rápido de clase de corrido (+45m contiguo) */}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleAddConsecutiveClass(item)}
-                      className="h-7 px-2 text-[11px] font-black text-primary hover:bg-primary/10 rounded-xl border border-primary/30 flex items-center gap-1 transition-transform active:scale-95 shadow-2xs"
-                      title="Agregar sesión de corrido (+45 min contiguo inmediatamente después)"
-                    >
-                      <Layers className="h-3.5 w-3.5" />
-                      <span>+ De corrido (+45m)</span>
-                    </Button>
+                    {/* ➕ Botón rápido de clase de corrido (+45m contiguo) - No aplica para Intensivo (ya es 90 min) */}
+                    {!isIntensivo && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleAddConsecutiveClass(item)}
+                        className="h-7 px-2 text-[11px] font-black text-primary hover:bg-primary/10 rounded-xl border border-primary/30 flex items-center gap-1 transition-transform active:scale-95 shadow-2xs"
+                        title="Agregar sesión de corrido (+45 min contiguo inmediatamente después)"
+                      >
+                        <Layers className="h-3.5 w-3.5" />
+                        <span>+ De corrido (+45m)</span>
+                      </Button>
+                    )}
 
                     {/* Botones de Actualización Inmediata en 1 Clic (Solo en modo edición) */}
                     {isEditMode ? (

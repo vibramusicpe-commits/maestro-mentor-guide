@@ -2411,8 +2411,23 @@ export const useAppStore = create<AppState>()(
           const weekIdx = targetWeekIndex ?? lesson?.weekIndex ?? getCurrentWeekIndex();
           const effectiveDateStr = dateStr || lesson?.dateStr;
 
+          const isTargetIntensivo = () => {
+            const matchedSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, studentName));
+            const modStr = (matchedSt?.modality || "").toLowerCase();
+            return modStr.includes("inten") || modStr.includes("90 min") || (modStr.includes("4 clases") && !modStr.includes("45 min"));
+          };
+          const intensivoActive = isTargetIntensivo();
+          const targetDay = lesson?.day;
+
           const newSchedule = s.schedule.map((l) => {
-            if (l.id === lessonId) {
+            const isMatchingLesson = l.id === lessonId || (
+              intensivoActive &&
+              effectiveDateStr &&
+              isMatchingStudentName(l.student, studentName) &&
+              (l.day === targetDay || (!l.day && l.dateStr === effectiveDateStr)) &&
+              (l.dateStr === effectiveDateStr || (!l.dateStr && l.status !== "cancelada"))
+            );
+            if (isMatchingLesson) {
               const prevByWeek = { ...(l.attendanceByWeek || {}) };
               const prevByDate = { ...(l.attendanceByDate || {}) };
               if (effectiveDateStr) {
@@ -2530,8 +2545,23 @@ export const useAppStore = create<AppState>()(
           if (isAbsence && !wasAbsence) creditDelta = 1;
           else if (!isAbsence && wasAbsence) creditDelta = -1;
 
+          const isTargetIntensivo2 = () => {
+            const matchedSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, studentName));
+            const modStr = (matchedSt?.modality || "").toLowerCase();
+            return modStr.includes("inten") || modStr.includes("90 min") || (modStr.includes("4 clases") && !modStr.includes("45 min"));
+          };
+          const intensivoActive2 = isTargetIntensivo2();
+          const targetDay2 = targetLesson?.day;
+
           const newSchedule = s.schedule.map((l) => {
-            if (l.id === lessonId) {
+            const isMatchingLesson = l.id === lessonId || (
+              intensivoActive2 &&
+              dateStr &&
+              isMatchingStudentName(l.student, studentName) &&
+              (l.day === targetDay2 || (!l.day && l.dateStr === dateStr)) &&
+              (l.dateStr === dateStr || (!l.dateStr && l.status !== "cancelada"))
+            );
+            if (isMatchingLesson) {
               const prevByWeek = { ...(l.attendanceByWeek || {}) };
               const prevByDate = { ...(l.attendanceByDate || {}) };
 

@@ -4,6 +4,24 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.32] - 2026-10-06
+
+### Consolidación Integral de 90 Minutos para Plan Intensivo (4 clases / 90 min) en Kardex y Horario de Clases (ADR-0162)
+- **Consolidación de Bloques Contiguos en Kardex (`src/lib/kardex-calculator.ts`)**:
+  - En `computeStudentMonthSessions`, se incorporó la detección de `isIntensive` (`modalityStr.includes("inten") || modalityStr.includes("90 min") || (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"))`).
+  - Se corrigió el cálculo de duración: `durationMin = isIntensive ? 90 : 45` para calcular `endMinuteTotal` y `timeEnd` como ventana completa de 90 minutos (e.g. `10:30 - 12:00`, `09:00 - 10:30`, `16:00 - 17:30`).
+  - En la deduplicación mensual y por ciclo, los múltiples bloques contiguos de 45 minutos asignados a una misma fecha se consolidan en una única fila de sesión de 90 minutos para esa fecha (`slotKey = isIntensive ? item.dateStr : ...`), actualizando su estado si alguno de los bloques fue evaluado en sala.
+- **Ocultamiento del Botón `+ De corrido (+45m)` en Sesiones Intensivas (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - Se condicionó el botón de clase de corrido a `{!isIntensivo && ...}`, eliminando la opción redundante de agregar 45 minutos contiguos adicionales sobre una sesión que por contrato ya dura 90 minutos.
+- **Sincronización Reactiva de Asistencias entre Bloques Contiguos (`src/store/app-store.ts`)**:
+  - En `setStudentAttendance` y `setStudentSessionAttendance`, al evaluar una sesión de Plan Intensivo (e.g. "Presente"), el estado se replica automáticamente en ambos bloques contiguos del día, asegurando coherencia total entre el Kardex y las tarjetas del Kiosco/Agenda.
+- **Saneamiento Quirúrgico en PostgreSQL Insforge**:
+  - **Antonella** (`8c322418-4959-43eb-8fe8-7224451dee7e`): Horario oficial corregido a Viernes de 09:00 a 09:45 y 09:45 a 10:30 (Jeremy, Sala A, Piano, 2 bloques contiguos). Asistencias de 18/09, 25/09 y 02/10 preservadas como `presente`. Le resta su última clase el 09/10 para completar su ciclo de 4 sesiones de 90 min.
+  - **Benjamin** (`57db57ae-ad12-4e58-bedc-659ac7dbef24`): Asignados 2 bloques contiguos los Sábados: 10:30 a 11:15 y 11:15 a 12:00 (Jeremy, Sala A, Piano). Asistencias de 26/09 y 03/10 preservadas como `presente`.
+  - **Eitan Anton** (`482dd79d-630e-41dd-91d8-4730e73651d8`): Asignados 2 bloques contiguos los Sábados: 09:00 a 09:45 y 09:45 a 10:30 (Fernando, Sala B, Piano). Se corrigió `packageTotalSessions` a 4. Asistencias de 12/09 y 26/09 (recuperación de 19/09) preservadas como `presente`.
+  - **Flavia Nicole Concepcion** (`4834995a-a8df-4531-b1de-ddaec8d2550f`): Asignados 2 bloques contiguos los Viernes: 16:00 a 16:45 y 16:45 a 17:30 (Fernando, Sala B, Piano). Asistencias de 04/09, 11/09 y 18/09 preservadas como `presente` y recuperación programada para el 09/10 en ambos bloques.
+  - **Viernes Completo**: Confirmada la nómina de 4 alumnos activos los Viernes: Antonella (09:00 - 10:30, Sala A), Flavia Nicole (16:00 - 17:30, Sala B), Mia Lucero Bellido (16:00 - 16:45, Sala C) y Kamila Valentina (17:30 - 19:00, Sala A).
+
 ## [2.0.31] - 2026-10-06
 
 ### Cómputo de Evaluaciones por Vigencia de Ciclo Activo y Saneamiento de Ficha/Pago para Alejandro Huarca (ADR-0161)
