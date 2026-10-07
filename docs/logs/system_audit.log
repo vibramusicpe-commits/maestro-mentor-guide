@@ -2,8 +2,27 @@
 ===================================================================
 Proyecto: Vibra Music — Cadencia (Maestro Mentor Guide)
 Directorio de Logs: docs/logs/system_audit.log
-Última Actualización: 2026-09-09 17:35:00 -05:00
+Última Actualización: 2026-10-06 18:40:00 -05:00
 ===================================================================
+
+[2026-10-06 18:40:00 -05:00] [FEAT & BACKEND] [INTENSIVE-PLAN-90M-CONSOLIDATION-AND-WEEKEND-STUDENT-SANITY-ADR-0162]
+- Consolidación Integral de 90 Minutos para Plan Intensivo y Saneamiento de Nóminas de Fin de Semana:
+  1. **Consolidación Universal en Kardex (`src/lib/kardex-calculator.ts`)**:
+     * Para cualquier alumno con Plan Intensivo (`4 clases / 90 min`), la duración por sesión se calcula estrictamente como 90 min (`durationMin = 90`, `timeEnd = time + 90m`), mostrando ventanas de 90m (ej. 10:30 - 12:00, 09:00 - 10:30, 16:00 - 17:30).
+     * En `computeStudentMonthSessions` y `computeStudentCycleSessions`, los dos bloques contiguos de 45m se consolidan en una sola fila por fecha en el Kardex (`slotKey = isIntensive ? item.dateStr : ...`), heredando el estado evaluado si cualquiera de los bloques cuenta con asistencia en sala.
+  2. **Ocultamiento de '+ De corrido (+45m)' (`src/components/admin/student-attendance-kardex.tsx`)**:
+     * Botón condicionado a `{!isIntensivo && ...}`, evitando agregar 45 min sobre sesiones que ya duran 90 min de corrido.
+  3. **Sincronización Reactiva de Asistencias (`src/store/app-store.ts`)**:
+     * En `setStudentAttendance` y `setStudentSessionAttendance`, marcar asistencia en un bloque intensivo replica el estado automáticamente en el bloque contiguo del día.
+  4. **Saneamiento en Insforge PostgreSQL**:
+     * **Antonella** (`8c322418-4959-43eb-8fe8-7224451dee7e`): Viernes 09:00 - 09:45 y 09:45 - 10:30 (Jeremy, Sala A). Asistencias de 18/09, 25/09 y 02/10 preservadas. 1 clase pendiente (09/10).
+     * **Benjamin** (`57db57ae-ad12-4e58-bedc-659ac7dbef24`): Sábado 10:30 - 11:15 y 11:15 - 12:00 (Jeremy, Sala A). Asistencias de 26/09 y 03/10 preservadas.
+     * **Eitan Anton** (`482dd79d-630e-41dd-91d8-4730e73651d8`): Sábado 09:00 - 09:45 y 09:45 - 10:30 (Fernando, Sala B). Cuota corregida a 4. Asistencias de 12/09 y 26/09 preservadas.
+     * **Flavia Nicole Concepcion** (`4834995a-a8df-4531-b1de-ddaec8d2550f`): Viernes 16:00 - 16:45 y 16:45 - 17:30 (Fernando, Sala B). Asistencias de 04/09, 11/09 y 18/09 preservadas y recuperación el 09/10.
+     * **Nómina Viernes Cuadrada**: Antonella (09:00, Sala A), Flavia (16:00, Sala B), Mia Lucero (16:00, Sala C), Kamila Valentina (17:30, Sala A). Sin cruces de sala.
+- Documentación: ADR 0162 (`docs/adr/0162-consolidacion-integral-90m-plan-intensivo-kardex-horarios.md`), CHANGELOG v2.0.32 y AGENTS.md.
+- Verificación: `npm run build` completado con 0 errores.
+- Autor: Antigravity AI / Fabricio.
 
 [2026-09-09 18:05:00 -05:00] [FEAT & FIX] [STAFF-ONBOARDING-TUTORIAL-AND-STUDENT-SCHEDULE-FIX]
 - Creación de la Guía de Inducción Interactiva para Secretaría y Corrección del Panel de Alumnos:
