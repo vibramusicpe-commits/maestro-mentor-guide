@@ -2,8 +2,25 @@
 ===================================================================
 Proyecto: Vibra Music — Cadencia (Maestro Mentor Guide)
 Directorio de Logs: docs/logs/system_audit.log
-Última Actualización: 2026-10-06 18:40:00 -05:00
+Última Actualización: 2026-10-07 12:45:00 -05:00
 ===================================================================
+
+[2026-10-07 12:45:00 -05:00] [FEAT & FIX] [INTENSIVE-PLAN-90M-KARDEX-UNIFICATION-AND-VISUAL-BADGES-ADR-0163]
+- Unificación de Kardex para Plan Intensivo (90 min), Distintivos Visuales en Horario/Kiosco y Reactivación de Benjamin:
+  1. **Unificación y Eliminación de Código Duplicado (`src/components/admin/student-attendance-kardex.tsx`)**:
+     * Se removió el bucle duplicado de 196 líneas de `allCycleSessions` que mantenía `endMinuteTotal = hh * 60 + mm + 45` hardcodeado y deduplicación por hora individual `${item.dateStr}-${item.time}`.
+     * Se conectó `allCycleSessions` directamente a `computeStudentCycleSessions({ student: liveStudent, allSchedule: studentLessons, selectedYear, selectedMonth })` de `src/lib/kardex-calculator.ts`.
+     * Las clases intensivas se consolidan matemáticamente en 1 fila por fecha que muestra la franja completa de 90 minutos (e.g. `09:00 - 10:30` para Eitan, `10:30 - 12:00` para Benjamin, `09:00 - 10:30` para Antonella) y exactamente 4 clases por mes.
+  2. **Insignia Visual `⚡ 90 min (Intensivo)` en Toda la Plataforma**:
+     * **Kardex (`student-attendance-kardex.tsx`)**: Badge `⚡ 90 min (Intensivo)` en cada fila de sesión.
+     * **Horario Central (`agenda-board.tsx`)**: Badge `⚡ 90m` en la tarjeta de clase de cada celda del alumno intensivo.
+     * **Kiosco Docente (`teacher.index.tsx`)**: Badge `⚡ 90 min` en la tarjeta de clase para alertar al docente del turno doble continuo.
+  3. **Reactivación y Normalización Quirúrgica en PostgreSQL Insforge**:
+     * **Benjamin** (`57db57ae-ad12-4e58-bedc-659ac7dbef24`): Reactivado de `"baja"` a `"activo"` con sus 2 asistencias de Septiembre y Octubre (`2026-09-26` y `2026-10-03`) 100% íntegras.
+     * **Eitan Anton Chapi** (`482dd79d-630e-41dd-91d8-4730e73651d8`): Normalizado `full_name` a `"Eitan Anton Chapi"` y actualizado `student: "Eitan Anton Chapi"` en sus lecciones para consistencia total en el directorio y facturación.
+- Documentación: ADR 0163 (`docs/adr/0163-unificacion-kardex-intensivos-distintivos-visuales-reactivacion-benjamin.md`), CHANGELOG v2.0.33.
+- Verificación: `npm run build` completado con 0 errores (código 0).
+- Autor: Antigravity AI / Fabricio.
 
 [2026-10-06 18:40:00 -05:00] [FEAT & BACKEND] [INTENSIVE-PLAN-90M-CONSOLIDATION-AND-WEEKEND-STUDENT-SANITY-ADR-0162]
 - Consolidación Integral de 90 Minutos para Plan Intensivo y Saneamiento de Nóminas de Fin de Semana:

@@ -480,6 +480,12 @@ export function TeacherKiosk() {
 
                     const status = (targetDateStr && effectiveAttendanceByDate?.[targetDateStr]) ? effectiveAttendanceByDate[targetDateStr]! : "pendiente";
 
+                    const isIntensiveStudent = Boolean(
+                      studentProfile?.modality?.toLowerCase().includes("inten") ||
+                      studentProfile?.modality?.toLowerCase().includes("90 min") ||
+                      (studentProfile?.modality?.toLowerCase().includes("4 clases") && !studentProfile?.modality?.toLowerCase().includes("45 min"))
+                    );
+
                     return (
                       <div
                         key={lesson.id}
@@ -503,6 +509,11 @@ export function TeacherKiosk() {
                             {lesson.category === "PERSONALIZADA" && (
                               <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-600 border border-amber-500/30">
                                 ⭐ Personalizada
+                              </span>
+                            )}
+                            {isIntensiveStudent && (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                ⚡ 90 min
                               </span>
                             )}
                             <span

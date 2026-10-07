@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.33] - 2026-10-07
+
+### Unificación de Kardex para Plan Intensivo, Distintivos Visuales de 90m y Reactivación de Benjamin (ADR-0163)
+- **Eliminación de Código Duplicado y Conexión Central de Kardex (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - Se eliminó el bloque interno obsoleto de 196 líneas de `allCycleSessions` que contenía `endMinuteTotal = hh * 60 + mm + 45` hardcodeado y deduplicación por hora `${item.dateStr}-${item.time}`.
+  - Se conectó `allCycleSessions` directamente a `computeStudentCycleSessions({ student: liveStudent, allSchedule: studentLessons, selectedYear, selectedMonth })` de `src/lib/kardex-calculator.ts`.
+  - Ahora todas las clases de Plan Intensivo (4 clases / 90 min) se consolidan matemáticamente en una sola fila por fecha que muestra la franja completa de 90 minutos (e.g. `09:00 - 10:30` para Eitan, `10:30 - 12:00` para Benjamin, `09:00 - 10:30` para Antonella) y exactamente 4 clases por ciclo.
+- **Insignias Visuales `⚡ 90 min (Intensivo)` en Toda la Plataforma**:
+  - **Kardex (`student-attendance-kardex.tsx`)**: Incorporada la píldora `⚡ 90 min (Intensivo)` en cada fila de sesión intensiva.
+  - **Horario Central (`agenda-board.tsx`)**: Incorporado el badge `⚡ 90m` en la tarjeta de clase de cada celda del alumno intensivo.
+  - **Kiosco Docente (`teacher.index.tsx`)**: Incorporado el badge `⚡ 90 min` en la tarjeta de clase para alertar al docente de la sesión doble continua.
+- **Reactivación y Normalización Quirúrgica en PostgreSQL Insforge**:
+  - **Benjamin** (`57db57ae-ad12-4e58-bedc-659ac7dbef24`): Reactivado de `"baja"` a `"activo"`. Sus 2 asistencias de Septiembre y Octubre (`2026-09-26` y `2026-10-03`) permanecen 100% íntegras.
+  - **Eitan Anton Chapi** (`482dd79d-630e-41dd-91d8-4730e73651d8`): Normalizado `full_name` a `"Eitan Anton Chapi"` y actualizado `student: "Eitan Anton Chapi"` en sus lecciones para consistencia total en el directorio y facturación.
+
 ## [2.0.32] - 2026-10-06
 
 ### Consolidación Integral de 90 Minutos para Plan Intensivo (4 clases / 90 min) en Kardex y Horario de Clases (ADR-0162)

@@ -32,6 +32,7 @@ import { RenewStudentCycleDialog } from "@/components/admin/renew-student-cycle-
 import {
   computeStudentRetentionStatus,
   computeStudentMonthSessions,
+  computeStudentCycleSessions,
 } from "@/lib/kardex-calculator";
 import { toast } from "sonner";
 import {
@@ -273,204 +274,15 @@ export function StudentAttendanceKardex({
   }, [studentLessons]);
 
   // 🎯 Generador Exacto del Ciclo Contractual (8 clases Regular / 4 clases Intensivo)
-  // Comienza estrictamente en planStartDate y abarca su cuota completa del contrato
+  // Comienza estrictamente en planStartDate y abarca su cuota completa del contrato (ADR-0162)
   const allCycleSessions: StudentSessionItem[] = useMemo(() => {
-    const defaultStartStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-01`;
-    const startStr = effectivePlanStartDate || defaultStartStr;
-    const [sy, sm, sd] = startStr.split("-").map(Number);
-    if (!sy || !sm || !sd) return [];
-
-    const startDate = new Date(sy, sm - 1, sd);
-    const rawCandidates: StudentSessionItem[] = [];
-    const daysToEnd = effectivePlanEndDate
-      ? Math.max(90, Math.ceil((new Date(effectivePlanEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
-      : (isFlexiblePackage ? 180 : 90);
-
-    let maxLessonDays = 0;
-    studentLessons.forEach((l) => {
-      if (l.dateStr) {
-        const [ly, lm, ld] = l.dateStr.split("-").map(Number);
-        if (ly && lm && ld) {
-          const lDate = new Date(ly, lm - 1, ld);
-          const diffDays = Math.ceil((lDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays > maxLessonDays) {
-            maxLessonDays = diffDays + 14;
-          }
-        }
-      }
+    return computeStudentCycleSessions({
+      student: liveStudent,
+      allSchedule: studentLessons,
+      selectedYear,
+      selectedMonth,
     });
-
-    const maxDaysToScan = Math.max(isFlexiblePackage ? 240 : 90, daysToEnd, maxLessonDays);
-
-    for (let offset = 0; offset < maxDaysToScan; offset++) {
-      const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + offset);
-      const curY = cur.getFullYear();
-      const curM = cur.getMonth();
-      const curD = cur.getDate();
-      const curDateStr = `${curY}-${String(curM + 1).padStart(2, "0")}-${String(curD).padStart(2, "0")}`;
-
-      const jsDay = cur.getDay(); // 0 Dom, 1 Lun, 2 Mar, 3 Mié, 4 Jue, 5 Vie, 6 Sáb
-      if (jsDay === 0) continue; // Los domingos no son lectivos
-      const dayKey = WEEKDAYS_ORDER[jsDay - 1];
-
-      // Si supera la fecha fin del plan, solo incluir si ya tiene asistencia evaluada o es recuperación
-      // 🛡️ REGLA (ADR-0150): Los paquetes flexibles se rigen por cuota consumida, nunca por fecha calendario arbitraria
-      const isBeyondEnd = (!isFlexiblePackage && effectivePlanEndDate) ? curDateStr > effectivePlanEndDate : false;
-
-      studentLessons.forEach((lesson) => {
-        if (lesson.month !== undefined && lesson.month !== curM) return;
-        if (lesson.year !== undefined && lesson.year !== curY) return;
-
-        // A. Si la lección tiene fecha exacta fija (dateStr), SOLO emitir en esa fecha exacta
-        if (lesson.dateStr) {
-          if (lesson.dateStr !== curDateStr) return;
-        } else {
-          // B. Si es recurrente por día de semana, validar que coincida con el día
-          if (lesson.day !== dayKey) return;
-        }
-
-        // C. Si la lección tiene fechas excluidas (reprogramada fuera de este día), omitir incondicionalmente
-        if (lesson.excludedDates && lesson.excludedDates.includes(curDateStr)) {
-          return;
-        }
-
-        // C.1. 🛡️ Barreras temporales absolutas por transición de curso (ADR-0131)
-        if (lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) {
-          return;
-        }
-        if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
-          return;
-        }
-
-        // D. Si tiene semana fija (weekIndex) y no dateStr, verificar semana dentro del mes de la fecha
-        if (!lesson.dateStr && lesson.weekIndex !== undefined) {
-          const curMonthWeeks = getMonthWeeks(curY, curM);
-          const curWeekInMonth = curMonthWeeks.findIndex((w) => w.days.some((d) => d.dateStr === curDateStr));
-          if (curWeekInMonth !== -1 && lesson.weekIndex !== curWeekInMonth) {
-            return;
-          }
-        }
-
-        // E. Si tiene semanas excluidas en el mes, omitir
-        if (!lesson.dateStr && lesson.excludedWeeks && lesson.excludedWeeks.length > 0) {
-          const curMonthWeeks = getMonthWeeks(curY, curM);
-          const curWeekInMonth = curMonthWeeks.findIndex((w) => w.days.some((d) => d.dateStr === curDateStr));
-          if (curWeekInMonth !== -1 && lesson.excludedWeeks.includes(curWeekInMonth)) {
-            return;
-          }
-        }
-
-        let currentStatus: StudentSessionItem["status"] = "pendiente";
-        if (lesson.attendanceByDate && lesson.attendanceByDate[curDateStr]) {
-          currentStatus = lesson.attendanceByDate[curDateStr]!;
-        }
-
-        if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup) {
-          return;
-        }
-
-        const [hh, mm] = (lesson.time || "16:00").split(":").map((v) => parseInt(v, 10));
-        const endMinuteTotal = (hh || 16) * 60 + (mm || 0) + 45;
-        const endH = String(Math.floor(endMinuteTotal / 60)).padStart(2, "0");
-        const endM = String(endMinuteTotal % 60).padStart(2, "0");
-        const timeEnd = `${endH}:${endM}`;
-
-        const monthName = MONTHS_NAME[curM] || "";
-        const fullDayName = WEEKDAY_FULL_NAMES[dayKey] || dayKey;
-
-        rawCandidates.push({
-          id: `${lesson.id}-${curDateStr}`,
-          lessonId: lesson.id,
-          sessionIndex: 0,
-          weekIndex: Math.floor(offset / 7),
-          weekLabel: `Semana ${Math.floor(offset / 7) + 1}`,
-          dateStr: curDateStr,
-          dayNum: curD,
-          dayName: `${fullDayName} ${String(curD).padStart(2, "0")} de ${monthName} ${curY}`,
-          dayShort: `${dayKey} ${String(curD).padStart(2, "0")} ${monthName.slice(0, 3)}`,
-          dayKey,
-          time: lesson.time,
-          timeEnd,
-          teacher: lesson.teacher || liveStudent.teacher || "Por asignar",
-          room: lesson.room || liveStudent.room || "Sala A",
-          instrument: lesson.instrument || liveStudent.instrument || "Música",
-          isMakeup: !!lesson.isMakeup,
-          recoveringLessonDate: lesson.recoveringLessonDate,
-          status: currentStatus,
-        });
-      });
-    }
-
-    // 1. Orden cronológico con prioridad de slot (ADR-0105)
-    rawCandidates.sort((a, b) => {
-      const cmp = a.dateStr.localeCompare(b.dateStr);
-      if (cmp !== 0) return cmp;
-      const timeCmp = a.time.localeCompare(b.time);
-      if (timeCmp !== 0) return timeCmp;
-      // 🛡️ Prioridad de slot en la misma fecha y hora (ADR-0105):
-      // 1. Sesión evaluada (asistió, falta, tarde, justificada) prevalece sobre pendiente
-      const aEval = a.status !== "pendiente" ? 1 : 0;
-      const bEval = b.status !== "pendiente" ? 1 : 0;
-      if (aEval !== bEval) return bEval - aEval;
-      // 2. Sesión de recuperación puntual (isMakeup: true) prevalece sobre lección recurrente abierta
-      const aMakeup = a.isMakeup ? 1 : 0;
-      const bMakeup = b.isMakeup ? 1 : 0;
-      if (aMakeup !== bMakeup) return bMakeup - aMakeup;
-      return 0;
-    });
-
-    // 2. Deduplicar por fecha y hora exactas
-    const seenSlots = new Set<string>();
-    const deduped: StudentSessionItem[] = [];
-    rawCandidates.forEach((item) => {
-      const slotKey = `${item.dateStr}-${item.time}`;
-      if (!seenSlots.has(slotKey)) {
-        seenSlots.add(slotKey);
-        deduped.push(item);
-      }
-    });
-
-    // 3. 🛡️ FILOSOFÍA VIBRA MUSIC (ADR-0105 & ADR-0149):
-    // - TODAS las sesiones evaluadas (presente, ausente, tarde, justificada) son hechos históricos intocables y se PRESERVAN.
-    // - TODAS las sesiones de recuperación (isMakeup: true), tanto evaluadas como pendientes, se PRESERVAN incondicionalmente
-    //   para que el alumno pueda recuperar todas sus inasistencias sin límites arbitrarios ("Las clases no se pierden, se recuperan").
-    // - Solo se acotan las sesiones regulares pendientes (status === "pendiente" && !isMakeup) para que el ciclo proyecte
-    //   exactamente las clases necesarias para completar la cuota contratada.
-    const evaluated = deduped.filter((s) => s.status !== "pendiente");
-    const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
-    const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
-
-    const attendedCount = evaluated.filter((s) => s.status === "presente" || s.status === "tarde").length;
-    const scheduledCount = attendedCount + pendingMakeups.length;
-
-    const regularSlotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
-    const chosenPendingRegular = pendingRegular.slice(0, regularSlotsNeeded);
-
-    const finalSessions = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
-    finalSessions.sort((a, b) => {
-      const cmp = a.dateStr.localeCompare(b.dateStr);
-      if (cmp !== 0) return cmp;
-      return a.time.localeCompare(b.time);
-    });
-
-    // 4. Numerar secuencialmente (Sesión 1 a N)
-    finalSessions.forEach((item, idx) => {
-      item.sessionIndex = idx + 1;
-    });
-
-    return finalSessions;
-  }, [
-    effectivePlanStartDate,
-    effectivePlanEndDate,
-    studentLessons,
-    targetQuota,
-    liveStudent.teacher,
-    liveStudent.room,
-    liveStudent.instrument,
-    isFlexiblePackage,
-    selectedYear,
-    selectedMonth,
-  ]);
+  }, [liveStudent, studentLessons, selectedYear, selectedMonth]);
 
   // Sesiones finales a renderizar según vista activa (Ciclo Activo vs Mes Calendario)
   const sessions: StudentSessionItem[] = useMemo(() => {
@@ -1364,6 +1176,11 @@ export function StudentAttendanceKardex({
                             🔄 Recuperación
                           </Badge>
                         ) : null}
+                        {isIntensivo && (
+                          <Badge className="bg-primary/15 text-primary text-[9px] font-black border-0">
+                            ⚡ 90 min (Intensivo)
+                          </Badge>
+                        )}
                         <span className="text-[10px] text-muted-foreground">({item.weekLabel})</span>
                       </div>
 

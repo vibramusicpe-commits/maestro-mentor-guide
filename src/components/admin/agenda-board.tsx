@@ -1973,6 +1973,12 @@ export function AgendaBoard() {
                                             ? "Categoría Infantil (5 y 6 años)"
                                             : "Categoría Junior (7 a 12 años)";
 
+                                        const isIntensiveStudent = Boolean(
+                                          studentProfile?.modality?.toLowerCase().includes("inten") ||
+                                          studentProfile?.modality?.toLowerCase().includes("90 min") ||
+                                          (studentProfile?.modality?.toLowerCase().includes("4 clases") && !studentProfile?.modality?.toLowerCase().includes("45 min"))
+                                        );
+
                                         return (
                                           <div
                                             key={lesson.id}
@@ -1995,6 +2001,15 @@ export function AgendaBoard() {
                                                 {isRecup && (
                                                   <span className="text-[7.5px] font-black uppercase text-white bg-black/40 px-1 py-0.2 rounded shrink-0">
                                                     🔴 Recup
+                                                  </span>
+                                                )}
+                                                {/* Distintivo de Plan Intensivo (90 min) */}
+                                                {isIntensiveStudent && (
+                                                  <span
+                                                    className="px-1 py-0.2 rounded bg-amber-500/25 text-amber-900 dark:text-amber-200 border border-amber-500/40 font-black text-[7.5px] leading-none shrink-0"
+                                                    title="Plan Intensivo (Sesión de 90 min / 2 horas pedagógicas)"
+                                                  >
+                                                    ⚡ 90m
                                                   </span>
                                                 )}
                                                 {/* Distintivo de Alumno Nuevo en su primera semana */}
