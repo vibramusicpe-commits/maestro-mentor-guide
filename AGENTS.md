@@ -1205,3 +1205,26 @@ inferencia.
    - **Flavia Nicole Concepcion** (`4834995a-a8df-4531-b1de-ddaec8d2550f`): Asignados 2 bloques contiguos los Viernes: 16:00 a 16:45 y 16:45 a 17:30 (Fernando, Sala B, Piano). Asistencias de 04/09, 11/09 y 18/09 preservadas como `presente` y recuperación programada para el 09/10 en ambos bloques.
    - **Viernes Completo**: Confirmada la nómina de 4 alumnos activos los Viernes: Antonella (09:00 - 10:30, Sala A), Flavia Nicole (16:00 - 17:30, Sala B), Mia Lucero Bellido (16:00 - 16:45, Sala C) y Kamila Valentina (17:30 - 19:00, Sala A).
 
+---
+
+### 63. Blindaje de Autofill de Búsqueda, Saneamiento de Horario Bruno Marcelo y Soporte de Adelantos Previos a planStartDate (ADR-0164)
+1. **Inmunización Absoluta del Input de Búsqueda contra Autofill del Navegador (`src/components/admin/students-table.tsx`)**:
+   - Se erradicó el comportamiento anómalo en navegadores Chromium donde la barra de búsqueda en `/admin/alumnos` precargaba involuntariamente el texto "camila" desde la caché de perfiles y formularios del navegador de secretaría ("Jackeline").
+   - Se agregaron atributos estrictos de bloqueo: `id="students-filter-search-input"`, `name="students_filter_search_no_autofill"`, `autoComplete="off"`, `autoCorrect="off"`, `autoCapitalize="off"`, `spellCheck={false}`, `data-1p-ignore`, `data-lpignore="true"`.
+   - Se incorporó un botón de limpieza rápida (`<X />`) en el lateral derecho del input cuando el texto no está vacío.
+   - Se garantizó en el ciclo de vida del componente (`useEffect` de montaje) que `search` se inicialice incondicionalmente en cadena vacía `""`.
+2. **Deduplicación Reactiva de Alumnos Activos en Hidratación (`src/store/app-store.ts`)**:
+   - En `hydrateFromBackend`, se implementó una pasada de deduplicación sobre `cleanStudents` que descarta homónimos o registros duplicados activos (`status === 'activo'`), impidiendo que un alumno figure en múltiples filas repetidas en el Directorio.
+   - Se pasó a estado `pausa` el ciclo anterior culminado de **kamila Valentina G.** (`064f2b68-31da-4302-81d4-a447fcf1a1cc`), conservando activo únicamente su ciclo vigente **CAMILA VALENTINA** (`5c44e64a-b55d-4cf3-a668-1346b4a3cd8c`).
+3. **Corrección de Duplicidad en Jueves para Bruno Marcelo (`e40983ad-5a34-4ef8-9ac7-d2169f071e52`)**:
+   - Se detectó que Bruno tenía registradas dos lecciones los Jueves: `sch-83` a las 17:30 y `sch-89` a las 18:15, lo que provocaba que el 01 de Octubre (y 08 de Octubre) se duplicara su asistencia en sala y consumiera prematuramente su cuota en solo 3 semanas.
+   - Se eliminó quirúrgicamente `sch-83` (Jue 17:30) en PostgreSQL Insforge. Bruno quedó con su horario oficial pareado: Martes 18:15 (`sch-36`) y Jueves 18:15 (`sch-89`), totalizando exactamente sus 8 clases a lo largo de 4 semanas.
+4. **Soporte de Adelantos y Recuperaciones Previas a `planStartDate` (Caso Santiago Valladolid / `165e513a-d8ea-4ba5-a5a7-ba12d365e2aa`)**:
+   - **Diagnóstico del Bug**: Al reprogramar o adelantar una clase a una fecha anterior al `planStartDate` formal (ej. Santiago inició formalmente el 06/10/2026 pero asistió el 05/10/2026), los motores `computeStudentCycleSessions` (`src/lib/kardex-calculator.ts`) y `computeStudentCycle` (`src/lib/student-cycle.ts`) iniciaban el escaneo estrictamente en `startDate`. Al no visitar fechas previas, la clase puntual del 05/10 quedaba invisible, mientras que la clase original quedaba excluida vía `excludedDates`, reduciendo la cuota proyectada a 7 clases.
+   - **Solución Arquitectónica (`scanStartDate`)**:
+     - Se incorporó el cálculo dinámico de `scanStartDate`, que retrocede la ventana de escaneo hasta 30 días antes de `startDate` si existen lecciones puntuales agendadas con `dateStr < startDate`.
+     - Se blindaron las lecciones recurrentes con la barrera temporal `if (curDateStr < startStr) return;`, asegurando que las plantillas semanales abiertas jamás proyecten clases antes de la fecha formal de inicio.
+   - **Saneamiento en PostgreSQL Insforge**:
+     - Se actualizó `emergency_contact.planStartDate = "2026-10-05"` para reflejar la asistencia real en sala.
+     - Se limpiaron las exclusiones erróneas acumuladas en sus lecciones recurrentes (`sch-1790898875372-gked` y `sch-1790898875372-q5lb`).
+     - Se preservó su clase adelantada del 05/10/2026 con marca `presente`, proyectando exactamente sus 8 sesiones contractuales.

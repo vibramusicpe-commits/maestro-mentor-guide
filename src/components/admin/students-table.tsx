@@ -31,6 +31,7 @@ import {
   Sparkles,
   Music,
   FileText,
+  X,
 } from "lucide-react";
 import {
   useAppStore,
@@ -177,6 +178,7 @@ export function StudentsTable() {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
+    setSearch("");
   }, []);
 
   const activeRole = useAppStore((s) => s.activeRole);
@@ -554,11 +556,29 @@ export function StudentsTable() {
         <div className="relative min-w-[14rem] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            id="students-filter-search-input"
+            name="students_filter_search_no_autofill"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-lpignore="true"
             placeholder="Buscar alumno, apoderado, correo o instrumento..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 pr-9"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted transition-colors"
+              title="Limpiar búsqueda"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Indicador de Base Activa 2026 */}

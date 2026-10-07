@@ -85,6 +85,23 @@ export function computeStudentCycle(
   profileLessons.forEach((l) => mergedLessonsMap.set(l.id || `${l.day}-${l.time}-${l.dateStr || ""}`, l));
   const studentLessons = Array.from(mergedLessonsMap.values());
 
+  let scanStartDate = startDate;
+  // 🛡️ REGLA (ADR-0164): Si hay clases puntuales agendadas antes de planStartDate (hasta 30 días previos), incluir su fecha en la ventana de escaneo
+  studentLessons.forEach((l) => {
+    if (l.dateStr) {
+      const [ly, lm, ld] = l.dateStr.split("-").map(Number);
+      if (ly && lm && ld) {
+        const lDate = new Date(ly, lm - 1, ld);
+        const diffDays = Math.ceil((startDate.getTime() - lDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays > 0 && diffDays <= 30) {
+          if (lDate < scanStartDate) {
+            scanStartDate = lDate;
+          }
+        }
+      }
+    }
+  });
+
   // 1. Recolectar todas las clases que ya cuentan con evaluación real
   const evaluatedSlots = new Set<string>();
   const evaluatedDates = new Set<string>();
@@ -121,8 +138,9 @@ export function computeStudentCycle(
             latestEvaluatedDate = dateStr;
           }
 
-          // Computar para el ciclo activo si coincide con o es posterior a planStartDate
-          if (!studentProfile.planStartDate || dateStr >= studentProfile.planStartDate) {
+          // Computar para el ciclo activo si coincide con o es posterior a scanStartDate
+          const minCycleDate = studentProfile.planStartDate && scanStartDate < startDate ? scanStartDate.toISOString().slice(0, 10) : (studentProfile.planStartDate || "2026-08-01");
+          if (dateStr >= minCycleDate) {
             cycleEvaluatedSlots.add(slot);
             cycleEvaluatedDates.add(dateStr);
             if (att === "presente" || att === "tarde") {
@@ -154,7 +172,7 @@ export function computeStudentCycle(
 
   if (!isCycleCompleted) {
     for (let offset = 0; offset < maxDaysToScan; offset++) {
-      const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + offset);
+      const cur = new Date(scanStartDate.getFullYear(), scanStartDate.getMonth(), scanStartDate.getDate() + offset);
       const curY = cur.getFullYear();
       const curM = cur.getMonth();
       const curD = cur.getDate();
@@ -173,6 +191,7 @@ export function computeStudentCycle(
         if (lesson.dateStr) {
           if (lesson.dateStr !== curDateStr) return;
         } else {
+          if (curDateStr < startStr) return; // 🛡️ Clases recurrentes no se proyectan antes de planStartDate
           if (lesson.day !== dayKey) return;
         }
 

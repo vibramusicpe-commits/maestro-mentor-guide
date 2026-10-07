@@ -1039,10 +1039,29 @@ export const useAppStore = create<AppState>()(
           const activeNormNames = new Set(
             mergedStudents.filter((st) => st.status === "activo").map((st) => normalizeStudentName(st.name))
           );
-          const cleanStudents = mergedStudents.filter((st) => {
+          const initialCleanStudents = mergedStudents.filter((st) => {
             if (st.status === "activo") return true;
             return !Array.from(activeNormNames).some((act) => isMatchingStudentName(act, st.name));
           });
+
+          // 🛡️ REGLA (ADR-0164): Deduplicar alumnos activos para impedir que homónimos o duplicados en vuelo aparezcan repetidos en el directorio
+          const dedupedStudents: AdminStudent[] = [];
+          const seenActiveIds = new Set<string>();
+          initialCleanStudents.forEach((st) => {
+            if (seenActiveIds.has(st.id)) return;
+            if (st.status === "activo") {
+              const alreadyHasActive = dedupedStudents.some(
+                (existing) =>
+                  existing.status === "activo" &&
+                  (isSameStudentId(existing.id, st.id) || isMatchingStudentName(existing.name, st.name))
+              );
+              if (alreadyHasActive) return;
+            }
+            seenActiveIds.add(st.id);
+            dedupedStudents.push(st);
+          });
+
+          const cleanStudents = dedupedStudents;
 
           // Ordenar siempre los alumnos activos al inicio para que cualquier búsqueda devuelva el perfil activo
           cleanStudents.sort((a, b) => (b.status === "activo" ? 1 : 0) - (a.status === "activo" ? 1 : 0));

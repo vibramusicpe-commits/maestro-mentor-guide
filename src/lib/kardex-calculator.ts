@@ -229,6 +229,25 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   if (!sy || !sm || !sd) return [];
 
   const startDate = new Date(sy, sm - 1, sd);
+  let scanStartDate = startDate;
+
+  // 🛡️ REGLA (ADR-0164): Si hay clases puntuales (adelantos o recuperaciones con dateStr) agendadas
+  // antes de planStartDate (hasta 30 días previos), incluir su fecha en la ventana de escaneo.
+  studentLessons.forEach((l) => {
+    if (l.dateStr) {
+      const [ly, lm, ld] = l.dateStr.split("-").map(Number);
+      if (ly && lm && ld) {
+        const lDate = new Date(ly, lm - 1, ld);
+        const diffDays = Math.ceil((startDate.getTime() - lDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays > 0 && diffDays <= 30) {
+          if (lDate < scanStartDate) {
+            scanStartDate = lDate;
+          }
+        }
+      }
+    }
+  });
+
   const rawCandidates: StudentSessionItem[] = [];
   const daysToEnd = effectivePlanEndDate
     ? Math.max(isFlexiblePackage ? 180 : 90, Math.ceil((new Date(effectivePlanEndDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 15)
@@ -251,7 +270,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   const maxDaysToScan = Math.max(isFlexiblePackage ? 180 : 90, daysToEnd, maxLessonDays);
 
   for (let offset = 0; offset < maxDaysToScan; offset++) {
-    const cur = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + offset);
+    const cur = new Date(scanStartDate.getFullYear(), scanStartDate.getMonth(), scanStartDate.getDate() + offset);
     const curY = cur.getFullYear();
     const curM = cur.getMonth();
     const curD = cur.getDate();
@@ -273,6 +292,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
         if (lesson.dateStr !== curDateStr) return;
       } else {
         // B. Recurrente por día (normalización universal)
+        if (curDateStr < startStr) return; // 🛡️ Clases recurrentes jamás se proyectan antes de planStartDate
         if (normalizeDayKey(lesson.day) !== dayKey) return;
       }
 
