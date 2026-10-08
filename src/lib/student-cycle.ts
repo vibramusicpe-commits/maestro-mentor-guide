@@ -153,8 +153,10 @@ export function computeStudentCycle(
     }
   });
 
-  const evaluatedCount = cycleEvaluatedDates.size;
-  const attendedCount = cycleAttendedDates.size;
+  // 🛡️ REGLA (ADR-0157 & ADR-0165): En Plan Intensivo la cuota se rige por fechas completas (90 min),
+  // mientras que en Plan Regular o Paquete Flexible se rige por bloques/sesiones individuales de 45 min.
+  const evaluatedCount = isIntensive ? cycleEvaluatedDates.size : cycleEvaluatedSlots.size;
+  const attendedCount = isIntensive ? cycleAttendedDates.size : cycleAttendedSlots.size;
   // 🛡️ REGLA (ADR-0134, ADR-0149 & ADR-0161): Un ciclo lectivo solo se considera formalmente culminado
   // cuando el alumno ha asistido efectivamente a todas las clases contratadas de su ciclo activo (attendedCount >= targetQuota)
   const isCycleCompleted = attendedCount >= targetQuota;
@@ -245,13 +247,21 @@ export function computeStudentCycle(
     const pendingRegular = pendingCandidates.filter((p) => !p.isMakeup);
     let chosenPendingRegular: typeof pendingRegular = [];
     if (isIntensive) {
-      // 🛡️ REGLA ADR-0157: Plan Intensivo (4 clases / 90 min).
+      // 🛡️ REGLA ADR-0157 & ADR-0165: Plan Intensivo (4 clases / 90 min).
       // Cada fecha lectiva consta de 2 bloques contiguos de 45 min.
       // Se acotan las fechas pendientes completas para cumplir exactamente la cuota de targetQuota fechas.
-      const uniqueDates = Array.from(new Set(pendingRegular.map((p) => p.dateStr)));
+      // ⚠️ FIX ADR-0165: Las fechas que ya tienen al menos un bloque evaluado (evaluatedDates) ya computaron
+      // en evaluatedCount. Por ende, solo filtramos fechas verdaderamente futuras para datesNeeded.
+      const futureDates = Array.from(new Set(pendingRegular.map((p) => p.dateStr)))
+        .filter((d) => !evaluatedDates.has(d));
       const datesNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length);
-      const chosenDates = new Set(uniqueDates.slice(0, datesNeeded));
-      chosenPendingRegular = pendingRegular.filter((p) => chosenDates.has(p.dateStr));
+      const chosenDates = new Set(futureDates.slice(0, datesNeeded));
+
+      // Se eligen los bloques de las fechas futuras necesarias, MÁS cualquier bloque pendiente huérfano
+      // en fechas que ya estaban parcialmente evaluadas (para completar sus 90 minutos si faltaba un bloque)
+      chosenPendingRegular = pendingRegular.filter(
+        (p) => chosenDates.has(p.dateStr) || evaluatedDates.has(p.dateStr)
+      );
     } else {
       const slotsNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length);
       chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);

@@ -1228,3 +1228,23 @@ inferencia.
      - Se actualizó `emergency_contact.planStartDate = "2026-10-05"` para reflejar la asistencia real en sala.
      - Se limpiaron las exclusiones erróneas acumuladas en sus lecciones recurrentes (`sch-1790898875372-gked` y `sch-1790898875372-q5lb`).
      - Se preservó su clase adelantada del 05/10/2026 con marca `presente`, proyectando exactamente sus 8 sesiones contractuales.
+
+---
+
+### 64. Resolución Integral del Plan Intensivo (90 min / 2 Bloques Contiguos) en Horario de Clases y Motor de Ciclos (ADR-0165)
+1. **Blindaje del Algoritmo de Proyección en Plan Intensivo (`src/lib/student-cycle.ts`)**:
+   - **Diagnóstico del Bug de Doble Conteo**: En el cálculo de cuota del Plan Intensivo (4 clases de 90 min), si una fecha lectiva previa contaba con solo uno de sus dos bloques evaluados (ej. Antonella el 25/09 tenía 16:00 `presente` pero 16:45 sin marcar), esa fecha ya computaba en `evaluatedCount`. Sin embargo, el bloque huérfano pendiente provocaba que `2026-09-25` ingresara a `pendingRegular` y fuera seleccionada nuevamente por `uniqueDates.slice(0, datesNeeded)`. Esto consumía el cupo restante y expulsaba del ciclo a la 4ta fecha lectiva (`2026-10-09`), ocultándola del Horario de Clases (`AgendaBoard`).
+   - **Corrección Arquitectónica**:
+     - Se filtraron de forma estricta las fechas verdaderamente futuras que no hayan sido evaluadas previamente: `futureDates = uniqueDates.filter(d => !evaluatedDates.has(d))`.
+     - `datesNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length)` toma sus fechas exclusivamente de `futureDates`.
+     - Se preservan tanto los bloques de las fechas futuras necesarias como los bloques pendientes huérfanos en fechas parcialmente evaluadas (`chosenPendingRegular = pendingRegular.filter(p => chosenDates.has(p.dateStr) || evaluatedDates.has(p.dateStr))`), garantizando que la 4ta clase siempre aparezca y que los 90 minutos se completen.
+   - **Alineación de Conteo Regular vs Intensivo**: En Plan Intensivo, `evaluatedCount` y `attendedCount` computan por fechas completas (`cycleEvaluatedDates.size` / `cycleAttendedDates.size`), mientras que en Plan Regular y Paquete Flexible computan por slots individuales (`cycleEvaluatedSlots.size` / `cycleAttendedSlots.size`).
+2. **Aprovisionamiento Histórico de Bloques Contiguos en PostgreSQL Insforge**:
+   - Antes de la implementación de ADR-0157, los alumnos intensivos históricos fueron registrados con solo 1 lección de 45 minutos en `emergency_contact.scheduleLessons`. Al no existir físicamente el segundo bloque de 45 minutos en la base de datos, el panel del horario (`AgendaBoard`) solo renderizaba 1 hora académica en lugar de los 90 minutos reglamentarios.
+   - Se aprovisionaron quirúrgicamente los segundos bloques contiguos en PostgreSQL vía PostgREST:
+     - **SEBASTIAN** (`8001da91-3737-48da-b30b-843dadf76fc2`): Sábado a las 11:15 en Sala B con Prof. Fernando (Bloque 2 contiguo a su 10:30). Asistencia del 03/10 sincronizada como `presente`.
+     - **MARCELO ANDREE** (`846e9c76-349f-44d9-9f24-bf96552d4a25`): Sábado a las 12:45 en Sala A con Prof. Jeremy (Bloque 2 contiguo a su 12:00).
+     - **Kayra Valery** (`a118ba83-d07d-4b28-8d84-8792e94292c5`): Sábado a las 09:45 en Sala C con Prof. Nathaly (Bloque 2 contiguo a su 09:00). Asistencia del 03/10 sincronizada como `presente`.
+     - **Juan Mateo Azael** (`6dbd7dad-00ba-4bf7-85e0-e3d8a27d15af`): Viernes a las 16:45 en Sala C con Prof. Nathaly (Bloque 2 contiguo a su 16:00), y Bloque 2 para su recuperación del 09/10 a las 16:45.
+     - **Joshua Leon Gonzales** (`26080f02-be6b-441c-90fe-65c98f48c121`): Limpieza de clases erróneas de los viernes; preservado en su horario habitual de Sábados a las 12:00.
+     - **Antonella Osorio Huaman** (`8c322418-4959-43eb-8fe8-7224451dee7e`): Normalización de nombre completo en tabla `students`, regularización de asistencia `presente` en su bloque 2 del 25/09 y validación matemática de su 4ta clase el 09/10 (16:00 y 16:45) con `isLessonInStudentCycle = true`.
