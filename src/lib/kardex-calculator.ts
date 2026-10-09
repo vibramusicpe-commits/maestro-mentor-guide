@@ -217,7 +217,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   // Filtrar lecciones del alumno: primero lecciones de allSchedule, luego sobreescribir con las lecciones
   // de student.scheduleLessons (que tienen attendanceByDate y barreras effectiveFrom/effectiveUntil de PostgreSQL)
   const studentLessonsMap = new Map<string, ScheduledLesson>();
-  allSchedule
+  (allSchedule || [])
     .filter((l) => isMatchingStudentName(l.student, student.name))
     .forEach((l) => studentLessonsMap.set(l.id, l));
   (student.scheduleLessons || []).forEach((l) => studentLessonsMap.set(l.id, l));
@@ -334,7 +334,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
         currentStatus = lesson.attendanceByDate[curDateStr]!;
       }
 
-      if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup) {
+      if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup && !lesson.dateStr) {
         return;
       }
 
@@ -456,7 +456,7 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
 
   // Filtrar lecciones del alumno fusionando allSchedule con student.scheduleLessons
   const studentLessonsMap = new Map<string, ScheduledLesson>();
-  allSchedule
+  (allSchedule || [])
     .filter((l) => isMatchingStudentName(l.student, student.name))
     .forEach((l) => studentLessonsMap.set(l.id, l));
   (student.scheduleLessons || []).forEach((l) => studentLessonsMap.set(l.id, l));
@@ -523,7 +523,7 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
         currentStatus = lesson.attendanceByDate[curDateStr]!;
       }
 
-      if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup) {
+      if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup && !lesson.dateStr) {
         return;
       }
 

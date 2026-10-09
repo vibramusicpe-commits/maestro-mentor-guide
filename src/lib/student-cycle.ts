@@ -184,10 +184,6 @@ export function computeStudentCycle(
       if (jsDay === 0) continue; // Domingos no lectivos
       const dayKey = WEEKDAYS_ORDER[jsDay - 1];
 
-      // 🛡️ REGLA (ADR-0113 & ADR-0150): Paquetes Flexibles se rigen por clases consumidas (no por mes calendario rígido)
-      if (!isFlexiblePackage && effectiveEndDate && curDateStr > effectiveEndDate) continue;
-      if (!isFlexiblePackage && effectiveEndMonth && curDateStr.slice(0, 7) > effectiveEndMonth) continue;
-
       studentLessons.forEach((lesson) => {
         // Validación de fecha puntual o día de semana
         if (lesson.dateStr) {
@@ -195,6 +191,9 @@ export function computeStudentCycle(
         } else {
           if (curDateStr < startStr) return; // 🛡️ Clases recurrentes no se proyectan antes de planStartDate
           if (lesson.day !== dayKey) return;
+          // 🛡️ REGLA (ADR-0113 & ADR-0150): Clases recurrentes abiertas no se proyectan más allá de effectiveEndDate
+          if (!isFlexiblePackage && effectiveEndDate && curDateStr > effectiveEndDate) return;
+          if (!isFlexiblePackage && effectiveEndMonth && curDateStr.slice(0, 7) > effectiveEndMonth) return;
         }
 
         // Validación de fechas excluidas (ADR-0105 & ADR-0152: exclusión incondicional)
@@ -215,7 +214,9 @@ export function computeStudentCycle(
 
         const slot = `${curDateStr}-${lesson.time || "16:00"}`;
         // Si ya está evaluada, no duplicar como pendiente
-        if (evaluatedSlots.has(slot) || (!isIntensive && evaluatedDates.has(curDateStr))) {
+        // 🛡️ REGLA ADR-0166: Si la lección tiene dateStr explícito (ej. clase de corrido a distinta hora),
+        // solo descartar si su slot exacto (dateStr-time) ya fue evaluado, permitiendo slots contiguos en la misma fecha.
+        if (evaluatedSlots.has(slot) || (!lesson.dateStr && !isIntensive && evaluatedDates.has(curDateStr))) {
           return;
         }
 

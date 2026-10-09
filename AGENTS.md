@@ -1248,3 +1248,25 @@ inferencia.
      - **Juan Mateo Azael** (`6dbd7dad-00ba-4bf7-85e0-e3d8a27d15af`): Viernes a las 16:45 en Sala C con Prof. Nathaly (Bloque 2 contiguo a su 16:00), y Bloque 2 para su recuperación del 09/10 a las 16:45.
      - **Joshua Leon Gonzales** (`26080f02-be6b-441c-90fe-65c98f48c121`): Limpieza de clases erróneas de los viernes; preservado en su horario habitual de Sábados a las 12:00.
      - **Antonella Osorio Huaman** (`8c322418-4959-43eb-8fe8-7224451dee7e`): Normalización de nombre completo en tabla `students`, regularización de asistencia `presente` en su bloque 2 del 25/09 y validación matemática de su 4ta clase el 09/10 (16:00 y 16:45) con `isLessonInStudentCycle = true`.
+
+---
+
+### 65. Preservación Incondicional de Clases Contiguas de Corrido (+45m) más allá de planEndDate (Caso Micaela Sofia / ADR-0166)
+1. **Diagnóstico del Bug de la 8va Clase Oculta (Caso Micaela Sofia / `492b34f8-b4db-45fe-8f01-36809624c2cb`)**:
+   - Micaela Sofia cuenta con 7 clases evaluadas en sala con marca `presente` (1 clase regular el 06/07/2026 y 6 recuperaciones/adelantos puntuales el 13/07, 17/07, 12/08, 17/08, 09/09 16:45 y 16/09 16:45).
+   - Para completar su cuota contractual de 8 clases, secretaría utilizó la función `+ De corrido (+45m)` en la sesión de recuperación del Miércoles 09/09/2026, creando una sesión contigua a las 17:30 (`sch-1790814650424-aya`) con `dateStr: "2026-09-09"`.
+   - **Bloqueador 1 (`src/lib/kardex-calculator.ts` líneas 337 y 526)**:
+     - El cálculo evaluaba `const isBeyondEnd = effectivePlanEndDate && curDateStr > effectivePlanEndDate;`. Al ser `2026-09-09 > 2026-08-05`, `isBeyondEnd` era verdadero.
+     - La condición `if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup)` descartaba la clase porque la clase de corrido se creaba con `isMakeup: false` y la condición no comprobaba `!lesson.dateStr`.
+   - **Bloqueador 2 (`src/lib/student-cycle.ts` líneas 188 y 218)**:
+     - La verificación `if (!isFlexiblePackage && effectiveEndDate && curDateStr > effectiveEndDate) continue;` ocurría antes de revisar las lecciones del alumno, descartando indiscriminadamente cualquier sesión con fecha posterior al fin teórico del plan, incluso si fue explícitamente agendada por secretaría con `dateStr`.
+     - Además, la deduplicación evaluaba `if (evaluatedSlots.has(slot) || (!isIntensive && evaluatedDates.has(curDateStr))) return;`. Como el primer bloque (16:45) de esa misma fecha ya estaba evaluado con `presente`, `evaluatedDates.has("2026-09-09")` era verdadero y descartaba el segundo bloque contiguo a las 17:30.
+2. **Solución Arquitectónica (ADR-0166)**:
+   - **Exención de `dateStr` en Barrera Temporal (`src/lib/kardex-calculator.ts`)**:
+     - Las condiciones de descarte por `isBeyondEnd` en `computeStudentCycleSessions` y `computeStudentMonthSessions` ahora verifican `!lesson.dateStr` (`if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup && !lesson.dateStr) return;`). Toda lección con fecha explícita programada por secretaría se respeta incondicionalmente, permitiendo que cumpla la cuota contractual.
+     - Se aplicó fallback seguro `(allSchedule || [])` para prevenir excepciones al omitir el parámetro opcional.
+   - **Soporte de Bloques Contiguos en la Misma Fecha (`src/lib/student-cycle.ts`)**:
+     - Las barreras `effectiveEndDate` y `effectiveEndMonth` se movieron a la rama de plantillas recurrentes abiertas (`else`), de modo que las lecciones con `lesson.dateStr` puedan proyectarse en las fechas exactas fijadas por secretaría.
+     - La deduplicación por fecha ahora solo descarta lecciones abiertas sin fecha específica: `if (evaluatedSlots.has(slot) || (!lesson.dateStr && !isIntensive && evaluatedDates.has(curDateStr))) return;`. Para lecciones con `dateStr` explícito, solo se descarta si su slot exacto (`dateStr-time`) ya fue evaluado, permitiendo clases contiguas de corrido (ej. 16:45 y 17:30 el mismo día).
+   - **Herencia de Estado de Recuperación en Kardex (`src/components/admin/student-attendance-kardex.tsx`)**:
+     - En `handleAddConsecutiveClass`, la nueva sesión contigua hereda `isMakeup: Boolean(session.isMakeup)`, de manera que si se añade de corrido a una sesión de recuperación, mantenga su naturaleza coherente.

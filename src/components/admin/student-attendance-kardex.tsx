@@ -582,7 +582,7 @@ export function StudentAttendanceKardex({
       weekIndex: session.weekIndex,
       month: targetMonth,
       year: targetYear,
-      isMakeup: false,
+      isMakeup: Boolean(session.isMakeup),
     });
 
     toast.success(`¡Clase de corrido (+45m) agregada con éxito!`, {
