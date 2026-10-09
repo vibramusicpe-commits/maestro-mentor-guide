@@ -1,13 +1,13 @@
-# Grafo de Dependencias de Componentes y Servicios (Graphify - Actualizado 2026-08-15)
+# Grafo de Dependencias de Componentes y Servicios (Graphify - Actualizado 2026-10-09)
 
 ```mermaid
 graph LR
     %% UI Components
     subgraph UI_Layer ["Capa de Interfaz de Usuario"]
-        AgendaBoardComp["agenda-board.tsx"]
-        StudentsTableComp["students-table.tsx"]
-        StudentAttendanceKardexComp["student-attendance-kardex.tsx"]
-        StudentCleanupPanelComp["student-cleanup-panel.tsx (Depuración 2026)"]
+        AgendaBoardComp["agenda-board.tsx (⚡ 90m badge)"]
+        StudentsTableComp["students-table.tsx (Anti-Autofill)"]
+        StudentAttendanceKardexComp["student-attendance-kardex.tsx (Kardex 90m)"]
+        StudentCleanupPanelComp["student-cleanup-panel.tsx (Depuración)"]
         DeletionPanelComp["deletion-requests-panel.tsx"]
         AlertsPanelComp["alerts-panel.tsx"]
         RiskFamiliesComp["risk-families-table.tsx"]
@@ -15,14 +15,17 @@ graph LR
         InvitacionesComp["admin.invitaciones.tsx"]
         FacturacionComp["admin.facturacion.tsx"]
         TeacherAlumnosComp["teacher.alumnos.tsx"]
+        TeacherIndexComp["teacher.index.tsx (Kiosco Docente)"]
+        RenewalsPanelComp["student-renewals-retention-panel.tsx"]
     end
 
     %% State & Logic
-    subgraph State_Layer ["Capa de Estado y Lógica Local"]
-        Store["app-store.ts (Zustand + Persist v8)"]
+    subgraph State_Layer ["Capa de Estado y Lógica de Negocio"]
+        Store["app-store.ts (Zustand + Persist)"]
         Seeds["admin-seeds.ts & official-seeds.ts"]
         RoomComp["room-compatibility.ts (ADR-0121 & ADR-0122)"]
-        StudentCycle["student-cycle.ts (ADR-0108 & ADR-0122)"]
+        StudentCycle["student-cycle.ts (ADR-0108, ADR-0165 & ADR-0166)"]
+        KardexCalc["kardex-calculator.ts (ADR-0162, ADR-0164 & ADR-0166)"]
     end
 
     %% Audio & Media
@@ -50,6 +53,7 @@ graph LR
     %% Relaciones
     AgendaBoardComp --> Store
     AgendaBoardComp --> RoomComp
+    AgendaBoardComp --> StudentCycle
     StudentsTableComp --> Store
     StudentsTableComp --> RoomComp
     StudentsTableComp --> StudentCycle
@@ -57,10 +61,17 @@ graph LR
     StudentsTableComp --> StudentAttendanceKardexComp
     StudentAttendanceKardexComp --> Store
     StudentAttendanceKardexComp --> StudentCycle
+    StudentAttendanceKardexComp --> KardexCalc
+    TeacherIndexComp --> Store
+    TeacherIndexComp --> StudentCycle
+    TeacherIndexComp --> KardexCalc
+    TeacherAlumnosComp --> Store
+    TeacherAlumnosComp --> StudentAttendanceKardexComp
+    RenewalsPanelComp --> Store
+    RenewalsPanelComp --> StudentCycle
     DeletionPanelComp --> Store
     AlertsPanelComp --> Store
     RiskFamiliesComp --> Store
-    TeacherAlumnosComp --> Store
     ControlHorarioComp --> Store
     InvitacionesComp --> InvitationsSvc
     FacturacionComp --> InvoicesSvc

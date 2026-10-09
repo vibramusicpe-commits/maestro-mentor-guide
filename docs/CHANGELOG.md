@@ -4,6 +4,48 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.36] - 2026-10-09
+
+### Preservación Incondicional de Clases Contiguas de Corrido (+45m) más allá de planEndDate (Caso Micaela Sofia) (ADR-0166)
+- **Exención de `dateStr` en Barrera de Fin de Plan (`src/lib/kardex-calculator.ts`)**:
+  - En `computeStudentCycleSessions` y `computeStudentMonthSessions`, se actualizó la condición de descarte por `isBeyondEnd` a:
+    `if (isBeyondEnd && currentStatus === "pendiente" && !lesson.isMakeup && !lesson.dateStr) return;`.
+  - Las lecciones con fecha puntual explícita fijada por secretaría se respetan incondicionalmente, permitiendo que la 8va sesión de Micaela Sofia (Mié 09/09/2026 a las 17:30) se proyecte y cumpla la cuota contractual de 8 clases.
+  - Implementado fallback defensivo `(allSchedule || [])` en ambos métodos para robustez ante arrays no definidos.
+- **Soporte de Bloques Contiguos en la Misma Fecha (`src/lib/student-cycle.ts`)**:
+  - Las barreras `effectiveEndDate` y `effectiveEndMonth` se circunscribieron únicamente a lecciones recurrentes abiertas (`!lesson.dateStr`).
+  - La deduplicación por fecha ahora solo descarta lecciones abiertas: `if (evaluatedSlots.has(slot) || (!lesson.dateStr && !isIntensive && evaluatedDates.has(curDateStr))) return;`.
+  - Para lecciones con `dateStr` explícito, solo se descarta si su slot exacto (`dateStr-time`) ya fue evaluado, permitiendo clases contiguas de corrido (16:45 y 17:30) el mismo día.
+- **Herencia de Estado de Recuperación en Kardex (`src/components/admin/student-attendance-kardex.tsx`)**:
+  - En `handleAddConsecutiveClass`, la nueva sesión contigua hereda `isMakeup: Boolean(session.isMakeup)` del bloque previo.
+
+## [2.0.35] - 2026-10-08
+
+### Resolución Integral del Plan Intensivo (90 min / 2 Bloques Contiguos) en Horario de Clases y Motor de Ciclos (ADR-0165)
+- **Blindaje del Motor de Ciclos para Plan Intensivo (`src/lib/student-cycle.ts`)**:
+  - Erradicado el bug de doble cómputo donde fechas con un bloque evaluado y otro huérfano pendiente consumían prematuramente `datesNeeded`.
+  - `futureDates` filtra estrictamente fechas no presentes en `evaluatedDates`, y `chosenPendingRegular` incluye las fechas futuras necesarias junto con los bloques huérfanos pendientes de fechas parcialmente evaluadas.
+  - Antonella Osorio Huaman ahora proyecta de forma infalible su 4ta fecha lectiva el 09/10/2026 (16:00 y 16:45) con `isLessonInStudentCycle = true`.
+- **Aprovisionamiento Histórico de Segundos Bloques Contiguos en PostgreSQL Insforge**:
+  - Inyectados quirúrgicamente los segundos bloques contiguos de 45 minutos para completar los 90 minutos de clase reglamentarios:
+    - **Sebastian Ortega**: Sábado 11:15 en Sala B (Fernando).
+    - **Marcelo Andree**: Sábado 12:45 en Sala A (Jeremy).
+    - **Kayra Valery**: Sábado 09:45 en Sala C (Nathaly).
+    - **Juan Mateo Azael**: Viernes 16:45 en Sala C (Nathaly) y Bloque 2 de su recuperación del 09/10.
+    - **Joshua Leon Gonzales**: Limpieza de clases erróneas de los viernes, preservado en Sábados 12:00.
+
+## [2.0.34] - 2026-10-08
+
+### Inmunización de Autofill en Búsqueda, Corrección de Duplicidad Jueves Bruno Marcelo y Soporte de Adelantos Previos a planStartDate (ADR-0164)
+- **Inmunización del Input de Búsqueda de Alumnos (`src/components/admin/students-table.tsx`)**:
+  - Aplicados atributos anti-autofill (`autoComplete="off"`, `data-1p-ignore`, `data-lpignore="true"`), botón de limpieza rápida (`<X />`) e inicialización reactiva limpia `search = ""`, eliminando la precarga residual del término "camila".
+  - Deduplicación reactiva en `hydrateFromBackend` y paso a `pausa` del ciclo culminado anterior de Kamila Valentina.
+- **Saneamiento de Horario de Bruno Marcelo en PostgreSQL Insforge**:
+  - Eliminada lección duplicada `sch-83` (Jue 17:30), conservando su horario pareado oficial Martes y Jueves a las 18:15 (8 clases / mes).
+- **Soporte Dinámico para Clases Previas a `planStartDate` (`src/lib/kardex-calculator.ts` y `src/lib/student-cycle.ts`)**:
+  - Implementado `scanStartDate` con ventana de retroceso de hasta 30 días para incluir clases adelantadas agendadas antes del inicio formal (caso Santiago Valladolid 05/10/2026).
+  - Barrera temporal para lecciones recurrentes abiertas garantizando que no se proyecten antes de `planStartDate`.
+
 ## [2.0.33] - 2026-10-07
 
 ### Unificación de Kardex para Plan Intensivo, Distintivos Visuales de 90m y Reactivación de Benjamin (ADR-0163)

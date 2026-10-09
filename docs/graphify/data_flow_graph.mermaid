@@ -1,34 +1,38 @@
-# Grafo de Flujo de Datos del Sistema (Graphify - Versión v18 / Agosto 2026)
+# Grafo de Flujo de Datos del Sistema (Graphify - Versión v2.0.36 / Octubre 2026)
 
 ```mermaid
 graph TD
     %% Entradas y Carga de Archivos
-    CSV_Schedule["📄 Excel/CSV Horarios Oficiales (Nayeli)"] -->|Parser inteligente ; o ,| AgendaBoard["🗓️ AgendaBoard (/admin/agenda)"]
-    Excel_Students["📄 ESTUDIANTES VIBRA MUSIC .xlsx"] -->|Parser Individualizador ADR 0061| StudentsTable["👥 StudentsTable (/admin/alumnos)"]
+    CSV_Schedule["📄 Excel/CSV Horarios Oficiales (Secretaría)"] -->|Parser inteligente ; o ,| AgendaBoard["🗓️ AgendaBoard (/admin/agenda)"]
+    Excel_Students["📄 Directorio Alumnos .xlsx / CSV"] -->|Parser Individualizador ADR 0061| StudentsTable["👥 StudentsTable (/admin/alumnos)"]
     
     %% Almacén Central de Estado
     AgendaBoard -->|importScheduleFromCSV / clearSchedule| AppStore["🏪 AppStore Zustand (cadencia-app-v16)"]
     StudentsTable -->|importStudentsFromCSV / clearStudents| AppStore
     
-    %% Funcionalidades de Agenda & Autonomía Nayeli (ADR 0052 & 0053 & 0057)
+    %% Funcionalidades de Agenda & Autonomía Nayeli (ADR 0052 & 0053 & 0057 & 0156 & 0165)
     AgendaBoard -->|ADR 0053: Combobox Autocomplete| AppStore
-    AgendaBoard -->|ADR 0053: Libreta de Asistencias & Control 8/4 Clases| AppStore
+    AgendaBoard -->|ADR 0162 & 0165: Bloques Contiguos ⚡ 90m Intensivos| AppStore
     AgendaBoard -->|ADR 0052: Eliminación Directa sin Trámites| AppStore
     AgendaBoard -->|ADR 0057: Recuperaciones en Rojo Vivo| AppStore
-    AgendaBoard -->|Reprogramación: Solo Semana vs Mes Completo| AppStore
+    AgendaBoard -->|ADR 0105 & 0156: Reprogramación Aislada por Slot (dateStr-time)| AppStore
     
-    %% Operaciones de Alumnos y Cobranzas
+    %% Operaciones de Alumnos y Kardex
     StudentsTable -->|ADR 0059: Edición In-Place de Ficha| AppStore
-    StudentsTable -->|ADR 0057: Categorías & Alumnos Adultos| AppStore
-    StudentsTable -->|Marcado Rápido Asistencia| AppStore
-    StudentsTable -->|Reingresos & Historial| AppStore
+    StudentsTable -->|ADR 0164: Inmunización Anti-Autofill Búsqueda| AppStore
+    StudentsTable -->|Marcado Rápido Asistencia & Kardex| KardexComp["📖 StudentAttendanceKardex"]
+    KardexComp -->|ADR 0163: Unificación 90m & ADR 0166: + De corrido (+45m)| AppStore
     Facturacion["💳 Facturación (/admin/facturacion)"] -->|Registro Abonos Yape/Plin con Vouchers| AppStore
     
     %% Sistema de Seguridad: Solicitudes de Eliminación Protegidas
-    StudentsTable -.->|Nayeli solicita eliminar alumno| DeletionReq["🛡️ Solicitud de Eliminación (deletionRequests)"]
+    StudentsTable -.->|Secretaría solicita eliminar alumno| DeletionReq["🛡️ Solicitud de Eliminación (deletionRequests)"]
     DeletionReq --> DeletionPanel["📋 DeletionRequestsPanel (/admin)"]
-    DeletionPanel -->|Dueña: Aceptar y Eliminar| AppStore
-    DeletionPanel -->|Dueña: Denegar| AppStore
+    DeletionPanel -->|Dueña/Sergio: Aceptar y Eliminar| AppStore
+    DeletionPanel -->|Dueña/Sergio: Denegar| AppStore
+    
+    %% Motores de Negocio
+    AppStore --> StudentCycle["⚙️ student-cycle.ts (ADR 0108, ADR 0165, ADR 0166)"]
+    AppStore --> KardexCalc["⚙️ kardex-calculator.ts (ADR 0162, ADR 0164, ADR 0166)"]
     
     %% Timbre Escolar Oficial
     ChimeTimer["⏰ Temporizador Automático en Vivo"] -->|L-V Tarde & Sáb Mañana| AudioPlayer["🔊 Reproductor ('school bell.mp3')"]
@@ -37,8 +41,8 @@ graph TD
     %% Sincronización Backend Insforge PostgreSQL (MCP & PostgREST ADR 0060)
     AppStore -->|useInsforgeSync / REST API| InsforgeBackend[("🗄️ PostgreSQL Insforge Backend (18 tablas)")]
     InsforgeBackend --> TableLessons["Tabla lessons"]
-    InsforgeBackend --> TableStudents["Tabla students (83 Alumnos)"]
-    InsforgeBackend --> TableInvoices["Tabla invoices (83 Recibos)"]
+    InsforgeBackend --> TableStudents["Tabla students"]
+    InsforgeBackend --> TableInvoices["Tabla invoices"]
     InsforgeBackend --> TableAttendanceLogs["Tabla attendance_logs"]
     InsforgeBackend --> TablePaymentAuditLogs["Tabla payment_audit_logs"]
     InsforgeBackend --> TableInvitations["Tabla invitations & user_passwords"]

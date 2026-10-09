@@ -884,3 +884,48 @@ Directorio de Logs: docs/logs/system_audit.log
    - `docs/BACKEND_AUDIT.md` actualizado con el inventario físico y estado de sincronización.
 - Documentación: Generado ADR 0075 en `docs/adr/0075-teacher-kiosk-bidirectional-attendance-sync-and-insforge-mcp.md`.
 - Estado: COMPILACIÓN EXITOSA (CÓDIGO 0) Y COMMITEADO.
+
+[2026-10-08 17:30:00 -05:00] [BUGFIX_SEARCH & SCHEDULE_SANITY] [AUTOFILL_IMMUNIZATION_BRUNO_MARCELO_SANTIAGO_VALLADOLID]
+1. Inmunización Absoluta de Autofill en Búsqueda (/admin/alumnos):
+   - Atributos autoComplete="off", data-1p-ignore, data-lpignore="true", name y id únicos en el input de búsqueda.
+   - Botón interactivo de limpieza rápida (<X />) e inicialización forzada de search="" en montaje del componente.
+   - Deduplicación reactiva en hydrateFromBackend y pausa preventiva del ciclo culminado anterior de Kamila Valentina.
+2. Corrección de Horario Bruno Marcelo en PostgreSQL Insforge:
+   - Eliminada lección sch-83 (Jue 17:30). Horario oficial pareado consolidado: Martes 18:15 y Jueves 18:15 (8 clases/mes).
+3. Soporte para Adelantos Previos a planStartDate (Caso Santiago Valladolid):
+   - Implementado scanStartDate en kardex-calculator.ts y student-cycle.ts retrocediendo hasta 30 días para incluir clases agendadas puntualmente antes del inicio formal (05/10/2026).
+   - Bloqueo preventivo en lecciones recurrentes abiertas (curDateStr >= planStartDate) evitando clases fantasma.
+   - Ficha de Santiago saneada en PostgreSQL: planStartDate="2026-10-05" y asistencia del 05/10 preservada como presente.
+- Documentación: Generado ADR 0164 en docs/adr/0164-inmunizar-autofill-busqueda-corregir-duplicidad-bruno-marcelo-adelantos-santiago-valladolid.md.
+- Estado: RESUELTO Y AUDITADO (Commit 95416bc).
+
+[2026-10-08 20:00:00 -05:00] [CYCLE_ENGINE & DB_PROVISIONING] [PLAN_INTENSIVO_90MIN_CONTIGUOUS_BLOCKS_RESOLUTION]
+1. Blindaje del Algoritmo de Proyección en Plan Intensivo (src/lib/student-cycle.ts):
+   - Erradicado el bug de doble cómputo en datesNeeded cuando una fecha lectiva tenía un bloque evaluado y otro huérfano pendiente.
+   - futureDates filtra fechas no presentes en evaluatedDates, y chosenPendingRegular abarca las fechas futuras necesarias junto con los bloques huérfanos pendientes para garantizar los 90 minutos.
+   - Antonella Osorio Huaman ahora proyecta de forma infalible su 4ta clase el 09/10/2026 (16:00 y 16:45) con isLessonInStudentCycle=true.
+2. Aprovisionamiento de Segundos Bloques Contiguos en PostgreSQL Insforge:
+   - Inyectados quirúrgicamente en emergency_contact.scheduleLessons los bloques de 45 minutos faltantes:
+     * Sebastian Ortega: Sáb 11:15 en Sala B (Fernando). Asistencia del 03/10 sincronizada como presente.
+     * Marcelo Andree: Sáb 12:45 en Sala A (Jeremy).
+     * Kayra Valery: Sáb 09:45 en Sala C (Nathaly). Asistencia del 03/10 sincronizada como presente.
+     * Juan Mateo Azael: Vie 16:45 en Sala C (Nathaly) y Bloque 2 para recuperación del 09/10.
+     * Joshua Leon Gonzales: Limpieza de clases erróneas de los viernes, preservado en Sábados 12:00.
+- Documentación: Generado ADR 0165 en docs/adr/0165-resolucion-integral-plan-intensivo-90min-horario-clases-motor-ciclos.md.
+- Estado: RESUELTO Y AUDITADO (Commit aaa35b9).
+
+[2026-10-09 15:50:00 -05:00] [KARDEX_ENGINE & RECOVERY_PRESERVATION] [CONSECUTIVE_CLASSES_BEYOND_PLANENDDATE_MICAELA_SOFIA]
+1. Diagnóstico de la 8va Clase Oculta en Kardex (Micaela Sofia):
+   - Alumna con 7 asistencias evaluadas en sala como presente (1 regular + 6 recuperaciones).
+   - Secretaría agregó clase contigua con '+ De corrido (+45m)' el Mié 09/09/2026 a las 17:30 (sch-1790814650424-aya), pero no era visible por:
+     * kardex-calculator.ts: isBeyondEnd descartaba sesiones pendientes tras planEndDate sin verificar !lesson.dateStr.
+     * student-cycle.ts: barrera de fin de plan ocurría antes de revisar lecciones, y deduplicación por fecha anulaba el bloque contiguo de las 17:30 porque el de las 16:45 ya estaba evaluado.
+2. Solución Arquitectónica (ADR-0166):
+   - kardex-calculator.ts: Exención de descarte para lecciones con dateStr explícito (!lesson.dateStr). Fallback seguro (allSchedule || []).
+   - student-cycle.ts: Barreras effectiveEndDate circunscritas a lecciones recurrentes abiertas. Deduplicación por fecha permite slots contiguos de distinta hora (dateStr-time) en lecciones con dateStr.
+   - student-attendance-kardex.tsx: handleAddConsecutiveClass hereda isMakeup del padre.
+3. Verificación de Cumplimiento Contractual:
+   - Micaela Sofia proyecta exactamente sus 8/8 clases (7 evaluadas + la sesión de las 17:30 del 09/09).
+   - Vista mensual de Septiembre proyecta exactamente 3 clases. isLessonInStudentCycle=true para la 8va sesión.
+- Documentación: Generado ADR 0166 en docs/adr/0166-preservacion-clases-contiguas-corrido-45m-mas-alla-planenddate-micaela-sofia.md.
+- Estado: RESUELTO Y AUDITADO (Commit ce09316).

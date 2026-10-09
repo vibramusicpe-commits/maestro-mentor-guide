@@ -1,7 +1,7 @@
 {
   "system": "Cadencia - Vibra Music Management Platform",
-  "version": "2.3.0-prod",
-  "last_updated": "2026-08-20T19:12:00-05:00",
+  "version": "2.0.36-prod",
+  "last_updated": "2026-10-09T16:00:00-05:00",
   "database": {
     "provider": "Insforge PostgreSQL (MCP)",
     "schema": "public",
@@ -25,12 +25,13 @@
     "secretary_functions": {
       "f1_attendance": "Marcado rápido y recálculo reactivo de attendanceRate",
       "f2_matriculas": "Alta con cálculo de vigencia temporal y agendado +Horario",
-      "f3_reprogramaciones": "Scope: Solo esta semana vs Todo el mes",
+      "f3_reprogramaciones": "Scope: Solo esta semana vs Todo el mes con deduplicación por slot",
       "f4_whatsapp": "Integración directa con wa.me para bienvenida, cobro y recibos",
       "f5_retiros": "Pausas y Bajas con historial de reingresantes",
       "f6_cobranzas": "Abonos parciales/totales con N° operación y bitácora auditada",
       "f7_in_place_edit": "ADR 0059: Edición integral de todos los campos de alumnos directamente en panel",
-      "f8_individual_students": "ADR 0061: Separación de 83 alumnos independientes (sin agrupaciones familiares)"
+      "f8_individual_students": "ADR 0061: Separación de 83 alumnos independientes (sin agrupaciones familiares)",
+      "f9_search_immunization": "ADR 0164: Inmunización absoluta contra autofill de navegadores y limpieza instantánea"
     },
     "deletion_security": {
       "staff_restriction": "No puede eliminar permanentemente. Genera DeletionRequest.",
@@ -40,11 +41,30 @@
       "path": "src/components/admin/agenda-board.tsx",
       "status": "clean_production",
       "features": [
-        "Matriz 3 Columnas Docente",
+        "Matriz 3 Columnas Docente (Jeremy Sala A, Fernando Sala B, Nathaly Sala C)",
         "Personalizadas Celeste con Puntitos de Edad",
         "No Recuperación en Personalizadas",
         "Clases de Recuperación en Rojo Vivo",
+        "Badge ⚡ 90m para Alumnos en Plan Intensivo",
         "Automated School Bell"
+      ]
+    },
+    "kardex_engine": {
+      "path": "src/lib/kardex-calculator.ts",
+      "status": "clean_production",
+      "features": [
+        "ADR 0162 & ADR 0163: Consolidación unificada de 90 min en Plan Intensivo",
+        "ADR 0164: scanStartDate con ventana de retroceso de 30 días para adelantos",
+        "ADR 0166: Preservación incondicional de clases contiguas (+45m) con dateStr más allá de planEndDate"
+      ]
+    },
+    "cycle_engine": {
+      "path": "src/lib/student-cycle.ts",
+      "status": "clean_production",
+      "features": [
+        "ADR 0108 & ADR 0156: Validación estricta por slot exacto (dateStr-time)",
+        "ADR 0165: Aislamiento de futureDates para datesNeeded sin doble cómputo en intensivos",
+        "ADR 0166: Deduplicación por fecha acotada a plantillas abiertas permitiendo slots contiguos"
       ]
     },
     "students": {
@@ -54,7 +74,8 @@
         "83 Alumnos Separados",
         "Edición In-Place Directa en Ficha",
         "Categorías Infantil/Junior/Juvenil/Adulto",
-        "Adultos sin Apoderado Obligatorio"
+        "Adultos sin Apoderado Obligatorio",
+        "Inmunización anti-autofill de búsqueda"
       ]
     }
   },
