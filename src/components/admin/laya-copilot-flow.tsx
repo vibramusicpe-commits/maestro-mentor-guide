@@ -62,22 +62,28 @@ interface LayaCopilotFlowProps {
 
 // 🛡️ REGLA (ADR-0170, Bug #1): detecta consultas GENÉRICAS de cobranzas
 // ("pagos pendientes", "deudores", ...) donde jamás debe fijarse un alumno
-// individual. Debe coincidir con la guardia server-side de clef.ts.
+// individual. Frases intencionalmente precisas (solo plural/deuda explícita)
+// para no secuestrar consultas con nombre ("cuánto debe Karlitoz").
+// Debe coincidir con la guardia server-side de clef.ts.
 function isGenericBillingText(text: string): boolean {
   const t = (text || "").toLowerCase();
   return (
     t.includes("pagos pendientes") ||
     t.includes("pago pendiente") ||
+    t.includes("saldos pendientes") ||
+    t.includes("saldo pendiente") ||
+    t.includes("cuentas por cobrar") ||
     t.includes("deudores") ||
+    t.includes("morosos") ||
     t.includes("quienes deben") ||
     t.includes("quiénes deben") ||
-    t.includes("lista de") ||
-    t.includes("qué alumnos") ||
-    t.includes("que alumnos") ||
-    t.includes("cuáles alumnos") ||
-    t.includes("cuales alumnos") ||
-    t.includes("cuentas por cobrar") ||
-    t.includes("saldos pendientes")
+    t.includes("que alumnos deben") ||
+    t.includes("qué alumnos deben") ||
+    t.includes("cuales alumnos deben") ||
+    t.includes("cuáles alumnos deben") ||
+    t.includes("lista de deudores") ||
+    t.includes("lista de morosos") ||
+    t.includes("lista de pagos")
   );
 }
 
@@ -213,6 +219,16 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
 
       let intentVal = clefResult?.intent || answers.intent?.choice || "general";
       const isCobranzasQuery = intentVal === "cobranzas";
+      // 🛡️ REGLA (ADR-0170, Bug #1): la consulta es de cobranza genérica cuando
+      // el intent server-side es "cobranzas" O el texto pide lista de deudores
+      // en plural. El taxonomía local (Sistema 1) no tiene opción "cobranzas",
+      // así que la detección por texto cubre también el modo offline (/api caído).
+      // La fijación explícita (@mención o selección manual => forcedStudent)
+      // siempre tiene prioridad y desactiva esta guardia.
+      const isGenericBillingQuery =
+        !forcedStudent &&
+        !textToAnalyze.includes("@") &&
+        (isCobranzasQuery || isGenericBillingText(textToAnalyze));
 
       // 2. Extracción y matching de alumno con Pauta Anti-Colisión (ADR-0140 / ADR-0142)
       let matchedSt: AdminStudent | undefined = forcedStudent;
@@ -223,10 +239,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       if (!matchedSt) {
         // 🛡️ REGLA (ADR-0170, Bug #1): en consultas GENÉRICAS de cobranzas
         // (ej: "pagos pendientes"), NO buscar ni fijar alumno individual por
-        // ninguna vía (entidad de Clef o matcher local), salvo fijación
-        // explícita (@mención o selección manual => forcedStudent).
-        const isGenericBillingQuery =
-          isCobranzasQuery && !textToAnalyze.includes("@") && isGenericBillingText(textToAnalyze);
+        // ninguna vía (entidad de Clef o matcher local).
         // En consultas genéricas de cobranzas (ej: "pagos pendientes"), NO buscar alumno individual
         if (!isGenericBillingQuery && (!isCobranzasQuery || clefResult?.entities?.studentName)) {
           if (clefResult?.entities?.studentName) {
@@ -302,7 +315,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       // 🛡️ REGLA (ADR-0170, Bug #1): cobranzas genéricas sin alumno resuelto
       // responden con la lista de deudores, jamás con el kardex de uno solo.
       const debtorsReply =
-        isCobranzasQuery && !matchedSt && !isAmbiguous
+        isGenericBillingQuery && !matchedSt && !isAmbiguous
           ? buildDebtorsListReply(activeStudents)
           : undefined;
       const whatsAppReply = debtorsReply || clefResult?.response || buildWhatsAppReply({
