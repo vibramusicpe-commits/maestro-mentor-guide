@@ -315,6 +315,16 @@ export function extractStudentFromText(
 /**
  * Calcula en vivo el balance matemático del ciclo del alumno (PostgreSQL / Zustand)
  */
+const WEEKDAY_KEYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"] as const;
+
+// Día de semana (Lun..Sáb) de una fecha YYYY-MM-DD en hora local (sin desvío UTC).
+function weekdayKeyOf(dateStr: string): string {
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "";
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return WEEKDAY_KEYS[d.getDay()] || "";
+}
+
 export function computeStudentKardexSummary(
   student: AdminStudent,
   schedule: ScheduledLesson[] = []
@@ -342,8 +352,22 @@ export function computeStudentKardexSummary(
   lessons.forEach((l) => {
     if (l.attendanceByDate) {
       Object.entries(l.attendanceByDate).forEach(([dateStr, status]) => {
-        // Ignorar marcas fuera del ciclo activo actual
-        if (dateStr < planStart || dateStr > planEnd) return;
+        // 🛡️ REGLA (ADR-0170): solo contar la marca si la lección corresponde
+        // a esa fecha. Las reprogramaciones dejan marcas residuales en varias
+        // plantillas (ej. el mismo día presente en 2-3 lecciones) y contarlas
+        // todas infla el ciclo (caso Karlitoz: 11 en vez de 8).
+        if (l.excludedDates?.includes(dateStr)) return;
+        if (l.dateStr) {
+          // Puntual (recuperación/adelanto): solo su fecha exacta y desde el
+          // inicio del ciclo (piso ADR-0161); exenta del tope de fin como en
+          // Kardex y student-cycle (ADR-0165/ADR-0166).
+          if (l.dateStr !== dateStr || dateStr < planStart) return;
+        } else {
+          // Recurrente: el día de semana de la fecha debe ser el de la
+          // plantilla y estar dentro de la vigencia del ciclo.
+          if (weekdayKeyOf(dateStr) !== l.day) return;
+          if (dateStr < planStart || dateStr > planEnd) return;
+        }
         // Evitar duplicados por lecciones coincidentes: la clave incluye la
         // lección porque dos lecciones DISTINTAS evaluadas el mismo día
         // (ej. regular + recuperación puntual) son sesiones independientes
@@ -496,6 +520,20 @@ export function buildWhatsAppReply(params: {
 
   // 1. Caso Consulta de Clases Faltantes / Estado de Kardex
   if (intent === "consulta_clases_pendientes") {
+    // 🛡️ REGLA (ADR-0170): ciclo culminado => mensaje de cierre, sin invitar
+    // a programar recuperaciones ni mostrar créditos pendientes.
+    if (kardexSummary?.cycleCompleted) {
+      const totalDone = kardexSummary.targetQuota || 8;
+      const attendedDone = kardexSummary.attendedCount || 0;
+      return (
+        `${greeting}\n\n` +
+        `Revisamos el Kardex de ${studentName} en tiempo real:\n` +
+        `• *Ciclo contratado:* ${totalDone} clases.\n` +
+        `• *Clases asistidas:* ${attendedDone} clases.\n` +
+        `• *Cumplimiento:* ${kardexSummary.evaluatedCount} de ${totalDone} 🎓 *Ciclo culminado al 100%*.\n\n` +
+        `¡Felicitaciones! ${studentName} completó todas sus sesiones y está listo(a) para renovar su nuevo mes lectivo. ¿Desean que preparemos la renovación?`
+      );
+    }
     const total = kardexSummary?.targetQuota || 8;
     const attended = kardexSummary?.attendedCount || 0;
     const absences = (kardexSummary?.absentCount || 0) + (kardexSummary?.justifiedCount || 0);
