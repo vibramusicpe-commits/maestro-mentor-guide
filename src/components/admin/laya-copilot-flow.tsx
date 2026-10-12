@@ -105,9 +105,13 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
     slotAnalysis?: MatchedSlotAnalysis;
     academyKnowledge?: AcademyKnowledgeResponse | null;
     whatsAppReply: string;
+    clefResponse?: string;
+    clefIntent?: string;
+    clefConfidence?: number;
+    clefModel?: string;
   } | null>(null);
 
-  // Ejecutar inferencia de Sistema 1 con Laya (<35 ms)
+  // Ejecutar inferencia de Sistema 1 con Laya asistida por Clef & Workers AI
   const runLayaAnalysis = async (textToAnalyze: string, forcedStudent?: AdminStudent) => {
     if (!textToAnalyze.trim()) {
       setParsedData(null);
@@ -118,6 +122,31 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
     const start = performance.now();
 
     try {
+      // 0. Consulta en vivo al endpoint server-side de Clef + Insforge + Workers AI
+      let clefResult: {
+        intent?: string;
+        confidence?: number;
+        response?: string;
+        model_used?: string;
+        entities?: any;
+      } | null = null;
+
+      try {
+        const apiRes = await fetch("/api/assistant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: textToAnalyze }),
+        });
+        if (apiRes.ok) {
+          const json = await apiRes.json();
+          if (json.success) {
+            clefResult = json;
+          }
+        }
+      } catch (e) {
+        console.debug("[Laya Copilot] API /api/assistant no disponible, usando motor local:", e);
+      }
+
       // 1. Predicción no-autorregresiva tipada de Laya (Sistema 1)
       const prediction = await defaultLaya.predict(textToAnalyze, LAYA_REPROGRAMACION_QUESTIONS);
       const { answers, routing } = prediction;
@@ -129,11 +158,32 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       let isAmbiguous = false;
 
       if (!matchedSt) {
-        const matchResult = extractStudentFromText(textToAnalyze, activeStudents);
-        matchedSt = matchResult.student;
-        stConfidence = matchResult.confidence;
-        candidates = matchResult.candidates;
-        isAmbiguous = matchResult.isAmbiguous;
+        // Si Clef extrajo el nombre de un alumno, buscarlo prioritariamente
+        if (clefResult?.entities?.studentName) {
+          const entityTarget = clefResult.entities.studentName.toLowerCase();
+          const candidateMatches = activeStudents.filter((st) =>
+            st.name.toLowerCase().includes(entityTarget)
+          );
+          if (candidateMatches.length === 1) {
+            matchedSt = candidateMatches[0];
+            stConfidence = 0.98;
+          } else if (candidateMatches.length > 1) {
+            candidates = candidateMatches.map((c) => ({
+              student: c,
+              score: 0.95,
+              matchReason: "Coincidencia por entidad Clef",
+            }));
+            isAmbiguous = true;
+          }
+        }
+
+        if (!matchedSt && !isAmbiguous) {
+          const matchResult = extractStudentFromText(textToAnalyze, activeStudents);
+          matchedSt = matchResult.student;
+          stConfidence = matchResult.confidence;
+          candidates = matchResult.candidates;
+          isAmbiguous = matchResult.isAmbiguous;
+        }
       }
 
       // 2b. Evaluación de Base de Conocimientos de Inducción y Guardrails de Seguridad (ADR-0142)
@@ -142,7 +192,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       // 3. Resolución de docente y sala por pedagogía oficial (ADR-0102)
       const dayVal = answers.dia?.choice || "indeterminado";
       const timeVal = answers.horario?.choice || "indeterminado";
-      let intentVal = answers.intent?.choice || "general";
+      let intentVal = clefResult?.intent || answers.intent?.choice || "general";
       if (academyKnowledge) {
         intentVal = "consulta_sistema_academia";
       }
@@ -176,7 +226,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       }
 
       // 6. Redacción instantánea de respuesta de WhatsApp
-      const whatsAppReply = buildWhatsAppReply({
+      const whatsAppReply = clefResult?.response || buildWhatsAppReply({
         studentName: matchedSt?.name,
         familyName: matchedSt?.family,
         intent: intentVal,
@@ -206,6 +256,10 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
         slotAnalysis,
         academyKnowledge,
         whatsAppReply,
+        clefResponse: clefResult?.response,
+        clefIntent: clefResult?.intent,
+        clefConfidence: clefResult?.confidence,
+        clefModel: clefResult?.model_used,
       });
     } catch (err) {
       console.error("[Laya Copilot] Error en inferencia:", err);
@@ -340,8 +394,8 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
             onClick={() => setViewMode("sidebar")}
             className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-black font-bold text-xs shadow-sm hover:bg-white/90 transition-all shrink-0 cursor-pointer"
           >
-            <Zap className="h-3.5 w-3.5 fill-black text-black" />
-            <span>Copiloto Laya</span>
+            <Sparkles className="h-3.5 w-3.5 fill-[#F47B20] text-[#F47B20]" />
+            <span>Laya · Clef AI</span>
           </button>
 
           {/* Input de Texto Libre con Autocompletado Tab (ADR-0142) */}
@@ -402,10 +456,12 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-black tracking-wide text-foreground">Copiloto Laya</h3>
                 <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
-                  {latencyMs !== null ? `${latencyMs} ms` : "Sistema 1 · <35ms"}
+                  {parsedData?.clefModel ? "Clef + Workers AI" : latencyMs !== null ? `${latencyMs} ms` : "Sistema 1 · <35ms"}
                 </Badge>
               </div>
-              <p className="text-[11px] text-muted-foreground">Triage inteligente en tiempo real con PostgreSQL</p>
+              <p className="text-[11px] text-muted-foreground">
+                {parsedData?.clefModel ? "IA en tiempo real con Clef, Insforge y Llama 3.1" : "Triage inteligente en tiempo real con PostgreSQL"}
+              </p>
             </div>
           </div>
 
@@ -494,6 +550,43 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
               />
             </div>
           </div>
+
+          {/* RESPUESTA INTELIGENTE DEL ASISTENTE (CLEF + WORKERS AI + INSFORGE) */}
+          {parsedData?.clefResponse && (
+            <div className="p-3.5 rounded-xl border border-[#F47B20]/40 bg-[#F47B20]/10 space-y-2.5 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-[#F47B20] tracking-wider uppercase flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-[#F47B20]" />
+                  Respuesta Inteligente (Clef AI)
+                </span>
+                <Badge variant="outline" className="text-[10px] border-[#F47B20]/40 text-[#F47B20] font-mono">
+                  {parsedData.clefIntent || "Clef"}
+                </Badge>
+              </div>
+              <div className="text-xs text-foreground/95 whitespace-pre-line leading-relaxed font-sans p-3 rounded-lg bg-black/50 border border-white/5">
+                {parsedData.clefResponse}
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {parsedData.clefModel || "Workers AI"}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(parsedData.clefResponse!);
+                      toast.success("Respuesta copiada al portapapeles");
+                    }}
+                    className="h-7 text-[11px] gap-1 border-white/10 hover:bg-white/10"
+                  >
+                    <Copy className="h-3 w-3" />
+                    Copiar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* PAUTA ANTI-COLISIÓN: Estado de Desambiguación de Homónimos (ADR-0141 / ADR-0142) */}
           {parsedData?.isAmbiguous && (
