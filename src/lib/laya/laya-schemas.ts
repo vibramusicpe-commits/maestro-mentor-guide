@@ -53,6 +53,7 @@ export const LAYA_REPROGRAMACION_QUESTIONS = {
     criteria: {
       "16:00": "4:00 pm, 4 de la tarde, 16:00",
       "16:45": "4:45 pm, 16:45",
+      "17:00": "5:00 pm, 5 de la tarde, 17:00",
       "17:30": "5:30 pm, 5 y media, 17:30",
       "18:15": "6:15 pm, 6 y cuarto, 18:15",
       "19:00": "7:00 pm, 7 de la noche, 19:00",

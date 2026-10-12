@@ -1318,3 +1318,16 @@ inferencia.
 4. **Cierre del ticket**:
    - Pulsar Renovar en la fila de Nathaly, confirmar toast "Acceso renovado", verificar que su invitación valida el enlace y que entra a `/teacher` con píldora `🟢 En vivo`.
 
+---
+
+### 69. Corrección de 3 Bugs del Copiloto Laya: Cobranzas Genéricas, Conteo de Kardex y Hora 17:00 (ADR-0170)
+1. **Bug #1 — "PAGOS PENDIENTES" mostraba el kardex de un solo alumno**:
+   - Causa: la guardia anti-entidad solo existía server-side (`clef.ts`); si Workers AI igual devolvía `entities.studentName`, el cliente (`laya-copilot-flow.tsx`) fijaba el alumno por subcadena con confianza 0.98 sin umbral, y no existía rama de lista de deudores.
+   - Fix: `isGenericBillingText` + `buildDebtorsListReply` en `laya-copilot-flow.tsx`. En cobranzas genéricas (sin `@mención` ni selección manual) jamás se fija alumno por ninguna vía; la respuesta lista familias con saldo desde las fichas activas, ordenadas por deuda con total.
+2. **Bug #2 — Alumno con ciclo completo figuraba "En Curso" (caso Karlitoz)**:
+   - La hipótesis de fechas faltantes era incorrecta: `planStartDate`/`planEndDate` SÍ llegan (Karlitoz 2026-09-07 → 2026-10-06, verificado en vivo). Causa real: `computeStudentKardexSummary` (`laya-realtime-matcher.ts`) deduplicaba con `dateStr-status`, colapsando lecciones distintas del mismo día. Recomputo con datos vivos: antes 5/2/7 → En Curso; después 11/2/13 → Ciclo Cumplido.
+   - Fix: clave de deduplicación `${lessonId}-${dateStr}`. Cada lección evaluada cuenta como sesión independiente.
+3. **Bug #3 — "5pm" resolvía a "16:00"**:
+   - Causa: el schema `horario` (`laya-schemas.ts`) no tenía opción "17:00" (saltaba de 16:45 a 17:30), así que el encoder caía al vecino.
+   - Fix: agregada `"17:00": "5:00 pm, 5 de la tarde, 17:00"` solo como reconocimiento NLU; 17:00 no es turno oficial de inicio (ADR-0130), así que el análisis de aforo responde con alternativas reales sin inventar horarios.
+

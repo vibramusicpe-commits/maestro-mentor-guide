@@ -344,8 +344,12 @@ export function computeStudentKardexSummary(
       Object.entries(l.attendanceByDate).forEach(([dateStr, status]) => {
         // Ignorar marcas fuera del ciclo activo actual
         if (dateStr < planStart || dateStr > planEnd) return;
-        // Evitar duplicados por lecciones coincidentes
-        const slotKey = `${dateStr}-${status}`;
+        // Evitar duplicados por lecciones coincidentes: la clave incluye la
+        // lección porque dos lecciones DISTINTAS evaluadas el mismo día
+        // (ej. regular + recuperación puntual) son sesiones independientes
+        // y ambas consumen cuota (ADR-0170, Bug #2).
+        const lessonKey = l.id || `${l.day || ""}-${l.time || ""}`;
+        const slotKey = `${lessonKey}-${dateStr}`;
         if (evaluatedDates.has(slotKey)) return;
         evaluatedDates.add(slotKey);
 

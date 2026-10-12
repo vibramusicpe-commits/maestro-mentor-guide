@@ -60,6 +60,66 @@ interface LayaCopilotFlowProps {
   onClose: () => void;
 }
 
+// 🛡️ REGLA (ADR-0170, Bug #1): detecta consultas GENÉRICAS de cobranzas
+// ("pagos pendientes", "deudores", ...) donde jamás debe fijarse un alumno
+// individual. Debe coincidir con la guardia server-side de clef.ts.
+function isGenericBillingText(text: string): boolean {
+  const t = (text || "").toLowerCase();
+  return (
+    t.includes("pagos pendientes") ||
+    t.includes("pago pendiente") ||
+    t.includes("deudores") ||
+    t.includes("quienes deben") ||
+    t.includes("quiénes deben") ||
+    t.includes("lista de") ||
+    t.includes("qué alumnos") ||
+    t.includes("que alumnos") ||
+    t.includes("cuáles alumnos") ||
+    t.includes("cuales alumnos") ||
+    t.includes("cuentas por cobrar") ||
+    t.includes("saldos pendientes")
+  );
+}
+
+// Construye la respuesta de cobranzas genéricas: lista de familias con saldos
+// pendientes calculada desde las fichas activas (sin inventar un alumno).
+function buildDebtorsListReply(activeStudents: AdminStudent[]): string {
+  const debtors = activeStudents
+    .map((st) => ({
+      name: st.name,
+      family: st.family || "",
+      plan: st.planType || st.modality || "Plan",
+      paid: st.amountPaid || 0,
+      balance: st.balance || 0,
+    }))
+    .filter((d) => d.balance > 0)
+    .sort((a, b) => b.balance - a.balance);
+
+  if (debtors.length === 0) {
+    return (
+      "¡Hola! Te saluda Secretaría de Vibra Music. 🎵\n\n" +
+      "Revisamos la cartera en tiempo real: *todos los alumnos están al día en sus pagos*. ✅\n\n" +
+      "Quedamos atentos para cualquier consulta adicional."
+    );
+  }
+
+  const totalDebt = debtors.reduce((acc, d) => acc + d.balance, 0);
+  const lines = debtors
+    .map(
+      (d) =>
+        `• *${d.name}* (${d.plan}) — Abonado S/ ${d.paid.toFixed(2)} — *Saldo S/ ${d.balance.toFixed(2)}*` +
+        (d.family ? ` — Familia ${d.family}` : "")
+    )
+    .join("\n");
+
+  return (
+    "¡Hola! Te saluda Secretaría de Vibra Music. 🎵\n\n" +
+    `Revisamos los pagos pendientes en tiempo real. *${debtors.length} familia(s)* con saldo por cobrar (total S/ ${totalDebt.toFixed(2)}):\n` +
+    `${lines}\n\n` +
+    "¿Deseas que preparemos el mensaje de cobranza para alguna familia en particular?"
+  );
+}
+
 export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowProps) {
   const adminStudents = useAppStore((s) => s.adminStudents);
   const schedule = useAppStore((s) => s.schedule);
@@ -161,8 +221,14 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       let isAmbiguous = false;
 
       if (!matchedSt) {
+        // 🛡️ REGLA (ADR-0170, Bug #1): en consultas GENÉRICAS de cobranzas
+        // (ej: "pagos pendientes"), NO buscar ni fijar alumno individual por
+        // ninguna vía (entidad de Clef o matcher local), salvo fijación
+        // explícita (@mención o selección manual => forcedStudent).
+        const isGenericBillingQuery =
+          isCobranzasQuery && !textToAnalyze.includes("@") && isGenericBillingText(textToAnalyze);
         // En consultas genéricas de cobranzas (ej: "pagos pendientes"), NO buscar alumno individual
-        if (!isCobranzasQuery || clefResult?.entities?.studentName) {
+        if (!isGenericBillingQuery && (!isCobranzasQuery || clefResult?.entities?.studentName)) {
           if (clefResult?.entities?.studentName) {
             const entityTarget = clefResult.entities.studentName.toLowerCase();
             const candidateMatches = activeStudents.filter((st) =>
@@ -233,7 +299,13 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       }
 
       // 6. Redacción instantánea de respuesta de WhatsApp
-      const whatsAppReply = clefResult?.response || buildWhatsAppReply({
+      // 🛡️ REGLA (ADR-0170, Bug #1): cobranzas genéricas sin alumno resuelto
+      // responden con la lista de deudores, jamás con el kardex de uno solo.
+      const debtorsReply =
+        isCobranzasQuery && !matchedSt && !isAmbiguous
+          ? buildDebtorsListReply(activeStudents)
+          : undefined;
+      const whatsAppReply = debtorsReply || clefResult?.response || buildWhatsAppReply({
         studentName: matchedSt?.name,
         familyName: matchedSt?.family,
         intent: intentVal,
