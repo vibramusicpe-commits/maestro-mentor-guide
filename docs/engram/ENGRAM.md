@@ -53,12 +53,15 @@ graph TD
    - Las lecciones con `dateStr` explícito nunca son descartadas por la barrera `isBeyondEnd` en Kardex.
    - La deduplicación por fecha en `student-cycle.ts` permite franjas horarias contiguas (`dateStr-time`) en una misma fecha lectiva para lecciones con fecha fija.
    - `handleAddConsecutiveClass` hereda `isMakeup` del bloque padre.
-5. **Autonomía de Secretaría en Agenda (ADR 0052, ADR 0053, ADR 0105)**:
-   - Control autónomo para reprogramar clases (alcance puntual por fecha vs recurrente) deduplicando estrictamente por slot (`dateStr-time`).
+5. **Blindaje de Reprogramación Intensivo 90m y Sync de Facturación (ADR 0167)**:
+   - Toda reprogramación intensiva genera atómicamente dos bloques contiguos de 45m (90 min) y excluye ambos bloques habituales.
+   - Sincronización automática Ficha ➔ `invoices` en PostgreSQL (`postgrestPatch`).
+   - Aislamiento estricto de ciclo activo (escaneo retroactivo acotado a 7 días y `recoveringDates`).
 
 ---
 
 ## 🔗 Referencias de Arquitectura y Grafos
+- **ADR 0167 (Plan Intensivo 90m, Kardex, Renovaciones & Sync Facturación)**: [`docs/adr/0167-blindaje-integral-plan-intensivo-90m-kardex-renovaciones-sync-facturacion.md`](file:///c:/Users/USER/my%20music%20staff%20backend/docs/adr/0167-blindaje-integral-plan-intensivo-90m-kardex-renovaciones-sync-facturacion.md)
 - **ADR 0166 (Clases Contiguas de Corrido +45m)**: [`docs/adr/0166-preservacion-clases-contiguas-corrido-45m-mas-alla-planenddate-micaela-sofia.md`](file:///c:/Users/USER/my%20music%20staff%20backend/docs/adr/0166-preservacion-clases-contiguas-corrido-45m-mas-alla-planenddate-micaela-sofia.md)
 - **ADR 0165 (Resolución Integral Plan Intensivo 90 min)**: [`docs/adr/0165-resolucion-integral-plan-intensivo-90min-horario-clases-motor-ciclos.md`](file:///c:/Users/USER/my%20music%20staff%20backend/docs/adr/0165-resolucion-integral-plan-intensivo-90min-horario-clases-motor-ciclos.md)
 - **ADR 0164 (Inmunización Autofill y Adelantos Previos)**: [`docs/adr/0164-inmunizar-autofill-busqueda-corregir-duplicidad-bruno-marcelo-adelantos-santiago-valladolid.md`](file:///c:/Users/USER/my%20music%20staff%20backend/docs/adr/0164-inmunizar-autofill-busqueda-corregir-duplicidad-bruno-marcelo-adelantos-santiago-valladolid.md)

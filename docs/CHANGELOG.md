@@ -4,6 +4,26 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.37] - 2026-10-12
+
+### Blindaje Integral de Plan Intensivo (90m), Motor de Ciclos/Kardex, Renovaciones y Sincronización Automática de Facturación (ADR-0167)
+- **Reprogramación Atómica de 90 Minutos para Plan Intensivo (`src/store/app-store.ts`)**:
+  - Detección automática de Plan Intensivo (`isIntensive`) en `rescheduleLesson`.
+  - Exclusión coordinada de ambos bloques contiguos de 45m en la fecha original (`originalDateStr` en `excludedDates` de Sesión 1 y Sesión 2) y limpieza de asistencias residuales.
+  - Creación de dos bloques contiguos de 45m (`Block 1` a `time` y `Block 2` a `time + 45m`) con `isMakeup: true` y limpieza estricta de `effectiveUntil: undefined`, erradicando bloqueos por barreras de cursos pasados.
+- **Aislamiento Estricto de Ciclo Activo y Protección de Cuota (`src/lib/student-cycle.ts` y `src/lib/kardex-calculator.ts`)**:
+  - Acotamiento de `scanStartDate` a 7 días exclusivamente para adelantos inmediatos de curso; descarte explícito de lecciones vencidas (`effectiveUntil < startStr`) o recuperaciones de periodos anteriores (`recoveringLessonDate < startStr`), resolviendo el arrastre de septiembre en el nuevo ciclo de Juan Diego.
+  - Inmunización de lecciones `isMakeup` contra la barrera `effectiveUntil` (`if (!lesson.isMakeup && lesson.effectiveUntil ...)`), permitiendo que las reprogramaciones de Sasha Dharma se proyecten en octubre.
+  - Incorporación de `recoveringDates` en `computeStudentCycleSessions`: las fechas con recuperaciones pendientes agendadas no consumen cupos en `pendingRegular`, garantizando que el sábado 17 de Benjamin no sea desplazado ni recortado.
+  - Erradicado el falso cierre prematuro de ciclo en Alejandro Huarca, desbloqueando sus clases activas en `AgendaBoard` para los Lunes y Miércoles a las 17:30.
+- **Sincronización Automática Ficha de Alumno ➔ Recibos (`src/store/app-store.ts`)**:
+  - En `updateStudentDetails`, cada edición de `amountPaid`, `planPrice` o `balance` actualiza automáticamente la tabla `invoices` en PostgreSQL vía `postgrestPatch`, emitiendo `invoice-updated`.
+  - En `renewStudentCycle`, incorporado parámetro opcional `amountPaid` para registrar cobros inmediatos al momento de la renovación.
+- **Regularización Quirúrgica en PostgreSQL Insforge**:
+  - Actualizados a `status: 'pagado'` los 3 recibos atascados en "Pendiente": Juan Diego (`e4608892...`), Santiago Mathias (`5e5c092a...`) y Matias Gabriel (`01aff5f7...`).
+  - Insertados 3 registros oficiales de auditoría en `payment_audit_logs` con referencia `"ABONO-RENOVACION"`.
+  - Saneadas las lecciones de Sebastian Paredes (09:00 - 10:30 el 10/10), Giuseppe Granda (16:00 - 17:30 el 29/10), Sasha Dharma (limpieza de `effectiveUntil`) y saldo de Matias Gabriel (`balance = 0`).
+
 ## [2.0.36] - 2026-10-09
 
 ### Preservación Incondicional de Clases Contiguas de Corrido (+45m) más allá de planEndDate (Caso Micaela Sofia) (ADR-0166)

@@ -1270,3 +1270,21 @@ inferencia.
      - La deduplicación por fecha ahora solo descarta lecciones abiertas sin fecha específica: `if (evaluatedSlots.has(slot) || (!lesson.dateStr && !isIntensive && evaluatedDates.has(curDateStr))) return;`. Para lecciones con `dateStr` explícito, solo se descarta si su slot exacto (`dateStr-time`) ya fue evaluado, permitiendo clases contiguas de corrido (ej. 16:45 y 17:30 el mismo día).
    - **Herencia de Estado de Recuperación en Kardex (`src/components/admin/student-attendance-kardex.tsx`)**:
      - En `handleAddConsecutiveClass`, la nueva sesión contigua hereda `isMakeup: Boolean(session.isMakeup)`, de manera que si se añade de corrido a una sesión de recuperación, mantenga su naturaleza coherente.
+
+---
+
+### 66. Blindaje Integral de Plan Intensivo (90m), Motor de Ciclos/Kardex, Renovaciones y Sync de Facturación (ADR-0167)
+1. **Reprogramación Atómica de 90 Minutos para Plan Intensivo (`rescheduleLesson` en `app-store.ts`)**:
+   - Al reprogramar una clase de un alumno en Plan Intensivo (`isIntensive`), el sistema busca automáticamente la sesión compañera contigua del mismo día habitual.
+   - Añade `originalDateStr` a `excludedDates` en **ambos bloques contiguos de 45m** (Sesión 1 y Sesión 2), limpiando marcas residuales de asistencia de esa fecha.
+   - Crea de forma atómica **dos bloques contiguos de recuperación de 45 min** (`Block 1` a `time` y `Block 2` a `time + 45 min`, ej. 09:00 a 10:30), asignando `sessionNumber: 1` y `sessionNumber: 2`.
+   - Limpia obligatoriamente `effectiveUntil: undefined` en todas las lecciones reprogramadas (`isMakeup: true`), impidiendo que arrastren barreras temporales vencidas de cursos o instrumentos anteriores (caso Sasha Dharma).
+2. **Aislamiento Estricto de Ciclo Activo y Protección Contractual (`student-cycle.ts` y `kardex-calculator.ts`)**:
+   - `scanStartDate` solo retrocede hasta un máximo de **7 días** exclusivamente para adelantos inmediatos legítimos de curso (ej. Santiago Valladolid). Descarta incondicionalmente lecciones expiradas (`effectiveUntil < startStr`) o recuperaciones de periodos anteriores (`recoveringLessonDate < startStr`), blindando el nuevo ciclo de Juan Diego contra contaminación de asistencias pasadas.
+   - Makeups quedan expresamente exentos de la barrera `effectiveUntil` (`if (!lesson.isMakeup && lesson.effectiveUntil ...)`).
+   - En `computeStudentCycleSessions`, se introduce `recoveringDates`: las fechas con recuperaciones pendientes agendadas no consumen cupos regulares (`eligiblePendingRegular = pendingRegular.filter(s => !recoveringDates.has(s.dateStr))`), blindando el cronograma del alumno (preserva el sábado 17 de Benjamin).
+   - Corrige el falso cierre prematuro de ciclo en Alejandro Huarca, garantizando que sus clases de Lunes y Miércoles a las 17:30 se integren a `validSlots` y sean visibles en `AgendaBoard`.
+3. **Sincronización Automática Ficha ➔ Facturación (`updateStudentDetails` en `app-store.ts`)**:
+   - Toda mutación de `amountPaid`, `planPrice` o `balance` desde la ficha del alumno actualiza automáticamente los recibos asociados en PostgreSQL (`invoices`) vía `postgrestPatch`, emitiendo `invoice-updated`.
+   - `renewStudentCycle` soporta el parámetro `amountPaid` para registrar abonos de renovación en tiempo real.
+

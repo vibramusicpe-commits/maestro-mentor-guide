@@ -929,3 +929,27 @@ Directorio de Logs: docs/logs/system_audit.log
    - Vista mensual de Septiembre proyecta exactamente 3 clases. isLessonInStudentCycle=true para la 8va sesión.
 - Documentación: Generado ADR 0166 en docs/adr/0166-preservacion-clases-contiguas-corrido-45m-mas-alla-planenddate-micaela-sofia.md.
 - Estado: RESUELTO Y AUDITADO (Commit ce09316).
+
+[2026-10-12 13:50:00 -05:00] [CORE_STABILITY & BILLING_SYNC] [BLINDAJE_INTENSIVO_90M_KARDEX_RENOVACIONES_SYNC_FACTURACION_ADR_0167]
+1. Diagnóstico de Incidentes Operativos en Producción:
+   - Sebastian Paredes Ortega, Benjamin y Giuseppe Granda (Plan Intensivo 90 min): Reprogramaciones solo creaban 1 bloque de 45m y dejaban la sesión 2 activa en el horario habitual. En Benjamin, la sesión 2 huérfana consumía un cupo en Kardex y recortaba el sábado 17/10.
+   - Juan Diego: Renovó ciclo el 10/10/2026, pero el escaneo retroactivo de 30 días jaló 2 asistencias de septiembre y las sumó al nuevo ciclo.
+   - Alejandro Huarca: El escaneo de 30 días sumó asistencias de septiembre y forzó un falso isCycleCompleted=true, ocultando sus clases de hoy Lunes 12 y Miércoles 14 en AgendaBoard.
+   - Sasha Dharma: Makeups de Canto para el 13/10 y 15/10 heredaban effectiveUntil: "2026-09-28", descartándose del Kardex y proyectando fechas viejas.
+   - Facturación: 3 recibos (Juan Diego, Santiago Mathias, Matias Gabriel) atascados en 'pendiente' con saldo impago porque updateStudentDetails no sincronizaba la tabla invoices en Postgres.
+2. Solución Arquitectónica (ADR-0167):
+   - app-store.ts: rescheduleLesson detecta isIntensive, excluye ambos bloques contiguos en originalDateStr y genera dos bloques contiguos de 45m (90 min) con effectiveUntil: undefined.
+   - app-store.ts: updateStudentDetails emite postgrestPatch("invoices", ...) ante cambios en amountPaid, planPrice o balance, emitiendo invoice-updated. renewStudentCycle soporta amountPaid.
+   - student-cycle.ts y kardex-calculator.ts: scanStartDate acotado a 7 días solo para adelantos de curso válidos, descartando effectiveUntil < startStr y recoveringLessonDate < startStr. Makeups inmunes a effectiveUntil. recoveringDates filtra sesiones regulares pendientes que coinciden con recuperaciones, protegiendo fechas contractuales.
+3. Operaciones Quirúrgicas en PostgreSQL Insforge:
+   - Invoices: e4608892... (Juan Diego S/ 297), 5e5c092a... (Santiago Mathias S/ 148.50) y 01aff5f7... (Matias Gabriel S/ 297) actualizados a status: 'pagado', remaining_balance: 0.00.
+   - Payment Audit Logs: Insertados asientos a078f271..., d1a1701e... y ac2377d4... con referencia 'ABONO-RENOVACION' vía Yape.
+   - Students: Sebastian saneado con 09:00 y 09:45 (11:15 excluido); Giuseppe saneado con 16:00 y 16:45 (08/10 excluido); Sasha limpiada de effectiveUntil; Matias Gabriel balance=0.
+4. Verificación de Cumplimiento:
+   - Facturación: Recibos al 100% pagados con saldo 0.
+   - AgendaBoard: Alejandro Huarca visible hoy Lunes 12 y Miércoles 14 a las 17:30. Sebastian y Giuseppe proyectan sus 90 min completos.
+   - Kardex: Juan Diego proyecta 4 clases limpias en octubre; Benjamin mantiene su sábado 17/10 visible.
+   - Build: npm run build exitoso con código 0.
+- Documentación: Generado ADR 0167 en docs/adr/0167-blindaje-integral-plan-intensivo-90m-kardex-renovaciones-sync-facturacion.md.
+- Estado: RESUELTO Y AUDITADO (Commit 068ea00).
+
