@@ -4,6 +4,7 @@ import { useAppStore } from "@/store/app-store";
 import {
   createInvitation,
   getInvitations,
+  renewInvitation,
   resetUserToMasterPassword,
   revokeInvitation,
   type DBInvitation,
@@ -16,6 +17,7 @@ import {
   Copy,
   Check,
   RotateCcw,
+  RefreshCw,
   Ban,
   MessageSquare,
   ShieldCheck,
@@ -212,6 +214,34 @@ function AdminInvitationsPage() {
       await fetchInvites();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error al revocar";
+      toast.error(msg);
+    }
+  };
+
+  // Una invitación está vencida si su expires_at ya pasó y no fue revocada.
+  // (verifyInvitationToken calcula la vigencia en vivo desde expires_at.)
+  const isInviteExpired = (inv: DBInvitation) =>
+    inv.status !== "revocado" &&
+    !!inv.expires_at &&
+    new Date(inv.expires_at).getTime() < Date.now();
+
+  const handleRenewInvite = async (inv: DBInvitation) => {
+    if (inv.target_role === ("super_admin" as unknown as InviteTargetRole) || inv.target_name.toLowerCase().includes("dueña")) {
+      toast.error("Acción denegada", {
+        description: "Solo la Dirección General puede gestionar sus propios accesos.",
+      });
+      return;
+    }
+
+    try {
+      const { expires_at } = await renewInvitation(activeRole, currentUser?.email ?? "admin-id", inv.id);
+      const newDate = new Date(expires_at).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" });
+      toast.success("Acceso renovado 🔄", {
+        description: `El mismo enlace de ${inv.target_name} vuelve a funcionar hasta el ${newDate}.`,
+      });
+      await fetchInvites();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error al renovar";
       toast.error(msg);
     }
   };
@@ -517,6 +547,19 @@ function AdminInvitationsPage() {
                       className="gap-1 px-2.5 font-semibold text-foreground hover:text-primary hover:border-primary"
                     >
                       <Eye className="h-3.5 w-3.5" /> Ver Acceso
+                    </Button>
+                  )}
+
+                  {/* Renovar Acceso Vencido: extiende la vigencia 30 días con el mismo enlace */}
+                  {isInviteExpired(inv) && !inv.target_name.toLowerCase().includes("dueña") && inv.target_role !== ("super_admin" as unknown as InviteTargetRole) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      title="Renovar acceso: el mismo enlace vuelve a funcionar por 30 días más"
+                      onClick={() => handleRenewInvite(inv)}
+                      className="gap-1 px-2.5 font-semibold text-foreground hover:text-primary hover:border-primary"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" /> Renovar
                     </Button>
                   )}
 

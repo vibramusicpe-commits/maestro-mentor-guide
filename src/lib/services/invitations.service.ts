@@ -738,6 +738,71 @@ export async function revokeInvitation(
 }
 
 // ---------------------------------------------------------------
+// EDGE: renewInvitation (Super Admin / Staff)
+// Revalida una invitación VENCIDA extendiendo expires_at +30 días.
+// No rota token ni contraseña: el mismo enlace y la misma clave vuelven a funcionar.
+// Prohibido renovar invitaciones REVOCADAS (la revocación es una decisión deliberada).
+// ---------------------------------------------------------------
+export async function renewInvitation(
+  userRole: Role,
+  performedByUserId: string,
+  invitationId: string,
+): Promise<{ expires_at: string }> {
+  assertRole(userRole, ["super_admin", "staff"], "renovar invitación");
+
+  const newExpiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+
+  // Si es un ID local generado en la sesión, actualizar solo el espejo local
+  if (invitationId.startsWith("local-inv-")) {
+    try {
+      const raw = localStorage.getItem("cadencia-invitations");
+      if (raw) {
+        const list: DBInvitation[] = JSON.parse(raw);
+        const updated = list.map((i) =>
+          i.id === invitationId
+            ? { ...i, expires_at: newExpiresAt, status: i.status === "expirado" ? "pendiente" : i.status }
+            : i,
+        );
+        localStorage.setItem("cadencia-invitations", JSON.stringify(updated));
+      }
+    } catch {
+      // Silencioso
+    }
+    return { expires_at: newExpiresAt };
+  }
+
+  // Leer estado actual para jamás resucitar una revocación deliberada
+  const current = await postgrestSelect<DBInvitation>("invitations", {
+    id: `eq.${invitationId}`,
+    limit: "1",
+  });
+  const inv = current?.[0];
+  if (!inv) throw new Error("Invitación no encontrada en PostgreSQL.");
+  if (inv.status === "revocado") {
+    throw new Error("Invitación revocada: por seguridad genera una nueva en lugar de renovarla.");
+  }
+
+  const patch: Partial<DBInvitation> = { expires_at: newExpiresAt };
+  if (inv.status === "expirado") patch.status = "pendiente";
+
+  await postgrestPatch<DBInvitation>("invitations", { id: `eq.${invitationId}` }, patch);
+
+  // Actualizar también el espejo local persistente
+  try {
+    const raw = localStorage.getItem("cadencia-invitations");
+    if (raw) {
+      const list: DBInvitation[] = JSON.parse(raw);
+      const updated = list.map((i) => (i.id === invitationId ? { ...i, ...patch } : i));
+      localStorage.setItem("cadencia-invitations", JSON.stringify(updated));
+    }
+  } catch {
+    // Silencioso
+  }
+
+  return { expires_at: newExpiresAt };
+}
+
+// ---------------------------------------------------------------
 // EDGE: resetUserToMasterPassword (Restablece contraseña maestra única)
 // ---------------------------------------------------------------
 export async function resetUserToMasterPassword(

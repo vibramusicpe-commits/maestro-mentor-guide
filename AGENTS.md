@@ -1304,3 +1304,17 @@ inferencia.
    - El prompt del sistema (`functions/_lib/prompts.ts`) blinda las especialidades de docentes (Nathaly en Sala C para Piano Infantil/Canto; Fernando en Sala B para Piano/Violín; Jeremy en Sala A para Guitarra/Batería), el aforo máximo de 5 alumnos por sala y las cuotas de 8 clases (Regular) y 4 clases (Intensivo).
    - Temperatura en 0.2 para impedir alucinaciones de nombres, fechas o montos de deuda.
 
+---
+
+### 68. Renovación de Invitaciones Expiradas en 1 Clic sin Rotar Enlace ni Contraseña (ADR-0169)
+1. **Diagnóstico del Caso (Prof. Nathaly, 2026-10-12)**:
+   - La profesora fue expulsada de su sesión y su enlace `/invite/inv-teacher-...` mostraba "Enlace expirado (vence a los 30 días)". Causa: `createInvitation` fija `expires_at = ahora + 30 días` (`invitations.service.ts`) y `verifyInvitationToken` calcula la vigencia en vivo desde `expires_at`, sin importar el `status`. Sus clases y asistencias estaban intactas; era solo acceso.
+2. **Acción `renewInvitation` (`src/lib/services/invitations.service.ts`)**:
+   - Solo `super_admin` / `staff` (`assertRole`). Extiende `expires_at` a +30 días vía `postgrestPatch` sobre el mismo registro: **el mismo enlace y la misma contraseña vuelven a funcionar**, sin reenviar nada por WhatsApp.
+   - Lee el registro antes de escribir y **rechaza renovar invitaciones `revocado`** (la revocación es deliberada: en ese caso se genera una nueva). Si el `status` persistido es `expirado`, lo devuelve a `pendiente`; `aceptado` se conserva.
+   - Actualiza también el espejo local `cadencia-invitations` y soporta IDs `local-inv-*` solo-locales.
+3. **Botón 🔄 Renovar (`src/routes/admin.invitaciones.tsx`)**:
+   - Visible únicamente en invitaciones vencidas (`expires_at` pasado y `status !== "revocado"`), con el mismo blindaje de Dueña que Revocar/Reset. Muestra toast con la nueva fecha de vigencia y refresca la lista.
+4. **Cierre del ticket**:
+   - Pulsar Renovar en la fila de Nathaly, confirmar toast "Acceso renovado", verificar que su invitación valida el enlace y que entra a `/teacher` con píldora `🟢 En vivo`.
+
