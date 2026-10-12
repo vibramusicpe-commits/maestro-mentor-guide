@@ -254,6 +254,7 @@ type AppState = {
     options?: {
       newStartDate?: string;
       planPrice?: number;
+      amountPaid?: number;
       paymentMethod?: string;
       notes?: string;
     }
@@ -1396,6 +1397,10 @@ export const useAppStore = create<AppState>()(
           const newRoom = room || targetLesson.room;
 
           if (scope === "only-this-week") {
+            const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, targetLesson.student));
+            const modalityStr = (targetSt?.modality || "").toLowerCase();
+            const isIntensive = modalityStr.includes("inten") || modalityStr.includes("90 min") || (modalityStr.includes("4 clases") && !modalityStr.includes("45 min"));
+
             const excludedWeeks = targetLesson.excludedWeeks || [];
             const excludedDates = targetLesson.excludedDates || [];
 
@@ -1422,51 +1427,139 @@ export const useAppStore = create<AppState>()(
                 : excludedDates,
             };
 
-            const newSingleWeekLesson: ScheduledLesson = {
-              ...targetLesson,
-              id: `sch-resched-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              day: day,
-              time: time,
-              teacher: newTeacher,
-              room: newRoom,
-              dateStr: newDateStr, // Fecha exacta YYYY-MM-DD
-              weekIndex: newDateStr ? undefined : targetWeekIndex,
-              effectiveFrom: undefined, // 🛡️ Una lección reprogramada puntual jamás hereda barreras effectiveFrom que la bloqueen (ADR-0157)
-              excludedWeeks: undefined,
-              excludedDates: undefined,
-              attendanceStatus: undefined,
-              attendanceByWeek: undefined,
-              attendanceByDate: undefined,
-              isMakeup: true,
-              recoveringLessonDate: originalDateStr,
-            };
+            // 🛡️ REGLA ADR-0165 & ADR-0167: Plan Intensivo (90 min = 2 horas pedagógicas contiguas).
+            // Buscar la sesión compañera (Session 1 o Session 2) para excluir originalDateStr en ambas.
+            const companionMap = new Map<string, ScheduledLesson>();
+            if (isIntensive) {
+              const allLessons = [
+                ...s.schedule,
+                ...(targetSt?.scheduleLessons || []),
+              ];
+              allLessons.forEach((l) => {
+                if (
+                  isMatchingStudentName(l.student, targetLesson.student) &&
+                  l.id !== targetLesson.id &&
+                  !l.dateStr &&
+                  l.day === targetLesson.day
+                ) {
+                  const compExDates = l.excludedDates || [];
+                  const compAtt = { ...(l.attendanceByDate || {}) };
+                  if (originalDateStr) {
+                    delete compAtt[originalDateStr];
+                  }
+                  companionMap.set(l.id, {
+                    ...l,
+                    attendanceByDate: compAtt,
+                    excludedDates: originalDateStr
+                      ? Array.from(new Set([...compExDates, originalDateStr]))
+                      : compExDates,
+                  });
+                }
+              });
+            }
+
+            // Crear las lecciones reprogramadas: 2 bloques contiguos de 45m para Intensivo, 1 bloque para Regular
+            const newMakeups: ScheduledLesson[] = [];
+            const nowTs = Date.now();
+
+            if (isIntensive) {
+              const [hh, mm] = (time || "16:00").split(":").map(Number);
+              const b2Min = ((hh || 16) * 60 + (mm || 0) + 45);
+              const b2H = String(Math.floor(b2Min / 60)).padStart(2, "0");
+              const b2M = String(b2Min % 60).padStart(2, "0");
+              const block2Time = `${b2H}:${b2M}`;
+
+              newMakeups.push({
+                ...targetLesson,
+                id: `sch-resched-${nowTs}-1-${Math.random().toString(36).slice(2, 6)}`,
+                day: day,
+                time: time,
+                teacher: newTeacher,
+                room: newRoom,
+                dateStr: newDateStr,
+                sessionNumber: 1,
+                weekIndex: newDateStr ? undefined : targetWeekIndex,
+                effectiveFrom: undefined,
+                effectiveUntil: undefined, // 🛡️ CRÍTICO: Limpiar effectiveUntil para no heredar barreras de cursos previos
+                excludedWeeks: undefined,
+                excludedDates: undefined,
+                attendanceStatus: undefined,
+                attendanceByWeek: undefined,
+                attendanceByDate: undefined,
+                isMakeup: true,
+                recoveringLessonDate: originalDateStr,
+              });
+
+              newMakeups.push({
+                ...targetLesson,
+                id: `sch-resched-${nowTs}-2-${Math.random().toString(36).slice(2, 6)}`,
+                day: day,
+                time: block2Time,
+                teacher: newTeacher,
+                room: newRoom,
+                dateStr: newDateStr,
+                sessionNumber: 2,
+                weekIndex: newDateStr ? undefined : targetWeekIndex,
+                effectiveFrom: undefined,
+                effectiveUntil: undefined, // 🛡️ CRÍTICO: Limpiar effectiveUntil para no heredar barreras de cursos previos
+                excludedWeeks: undefined,
+                excludedDates: undefined,
+                attendanceStatus: undefined,
+                attendanceByWeek: undefined,
+                attendanceByDate: undefined,
+                isMakeup: true,
+                recoveringLessonDate: originalDateStr,
+              });
+            } else {
+              newMakeups.push({
+                ...targetLesson,
+                id: `sch-resched-${nowTs}-${Math.random().toString(36).slice(2, 6)}`,
+                day: day,
+                time: time,
+                teacher: newTeacher,
+                room: newRoom,
+                dateStr: newDateStr,
+                weekIndex: newDateStr ? undefined : targetWeekIndex,
+                effectiveFrom: undefined,
+                effectiveUntil: undefined, // 🛡️ CRÍTICO: Limpiar effectiveUntil para no heredar barreras de cursos previos
+                excludedWeeks: undefined,
+                excludedDates: undefined,
+                attendanceStatus: undefined,
+                attendanceByWeek: undefined,
+                attendanceByDate: undefined,
+                isMakeup: true,
+                recoveringLessonDate: originalDateStr,
+              });
+            }
 
             // Filtrar duplicados pendientes previos que recuperaban esta misma inasistencia aún sin evaluar
             const isPendingMakeupForSameDate = (l: ScheduledLesson) =>
               Boolean(originalDateStr && l.isMakeup && l.recoveringLessonDate === originalDateStr &&
                 (!l.attendanceByDate || Object.values(l.attendanceByDate).every((st) => st === "pendiente")));
 
-            const baseSchedule = s.schedule.filter((l) => !isPendingMakeupForSameDate(l));
-            const hasOriginalInSchedule = baseSchedule.some((l) => l.id === id);
-            const updatedSchedule = [
-              ...(hasOriginalInSchedule
-                ? baseSchedule.map((l) => (l.id === id ? updatedOriginal : l))
-                : [...baseSchedule, updatedOriginal]),
-              newSingleWeekLesson,
-            ];
+            const applyLessonUpdates = (lessons: ScheduledLesson[]) => {
+              const base = lessons.filter((l) => !isPendingMakeupForSameDate(l));
+              const hasOriginal = base.some((l) => l.id === id);
+              const mapped = base.map((l) => {
+                if (l.id === id) return updatedOriginal;
+                if (companionMap.has(l.id)) return companionMap.get(l.id)!;
+                return l;
+              });
+              if (!hasOriginal) mapped.push(updatedOriginal);
+              companionMap.forEach((comp, compId) => {
+                if (!mapped.some((l) => l.id === compId)) {
+                  mapped.push(comp);
+                }
+              });
+              return [...mapped, ...newMakeups];
+            };
+
+            const updatedSchedule = applyLessonUpdates(s.schedule);
 
             // Sincronizar en adminStudents.scheduleLessons para el alumno activo
-            const targetSt = s.adminStudents.find((st) => isMatchingStudentName(st.name, targetLesson.student));
             let updatedAdminStudents = s.adminStudents;
             if (targetSt) {
-              const currentLessons = (targetSt.scheduleLessons || []).filter((l) => !isPendingMakeupForSameDate(l));
-              const hasOriginalInPersisted = currentLessons.some((l) => l.id === id);
-              const updatedPersisted = [
-                ...(hasOriginalInPersisted
-                  ? currentLessons.map((l) => (l.id === id ? updatedOriginal : l))
-                  : [...currentLessons, updatedOriginal]),
-                newSingleWeekLesson,
-              ];
+              const updatedPersisted = applyLessonUpdates(targetSt.scheduleLessons || []);
               // 🛡️ REGLA: Si la reprogramación recupera una inasistencia (originalDateStr era falta/tardanza/justificada),
               // se consume 1 crédito de recuperación disponible para reflejar que la sesión ya está agendada
               const isRecoveringAbsence = Boolean(
@@ -2273,6 +2366,28 @@ export const useAppStore = create<AppState>()(
               status: newStatus,
             };
           });
+
+          // 🛡️ REGLA ADR-0106 & ADR-0167: Sincronizar actualización de saldo y estado del recibo en PostgreSQL
+          if (targetStudent && (updates.amountPaid !== undefined || updates.planPrice !== undefined || updates.balance !== undefined)) {
+            updatedInvoices.forEach((inv) => {
+              const isMatch = (
+                isMatchingStudentName(inv.student || "", targetStudent.name) ||
+                isMatchingStudentName(inv.family, targetStudent.family) ||
+                (inv.concept && isMatchingStudentName(targetStudent.name, inv.concept.split("—")[1]?.trim() || ""))
+              );
+              if (isMatch && inv.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv.id)) {
+                import("@/lib/insforge").then(async ({ postgrestPatch }) => {
+                  await postgrestPatch("invoices", { id: `eq.${inv.id}` }, {
+                    amount: inv.amount,
+                    amount_paid: inv.amountPaid || 0,
+                    remaining_balance: inv.remainingBalance ?? 0,
+                    status: inv.status,
+                  }).catch(() => {});
+                  triggerDataSyncBroadcast("invoice-updated");
+                }).catch(() => {});
+              }
+            });
+          }
 
           return {
             adminStudents: updatedStudents,

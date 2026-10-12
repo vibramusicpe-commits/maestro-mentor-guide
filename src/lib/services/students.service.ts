@@ -366,6 +366,8 @@ export async function deleteStudent(
 ): Promise<void> {
   assertRole(userRole, ["super_admin", "staff"], "eliminar permanentemente a un alumno");
   try {
+    // 🛡️ Limpieza quirúrgica de asistencias previas para evitar violación de llave foránea (NO ACTION)
+    await postgrestDelete("attendance_logs", { student_id: `eq.${studentId}` }).catch(() => {});
     await postgrestDelete("students", { id: `eq.${studentId}` });
   } catch (err) {
     console.warn(`[Insforge Delete] Fallback a baja para ${studentId}:`, err);

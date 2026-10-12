@@ -86,14 +86,19 @@ export function computeStudentCycle(
   const studentLessons = Array.from(mergedLessonsMap.values());
 
   let scanStartDate = startDate;
-  // 🛡️ REGLA (ADR-0164): Si hay clases puntuales agendadas antes de planStartDate (hasta 30 días previos), incluir su fecha en la ventana de escaneo
+  // 🛡️ REGLA (ADR-0164 & ADR-0167): Soporte quirúrgico para clases adelantadas (adelantos legítimos)
+  // agendadas antes de planStartDate (hasta 7 días previos, ej. Santiago Valladolid que inició 05/10 pero planStartDate era 06/10).
+  // CRÍTICO: NO incluir lecciones vencidas de cursos anteriores (effectiveUntil < startStr),
+  // ni recuperaciones que recuperaban clases del ciclo anterior (recoveringLessonDate < startStr).
   studentLessons.forEach((l) => {
     if (l.dateStr) {
+      if (l.effectiveUntil && l.effectiveUntil < startStr) return;
+      if (l.recoveringLessonDate && l.recoveringLessonDate < startStr) return;
       const [ly, lm, ld] = l.dateStr.split("-").map(Number);
       if (ly && lm && ld) {
         const lDate = new Date(ly, lm - 1, ld);
         const diffDays = Math.ceil((startDate.getTime() - lDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays > 0 && diffDays <= 30) {
+        if (diffDays > 0 && diffDays <= 7) {
           if (lDate < scanStartDate) {
             scanStartDate = lDate;
           }
@@ -202,7 +207,7 @@ export function computeStudentCycle(
         }
 
         // Validación de vigencia limitada por transición (effectiveUntil / effectiveFrom)
-        if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
+        if (!lesson.isMakeup && lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
           return;
         }
         // 🛡️ REGLA ADR-0157: effectiveFrom solo aplica a plantillas recurrentes (sin dateStr)

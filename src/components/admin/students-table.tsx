@@ -3344,10 +3344,26 @@ function NewStudentDialog() {
                   </label>
                 </div>
               ) : (
-                <div className="pt-1 border-t border-blue-500/20 text-[11px] text-blue-800 dark:text-blue-300">
-                  <p>
-                    💡 <strong>Recomendación:</strong> Puedes reactivar a este alumno desde el botón <strong>"Depuración & Reactivación 2026"</strong> para preservar todo su historial y asistencias sin crear un registro duplicado.
-                  </p>
+                <div className="pt-2 border-t border-blue-500/20 text-[11px] text-blue-900 dark:text-blue-200 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="leading-relaxed">
+                      💡 <strong>Alumno en base histórica / inactivo:</strong> Puedes completar los datos en este formulario y matricularla normalmente. Al hacer clic en <strong>"Guardar Matrícula"</strong>, la alumna pasará a figurar como <strong>ACTIVA</strong> con este nuevo plan y horario oficial.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (duplicateMatch.family && !family) setFamily(duplicateMatch.family);
+                        if (duplicateMatch.phone && !phone) setPhone(duplicateMatch.phone);
+                        if (duplicateMatch.instrument) handleInstrumentChange(duplicateMatch.instrument);
+                        toast.info(`Datos históricos de ${duplicateMatch.name} pre-cargados en el formulario.`);
+                      }}
+                      className="shrink-0 h-6 text-[10px] font-bold border-blue-500/40 text-blue-700 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20"
+                    >
+                      📋 Pre-cargar datos
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

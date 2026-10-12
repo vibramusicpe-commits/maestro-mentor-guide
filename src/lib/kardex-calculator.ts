@@ -231,15 +231,19 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   const startDate = new Date(sy, sm - 1, sd);
   let scanStartDate = startDate;
 
-  // 🛡️ REGLA (ADR-0164): Si hay clases puntuales (adelantos o recuperaciones con dateStr) agendadas
-  // antes de planStartDate (hasta 30 días previos), incluir su fecha en la ventana de escaneo.
+  // 🛡️ REGLA (ADR-0164 & ADR-0167): Soporte quirúrgico para clases adelantadas (adelantos legítimos)
+  // agendadas antes de planStartDate (hasta 7 días previos, ej. Santiago Valladolid que inició 05/10 pero planStartDate era 06/10).
+  // CRÍTICO: NO incluir lecciones vencidas de cursos anteriores (effectiveUntil < startStr),
+  // ni recuperaciones que recuperaban clases del ciclo anterior (recoveringLessonDate < startStr).
   studentLessons.forEach((l) => {
     if (l.dateStr) {
+      if (l.effectiveUntil && l.effectiveUntil < startStr) return;
+      if (l.recoveringLessonDate && l.recoveringLessonDate < startStr) return;
       const [ly, lm, ld] = l.dateStr.split("-").map(Number);
       if (ly && lm && ld) {
         const lDate = new Date(ly, lm - 1, ld);
         const diffDays = Math.ceil((startDate.getTime() - lDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays > 0 && diffDays <= 30) {
+        if (diffDays > 0 && diffDays <= 7) {
           if (lDate < scanStartDate) {
             scanStartDate = lDate;
           }
@@ -307,7 +311,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
           return;
         }
       }
-      if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
+      if (!lesson.isMakeup && lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) {
         return;
       }
 
@@ -417,12 +421,17 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
   const pendingMakeups = deduped.filter((s) => s.status === "pendiente" && s.isMakeup);
   const pendingRegular = deduped.filter((s) => s.status === "pendiente" && !s.isMakeup);
 
+  // 🛡️ REGLA (ADR-0105 & ADR-0167): Deduplicar sesiones regulares pendientes que coincidan con fechas
+  // que ya tienen una recuperación agendada pendiente para no duplicar cupos ni desplazar fechas legítimas (Caso Benjamin).
+  const recoveringDates = new Set(pendingMakeups.map((m) => m.recoveringLessonDate).filter(Boolean));
+  const eligiblePendingRegular = pendingRegular.filter((s) => !recoveringDates.has(s.dateStr));
+
   // 🛡️ REGLA (ADR-0105 & ADR-0154): Cumplimiento estricto de cuota contractual.
   // Todas las sesiones evaluadas (presentes, faltas, tardanzas, justificadas) más las recuperaciones
   // agendadas consumen cupos del ciclo. Solo se toman las clases regulares pendientes necesarias
   // para que el total de clases proyectadas sume exactamente la cuota contratada (targetQuota).
   const regularSlotsNeeded = Math.max(0, targetQuota - evaluated.length - pendingMakeups.length);
-  const chosenPendingRegular = pendingRegular.slice(0, regularSlotsNeeded);
+  const chosenPendingRegular = eligiblePendingRegular.slice(0, regularSlotsNeeded);
 
   const finalSessions = [...evaluated, ...pendingMakeups, ...chosenPendingRegular];
   finalSessions.sort((a, b) => {
@@ -516,7 +525,7 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
 
       // C.1. Barreras temporales absolutas (effectiveFrom / effectiveUntil)
       if (lesson.effectiveFrom && curDateStr < lesson.effectiveFrom) return;
-      if (lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) return;
+      if (!lesson.isMakeup && lesson.effectiveUntil && curDateStr > lesson.effectiveUntil) return;
 
       let currentStatus: StudentSessionItem["status"] = "pendiente";
       if (lesson.attendanceByDate && lesson.attendanceByDate[curDateStr]) {
