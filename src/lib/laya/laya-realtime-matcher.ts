@@ -331,11 +331,24 @@ export function computeStudentKardexSummary(
   let tardyCount = 0;
   let justifiedCount = 0;
 
-  // 1. Escanear lecciones guardadas del alumno
+  // 🛡️ REGLA ADR-0108 / ADR-0167: Solo escanear asistencias dentro del rango del ciclo activo del alumno
+  const planStart = student.emergencyContact?.planStartDate || student.planStartDate || "2000-01-01";
+  const planEnd = student.emergencyContact?.planEndDate || student.planEndDate || "2099-12-31";
+
+  // 1. Escanear lecciones guardadas del alumno dentro del ciclo activo
   const lessons = student.scheduleLessons || [];
+  const evaluatedDates = new Set<string>();
+
   lessons.forEach((l) => {
     if (l.attendanceByDate) {
-      Object.values(l.attendanceByDate).forEach((status) => {
+      Object.entries(l.attendanceByDate).forEach(([dateStr, status]) => {
+        // Ignorar marcas fuera del ciclo activo actual
+        if (dateStr < planStart || dateStr > planEnd) return;
+        // Evitar duplicados por lecciones coincidentes
+        const slotKey = `${dateStr}-${status}`;
+        if (evaluatedDates.has(slotKey)) return;
+        evaluatedDates.add(slotKey);
+
         if (status === "presente") attendedCount++;
         else if (status === "tarde") {
           tardyCount++;
@@ -348,7 +361,7 @@ export function computeStudentKardexSummary(
 
   const evaluatedCount = attendedCount + absentCount + justifiedCount;
   const remainingRegularCount = Math.max(0, targetQuota - evaluatedCount);
-  const makeupCredits = student.makeupCredits || (absentCount + justifiedCount);
+  const makeupCredits = student.makeupCredits || 0;
   const cycleCompleted = evaluatedCount >= targetQuota;
 
   return {

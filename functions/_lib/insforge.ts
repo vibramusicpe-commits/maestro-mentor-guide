@@ -116,10 +116,13 @@ export class InsforgeClient {
   }
 
   /**
-   * Obtiene historial de asistencias (Kardex) para un alumno
+   * Obtiene historial de asistencias (Kardex) para un alumno filtrado por ciclo actual
    */
-  async getAttendanceLogs(studentId: string): Promise<any[]> {
-    const endpoint = `attendance_logs?student_id=eq.${studentId}&order=registered_at.desc&limit=15`;
+  async getAttendanceLogs(studentId: string, startDate?: string): Promise<any[]> {
+    let endpoint = `attendance_logs?student_id=eq.${studentId}&order=registered_at.desc&limit=20`;
+    if (startDate) {
+      endpoint += `&registered_at=gte.${startDate}`;
+    }
     const logs = await this.fetchTable(endpoint);
     return logs.map((log) => ({
       fecha_registro: log.registered_at,

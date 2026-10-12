@@ -104,10 +104,32 @@ export function extractQueryEntities(query: string): ExtractedEntities {
     entities.timeSlot = timeMatch[0];
   }
 
-  // Extracción simple de posible nombre de alumno (ej: "de Ethan", "de Lucas", "para Benjamin")
-  const studentMatch = query.match(/(?:alumno|alumna|de|para|estudiante|a)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/);
-  if (studentMatch && !["Jeremy", "Fernando", "Nathaly", "Claudia", "Sala", "Piano", "Guitarra", "Vibra"].includes(studentMatch[1])) {
-    entities.studentName = studentMatch[1];
+  // Extracción de nombre de alumno con validación estricta de contexto
+  // Solo extraer si NO es una consulta genérica (ej: "qué alumnos deben", "pagos pendientes", etc.)
+  const isGenericPluralQuery =
+    qLower.includes("que alumnos") ||
+    qLower.includes("qué alumnos") ||
+    qLower.includes("cuales alumnos") ||
+    qLower.includes("cuáles alumnos") ||
+    qLower.includes("quienes deben") ||
+    qLower.includes("quiénes deben") ||
+    qLower.includes("pagos pendientes") ||
+    qLower.includes("deudores") ||
+    qLower.includes("lista de");
+
+  if (!isGenericPluralQuery) {
+    const studentMatch = query.match(/(?:alumno|alumna|estudiante)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/i) ||
+      query.match(/(?:de|para|a)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/);
+
+    const reservedWords = new Set([
+      "Jeremy", "Fernando", "Nathaly", "Claudia", "Sala", "Piano", "Guitarra", "Batería",
+      "Canto", "Violín", "Vibra", "Staff", "Pagos", "Pago", "Pendiente", "Pendientes",
+      "Deuda", "Deudas", "Mes", "Semana", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"
+    ]);
+
+    if (studentMatch && !reservedWords.has(studentMatch[1])) {
+      entities.studentName = studentMatch[1].trim();
+    }
   }
 
   return entities;
@@ -119,20 +141,35 @@ export function extractQueryEntities(query: string): ExtractedEntities {
 export function classifyHeuristically(query: string): AssistantIntent {
   const q = query.toLowerCase();
 
-  // Cobranzas y facturación
+  // Cobranzas y facturación (PRIORIDAD 1)
   if (
     q.includes("pago") ||
+    q.includes("pagos") ||
+    q.includes("pendiente") ||
+    q.includes("pendientes") ||
     q.includes("debe") ||
+    q.includes("deben") ||
     q.includes("deudor") ||
+    q.includes("deudores") ||
+    q.includes("deuda") ||
+    q.includes("deudas") ||
     q.includes("saldo") ||
+    q.includes("saldos") ||
     q.includes("recibo") ||
+    q.includes("recibos") ||
     q.includes("factura") ||
+    q.includes("facturas") ||
     q.includes("yape") ||
     q.includes("cobrar") ||
+    q.includes("cobranza") ||
+    q.includes("cobranzas") ||
     q.includes("cuota") ||
+    q.includes("cuotas") ||
     q.includes("vence") ||
+    q.includes("vencen") ||
     q.includes("vencid") ||
-    q.includes("abono")
+    q.includes("abono") ||
+    q.includes("abonos")
   ) {
     return "cobranzas";
   }
@@ -217,10 +254,23 @@ export async function classifyQueryWithClef(
 
   const entities = extractQueryEntities(query);
 
+  // Verificación determinista inmediata: si la consulta contiene términos inequívocos de cobranza,
+  // NO permitir que distilbert u otro modelo genérico lo confunda con kardex
+  const heuristicIntent = classifyHeuristically(query);
+  if (heuristicIntent === "cobranzas") {
+    return {
+      intent: "cobranzas",
+      confidence: 0.99,
+      is_sensitive: false,
+      entities,
+      classified_by: "heuristic_fallback",
+    };
+  }
+
   // Si no hay binding de Workers AI disponible en el entorno local, usar fallback directo
   if (!aiBinding || typeof aiBinding.run !== "function") {
     return {
-      intent: classifyHeuristically(query),
+      intent: heuristicIntent,
       confidence: 0.9,
       is_sensitive: false,
       entities,
@@ -229,13 +279,6 @@ export async function classifyQueryWithClef(
   }
 
   try {
-    // Consulta a Clef / Clasificador de Workers AI
-    // Clef evalúa opciones de clasificación de intents
-    const clefPrompt = `Clasifica la intención de la siguiente consulta administrativa de la escuela de música Vibra Music Staff en una sola palabra:
-Opciones: cobranzas, horarios_aforos, kardex_asistencias, prospectos_demos, recordatorios, ayuda_general.
-Consulta: "${query}"
-Intención:`;
-
     const response = await aiBinding.run("@cf/cloudflare/clef-1b", {
       text: query,
       labels: [
@@ -246,12 +289,7 @@ Intención:`;
         "recordatorios",
         "ayuda_general",
       ],
-    }).catch(async () => {
-      // Fallback a text-classification estándar si clef-1b tiene diferente schema
-      return await aiBinding.run("@cf/huggingface/distilbert-sst-2-int8", {
-        text: query,
-      }).catch(() => null);
-    });
+    }).catch(async () => null);
 
     if (response && response.label) {
       const detectedLabel = response.label.toLowerCase() as AssistantIntent;
@@ -264,9 +302,8 @@ Intención:`;
       };
     }
 
-    // Si Clef no devolvió formato esperado, la heurística asiste a Clef
     return {
-      intent: classifyHeuristically(query),
+      intent: heuristicIntent,
       confidence: 0.88,
       is_sensitive: false,
       entities,
@@ -275,7 +312,7 @@ Intención:`;
   } catch (error) {
     console.warn("[Clef Classifier Warning] Error en Workers AI Clef, recurriendo a fallback asistido:", error);
     return {
-      intent: classifyHeuristically(query),
+      intent: heuristicIntent,
       confidence: 0.8,
       is_sensitive: false,
       entities,

@@ -151,6 +151,9 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       const prediction = await defaultLaya.predict(textToAnalyze, LAYA_REPROGRAMACION_QUESTIONS);
       const { answers, routing } = prediction;
 
+      let intentVal = clefResult?.intent || answers.intent?.choice || "general";
+      const isCobranzasQuery = intentVal === "cobranzas";
+
       // 2. Extracción y matching de alumno con Pauta Anti-Colisión (ADR-0140 / ADR-0142)
       let matchedSt: AdminStudent | undefined = forcedStudent;
       let stConfidence = 1.0;
@@ -158,31 +161,36 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       let isAmbiguous = false;
 
       if (!matchedSt) {
-        // Si Clef extrajo el nombre de un alumno, buscarlo prioritariamente
-        if (clefResult?.entities?.studentName) {
-          const entityTarget = clefResult.entities.studentName.toLowerCase();
-          const candidateMatches = activeStudents.filter((st) =>
-            st.name.toLowerCase().includes(entityTarget)
-          );
-          if (candidateMatches.length === 1) {
-            matchedSt = candidateMatches[0];
-            stConfidence = 0.98;
-          } else if (candidateMatches.length > 1) {
-            candidates = candidateMatches.map((c) => ({
-              student: c,
-              score: 0.95,
-              matchReason: "Coincidencia por entidad Clef",
-            }));
-            isAmbiguous = true;
+        // En consultas genéricas de cobranzas (ej: "pagos pendientes"), NO buscar alumno individual
+        if (!isCobranzasQuery || clefResult?.entities?.studentName) {
+          if (clefResult?.entities?.studentName) {
+            const entityTarget = clefResult.entities.studentName.toLowerCase();
+            const candidateMatches = activeStudents.filter((st) =>
+              st.name.toLowerCase().includes(entityTarget)
+            );
+            if (candidateMatches.length === 1) {
+              matchedSt = candidateMatches[0];
+              stConfidence = 0.98;
+            } else if (candidateMatches.length > 1) {
+              candidates = candidateMatches.map((c) => ({
+                student: c,
+                score: 0.95,
+                matchReason: "Coincidencia por entidad Clef",
+              }));
+              isAmbiguous = true;
+            }
           }
-        }
 
-        if (!matchedSt && !isAmbiguous) {
-          const matchResult = extractStudentFromText(textToAnalyze, activeStudents);
-          matchedSt = matchResult.student;
-          stConfidence = matchResult.confidence;
-          candidates = matchResult.candidates;
-          isAmbiguous = matchResult.isAmbiguous;
+          if (!matchedSt && !isAmbiguous && !isCobranzasQuery) {
+            const matchResult = extractStudentFromText(textToAnalyze, activeStudents);
+            // 🛡️ REGLA: Umbral mínimo estricto de 70% de certeza para no alucinar nombres
+            if (matchResult.confidence >= 0.7) {
+              matchedSt = matchResult.student;
+              stConfidence = matchResult.confidence;
+              candidates = matchResult.candidates;
+              isAmbiguous = matchResult.isAmbiguous;
+            }
+          }
         }
       }
 
@@ -192,7 +200,6 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       // 3. Resolución de docente y sala por pedagogía oficial (ADR-0102)
       const dayVal = answers.dia?.choice || "indeterminado";
       const timeVal = answers.horario?.choice || "indeterminado";
-      let intentVal = clefResult?.intent || answers.intent?.choice || "general";
       if (academyKnowledge) {
         intentVal = "consulta_sistema_academia";
       }
@@ -206,9 +213,9 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
         preferredTeacher: matchedSt?.teacher,
       });
 
-      // 4. Si el alumno está resuelto, calcular su resumen matemático de Kardex en vivo
+      // 4. Si el alumno está resuelto, calcular su resumen de Kardex SOLO si la consulta es de kardex/asistencias
       let kardexSummary: StudentKardexSummary | undefined;
-      if (matchedSt) {
+      if (matchedSt && (intentVal === "kardex_asistencias" || intentVal === "reprogramacion" || !isCobranzasQuery)) {
         kardexSummary = computeStudentKardexSummary(matchedSt, schedule);
       }
 
