@@ -6,6 +6,7 @@
  */
 import type { AdminStudent, ScheduledLesson } from "@/store/app-store";
 import { normalizeStudentName } from "@/lib/student-matching";
+import { computeStudentCycleSessions, computeStudentCycleLiquidation } from "@/lib/kardex-calculator";
 import { availableTeachers, rooms, timeSlotsWeekday, timeSlotsSaturday } from "@/store/admin-seeds";
 import { stringSimilarity, levenshteinDistance } from "./laya-engine";
 import { resolveAcademyKnowledge, type AcademyKnowledgeResponse } from "./laya-knowledge-base";
@@ -329,6 +330,29 @@ export function computeStudentKardexSummary(
   student: AdminStudent,
   schedule: ScheduledLesson[] = []
 ): StudentKardexSummary {
+  // 🛡️ REGLA (ADR-0170, motor único): delegar al motor oficial del Kardex
+  // (kardex-calculator) para que Laya muestre exactamente las mismas cifras
+  // que ven los gerentes en el Kardex y la Auditoría, para TODOS los alumnos.
+  try {
+    const sessions = computeStudentCycleSessions({ student, allSchedule: schedule });
+    const liq = computeStudentCycleLiquidation(student, sessions);
+    const evaluatedCount = liq.attendedCount + liq.missedCount + liq.justifiedCount;
+    return {
+      studentName: student.name,
+      targetQuota: liq.targetQuota,
+      attendedCount: liq.attendedCount,
+      absentCount: liq.missedCount,
+      tardyCount: liq.tardyCount,
+      justifiedCount: liq.justifiedCount,
+      evaluatedCount,
+      remainingRegularCount: Math.max(0, liq.targetQuota - evaluatedCount),
+      makeupCredits: liq.makeupCreditsAvailable,
+      cycleCompleted: liq.isCompleted,
+    };
+  } catch {
+    // Respaldo offline: conteo propio con filtro de elegibilidad (sigue abajo).
+  }
+
   const normName = normalizeStudentName(student.name);
 
   // Cuota contratada (Regular: 8, Intensivo: 4, o personalizada en emergencyContact)
@@ -519,44 +543,38 @@ export function buildWhatsAppReply(params: {
   const greeting = cleanFamily ? `¡Hola Familia ${cleanFamily}! 🎵` : "¡Hola! Te saluda Secretaría de Vibra Music. 🎵";
 
   // 1. Caso Consulta de Clases Faltantes / Estado de Kardex
+  // 🛡️ REGLA (ADR-0170, vocabulario único): las 6 cifras son las mismas del
+  // Kardex oficial (Contratadas, Asistidas, Faltas, Tardanzas, Justificadas,
+  // Pendientes). Cero jerga técnica para que gerencia las entienda.
   if (intent === "consulta_clases_pendientes") {
-    // 🛡️ REGLA (ADR-0170): ciclo culminado => mensaje de cierre, sin invitar
-    // a programar recuperaciones ni mostrar créditos pendientes.
-    if (kardexSummary?.cycleCompleted) {
-      const totalDone = kardexSummary.targetQuota || 8;
-      const attendedDone = kardexSummary.attendedCount || 0;
-      return (
-        `${greeting}\n\n` +
-        `Revisamos el Kardex de ${studentName} en tiempo real:\n` +
-        `• *Ciclo contratado:* ${totalDone} clases.\n` +
-        `• *Clases asistidas:* ${attendedDone} clases.\n` +
-        `• *Cumplimiento:* ${kardexSummary.evaluatedCount} de ${totalDone} 🎓 *Ciclo culminado al 100%*.\n\n` +
-        `¡Felicitaciones! ${studentName} completó todas sus sesiones y está listo(a) para renovar su nuevo mes lectivo. ¿Desean que preparemos la renovación?`
-      );
-    }
     const total = kardexSummary?.targetQuota || 8;
     const attended = kardexSummary?.attendedCount || 0;
-    const absences = (kardexSummary?.absentCount || 0) + (kardexSummary?.justifiedCount || 0);
-    const remaining = kardexSummary?.remainingRegularCount ?? Math.max(0, total - attended - absences);
-    const credits = kardexSummary?.makeupCredits || absences;
+    const missed = kardexSummary?.absentCount || 0;
+    const tardy = kardexSummary?.tardyCount || 0;
+    const justified = kardexSummary?.justifiedCount || 0;
+    const remaining = kardexSummary?.remainingRegularCount ?? Math.max(0, total - attended - missed - justified);
+    const credits = kardexSummary?.makeupCredits || 0;
 
-    let details = `Revisamos el Kardex de ${studentName} en tiempo real:\n` +
+    const head =
+      `${greeting}\n\n` +
+      `Revisamos el Kardex de ${studentName} en tiempo real:\n` +
       `• *Ciclo contratado:* ${total} clases.\n` +
-      `• *Clases asistidas:* ${attended} clases.\n`;
+      `• *Asistidas:* ${attended} · *Faltas:* ${missed} · *Tardanzas:* ${tardy} · *Justificadas:* ${justified}.\n` +
+      `• *Pendientes:* ${remaining} clase(s).\n\n`;
 
-    if (absences > 0 || credits > 0) {
-      details += `• *Inasistencias por recuperar:* ${credits} clase(s) (créditos disponibles).\n`;
+    if (kardexSummary?.cycleCompleted) {
+      return (
+        head +
+        `🎓 *Ciclo culminado al 100%.* ¡Felicitaciones! ${studentName} completó todas sus sesiones y está listo(a) para renovar su nuevo mes lectivo. ¿Desean que preparemos la renovación?`
+      );
     }
-
-    details += `• *Clases regulares restantes del mes:* ${remaining} clase(s).\n\n`;
-
     if (credits > 0) {
-      details += `Recuerda que en Vibra Music *las clases no se pierden, se recuperan*. Con gusto podemos coordinar la recuperación de sus clases pendientes. ¿Qué día les gustaría programarlas?`;
-    } else {
-      details += `¡El avance de ${studentName} va excelente! Quedamos atentos para cualquier consulta adicional.`;
+      return (
+        head +
+        `Recuerda que en Vibra Music *las clases no se pierden, se recuperan*: tiene ${credits} clase(s) por recuperar. ¿Qué día les gustaría programarlas?`
+      );
     }
-
-    return `${greeting}\n\n${details}`;
+    return head + `¡El avance de ${studentName} va excelente! Quedamos atentos para cualquier consulta adicional.`;
   }
 
   // 2. Caso Reprogramación o Consulta de Vacantes
