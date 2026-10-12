@@ -1288,3 +1288,19 @@ inferencia.
    - Toda mutación de `amountPaid`, `planPrice` o `balance` desde la ficha del alumno actualiza automáticamente los recibos asociados en PostgreSQL (`invoices`) vía `postgrestPatch`, emitiendo `invoice-updated`.
    - `renewStudentCycle` soporta el parámetro `amountPaid` para registrar abonos de renovación en tiempo real.
 
+---
+
+### 67. Asistente IA de Secretaría con Cloudflare Workers AI, Clef y PostgREST Server-Side (ADR-0168)
+1. **Arquitectura Desacoplada de Inteligencia Artificial (`functions/api/assistant.ts`)**:
+   - **Clef NO es un modelo conversacional**: Clef opera exclusivamente como clasificador de intenciones y moderador/guardrail de seguridad probabilístico.
+   - La generación de respuestas en lenguaje natural se delega a **Llama 3.1 8B Instruct** (`@cf/meta/llama-3.1-8b-instruct`) sobre Cloudflare Workers AI.
+   - Los datos operacionales se consultan en tiempo real a **Insforge PostgreSQL** vía PostgREST server-side (`functions/_lib/insforge.ts`) usando las variables de entorno `INSFORGE_URL` e `INSFORGE_ANON_KEY` sin prefijo `VITE_`.
+2. **Optimización Semántica y Asistencia a Clef (`functions/_lib/clef.ts`)**:
+   - Taxonomía explícita de 6 intenciones: `cobranzas`, `horarios_aforos`, `kardex_asistencias`, `prospectos_demos`, `recordatorios` y `ayuda_general`, con soporte para jerga peruana (*"yapeó"*, *"saldo"*, *"aforo"*, *"de corrido"*).
+   - Inmunización contra falsos positivos de privacidad: las consultas administrativas de cobranza y apoderados por parte de Secretaría no son bloqueadas como contenido sensible.
+   - Extractor de entidades auxiliar para docentes (Jeremy, Fernando, Nathaly), salas (A, B, C, D) e instrumentos.
+   - Fallback heurístico resiliente ante caídas o latencias en el binding de Workers AI.
+3. **Inyección Incondicional de Reglas Pedagógicas (ADR-0102) y Cuotas**:
+   - El prompt del sistema (`functions/_lib/prompts.ts`) blinda las especialidades de docentes (Nathaly en Sala C para Piano Infantil/Canto; Fernando en Sala B para Piano/Violín; Jeremy en Sala A para Guitarra/Batería), el aforo máximo de 5 alumnos por sala y las cuotas de 8 clases (Regular) y 4 clases (Intensivo).
+   - Temperatura en 0.2 para impedir alucinaciones de nombres, fechas o montos de deuda.
+
