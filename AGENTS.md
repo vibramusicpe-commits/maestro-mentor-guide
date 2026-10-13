@@ -1367,4 +1367,9 @@ inferencia.
    - Soporte mínimo: `familyId?: string` en `AdminStudent` + passthrough en `mapDBStudentToAdminStudent`.
 4. **Verificación con datos vivos (8/8)**: email→1 hijo; pronombre con 2 hermanos→pide elección; manual→Karlitoz; desconocido→no resuelto + 0 recibos; negativo (facturas ajenas excluidas, alumno ajeno→notFound); familyId exacto; scope 1/49; reply sin filtración.
 5. **Pendiente Fase 2 (requiere cablear sesión)**: persistir `family_id` en `login()` desde la invitación aceptada, cápsula Laya en `/family` en modo scope, solo lectura en v1.
+6. **Fase 2 implementada (2026-10-13, sin UI admin alterada)**:
+   - Sesión: `currentUser.familyId?` + `login(..., { familyId })` (4° parámetro opcional, llamadores existentes intactos); `verify` devuelve `target_family_id` en sus 6 rutas; `invite.$token` lo pasa al login. Persistencia automática (currentUser ya se persistía).
+   - `LayaCopilotFlow` acepta `familyScope?`: en modo padre filtra alumnos/recibos al alcance, oculta snapshot Meta/CSV/Kardex de secretaría, WhatsApp apunta a Secretaría (51970608367), sin alcance responde vinculación; título y placeholder parentales; drawer ya era `w-full sm:w-[460px]`.
+   - `FamilyLayout` monta la cápsula + botón flotante 56px + atajo Ctrl+Shift+L, con scope desde la sesión. Solo lectura en v1 (Laya no muta; Kardex de edición oculto).
+   - Piloto: autoregistro como alumno con email de apoderado real, probar las 3 preguntas + negativa (no ver datos ajenos).
 

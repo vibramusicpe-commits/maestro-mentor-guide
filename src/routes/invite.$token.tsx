@@ -241,7 +241,9 @@ function InvitePage() {
       invite.target_email.toLowerCase().includes("nayeli");
     const effectiveRole = isStaff ? "staff" : invite.target_role;
 
-    login(invite.target_email, effectiveRole, invite.target_name ?? undefined);
+    login(invite.target_email, effectiveRole, invite.target_name ?? undefined, {
+      familyId: invite.target_family_id ?? null,
+    });
     setView("success");
 
     // 3. Redirigir al portal correcto según el rol de la invitación

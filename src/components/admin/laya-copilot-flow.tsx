@@ -45,6 +45,12 @@ import {
   type DisambiguationCandidate,
 } from "@/lib/laya/laya-realtime-matcher";
 import { resolveAcademyKnowledge, type AcademyKnowledgeResponse } from "@/lib/laya/laya-knowledge-base";
+import {
+  studentsInScope,
+  invoicesInScope,
+  unresolvedScopeReply,
+  type FamilyScope,
+} from "@/lib/laya/laya-family-scope";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +66,9 @@ interface LayaCopilotFlowProps {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
+  // Modo padre (Fase 2, ADR-0172): alcance precargado desde la invitación.
+  // Ausente/undefined => modo secretaría sin restricciones.
+  familyScope?: FamilyScope | null;
 }
 
 // 🛡️ REGLA (ADR-0170, Bug #1): detecta consultas GENÉRICAS de cobranzas
@@ -128,7 +137,10 @@ function buildDebtorsListReply(activeStudents: AdminStudent[]): string {
   );
 }
 
-export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowProps) {
+export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: LayaCopilotFlowProps) {
+  // 🛡️ Modo padre: todo (alumnos, recibos, menciones) se filtra al alcance.
+  // Fuera de él no se muestra ningún dato (ver Fase 1, ADR-0172).
+  const parentMode = familyScope !== undefined;
   const adminStudents = useAppStore((s) => s.adminStudents);
   const schedule = useAppStore((s) => s.schedule);
   const invoices = useAppStore((s) => (s as unknown as { invoices?: Invoice[] }).invoices || []);
@@ -153,10 +165,12 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
   // Referencia para enfocar input
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Filtrar alumnos activos
+  // Filtrar alumnos activos (en modo padre: solo los hijos vinculados)
   const activeStudents = useMemo(() => {
-    return adminStudents.filter((st) => st.status === "activo");
-  }, [adminStudents]);
+    const base = adminStudents.filter((st) => st.status === "activo");
+    if (parentMode && familyScope) return studentsInScope(base, familyScope);
+    return base;
+  }, [adminStudents, parentMode, familyScope]);
 
   // Estado del análisis de Laya
   const [parsedData, setParsedData] = useState<{
@@ -184,6 +198,25 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
   const runLayaAnalysis = async (textToAnalyze: string, forcedStudent?: AdminStudent) => {
     if (!textToAnalyze.trim()) {
       setParsedData(null);
+      return;
+    }
+
+    // 🛡️ Modo padre sin alcance resuelto: no responder con datos (ADR-0172).
+    if (parentMode && (!familyScope || !familyScope.resolved)) {
+      setIsProcessing(true);
+      setParsedData({
+        studentConfidence: 0,
+        candidates: [],
+        isAmbiguous: false,
+        intent: "general",
+        day: "indeterminado",
+        time: "indeterminado",
+        reason: "injustificada",
+        isJustified: false,
+        urgencyLabel: "Normal",
+        whatsAppReply: unresolvedScopeReply(),
+      });
+      setIsProcessing(false);
       return;
     }
 
@@ -370,7 +403,10 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       // ni aforo de sala.
       const paymentReply =
         isCobranzasQuery && matchedSt && !isAmbiguous
-          ? buildStudentPaymentReply(matchedSt, invoices || [])
+          ? buildStudentPaymentReply(
+              matchedSt,
+              parentMode && familyScope ? invoicesInScope(invoices || [], familyScope) : invoices || []
+            )
           : undefined;
       // 🛡️ REGLA (ADR-0142): @mención sin coincidencia => decirlo claro,
       // jamás caer al fallback genérico en silencio.
@@ -486,9 +522,19 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
     toast.success("Respuesta copiada al portapapeles");
   };
 
+  // Número oficial de Secretaría para el modo padre (los padres escriben
+  // a secretaría; secretaría escribe a los apoderados).
+  const SECRETARIA_WHATSAPP = "51970608367";
+
   // Abrir WhatsApp Web con el mensaje pre-llenado (wa.me)
   const handleOpenWhatsAppWeb = () => {
     if (!parsedData) return;
+    if (parentMode) {
+      const url = `https://wa.me/${SECRETARIA_WHATSAPP}?text=${encodeURIComponent(parsedData.whatsAppReply)}`;
+      window.open(url, "_blank");
+      toast.success("Abriendo WhatsApp Web con Secretaría de Vibra Music");
+      return;
+    }
     const phone = parsedData.detectedStudent?.phone || parsedData.detectedStudent?.emergencyContact?.phone || "";
     const cleanPhone = phone.replace(/\D/g, "");
     const finalPhone = cleanPhone.startsWith("51") ? cleanPhone : cleanPhone ? `51${cleanPhone}` : "51900000000";
@@ -530,15 +576,17 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
           onSubmit={handleSubmitPrompt}
           className="flex items-center gap-2 bg-[#1A1410]/95 backdrop-blur-md border border-white/10 hover:border-[#F47B20]/40 rounded-full px-4 py-2.5 shadow-2xl transition-all group"
         >
-          {/* Botón Acción (+) */}
-          <button
-            type="button"
-            onClick={() => setIsSnapshotOpen(true)}
-            className="h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0"
-            title="Exportar Snapshot de Vacantes para Meta Business"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+          {/* Botón Acción (+) — solo secretaría (el snapshot expone toda la academia) */}
+          {!parentMode && (
+            <button
+              type="button"
+              onClick={() => setIsSnapshotOpen(true)}
+              className="h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              title="Exportar Snapshot de Vacantes para Meta Business"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          )}
 
           {/* Badge del Agente Copiloto Laya */}
           <button
@@ -565,19 +613,21 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
                 }
               }
             }}
-            placeholder="Pega el mensaje o escribe @alumno... (Tab autocompleta)"
+            placeholder={parentMode ? "Pregunta por tus hijos..." : "Pega el mensaje o escribe @alumno... (Tab autocompleta)"}
             className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none px-2 min-w-0"
           />
 
-          {/* Botón Snapshot Rápido */}
-          <button
-            type="button"
-            onClick={() => setIsSnapshotOpen(true)}
-            className="hidden sm:flex items-center gap-1 text-[11px] text-muted-foreground hover:text-[#F47B20] px-2 py-1 rounded-md transition-colors shrink-0"
-            title="Snapshot Meta"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-          </button>
+          {/* Botón Snapshot Rápido — solo secretaría */}
+          {!parentMode && (
+            <button
+              type="button"
+              onClick={() => setIsSnapshotOpen(true)}
+              className="hidden sm:flex items-center gap-1 text-[11px] text-muted-foreground hover:text-[#F47B20] px-2 py-1 rounded-md transition-colors shrink-0"
+              title="Snapshot Meta"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+            </button>
+          )}
 
           {/* Botón Enviar / Desplegar (➔) */}
           <button
@@ -606,26 +656,30 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
             </span>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-black tracking-wide text-foreground">Copiloto Laya</h3>
+                <h3 className="text-sm font-black tracking-wide text-foreground">{parentMode ? "Asistente Familiar" : "Copiloto Laya"}</h3>
                 <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
                   {parsedData?.clefModel ? "Clef + Workers AI" : latencyMs !== null ? `${latencyMs} ms` : "Sistema 1 · <35ms"}
                 </Badge>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                {parsedData?.clefModel ? "IA en tiempo real con Clef, Insforge y Llama 3.1" : "Triage inteligente en tiempo real con PostgreSQL"}
+                {parentMode
+                  ? "Pregunta por tus hijos: clases, pagos y recuperaciones"
+                  : parsedData?.clefModel ? "IA en tiempo real con Clef, Insforge y Llama 3.1" : "Triage inteligente en tiempo real con PostgreSQL"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1">
-            {/* Snapshot Meta */}
-            <button
-              onClick={() => setIsSnapshotOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
-              title="Exportar Snapshot de Vacantes para Meta"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-            </button>
+            {/* Snapshot Meta — solo secretaría */}
+            {!parentMode && (
+              <button
+                onClick={() => setIsSnapshotOpen(true)}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
+                title="Exportar Snapshot de Vacantes para Meta"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+              </button>
+            )}
 
             {/* 👁️ Ocultar completamente Copiloto Laya (EyeOff) — Exclusivo en vista lateral (ADR-0142) */}
             <button
@@ -857,15 +911,17 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
                 </Badge>
               </div>
 
-              {/* Botón rápido para abrir Kardex */}
-              <button
-                type="button"
-                onClick={() => setKardexStudent(parsedData.detectedStudent || null)}
-                className="w-full mt-1 py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-semibold text-primary border border-primary/20 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <BookOpen className="h-3.5 w-3.5" />
-                <span>Ver Kardex Completo de {parsedData.detectedStudent.name.split(" ")[0]}</span>
-              </button>
+              {/* Botón rápido para abrir Kardex — solo secretaría (edición) */}
+              {!parentMode && (
+                <button
+                  type="button"
+                  onClick={() => setKardexStudent(parsedData.detectedStudent || null)}
+                  className="w-full mt-1 py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-semibold text-primary border border-primary/20 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  <span>Ver Kardex Completo de {parsedData.detectedStudent.name.split(" ")[0]}</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -1067,8 +1123,8 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       {/* 2. Panel Lateral Derecho Deslizable (Modo Google Flow) */}
       {renderRightSidebar()}
 
-      {/* 3. Modal de Kardex si se abre desde el copiloto */}
-      {kardexStudent && (
+      {/* 3. Modal de Kardex si se abre desde el copiloto (solo secretaría) */}
+      {kardexStudent && !parentMode && (
         <StudentAttendanceKardex
           student={kardexStudent}
           isOpen={true}
@@ -1076,8 +1132,8 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
         />
       )}
 
-      {/* 4. Diálogo de Snapshot para Meta Business Suite */}
-      <Dialog open={isSnapshotOpen} onOpenChange={setIsSnapshotOpen}>
+      {/* 4. Diálogo de Snapshot para Meta Business Suite (solo secretaría) */}
+      <Dialog open={isSnapshotOpen && !parentMode} onOpenChange={setIsSnapshotOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto border-white/10 bg-[#15120F] text-foreground">
           <DialogHeader>
             <DialogTitle className="text-base font-black flex items-center gap-2 text-foreground">

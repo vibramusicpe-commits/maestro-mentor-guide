@@ -108,10 +108,10 @@ type AppState = {
   // Auth & Rol activo
   activeRole: Role;
   isAuthenticated: boolean;
-  currentUser: { email: string; name: string } | null;
+  currentUser: { email: string; name: string; familyId?: string | null } | null;
   setActiveRole: (role: Role) => void;
   updateUserName: (name: string) => void;
-  login: (email: string, role: Role, customName?: string) => void;
+  login: (email: string, role: Role, customName?: string, opts?: { familyId?: string | null }) => void;
   logout: () => void;
 
   // Profesor
@@ -1286,12 +1286,13 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           currentUser: s.currentUser ? { ...s.currentUser, name } : { email: "usuario@vibramusic.pe", name },
         })),
-      login: (email, role, customName) =>
+      login: (email, role, customName, opts) =>
         set({
           activeRole: role,
           isAuthenticated: true,
           currentUser: {
             email,
+            familyId: opts?.familyId ?? null,
             name:
               customName ||
               (email.toLowerCase().includes("sergio")

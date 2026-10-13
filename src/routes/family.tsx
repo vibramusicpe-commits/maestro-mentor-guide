@@ -1,8 +1,10 @@
 import { createFileRoute, Outlet, Link, redirect } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { Music4, Ticket, LogOut } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Music4, Ticket, LogOut, Sparkles } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { RoleSwitcher } from "@/components/role-switcher";
+import { LayaCopilotFlow } from "@/components/admin/laya-copilot-flow";
+import { resolveFamilyScope } from "@/lib/laya/laya-family-scope";
 
 export const Route = createFileRoute("/family")({
   // ──────────────────────────────────────────────
@@ -45,6 +47,21 @@ function FamilyLayout() {
   const setActiveRole = useAppStore((s) => s.setActiveRole);
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const logout = useAppStore((s) => s.logout);
+  const currentUser = useAppStore((s) => s.currentUser);
+  const adminStudents = useAppStore((s) => s.adminStudents);
+  const [isLayaOpen, setIsLayaOpen] = useState(false);
+
+  // Alcance del asistente: solo los hijos vinculados a la invitación (ADR-0172).
+  // Sin alcance resuelto, Laya responde el mensaje de vinculación, sin datos.
+  const familyScope = useMemo(
+    () =>
+      resolveFamilyScope({
+        inviteFamilyId: currentUser?.familyId ?? null,
+        userEmail: currentUser?.email ?? null,
+        adminStudents,
+      }),
+    [currentUser?.familyId, currentUser?.email, adminStudents]
+  );
 
   // Redirección reactiva infalible al cerrar sesión (ADR-0127)
   useEffect(() => {
@@ -56,6 +73,18 @@ function FamilyLayout() {
   useEffect(() => {
     setActiveRole("family");
   }, [setActiveRole]);
+
+  // Atajo Ctrl+Shift+L paridad con secretaría
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "l") || (e.altKey && e.key.toLowerCase() === "l")) {
+        e.preventDefault();
+        setIsLayaOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <div className="min-h-screen bg-secondary/60 py-0 sm:py-8">
@@ -90,6 +119,23 @@ function FamilyLayout() {
         <main className="flex-1 px-5 pb-10 pt-5">
           <Outlet />
         </main>
+
+        {/* Botón flotante del Asistente Familiar (móvil, 56px táctil) */}
+        <button
+          onClick={() => setIsLayaOpen(true)}
+          className="fixed bottom-24 right-5 z-40 h-14 w-14 rounded-full bg-[#F47B20] hover:bg-[#FF9E3D] text-[#0D0B0A] flex items-center justify-center shadow-xl transition-all hover:scale-105 cursor-pointer"
+          title="Abrir Asistente Familiar (Ctrl+Shift+L)"
+        >
+          <Sparkles className="h-6 w-6" />
+        </button>
+
+        {/* Asistente Familiar en modo alcance-por-familia (solo lectura, ADR-0172) */}
+        <LayaCopilotFlow
+          isOpen={isLayaOpen}
+          onToggle={() => setIsLayaOpen((prev) => !prev)}
+          onClose={() => setIsLayaOpen(false)}
+          familyScope={familyScope}
+        />
       </div>
     </div>
   );

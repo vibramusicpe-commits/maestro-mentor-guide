@@ -97,6 +97,7 @@ export interface InviteVerifyResult {
   target_name: string | null;
   target_role: InviteTargetRole | null;
   target_email: string | null;
+  target_family_id: string | null;
   master_password?: string | null;
   status: InviteStatus | null;
   is_valid: boolean;
@@ -340,6 +341,7 @@ export async function verifyInvitationToken(
         target_name: inv.target_name,
         target_role: effectiveRole,
         target_email: inv.target_email,
+        target_family_id: inv.target_family_id ?? null,
         master_password: inv.master_password || null,
         status: inv.status,
         is_valid: isValid,
@@ -364,6 +366,7 @@ export async function verifyInvitationToken(
           target_name: matched.target_name,
           target_role: matched.target_role,
           target_email: matched.target_email,
+          target_family_id: matched.target_family_id ?? null,
           master_password: matched.master_password ?? null,
           status: matched.status,
           is_valid: matched.status !== "revocado",
@@ -388,6 +391,7 @@ export async function verifyInvitationToken(
       target_name: "Nayeli (Secretaria)",
       target_role: "staff" as unknown as InviteTargetRole,
       target_email: "nayeli@vibramusic.pe",
+      target_family_id: null,
       master_password: "NayeliVibra2026*",
       status: "aceptado",
       is_valid: true,
@@ -475,6 +479,7 @@ export async function verifyInvitationToken(
       target_name: matchedSeed.target_name,
       target_role: matchedSeed.target_role,
       target_email: matchedSeed.target_email,
+      target_family_id: null,
       master_password: resolvedPassword,
       status: realStatus,
       is_valid: true,
@@ -488,7 +493,7 @@ export async function verifyInvitationToken(
       { p_token: token },
     );
     if (results && results[0]) {
-      return results[0];
+      return { ...results[0], target_family_id: results[0].target_family_id ?? null };
     }
   } catch {
     // RPC falló o no disponible en modo local dev
@@ -524,6 +529,7 @@ export async function verifyInvitationToken(
     target_name: detectedName,
     target_role: detectedRole,
     target_email: `${detectedRole}-${Date.now()}@vibramusic.pe`,
+    target_family_id: null,
     master_password: null,
     status: "pendiente",
     is_valid: true,
