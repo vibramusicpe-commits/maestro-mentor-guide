@@ -25,6 +25,7 @@ import {
   HelpCircle,
   KeyRound,
   Lock,
+  Link2,
   Calendar,
   RotateCcw,
   Pencil,
@@ -96,6 +97,10 @@ import {
 } from "@/components/ui/table";
 import { money } from "@/lib/format";
 import { isSameStudentId, isMatchingStudentName } from "@/lib/student-matching";
+import {
+  ensureParentInviteForStudent,
+  type ParentInviteResult,
+} from "@/lib/services/invitations.service";
 
 const ALL = "todos";
 
@@ -182,6 +187,7 @@ export function StudentsTable() {
   }, []);
 
   const activeRole = useAppStore((s) => s.activeRole);
+  const currentUser = useAppStore((s) => s.currentUser);
   const students = useAppStore((s) => s.adminStudents);
   const adminStudents = students;
   const schedule = useAppStore((s) => s.schedule);
@@ -278,6 +284,57 @@ export function StudentsTable() {
   // Estado para Edición Completa de Datos del Alumno (Solicitado por Secretaría Nayeli)
   const [editingStudent, setEditingStudent] = useState<AdminStudent | null>(null);
   const [auditStudent, setAuditStudent] = useState<AdminStudent | null>(null);
+
+  // Enlace web de invitación del apoderado (botón por fila, ADR-0172)
+  const [parentInviteData, setParentInviteData] = useState<{
+    student: AdminStudent;
+    result: ParentInviteResult;
+  } | null>(null);
+  const [parentInviteLoading, setParentInviteLoading] = useState<string | null>(null);
+
+  const handleParentInvite = async (st: AdminStudent) => {
+    try {
+      setParentInviteLoading(st.id);
+      const result = await ensureParentInviteForStudent(activeRole, currentUser?.email ?? "admin-id", {
+        id: st.id,
+        name: st.name,
+        family: st.family,
+        email: st.email,
+        familyId: st.familyId ?? null,
+      });
+      setParentInviteData({ student: st, result });
+      toast.success(
+        result.reused ? "Enlace existente reutilizado 🔗" : "Enlace de apoderado creado 🔗",
+        { description: `Listo para enviar a la familia de ${st.name}.` }
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error al generar enlace");
+    } finally {
+      setParentInviteLoading(null);
+    }
+  };
+
+  const handleCopyParentInvite = async () => {
+    if (!parentInviteData) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(parentInviteData.result.whatsappMessage);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = parentInviteData.result.whatsappMessage;
+        ta.style.position = "fixed";
+        ta.style.left = "-999999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+      }
+      toast.success("Mensaje de invitación copiado 📋");
+    } catch {
+      toast.error("No se pudo copiar automáticamente. Selecciónalo manualmente.");
+    }
+  };
 
 
   // Handler de WhatsApp Business con plantillas oficiales
@@ -1004,6 +1061,19 @@ export function StudentsTable() {
                           title={`Enviar WhatsApp a Familia ${st.family} (${st.phone})`}
                         >
                           <Phone className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={parentInviteLoading === st.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleParentInvite(st);
+                          }}
+                          className="h-8 w-8 p-0 text-primary hover:bg-primary/10 hover:text-primary border-primary/30 rounded-lg disabled:opacity-50"
+                          title={`Generar enlace web de invitación del apoderado de ${st.name}`}
+                        >
+                          <Link2 className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"
@@ -2213,6 +2283,47 @@ export function StudentsTable() {
           isEditable={isKardexEditable}
         />
       )}
+
+      {/* Modal de Enlace Web del Apoderado (invitación family por alumno, ADR-0172) */}
+      <Dialog open={!!parentInviteData} onOpenChange={(o) => !o && setParentInviteData(null)}>
+        <DialogContent className="sm:max-w-md p-6 rounded-3xl bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+              <Link2 className="h-5 w-5 text-primary" />
+              Enlace del Apoderado{parentInviteData ? ` — ${parentInviteData.student.name}` : ""}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {parentInviteData?.result.reused
+                ? "Ya existía una invitación vigente: se reutilizó (y renovó si había vencido). El apoderado usa su contraseña actual."
+                : "Invitación nueva: envía el enlace con su contraseña inicial."}{" "}
+              Con este enlace Laya ya conoce a la familia y no pide nombres.
+            </DialogDescription>
+          </DialogHeader>
+          {parentInviteData && (
+            <div className="space-y-3 py-2">
+              <div className="rounded-xl border border-border bg-muted/40 p-3 break-all text-xs font-mono text-foreground">
+                {parentInviteData.result.inviteLink}
+              </div>
+              {parentInviteData.result.masterPassword && (
+                <p className="text-xs text-muted-foreground">
+                  Contraseña inicial:{" "}
+                  <span className="font-mono font-bold text-foreground">
+                    {parentInviteData.result.masterPassword}
+                  </span>
+                </p>
+              )}
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={handleCopyParentInvite} className="gap-1.5 text-xs font-bold">
+                  Copiar mensaje WhatsApp
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setParentInviteData(null)} className="text-xs">
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Modal Dialog de Importación de Alumnos CSV/Excel para Nayeli */}
       <Dialog open={isCsvModalOpen} onOpenChange={setIsCsvModalOpen}>

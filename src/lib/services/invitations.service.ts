@@ -809,6 +809,100 @@ export async function renewInvitation(
 }
 
 // ---------------------------------------------------------------
+// EDGE: ensureParentInviteForStudent (Super Admin / Staff)
+// Genera o reutiliza el enlace de invitación family del apoderado de un
+// alumno (botón "Enlace padre" en /admin/alumnos, ADR-0172). El enlace
+// precarga la identidad: Laya en modo padre ya no pregunta nombres.
+// Si existe una invitación family vigente para ese correo, se reutiliza
+// (y se renueva en el acto si venció, ADR-0169). La contraseña solo se
+// conoce al crearla; al reutilizar, el apoderado usa su clave actual.
+// ---------------------------------------------------------------
+export interface ParentInviteResult {
+  inviteLink: string;
+  whatsappMessage: string;
+  masterPassword: string | null;
+  reused: boolean;
+  targetEmail: string;
+  expiresAt: string | null;
+}
+
+export async function ensureParentInviteForStudent(
+  userRole: Role,
+  createdByUserId: string,
+  student: {
+    id: string;
+    name: string;
+    family?: string;
+    email?: string;
+    familyId?: string | null;
+  },
+  existingInvites?: DBInvitation[],
+): Promise<ParentInviteResult> {
+  assertRole(userRole, ["super_admin", "staff"], "generar enlace de padre");
+
+  const apoderadoEmail = (student.email || "").trim();
+  if (!apoderadoEmail) {
+    throw new Error(
+      "El alumno no tiene correo de apoderado en su ficha. Complétalo en Editar para generar su enlace."
+    );
+  }
+  const familyLabel = (student.family || "").trim() || `Familia de ${student.name}`;
+
+  const list = existingInvites ?? (await getInvitations(userRole));
+  const found = list.find(
+    (inv) =>
+      inv.target_role === "family" &&
+      (inv.target_email || "").toLowerCase() === apoderadoEmail.toLowerCase() &&
+      inv.status !== "revocado"
+  );
+
+  const buildReusedMessage = (link: string) =>
+    `🎵 *VM STAFF · Vibra Music*\n\n` +
+    `Hola *${familyLabel}*, este es tu acceso al portal de familias de Vibra Music:\n\n` +
+    `🔗 *Enlace de acceso directo:*\n${link}\n\n` +
+    `🔑 Usa tu contraseña actual de apoderado. Si la olvidaste, pide a Secretaría que la restablezca.\n\n` +
+    `_Academia Vibra Music — Transformando vidas a través de la música._`;
+
+  if (found) {
+    const expired = found.expires_at ? new Date(found.expires_at).getTime() < Date.now() : false;
+    let expiresAt: string | null = found.expires_at || null;
+    if (expired) {
+      try {
+        const renewed = await renewInvitation(userRole, createdByUserId, found.id);
+        expiresAt = renewed.expires_at;
+      } catch {
+        // Si no se pudo renovar, se entrega igual y secretaría lo verá vencido
+      }
+    }
+    const inviteLink = buildInviteLink(found.token);
+    return {
+      inviteLink,
+      whatsappMessage: buildReusedMessage(inviteLink),
+      masterPassword: null,
+      reused: true,
+      targetEmail: apoderadoEmail,
+      expiresAt,
+    };
+  }
+
+  const firstName = (student.name || "").split(" ")[0] || student.name;
+  const res = await createInvitation(userRole, createdByUserId, {
+    targetRole: "family",
+    targetName: `${familyLabel} (Apoderado de ${firstName})`,
+    targetEmail: apoderadoEmail,
+    ...(student.familyId ? { targetFamilyId: student.familyId } : {}),
+  });
+  return {
+    inviteLink: res.inviteLink,
+    whatsappMessage: res.whatsappMessage,
+    masterPassword: res.masterPassword,
+    reused: false,
+    targetEmail: apoderadoEmail,
+    expiresAt: res.invitation.expires_at || null,
+  };
+}
+
+// ---------------------------------------------------------------
 // EDGE: resetUserToMasterPassword (Restablece contraseña maestra única)
 // ---------------------------------------------------------------
 export async function resetUserToMasterPassword(

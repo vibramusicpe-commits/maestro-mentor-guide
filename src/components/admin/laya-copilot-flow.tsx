@@ -49,6 +49,8 @@ import {
   studentsInScope,
   invoicesInScope,
   unresolvedScopeReply,
+  nonParentScopeReply,
+  SCHOOL_WHATSAPP_NUMBER,
   type FamilyScope,
 } from "@/lib/laya/laya-family-scope";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
@@ -143,6 +145,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
   const parentMode = familyScope !== undefined;
   const adminStudents = useAppStore((s) => s.adminStudents);
   const schedule = useAppStore((s) => s.schedule);
+  const activeRole = useAppStore((s) => s.activeRole);
   const invoices = useAppStore((s) => (s as unknown as { invoices?: Invoice[] }).invoices || []);
 
   // Modo de visualización: 'capsule' (barra inferior minimizada) o 'sidebar' (panel lateral derecho)
@@ -202,7 +205,11 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
     }
 
     // 🛡️ Modo padre sin alcance resuelto: no responder con datos (ADR-0172).
+    // Si quien entra no es padre/tutor (staff/docente/dirección), derivar a
+    // Dirección con el WhatsApp oficial en vez de pedir nombres.
     if (parentMode && (!familyScope || !familyScope.resolved)) {
+      const isStaffSession =
+        activeRole === "super_admin" || activeRole === "staff" || activeRole === "teacher";
       setIsProcessing(true);
       setParsedData({
         studentConfidence: 0,
@@ -214,7 +221,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
         reason: "injustificada",
         isJustified: false,
         urgencyLabel: "Normal",
-        whatsAppReply: unresolvedScopeReply(),
+        whatsAppReply: isStaffSession ? nonParentScopeReply() : unresolvedScopeReply(),
       });
       setIsProcessing(false);
       return;
@@ -524,7 +531,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
 
   // Número oficial de Secretaría para el modo padre (los padres escriben
   // a secretaría; secretaría escribe a los apoderados).
-  const SECRETARIA_WHATSAPP = "51970608367";
+  const SECRETARIA_WHATSAPP = SCHOOL_WHATSAPP_NUMBER;
 
   // Abrir WhatsApp Web con el mensaje pre-llenado (wa.me)
   const handleOpenWhatsAppWeb = () => {

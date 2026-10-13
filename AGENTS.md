@@ -1372,4 +1372,8 @@ inferencia.
    - `LayaCopilotFlow` acepta `familyScope?`: en modo padre filtra alumnos/recibos al alcance, oculta snapshot Meta/CSV/Kardex de secretaría, WhatsApp apunta a Secretaría (51970608367), sin alcance responde vinculación; título y placeholder parentales; drawer ya era `w-full sm:w-[460px]`.
    - `FamilyLayout` monta la cápsula + botón flotante 56px + atajo Ctrl+Shift+L, con scope desde la sesión. Solo lectura en v1 (Laya no muta; Kardex de edición oculto).
    - Piloto: autoregistro como alumno con email de apoderado real, probar las 3 preguntas + negativa (no ver datos ajenos).
+7. **Enlace padre por alumno + mensaje no-padre (2026-10-13)**:
+   - `ensureParentInviteForStudent` (`invitations.service.ts`): reutiliza invitación family vigente del correo (renovándola si venció) o crea una con `familyId` real + email de apoderado; sin email en ficha, error explícito. Hallazgo: el formulario general pasaba id de alumno en `target_family_id`; aquí se usa el `familyId` real.
+   - Botón 🔗 por fila en `/admin/alumnos` + modal con enlace, contraseña inicial (solo al crear) y copiar WhatsApp. Verificado: hoy hay 0 invitaciones family en BD (el botón llena ese vacío).
+   - `nonParentScopeReply()` (WhatsApp escuela 51970608367): staff/docente/dirección sin vínculo familiar lo reciben en vez del pedido de nombres; rol family conserva el mensaje de vinculación.
 

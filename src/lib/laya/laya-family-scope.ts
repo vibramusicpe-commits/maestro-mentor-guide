@@ -202,12 +202,30 @@ export function resolveChildReference(
   return {};
 }
 
+/** WhatsApp oficial de la escuela (contacto de Dirección/Secretaría). */
+export const SCHOOL_WHATSAPP_NUMBER = "51970608367";
+
 /** Mensaje cuando el acceso aún no está vinculado a ninguna familia. */
 export function unresolvedScopeReply(): string {
   return (
     "¡Hola! Te saluda Vibra Music. 🎵\n\n" +
     "Para mostrarte la información de tu familia necesito vincular tu acceso: " +
     "dime el nombre completo del alumno para continuar."
+  );
+}
+
+/**
+ * Mensaje cuando quien entra NO es padre/tutor (docente, dirección, staff
+ * que abre un enlace de familia). No pide nombres: deriva a Dirección.
+ */
+export function nonParentScopeReply(): string {
+  return (
+    "¡Hola! Te saluda Vibra Music. 🎵\n\n" +
+    "Este acceso es exclusivo para padres y tutores con invitación de familia, " +
+    "y tu usuario no está registrado como apoderado de ningún alumno, así que " +
+    "no puedo mostrarte información en este momento.\n\n" +
+    "Si eres docente o dirección, ingresa por tu propio portal. " +
+    `Para ayuda con accesos, escríbenos por WhatsApp al https://wa.me/${SCHOOL_WHATSAPP_NUMBER}.`
   );
 }
 
