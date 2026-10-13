@@ -162,6 +162,7 @@ export type AdminStudent = {
   id: string;
   name: string;
   family: string;
+  familyId?: string; // UUID de families en PostgreSQL (vínculo exacto invitación-padre-hijos, Fase 1 modo padre)
   instrument: string;
   level: string;
   teacher: string;

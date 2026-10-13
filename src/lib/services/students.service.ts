@@ -102,6 +102,7 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     id: db.id,
     name: db.full_name,
     family: ecFamily,
+    ...(db.family_id ? { familyId: db.family_id } : {}),
     instrument: db.instrument || (isCamilaDB ? "Violín" : (isJonathanDB ? "Canto" : "Piano")),
     level: db.level || "Nivel 1",
     teacher: resolvedTeacher,

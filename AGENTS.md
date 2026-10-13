@@ -1356,3 +1356,15 @@ inferencia.
 3. **Correcciones halladas por el harness (bundle esbuild + PostgREST vivo)**: faltaba keyword `recaud` en la heurística; `searchStudent` devolvía el registro en `baja` primero (Karlitoz daba 3/2 en vez de 8/0) → prioridad activo; filtros sin estado ahora usan base activa por defecto.
 4. **Verificación end-to-end (5/5)**: niveles→rechazo exacto; saldos parciales→4 recibos; vencimientos semana→1 (S/ 249); recaudación octubre→S/ 4659.50; Karlitoz→8/0/8 culminado idéntico al Kardex; guitarra→14 activos.
 
+---
+
+### 71. Modo Padre: Alcance por Familia e Identidad por Invitación, Fase 1 sin UI (ADR-0172)
+1. **Riesgo rector**: Laya admin lista deudores/alumnos globales; en modo padre eso filtraría datos entre familias. La Fase 1 blinda el alcance antes que cualquier UI.
+2. **Identidad sin onboarding**: la invitación ya trae la identidad (`target_family_id`/`target_email`); no se pregunta el nombre salvo fallback. Orden: `family_id` exacto → email de apoderado → nombre manual → no resuelto (mensaje de vinculación).
+3. **Implementación (`src/lib/laya/laya-family-scope.ts`, nuevo, lógica pura)**:
+   - `resolveFamilyScope`, `studentsInScope`, `invoicesInScope` (concepto enlazado o familia idéntica; resto excluido), `resolveChildReference` (@mención/nombre/pronombres solo dentro de sus hijos; fuera del alcance responde `notFound` sin filtrar existencia), `unresolvedScopeReply`/`childNotFoundReply`.
+   - Expansión a hermanos: igual `familyId` o igual nombre de familia (los hermanos suelen traer emails distintos).
+   - Soporte mínimo: `familyId?: string` en `AdminStudent` + passthrough en `mapDBStudentToAdminStudent`.
+4. **Verificación con datos vivos (8/8)**: email→1 hijo; pronombre con 2 hermanos→pide elección; manual→Karlitoz; desconocido→no resuelto + 0 recibos; negativo (facturas ajenas excluidas, alumno ajeno→notFound); familyId exacto; scope 1/49; reply sin filtración.
+5. **Pendiente Fase 2 (requiere cablear sesión)**: persistir `family_id` en `login()` desde la invitación aceptada, cápsula Laya en `/family` en modo scope, solo lectura en v1.
+
