@@ -1343,3 +1343,15 @@ inferencia.
    - Causa: el schema `horario` (`laya-schemas.ts`) no tenía opción "17:00" (saltaba de 16:45 a 17:30), así que el encoder caía al vecino.
    - Fix: agregada `"17:00": "5:00 pm, 5 de la tarde, 17:00"` solo como reconocimiento NLU; 17:00 no es turno oficial de inicio (ADR-0130), así que el análisis de aforo responde con alternativas reales sin inventar horarios.
 
+---
+
+### 70. Ramas Server del Asistente (Fase 1): Niveles, Filtros, Vencimientos y Kardex Verificables (ADR-0171)
+1. **Premisa de datos verificada en vivo (2026-10-12)**: `invoices` (72) y `attendance_logs` (272) vivas; `lessons` y `demo_requests` existen pero VACÍAS (0 filas) — el horario real vive en `scheduleLessons` y las demos no escriben ahí; `reminders` no existe. Por eso la Fase 1 solo implementa ramas sobre tablas vivas; horarios/demos/recordatorios server quedan bloqueados hasta que haya datos o nueva especificación.
+2. **Cambios (`functions/` únicamente, cero cambios al cliente)**:
+   - `clef.ts`: intents `niveles_rechazo` y `alumnos_por_filtro` (taxonomía, heurística con prioridad 0 para niveles con `\b` para no confundir "nivelación", entidades `statusFilter`/`modality`, labels del modelo).
+   - `insforge.ts`: `getDebtorsList`, `getUpcomingDueDates`, `getMonthCollection`, `getStudentsByFilter` (teacher→UUID oficial, flexible filtrado en código, Claudia por `ec.teacher`), `getKardexSummary` (unión logs + marcas de lecciones con elegibilidad del motor único) y helpers de fecha Lima `limaToday`/`limaWeekBounds`.
+   - `prompts.ts`: regla de rechazo de niveles con texto exacto.
+   - `assistant.ts`: retorno determinista para niveles (costo $0, sin IA), sub-ramas cobranzas (semana/mes), kardex con registro ACTIVO primero (ADR-0107), filtros con base activa por defecto, y formateadores deterministas en español cuando no hay binding AI.
+3. **Correcciones halladas por el harness (bundle esbuild + PostgREST vivo)**: faltaba keyword `recaud` en la heurística; `searchStudent` devolvía el registro en `baja` primero (Karlitoz daba 3/2 en vez de 8/0) → prioridad activo; filtros sin estado ahora usan base activa por defecto.
+4. **Verificación end-to-end (5/5)**: niveles→rechazo exacto; saldos parciales→4 recibos; vencimientos semana→1 (S/ 249); recaudación octubre→S/ 4659.50; Karlitoz→8/0/8 culminado idéntico al Kardex; guitarra→14 activos.
+

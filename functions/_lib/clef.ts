@@ -23,6 +23,8 @@ export type AssistantIntent =
   | "prospectos_demos"
   | "recordatorios"
   | "ayuda_general"
+  | "niveles_rechazo"
+  | "alumnos_por_filtro"
   | "fuera_de_alcance";
 
 export interface ExtractedEntities {
@@ -33,6 +35,7 @@ export interface ExtractedEntities {
   timeSlot?: string;
   dateQuery?: string;
   statusFilter?: string;
+  modality?: string;
 }
 
 export interface ClefClassificationResult {
@@ -132,6 +135,17 @@ export function extractQueryEntities(query: string): ExtractedEntities {
     }
   }
 
+  // Filtro de estado del alumno (activo / pausa / baja).
+  // Ojo: "inactivo(s)" contiene "activo": se excluye explícitamente.
+  if (!qLower.includes("inactiv") && /\bactivos?\b/.test(qLower)) entities.statusFilter = "activo";
+  else if (qLower.includes("pausa")) entities.statusFilter = "pausa";
+  else if (qLower.includes("baja") || qLower.includes("bajas")) entities.statusFilter = "baja";
+
+  // Modalidad (palabra clave; el filtro exacto se resuelve en insforge.ts)
+  if (qLower.includes("intensivo")) entities.modality = "intensivo";
+  else if (qLower.includes("flexible") || qLower.includes("demanda") || qLower.includes("paquete")) entities.modality = "flexible";
+  else if (qLower.includes("regular")) entities.modality = "regular";
+
   return entities;
 }
 
@@ -140,6 +154,12 @@ export function extractQueryEntities(query: string): ExtractedEntities {
 // -----------------------------------------------------------------------------
 export function classifyHeuristically(query: string): AssistantIntent {
   const q = query.toLowerCase();
+
+  // RECHAZO DE NIVELES (PRIORIDAD 0): la academia NO trabaja con niveles.
+  // Con \b para no confundir "nivelación" (prospectos) con "nivel 2".
+  if (/\bnivel\s*\d|\bniveles\b/i.test(query)) {
+    return "niveles_rechazo";
+  }
 
   // Cobranzas y facturación (PRIORIDAD 1)
   if (
@@ -168,6 +188,7 @@ export function classifyHeuristically(query: string): AssistantIntent {
     q.includes("vence") ||
     q.includes("vencen") ||
     q.includes("vencid") ||
+    q.includes("recaud") ||
     q.includes("abono") ||
     q.includes("abonos")
   ) {
@@ -225,6 +246,44 @@ export function classifyHeuristically(query: string): AssistantIntent {
     return "recordatorios";
   }
 
+  // Alumnos por filtro (instrumento / modalidad / estado / profesor).
+  // Solo cuando se pide LISTAR alumnos; las preguntas de un alumno puntual
+  // van a kardex/cobranzas. Va antes del fallback de ayuda_general.
+  const mentionsListing =
+    q.includes("alumnos") ||
+    q.includes("lista") ||
+    q.includes("muéstrame") ||
+    q.includes("muestrame") ||
+    q.includes("dame") ||
+    q.includes("cuáles") ||
+    q.includes("cuales") ||
+    q.includes("quiénes") ||
+    q.includes("quienes");
+  const mentionsAttribute =
+    q.includes("jeremy") ||
+    q.includes("fernando") ||
+    q.includes("nathaly") ||
+    q.includes("naty") ||
+    q.includes("claudia") ||
+    q.includes("piano") ||
+    q.includes("guitarra") ||
+    q.includes("batería") ||
+    q.includes("bateria") ||
+    q.includes("canto") ||
+    q.includes("violín") ||
+    q.includes("violin") ||
+    q.includes("intensivo") ||
+    q.includes("regular") ||
+    q.includes("flexible") ||
+    q.includes("demanda") ||
+    q.includes("paquete") ||
+    q.includes("activo") ||
+    q.includes("pausa") ||
+    q.includes("baja");
+  if (mentionsListing && mentionsAttribute) {
+    return "alumnos_por_filtro";
+  }
+
   // Ayuda o fuera de alcance
   if (q.includes("profesor") || q.includes("instrumento") || q.includes("academia") || q.includes("dirección")) {
     return "ayuda_general";
@@ -257,9 +316,9 @@ export async function classifyQueryWithClef(
   // Verificación determinista inmediata: si la consulta contiene términos inequívocos de cobranza,
   // NO permitir que distilbert u otro modelo genérico lo confunda con kardex
   const heuristicIntent = classifyHeuristically(query);
-  if (heuristicIntent === "cobranzas") {
+  if (heuristicIntent === "cobranzas" || heuristicIntent === "niveles_rechazo") {
     return {
-      intent: "cobranzas",
+      intent: heuristicIntent,
       confidence: 0.99,
       is_sensitive: false,
       entities,
@@ -288,6 +347,8 @@ export async function classifyQueryWithClef(
         "prospectos_demos",
         "recordatorios",
         "ayuda_general",
+        "niveles_rechazo",
+        "alumnos_por_filtro",
       ],
     }).catch(async () => null);
 
