@@ -1274,19 +1274,21 @@ export function StudentAttendanceKardex({
                       )}
                       </div>
                     ) : (
-                      /* Si aún no tiene recuperación agendada: mostrar botón directo de Reprogramar (habilitado para faltas, tardanzas, justificadas o anticipadamente en pendientes) */
-                      {!lockEditing &&
-                        ((item.status === "ausente" || item.status === "justificada") || (isEditMode && item.status === "pendiente")) && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleOpenReschedule(item)}
-                          className="h-7 px-2.5 text-[11px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs flex items-center gap-1.5 transition-transform active:scale-95"
-                          title="Reprogramar esta clase para otra fecha u hora"
-                        >
-                          <CalendarSync className="h-3.5 w-3.5" />
-                          <span>🔄 Reprogramar</span>
-                        </Button>
-                      )
+                      <>
+                        {/* Si aún no tiene recuperación agendada: mostrar botón directo de Reprogramar (habilitado para faltas, tardanzas, justificadas o anticipadamente en pendientes) */}
+                        {!lockEditing &&
+                          ((item.status === "ausente" || item.status === "justificada") || (isEditMode && item.status === "pendiente")) && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenReschedule(item)}
+                            className="h-7 px-2.5 text-[11px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs flex items-center gap-1.5 transition-transform active:scale-95"
+                            title="Reprogramar esta clase para otra fecha u hora"
+                          >
+                            <CalendarSync className="h-3.5 w-3.5" />
+                            <span>🔄 Reprogramar</span>
+                          </Button>
+                        )}
+                      </>
                     )}
 
                     {/* ➕ Botón rápido de clase de corrido (+45m contiguo) - No aplica para Intensivo (ya es 90 min) */}
