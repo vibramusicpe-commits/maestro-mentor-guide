@@ -57,10 +57,15 @@ graph TD
    - Toda reprogramación intensiva genera atómicamente dos bloques contiguos de 45m (90 min) y excluye ambos bloques habituales.
    - Sincronización automática Ficha ➔ `invoices` en PostgreSQL (`postgrestPatch`).
    - Aislamiento estricto de ciclo activo (escaneo retroactivo acotado a 7 días y `recoveringDates`).
+6. **Puntito de Categoría de Edad en Clases de Recuperación (ADR 0169)**:
+   - Las clases de recuperación (pill rojo) muestran un puntito de 8px en la esquina superior derecha: Junior amarillo, Juvenil verde, Infantil morado, Estimulación rosa, Master/Adulto plomo. El resto de la píldora permanece idéntico.
+   - Fuente única de verdad: `src/lib/lesson-category-visual.ts` (`resolveRecoveryCategoryVisual`) sustituye las 4 copias divergentes de la lógica de puntito en `agenda-board.tsx` (ADR-0119.3).
+   - La categoría se resuelve desde el perfil del alumno (`findStudentProfileByName`, prioridad activo), luego desde `lesson.category` real, luego desde los fallbacks históricos por nombre.
 
 ---
 
 ## 🔗 Referencias de Arquitectura y Grafos
+- **ADR 0169 (Puntito de Categoría en Recuperaciones)**: [`docs/adr/0169-puntito-categoria-recuperaciones-panel-horarios.md`](file:///c:/Users/USER/my%20music%20staff%20backend/docs/adr/0169-puntito-categoria-recuperaciones-panel-horarios.md)
 - **ADR 0167 (Plan Intensivo 90m, Kardex, Renovaciones & Sync Facturación)**: [`docs/adr/0167-blindaje-integral-plan-intensivo-90m-kardex-renovaciones-sync-facturacion.md`](file:///c:/Users/USER/my%20music%20staff%20backend/docs/adr/0167-blindaje-integral-plan-intensivo-90m-kardex-renovaciones-sync-facturacion.md)
 - **ADR 0166 (Clases Contiguas de Corrido +45m)**: [`docs/adr/0166-preservacion-clases-contiguas-corrido-45m-mas-alla-planenddate-micaela-sofia.md`](file:///c:/Users/USER/my%20music%20staff%20backend/docs/adr/0166-preservacion-clases-contiguas-corrido-45m-mas-alla-planenddate-micaela-sofia.md)
 - **ADR 0165 (Resolución Integral Plan Intensivo 90 min)**: [`docs/adr/0165-resolucion-integral-plan-intensivo-90min-horario-clases-motor-ciclos.md`](file:///c:/Users/USER/my%20music%20staff%20backend/docs/adr/0165-resolucion-integral-plan-intensivo-90min-horario-clases-motor-ciclos.md)

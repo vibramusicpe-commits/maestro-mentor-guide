@@ -77,6 +77,7 @@ import {
 } from "@/lib/calendar-utils";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { isLessonInStudentCycle } from "@/lib/student-cycle";
+import { resolveRecoveryCategoryVisual } from "@/lib/lesson-category-visual";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1540,36 +1541,12 @@ export function AgendaBoard() {
                                                 : (studentProfile?.ageCategory ?? "JUNIOR"));
                                           const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
 
-                                          // Detección de Categoría de Edad para Clases Personalizadas
-                                          const studentAgeCat =
-                                            studentProfile?.ageCategory ||
-                                            (lesson.student.toLowerCase().includes("joan paolo")
-                                              ? "ADULTO"
-                                              : lesson.student.toLowerCase().includes("mishel")
-                                              ? "JUVENIL"
-                                              : lesson.student.toLowerCase().includes("mirko")
-                                              ? "JUNIOR"
-                                              : "JUNIOR");
-
-                                          // Colores del puntito indicador según el Excel oficial:
-                                          // 🟢 Juvenil: #4CAF50 | ⚫ Adulto: #757575 | 🟡 Junior: #FBC02D | 🟣 Infantil: #7C4DFF
-                                          const dotColor =
-                                            studentAgeCat === "JUVENIL"
-                                              ? "bg-[#4CAF50]" // Verde Juvenil (13 a 17)
-                                              : studentAgeCat === "ADULTO"
-                                              ? "bg-[#757575]" // Plomo Adulto (18 a +)
-                                              : studentAgeCat === "INFANTIL"
-                                              ? "bg-[#7C4DFF]" // Morado Infantil (5 y 6)
-                                              : "bg-[#FBC02D]"; // Amarillo Junior (7 a 12)
-
-                                          const dotLabel =
-                                            studentAgeCat === "JUVENIL"
-                                              ? "Categoría Juvenil (13 a 17 años)"
-                                              : studentAgeCat === "ADULTO"
-                                              ? "Categoría Adulto (18 a + años)"
-                                              : studentAgeCat === "INFANTIL"
-                                              ? "Categoría Infantil (5 y 6 años)"
-                                              : "Categoría Junior (7 a 12 años)";
+                                          // Puntito indicador de categoría de edad (ADR-0169):
+                                          // en recuperaciones recupera la categoría real que el rojo de la píldora oculta.
+                                          const recupVisual = resolveRecoveryCategoryVisual(lesson, adminStudents);
+                                          const studentAgeCat = recupVisual.ageCategory;
+                                          const dotColor = recupVisual.dotClass;
+                                          const dotLabel = categoryStyles[studentAgeCat]?.label ?? "CATEGORÍA JUNIOR (7 a 12)";
 
                                           return (
                                             <div
@@ -1578,7 +1555,7 @@ export function AgendaBoard() {
                                               className={`flex-1 p-1 ${catStyle.bg} border-b sm:border-b-0 border-slate-300 cursor-pointer hover:brightness-95 transition-all flex flex-col justify-center text-center relative overflow-hidden`}
                                               title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${
                                                 isRecup
-                                                  ? "CLASE DE RECUPERACIÓN (ROJO)"
+                                                  ? `CLASE DE RECUPERACIÓN (ROJO) · ${dotLabel}`
                                                   : lesson.category === "PERSONALIZADA"
                                                   ? `Clase Personalizada (${dotLabel})`
                                                   : catStyle.label
@@ -1626,11 +1603,11 @@ export function AgendaBoard() {
                                                    </div>
                                                  );
                                                })()}
-                                               {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
-                                              {lesson.category === "PERSONALIZADA" && (
+                                               {/* Puntito Indicador de Categoría de Edad (ADR-0169: recuperación o personalizada) */}
+                                              {(isRecup || lesson.category === "PERSONALIZADA") && (
                                                 <span
-                                                  className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
-                                                  title={`Clase Personalizada · ${dotLabel}`}
+                                                  aria-hidden="true"
+                                                  className={`pointer-events-none absolute top-0.5 right-0.5 z-10 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
                                                 />
                                               )}
                                             </div>
@@ -1942,36 +1919,12 @@ export function AgendaBoard() {
                                               : (studentProfile?.ageCategory ?? "JUNIOR"));
                                         const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
                                         
-                                        // Detección de Categoría de Edad para Clases Personalizadas
-                                        const studentAgeCat =
-                                          studentProfile?.ageCategory ||
-                                          (lesson.student.toLowerCase().includes("joan paolo")
-                                            ? "ADULTO"
-                                            : lesson.student.toLowerCase().includes("mishel")
-                                            ? "JUVENIL"
-                                            : lesson.student.toLowerCase().includes("mirko")
-                                            ? "JUNIOR"
-                                            : "JUNIOR");
-
-                                        // Colores del puntito indicador según el Excel oficial:
-                                        // 🟢 Juvenil: #4CAF50 | ⚫ Adulto: #757575 | 🟡 Junior: #FBC02D | 🟣 Infantil: #7C4DFF
-                                        const dotColor =
-                                          studentAgeCat === "JUVENIL"
-                                            ? "bg-[#4CAF50]" // Verde Juvenil (13 a 17)
-                                            : studentAgeCat === "ADULTO"
-                                            ? "bg-[#757575]" // Plomo Adulto (18 a +)
-                                            : studentAgeCat === "INFANTIL"
-                                            ? "bg-[#7C4DFF]" // Morado Infantil (5 y 6)
-                                            : "bg-[#FBC02D]"; // Amarillo Junior (7 a 12)
-
-                                        const dotLabel =
-                                          studentAgeCat === "JUVENIL"
-                                            ? "Categoría Juvenil (13 a 17 años)"
-                                            : studentAgeCat === "ADULTO"
-                                            ? "Categoría Adulto (18 a + años)"
-                                            : studentAgeCat === "INFANTIL"
-                                            ? "Categoría Infantil (5 y 6 años)"
-                                            : "Categoría Junior (7 a 12 años)";
+                                        // Puntito indicador de categoría de edad (ADR-0169):
+                                        // en recuperaciones recupera la categoría real que el rojo de la píldora oculta.
+                                        const recupVisual = resolveRecoveryCategoryVisual(lesson, adminStudents);
+                                        const studentAgeCat = recupVisual.ageCategory;
+                                        const dotColor = recupVisual.dotClass;
+                                        const dotLabel = categoryStyles[studentAgeCat]?.label ?? "CATEGORÍA JUNIOR (7 a 12)";
 
                                         const isIntensiveStudent = Boolean(
                                           studentProfile?.modality?.toLowerCase().includes("inten") ||
@@ -1986,7 +1939,7 @@ export function AgendaBoard() {
                                             className={`cursor-pointer rounded-lg border ${catStyle.border} ${catStyle.bg} px-2 py-1 shadow-2xs hover:shadow-md transition-all flex flex-col justify-center group relative`}
                                             title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${
                                               isRecup
-                                                ? "CLASE DE RECUPERACIÓN (ROJO)"
+                                                ? `CLASE DE RECUPERACIÓN (ROJO) · ${dotLabel}`
                                                 : lesson.category === "PERSONALIZADA"
                                                 ? `Clase Personalizada (${dotLabel})`
                                                 : catStyle.label
@@ -2024,15 +1977,15 @@ export function AgendaBoard() {
                                                     ✨
                                                   </span>
                                                 )}
-                                                {/* Puntito Indicador de Categoría de Edad en Clases Personalizadas */}
-                                                {lesson.category === "PERSONALIZADA" && (
+                                                {/* Puntito Indicador de Categoría de Edad (ADR-0169: recuperación o personalizada) */}
+                                                {(isRecup || lesson.category === "PERSONALIZADA") && (
                                                   <span
-                                                    className={`w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
-                                                    title={`Clase Personalizada · ${dotLabel}`}
+                                                    aria-hidden="true"
+                                                    className={`pointer-events-none absolute top-0.5 right-0.5 z-10 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
                                                   />
                                                 )}
                                               </div>
-                                              <span className="font-mono text-[8.5px] font-bold bg-background/90 text-foreground px-1 py-0.2 rounded border border-border/80 shrink-0">
+                                              <span className={`font-mono text-[8.5px] font-bold bg-background/90 text-foreground px-1 py-0.2 rounded border border-border/80 shrink-0${isRecup ? " mr-2.5" : ""}`}>
                                                 {lesson.room}
                                               </span>
                                             </div>
@@ -2169,33 +2122,12 @@ export function AgendaBoard() {
                                     : (studentProfile?.ageCategory ?? "JUNIOR"));
                               const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
                               
-                              const studentAgeCat =
-                                studentProfile?.ageCategory ||
-                                (lesson.student.toLowerCase().includes("joan paolo")
-                                  ? "ADULTO"
-                                  : lesson.student.toLowerCase().includes("mishel")
-                                  ? "JUVENIL"
-                                  : lesson.student.toLowerCase().includes("mirko")
-                                  ? "JUNIOR"
-                                  : "JUNIOR");
-
-                              const dotColor =
-                                studentAgeCat === "JUVENIL"
-                                  ? "bg-[#4CAF50]"
-                                  : studentAgeCat === "ADULTO"
-                                  ? "bg-[#795548]"
-                                  : studentAgeCat === "INFANTIL"
-                                  ? "bg-[#9C27B0]"
-                                  : "bg-[#FFEB3B]";
-
-                              const dotLabel =
-                                studentAgeCat === "JUVENIL"
-                                  ? "Categoría Juvenil (13 a 17 años)"
-                                  : studentAgeCat === "ADULTO"
-                                  ? "Categoría Adulto (18 a + años)"
-                                  : studentAgeCat === "INFANTIL"
-                                  ? "Categoría Infantil (5 y 6 años)"
-                                  : "Categoría Junior (7 a 12 años)";
+                              // Puntito indicador de categoría de edad (ADR-0169):
+                              // en recuperaciones recupera la categoría real que el rojo de la píldora oculta.
+                              const recupVisual = resolveRecoveryCategoryVisual(lesson, adminStudents);
+                              const studentAgeCat = recupVisual.ageCategory;
+                              const dotColor = recupVisual.dotClass;
+                              const dotLabel = categoryStyles[studentAgeCat]?.label ?? "CATEGORÍA JUNIOR (7 a 12)";
 
                               return (
                                 <button
@@ -2207,13 +2139,13 @@ export function AgendaBoard() {
                                       ? "border-dashed border-border bg-muted text-muted-foreground line-through opacity-50"
                                       : `${catStyle.bg} ${catStyle.border} ${catStyle.text}`
                                   }`}
-                                  title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
+                                  title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${isRecup ? `CLASE DE RECUPERACIÓN (ROJO) · ${dotLabel}` : lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
                                 >
-                                  {/* Indicador visual de categoría de edad */}
-                                  {lesson.category === "PERSONALIZADA" && (
+                                  {/* Puntito Indicador de Categoría de Edad (ADR-0169: recuperación o personalizada) */}
+                                  {(isRecup || lesson.category === "PERSONALIZADA") && (
                                     <span
-                                      className={`absolute top-1 right-1 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
-                                      title={`Clase Personalizada · ${dotLabel}`}
+                                      aria-hidden="true"
+                                      className={`pointer-events-none absolute top-0.5 right-0.5 z-10 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
                                     />
                                   )}
 
@@ -2223,7 +2155,7 @@ export function AgendaBoard() {
                                         {lesson.student}
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-0.5 shrink-0">
+                                    <div className={`flex items-center gap-0.5 shrink-0${isRecup ? " pr-2.5" : ""}`}>
                                       {lesson.sessionNumber && (
                                         <span className="text-[7.5px] font-black uppercase tracking-wider bg-black/20 text-foreground px-1 py-0.2 rounded shrink-0">
                                           {lesson.sessionNumber === 1 ? "1ra" : "2da"}
@@ -2330,33 +2262,12 @@ export function AgendaBoard() {
                                   : (studentProfile?.ageCategory ?? "JUNIOR"));
                             const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
                             
-                            const studentAgeCat =
-                              studentProfile?.ageCategory ||
-                              (lesson.student.toLowerCase().includes("joan paolo")
-                                ? "ADULTO"
-                                : lesson.student.toLowerCase().includes("mishel")
-                                ? "JUVENIL"
-                                : lesson.student.toLowerCase().includes("mirko")
-                                ? "JUNIOR"
-                                : "JUNIOR");
-
-                            const dotColor =
-                              studentAgeCat === "JUVENIL"
-                                ? "bg-[#4CAF50]"
-                                : studentAgeCat === "ADULTO"
-                                ? "bg-[#757575]"
-                                : studentAgeCat === "INFANTIL"
-                                ? "bg-[#7C4DFF]"
-                                : "bg-[#FBC02D]";
-
-                            const dotLabel =
-                              studentAgeCat === "JUVENIL"
-                                ? "Categoría Juvenil (13 a 17 años)"
-                                : studentAgeCat === "ADULTO"
-                                ? "Categoría Adulto (18 a + años)"
-                                : studentAgeCat === "INFANTIL"
-                                ? "Categoría Infantil (5 y 6 años)"
-                                : "Categoría Junior (7 a 12 años)";
+                            // Puntito indicador de categoría de edad (ADR-0169):
+                            // en recuperaciones recupera la categoría real que el rojo de la píldora oculta.
+                            const recupVisual = resolveRecoveryCategoryVisual(lesson, adminStudents);
+                            const studentAgeCat = recupVisual.ageCategory;
+                            const dotColor = recupVisual.dotClass;
+                            const dotLabel = categoryStyles[studentAgeCat]?.label ?? "CATEGORÍA JUNIOR (7 a 12)";
 
                             return (
                               <button
@@ -2368,21 +2279,21 @@ export function AgendaBoard() {
                                     ? "border-dashed border-border bg-muted text-muted-foreground line-through opacity-50"
                                     : `${catStyle.bg} ${catStyle.border} ${catStyle.text}`
                                 }`}
-                                title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
+                                title={`${lesson.student} (${lesson.instrument}) - ${lesson.room} · ${isRecup ? `CLASE DE RECUPERACIÓN (ROJO) · ${dotLabel}` : lesson.category === "PERSONALIZADA" ? `Clase Personalizada (${dotLabel})` : catStyle.label}`}
                               >
                                 <div className="flex items-center justify-between gap-1 leading-tight">
                                   <div className="flex items-center gap-1 min-w-0">
                                     <span className="block truncate font-black text-[10.5px] leading-tight">
                                       {lesson.student}
                                     </span>
-                                    {lesson.category === "PERSONALIZADA" && (
+                                    {(isRecup || lesson.category === "PERSONALIZADA") && (
                                       <span
-                                        className={`inline-block w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs shrink-0`}
-                                        title={`Clase Personalizada · ${dotLabel}`}
+                                        aria-hidden="true"
+                                        className={`pointer-events-none absolute top-0.5 right-0.5 z-10 w-2 h-2 rounded-full ${dotColor} border border-white shadow-2xs`}
                                       />
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-0.5 shrink-0">
+                                  <div className={`flex items-center gap-0.5 shrink-0${isRecup ? " pr-2.5" : ""}`}>
                                     {lesson.sessionNumber && (
                                       <span className="text-[7.5px] font-black px-1 py-0.2 rounded bg-black/20 text-foreground border border-black/10">
                                         {lesson.sessionNumber === 1 ? "1ra" : "2da"}
