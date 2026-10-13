@@ -10,6 +10,7 @@ export type ReprogramacionIntent =
   | "justificar_falta"
   | "consulta_vacantes"
   | "nueva_matricula"
+  | "cobranzas"
   | "pago_voucher"
   | "reclamo_urgente"
   | "general";
@@ -27,6 +28,7 @@ export const LAYA_REPROGRAMACION_QUESTIONS = {
       justificar_falta: "Avisa que no podrá asistir por enfermedad, salud, exámenes o viaje.",
       consulta_vacantes: "Pregunta qué horarios, cupos o vacantes hay disponibles para un día o instrumento.",
       nueva_matricula: "Pregunta por precios, inscripciones o tarifas de alumno nuevo interesado en matricularse.",
+      cobranzas: "Pregunta cuánto debe un alumno, si tiene deuda o saldo pendiente, estado de pagos, recibos o cobranza en general.",
       pago_voucher: "Envía comprobante, voucher de banco, pago de Yape/Plin o consulta de recibo.",
       reclamo_urgente: "Manifestación de molestia, desacuerdo con el servicio, docente o retraso.",
       general: "Saludos o mensajes que no solicitan ninguna gestión específica.",

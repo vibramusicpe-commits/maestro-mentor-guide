@@ -29,6 +29,7 @@ import {
   Users2,
 } from "lucide-react";
 import { useAppStore, type AdminStudent } from "@/store/app-store";
+import type { Invoice } from "@/store/admin-seeds";
 import { defaultLaya } from "@/lib/laya/laya-engine";
 import { LAYA_REPROGRAMACION_QUESTIONS } from "@/lib/laya/laya-schemas";
 import {
@@ -37,6 +38,7 @@ import {
   analyzeSlotAvailability,
   computeStudentKardexSummary,
   buildWhatsAppReply,
+  buildStudentPaymentReply,
   generateRealtimeVacancySnapshot,
   type MatchedSlotAnalysis,
   type StudentKardexSummary,
@@ -129,6 +131,7 @@ function buildDebtorsListReply(activeStudents: AdminStudent[]): string {
 export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowProps) {
   const adminStudents = useAppStore((s) => s.adminStudents);
   const schedule = useAppStore((s) => s.schedule);
+  const invoices = useAppStore((s) => (s as unknown as { invoices?: Invoice[] }).invoices || []);
 
   // Modo de visualización: 'capsule' (barra inferior minimizada) o 'sidebar' (panel lateral derecho)
   const [viewMode, setViewMode] = useState<"capsule" | "sidebar">("capsule");
@@ -299,8 +302,9 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       }
 
       // 5. Análisis de aforo en vivo si hay día y hora válidos
+      // (en cobranzas el aforo es irrelevante: la pregunta es de pagos)
       let slotAnalysis: MatchedSlotAnalysis | undefined = undefined;
-      if (dayVal !== "indeterminado" && timeVal !== "indeterminado") {
+      if (!isCobranzasQuery && dayVal !== "indeterminado" && timeVal !== "indeterminado") {
         slotAnalysis = analyzeSlotAvailability({
           day: dayVal,
           time: timeVal,
@@ -318,7 +322,14 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
         isGenericBillingQuery && !matchedSt && !isAmbiguous
           ? buildDebtorsListReply(activeStudents)
           : undefined;
-      const whatsAppReply = debtorsReply || clefResult?.response || buildWhatsAppReply({
+      // 🛡️ REGLA (ADR-0170, Bug #4): cobranzas con alumno identificado
+      // responden con el estado de pagos de sus recibos, jamás con Kardex
+      // ni aforo de sala.
+      const paymentReply =
+        isCobranzasQuery && matchedSt && !isAmbiguous
+          ? buildStudentPaymentReply(matchedSt, invoices || [])
+          : undefined;
+      const whatsAppReply = debtorsReply || paymentReply || clefResult?.response || buildWhatsAppReply({
         studentName: matchedSt?.name,
         familyName: matchedSt?.family,
         intent: intentVal,

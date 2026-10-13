@@ -5,9 +5,9 @@
  * ============================================================================
  */
 import type { AdminStudent, ScheduledLesson } from "@/store/app-store";
-import { normalizeStudentName } from "@/lib/student-matching";
+import { normalizeStudentName, isMatchingStudentName } from "@/lib/student-matching";
 import { computeStudentCycleSessions, computeStudentCycleLiquidation } from "@/lib/kardex-calculator";
-import { availableTeachers, rooms, timeSlotsWeekday, timeSlotsSaturday } from "@/store/admin-seeds";
+import { availableTeachers, rooms, timeSlotsWeekday, timeSlotsSaturday, type Invoice } from "@/store/admin-seeds";
 import { stringSimilarity, levenshteinDistance } from "./laya-engine";
 import { resolveAcademyKnowledge, type AcademyKnowledgeResponse } from "./laya-knowledge-base";
 
@@ -511,6 +511,59 @@ export function analyzeSlotAvailability(params: {
 /**
  * Genera el texto estructurado de respuesta para WhatsApp (wa.me)
  */
+/**
+ * Respuesta de cobranzas con alumno identificado: estado de pagos consultado
+ * en los recibos (misma vinculación que /admin/facturacion). Jamás responde
+ * con Kardex ni aforo de sala (ADR-0170, Bug #4).
+ */
+export function buildStudentPaymentReply(student: AdminStudent, invoices: Invoice[]): string {
+  const greeting = "¡Hola! Te saluda Secretaría de Vibra Music. 🎵";
+  const mine = (invoices || []).filter(
+    (inv) => inv.concept && isMatchingStudentName(inv.concept, student.name)
+  );
+
+  if (mine.length === 0) {
+    return (
+      `${greeting}\n\n` +
+      `No encuentro recibos registrados para *${student.name}* en el sistema. ` +
+      `Por favor revísalo en */admin/facturacion* o confírmame el nombre del alumno para buscarlo de nuevo.`
+    );
+  }
+
+  const total = mine.reduce((acc, i) => acc + (i.amount || 0), 0);
+  const paid = mine.reduce((acc, i) => acc + (i.amountPaid || 0), 0);
+  const balance = mine.reduce((acc, i) => acc + (i.remainingBalance || 0), 0);
+
+  if (balance <= 0) {
+    return (
+      `${greeting}\n\n` +
+      `*${student.name}* no tiene pagos pendientes. Su ciclo está completamente pagado ` +
+      `(S/ ${paid.toFixed(2)} de S/ ${total.toFixed(2)}) y finalizado. ✅\n\n` +
+      `Quedamos atentos para la renovación de su nuevo mes lectivo.`
+    );
+  }
+
+  const lines = mine
+    .map((i) => {
+      const base = i.concept?.split("—")[0]?.trim() || "Mensualidad";
+      const due = i.dueDate ? ` (Vence: ${i.dueDate})` : "";
+      return (
+        `• *${base}* — Total S/ ${(i.amount || 0).toFixed(2)} — ` +
+        `Abonado S/ ${(i.amountPaid || 0).toFixed(2)} — ` +
+        `*Saldo S/ ${(i.remainingBalance || 0).toFixed(2)}* [${i.status}]${due}`
+      );
+    })
+    .join("\n");
+
+  return (
+    `${greeting}\n\n` +
+    `Estado de pagos de *${student.name}*:\n${lines}\n\n` +
+    `*Total:* S/ ${total.toFixed(2)} · *Abonado:* S/ ${paid.toFixed(2)} · ` +
+    `*Saldo por cobrar:* S/ ${balance.toFixed(2)}.\n\n` +
+    `¿Deseas que preparemos el mensaje de cobranza para su familia?`
+  );
+}
+
 export function buildWhatsAppReply(params: {
   studentName?: string;
   familyName?: string;
