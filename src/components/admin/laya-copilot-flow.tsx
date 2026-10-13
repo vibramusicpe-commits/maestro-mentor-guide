@@ -221,7 +221,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       const { answers, routing } = prediction;
 
       let intentVal = clefResult?.intent || answers.intent?.choice || "general";
-      const isCobranzasQuery = intentVal === "cobranzas";
+      let isCobranzasQuery = intentVal === "cobranzas";
       // 🛡️ REGLA (ADR-0170, Bug #1): la consulta es de cobranza genérica cuando
       // el intent server-side es "cobranzas" O el texto pide lista de deudores
       // en plural. El taxonomía local (Sistema 1) no tiene opción "cobranzas",
@@ -238,6 +238,34 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       let stConfidence = 1.0;
       let candidates: DisambiguationCandidate[] = [];
       let isAmbiguous = false;
+      let mentionNotFound = false;
+
+      // 🛡️ REGLA (ADR-0142/ADR-0170): @Mención ESCRITA fija al alumno con 100%,
+      // aunque se escriba a mano sin clicar ninguna tarjeta.
+      if (!matchedSt) {
+        const mentionMatch = textToAnalyze.match(/@([A-Za-zÁÉÍÓÚÑáéíóúñ]{2,})(?:\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,}){0,3}/);
+        if (mentionMatch) {
+          const mentionName = mentionMatch[0].slice(1).trim().toLowerCase();
+          const mentionHits = activeStudents.filter(
+            (st) =>
+              st.name.toLowerCase() === mentionName ||
+              st.name.toLowerCase().includes(mentionName)
+          );
+          if (mentionHits.length === 1) {
+            matchedSt = mentionHits[0];
+            stConfidence = 1.0;
+          } else if (mentionHits.length > 1) {
+            candidates = mentionHits.map((c) => ({
+              student: c,
+              score: 1.0,
+              matchReasons: ["Coincidencia por @mención"],
+            }));
+            isAmbiguous = true;
+          } else {
+            mentionNotFound = true;
+          }
+        }
+      }
 
       if (!matchedSt) {
         // 🛡️ REGLA (ADR-0170, Bug #1): en consultas GENÉRICAS de cobranzas
@@ -287,6 +315,19 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       if (academyKnowledge && !isCobranzasQuery) {
         intentVal = "consulta_sistema_academia";
       }
+      // 🛡️ RED DE SEGURIDAD (ADR-0170): con alumno fijado por @/manual y
+      // palabras de pago en el texto, la intención es cobranzas aunque el
+      // encoder haya dicho otra cosa. El "pago" solo no dispara (vouchers).
+      if (
+        matchedSt &&
+        (forcedStudent || textToAnalyze.includes("@")) &&
+        !isCobranzasQuery &&
+        !isGenericBillingQuery &&
+        /cu[aá]nto debe|\bdebe\b|\bdeben\b|deuda|saldo|recibo|factura|vencid/i.test(textToAnalyze)
+      ) {
+        intentVal = "cobranzas";
+        isCobranzasQuery = true;
+      }
       const reasonVal = answers.motivo_falta?.choice || "injustificada";
       const isJustifiedVal = !!answers.es_justificada?.noul;
       const urgencyLabel = answers.urgencia?.label || "Normal";
@@ -331,7 +372,13 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
         isCobranzasQuery && matchedSt && !isAmbiguous
           ? buildStudentPaymentReply(matchedSt, invoices || [])
           : undefined;
-      const whatsAppReply = debtorsReply || paymentReply || clefResult?.response || buildWhatsAppReply({
+      // 🛡️ REGLA (ADR-0142): @mención sin coincidencia => decirlo claro,
+      // jamás caer al fallback genérico en silencio.
+      const mentionMissReply =
+        mentionNotFound && !matchedSt && !isAmbiguous
+          ? "¡Hola! Te saluda Secretaría de Vibra Music. 🎵\n\nNo encontré a ese alumno con la @mención escrita. ¿Puedes escribir su nombre completo para buscarlo de nuevo?"
+          : undefined;
+      const whatsAppReply = debtorsReply || paymentReply || mentionMissReply || clefResult?.response || buildWhatsAppReply({
         studentName: matchedSt?.name,
         familyName: matchedSt?.family,
         intent: intentVal,
