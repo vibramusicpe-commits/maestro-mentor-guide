@@ -282,7 +282,9 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose }: LayaCopilotFlowPr
       // 3. Resolución de docente y sala por pedagogía oficial (ADR-0102)
       const dayVal = answers.dia?.choice || "indeterminado";
       const timeVal = answers.horario?.choice || "indeterminado";
-      if (academyKnowledge) {
+      // 🛡️ REGLA (ADR-0170, Bug #4): la inducción académica jamás secuestra
+      // una consulta de cobranzas (preserva intentVal = "cobranzas").
+      if (academyKnowledge && !isCobranzasQuery) {
         intentVal = "consulta_sistema_academia";
       }
       const reasonVal = answers.motivo_falta?.choice || "injustificada";
