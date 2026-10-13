@@ -36,14 +36,17 @@ export function useInsforgeSync() {
     setIsSyncing(true);
 
     try {
-      if (activeRole === "super_admin" || activeRole === "staff" || activeRole === "teacher") {
+      if (activeRole === "super_admin" || activeRole === "staff" || activeRole === "teacher" || activeRole === "family") {
         const dbStudents = await getStudents(activeRole);
         const { invoices: dbInvoices, auditLogs: dbPaymentLogs } =
           activeRole === "teacher"
             ? { invoices: [], auditLogs: [] }
             : await getInvoicesWithAudit(activeRole);
 
+        // Rol familia: solo lectura de alumnos y recibos (sin attendance_logs).
+        // El alcance por familia se aplica en la capa de vista (ADR-0172).
         let dbAttendance: any[] = [];
+        if (activeRole !== "family") {
         try {
           const { postgrestSelect } = await import("@/lib/insforge");
           dbAttendance = await postgrestSelect(
@@ -53,6 +56,7 @@ export function useInsforgeSync() {
           );
         } catch (attErr) {
           console.warn("[Insforge Sync] Error al obtener attendance_logs:", attErr);
+        }
         }
 
         const mappedStudents =

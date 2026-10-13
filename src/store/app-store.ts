@@ -128,6 +128,7 @@ type AppState = {
   // Familia
   kids: Kid[];
   activeKidId: string;
+  setKids: (kids: Kid[]) => void;
   billing: BillingLine[];
   balance: number;
   setActiveKid: (id: string) => void;
@@ -1346,6 +1347,7 @@ export const useAppStore = create<AppState>()(
 
       kids: initialKids,
       activeKidId: initialKids[0]?.id ?? "",
+      setKids: (kids) => set({ kids, activeKidId: kids[0]?.id ?? "" }),
       billing: initialBilling,
       balance: initialBilling.reduce((acc, l) => acc + l.amount, 0),
       setActiveKid: (id) => set({ activeKidId: id }),

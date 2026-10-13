@@ -12,7 +12,7 @@
  * Sin UI en Fase 1: este módulo es lógica pura, verificable con harness.
  * ============================================================================
  */
-import type { AdminStudent } from "@/store/app-store";
+import type { AdminStudent, Kid } from "@/store/app-store";
 import type { Invoice } from "@/store/admin-seeds";
 import { isMatchingStudentName } from "@/lib/student-matching";
 
@@ -239,4 +239,53 @@ export function childNotFoundReply(scope: FamilyScope): string {
     "¡Hola! Te saluda Vibra Music. 🎵\n\n" +
     `Entre tus hijos vinculados no encontré a quien mencionas. ¿Te refieres a ${names}?`
   );
+}
+
+/** Convierte los hijos del alcance al formato Kid del portal familia. */
+export function kidsFromScope(scope: FamilyScope): Kid[] {
+  if (!scope.resolved) return [];
+  return scope.students.map((s) => ({
+    id: s.id,
+    name: s.name,
+    instrument: s.instrument || "Música",
+    teacher: s.teacher || "",
+    nextLesson: "",
+    weeklyGoalMinutes: 0,
+    practicedMinutes: 0,
+    practiceSessions: 0,
+    makeupCredits: s.makeupCredits || 0,
+  }));
+}
+
+export interface FamilyAccountSummary {
+  kidsCount: number;
+  total: number;
+  paid: number;
+  balance: number;
+  allPaid: boolean;
+  pendingInvoices: Invoice[];
+}
+
+/**
+ * Estado de cuenta real de la familia (reemplaza los seeds estáticos del
+ * portal). Solo recibos del alcance; resto excluido.
+ */
+export function familyAccountSummary(
+  adminStudents: AdminStudent[],
+  invoices: Invoice[],
+  input: { familyId?: string | null; userEmail?: string | null }
+): FamilyAccountSummary {
+  const scope = resolveFamilyScope({ ...input, adminStudents });
+  const mine = invoicesInScope(invoices || [], scope);
+  const total = mine.reduce((a, i) => a + (i.amount || 0), 0);
+  const paid = mine.reduce((a, i) => a + (i.amountPaid || 0), 0);
+  const balance = mine.reduce((a, i) => a + (i.remainingBalance || 0), 0);
+  return {
+    kidsCount: scope.students.length,
+    total,
+    paid,
+    balance,
+    allPaid: mine.length > 0 && balance <= 0,
+    pendingInvoices: mine.filter((i) => (i.remainingBalance || 0) > 0),
+  };
 }

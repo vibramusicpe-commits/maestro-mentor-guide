@@ -153,12 +153,14 @@ export async function getInvoices(
 // ---------------------------------------------------------------
 // EDGE: getInvoicesWithAudit
 // Carga recibos junto con sus payment_audit_logs para la UI y galería de vouchers.
+// Rol familia incluido: solo lectura para el portal de padres (el alcance por
+// familia se aplica en la capa de vista, ADR-0172).
 // ---------------------------------------------------------------
 export async function getInvoicesWithAudit(
   userRole: Role,
   filterStatus?: InvoiceStatusDB,
 ): Promise<{ invoices: DBInvoice[]; auditLogs: DBPaymentAuditLog[] }> {
-  assertRole(userRole, ["super_admin", "staff"], "ver facturas con bitácora");
+  assertRole(userRole, ["super_admin", "staff", "family"], "ver facturas con bitácora");
 
   const params: Record<string, string> = { order: "due_date.asc" };
   if (filterStatus) params["status"] = `eq.${filterStatus}`;

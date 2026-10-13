@@ -1366,12 +1366,16 @@ inferencia.
    - Expansión a hermanos: igual `familyId` o igual nombre de familia (los hermanos suelen traer emails distintos).
    - Soporte mínimo: `familyId?: string` en `AdminStudent` + passthrough en `mapDBStudentToAdminStudent`.
 4. **Verificación con datos vivos (8/8)**: email→1 hijo; pronombre con 2 hermanos→pide elección; manual→Karlitoz; desconocido→no resuelto + 0 recibos; negativo (facturas ajenas excluidas, alumno ajeno→notFound); familyId exacto; scope 1/49; reply sin filtración.
-5. **Pendiente Fase 2 (requiere cablear sesión)**: persistir `family_id` en `login()` desde la invitación aceptada, cápsula Laya en `/family` en modo scope, solo lectura en v1.
-6. **Fase 2 implementada (2026-10-13, sin UI admin alterada)**:
+5. **Fase 2 base — sesión y cápsula (2026-10-13, sin UI admin alterada)**:
    - Sesión: `currentUser.familyId?` + `login(..., { familyId })` (4° parámetro opcional, llamadores existentes intactos); `verify` devuelve `target_family_id` en sus 6 rutas; `invite.$token` lo pasa al login. Persistencia automática (currentUser ya se persistía).
    - `LayaCopilotFlow` acepta `familyScope?`: en modo padre filtra alumnos/recibos al alcance, oculta snapshot Meta/CSV/Kardex de secretaría, WhatsApp apunta a Secretaría (51970608367), sin alcance responde vinculación; título y placeholder parentales; drawer ya era `w-full sm:w-[460px]`.
    - `FamilyLayout` monta la cápsula + botón flotante 56px + atajo Ctrl+Shift+L, con scope desde la sesión. Solo lectura en v1 (Laya no muta; Kardex de edición oculto).
    - Piloto: autoregistro como alumno con email de apoderado real, probar las 3 preguntas + negativa (no ver datos ajenos).
+6. **Portal familia operativo (2026-10-13)**:
+   - Causa madre del piloto fallido: rol `family` excluido del sync → ahora sincroniza alumnos+recibos (sin logs); gates RBAC abiertos solo-lectura en `getStudents`/`getInvoicesWithAudit`; escrituras siguen restringidas (ver candados `lockEditing`).
+   - `setKids` + hijos derivados del alcance; `AccountCard` real (`familyAccountSummary`); `family.agenda` filtra `schedule` por hijo; invitación resuelve `familyId` en vivo (read-before-write). Caso Camila verificado: su enlace (family_id nulo) ahora resuelve por email a CAMILA VALENTINA activa.
+   - Pestañas: Inicio/Horario/Asistencias(Kardex `lockEditing` que oculta Editar, Reprogramar, De corrido, Agregar, Transición, Auditoría, Renovar, Vigencia)/Avisar (wa.me pre-llenado, botones 56px). Auditoría en caliente pospuesta (permite edición; requiere modo lectura propio).
+   - Piloto: reingresar en incógnito tras el deploy (la sesión vieja no trae familyId; el email igual resuelve).
 7. **Enlace padre por alumno + mensaje no-padre (2026-10-13)**:
    - `ensureParentInviteForStudent` (`invitations.service.ts`): reutiliza invitación family vigente del correo (renovándola si venció) o crea una con `familyId` real + email de apoderado; sin email en ficha, error explícito. Hallazgo: el formulario general pasaba id de alumno en `target_family_id`; aquí se usa el `familyId` real.
    - Botón 🔗 por fila en `/admin/alumnos` + modal con enlace, contraseña inicial (solo al crear) y copiar WhatsApp. Verificado: hoy hay 0 invitaciones family en BD (el botón llena ese vacío).

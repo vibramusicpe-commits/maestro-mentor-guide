@@ -4,7 +4,7 @@ import { Music4, Ticket, LogOut, Sparkles } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { LayaCopilotFlow } from "@/components/admin/laya-copilot-flow";
-import { resolveFamilyScope } from "@/lib/laya/laya-family-scope";
+import { resolveFamilyScope, kidsFromScope } from "@/lib/laya/laya-family-scope";
 
 export const Route = createFileRoute("/family")({
   // ──────────────────────────────────────────────
@@ -49,6 +49,8 @@ function FamilyLayout() {
   const logout = useAppStore((s) => s.logout);
   const currentUser = useAppStore((s) => s.currentUser);
   const adminStudents = useAppStore((s) => s.adminStudents);
+  const kids = useAppStore((s) => s.kids);
+  const setKids = useAppStore((s) => s.setKids);
   const [isLayaOpen, setIsLayaOpen] = useState(false);
 
   // Alcance del asistente: solo los hijos vinculados a la invitación (ADR-0172).
@@ -62,6 +64,15 @@ function FamilyLayout() {
       }),
     [currentUser?.familyId, currentUser?.email, adminStudents]
   );
+
+  // Hijos reales desde el alcance (sustituye los seeds estáticos, ADR-0172)
+  useEffect(() => {
+    if (!familyScope.resolved) return;
+    const next = kidsFromScope(familyScope);
+    const same =
+      next.length === kids.length && next.every((k, i) => kids[i]?.id === k.id);
+    if (!same) setKids(next);
+  }, [familyScope, kids, setKids]);
 
   // Redirección reactiva infalible al cerrar sesión (ADR-0127)
   useEffect(() => {
@@ -115,6 +126,29 @@ function FamilyLayout() {
             {credits} créditos de recuperación
           </span>
         </header>
+
+        {/* Navegación por pestañas del portal familia (móvil, ADR-0172) */}
+        <nav className="flex items-center gap-1 px-3 py-2 border-b border-border bg-background overflow-x-auto">
+          {[
+            { to: "/family", label: "Inicio", end: true },
+            { to: "/family/agenda", label: "Horario" },
+            { to: "/family/asistencias", label: "Asistencias" },
+            { to: "/family/avisos", label: "Avisar" },
+          ].map((tab) => (
+            <Link
+              key={tab.to}
+              to={tab.to}
+              activeOptions={tab.end ? { exact: true } : undefined}
+              activeProps={{
+                className:
+                  "flex-1 min-h-[44px] inline-flex items-center justify-center px-3 rounded-xl text-xs font-bold bg-primary text-primary-foreground shadow-xs whitespace-nowrap",
+              }}
+              className="flex-1 min-h-[44px] inline-flex items-center justify-center px-3 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted whitespace-nowrap"
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </nav>
 
         <main className="flex-1 px-5 pb-10 pt-5">
           <Outlet />

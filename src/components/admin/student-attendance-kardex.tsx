@@ -107,6 +107,7 @@ interface StudentAttendanceKardexProps {
   defaultYear?: number;
   isDialog?: boolean;
   isEditable?: boolean; // 🔒 Si es false, los botones de marcar quedan bloqueados en modo solo lectura
+  lockEditing?: boolean; // 🔒 Si es true, se ocultan los botones que activan edición (portal familia, ADR-0172)
 }
 
 export function StudentAttendanceKardex({
@@ -117,6 +118,7 @@ export function StudentAttendanceKardex({
   defaultYear,
   isDialog = true,
   isEditable = false,
+  lockEditing = false,
 }: StudentAttendanceKardexProps) {
   const schedule = useAppStore((s) => s.schedule);
   const adminStudents = useAppStore((s) => s.adminStudents);
@@ -655,26 +657,30 @@ export function StudentAttendanceKardex({
                 🔄 Reingreso
               </Badge>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsTransitionModalOpen(true)}
-              className="h-7 text-xs font-bold gap-1.5 border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-100 rounded-xl shadow-xs shrink-0"
-              title="Transición de curso o cambio de instrumento/profesor manteniendo asistencias"
-            >
-              <Music className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              <span>🎸 Cambiar Instrumento / Docente</span>
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsAuditReportOpen(true)}
-              className="h-7 text-xs font-bold gap-1.5 border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl shadow-xs shrink-0"
-              title="Abrir Ficha Oficial de Auditoría y Rendición de Cuentas"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>📄 Auditoría</span>
-            </Button>
+            {!lockEditing && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsTransitionModalOpen(true)}
+                className="h-7 text-xs font-bold gap-1.5 border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-100 rounded-xl shadow-xs shrink-0"
+                title="Transición de curso o cambio de instrumento/profesor manteniendo asistencias"
+              >
+                <Music className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                <span>🎸 Cambiar Instrumento / Docente</span>
+              </Button>
+            )}
+            {!lockEditing && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsAuditReportOpen(true)}
+                className="h-7 text-xs font-bold gap-1.5 border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl shadow-xs shrink-0"
+                title="Abrir Ficha Oficial de Auditoría y Rendición de Cuentas"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                <span>📄 Auditoría</span>
+              </Button>
+            )}
           </div>
           <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-3">
             <span className="flex items-center gap-1">
@@ -860,24 +866,28 @@ export function StudentAttendanceKardex({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleExtendPlan(7)}
-              className="h-8 text-xs font-bold border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 rounded-xl"
-              title="Sumar 7 días a la fecha fin del plan para recuperar sesiones"
-            >
-              <CalendarSync className="h-3.5 w-3.5 mr-1" />
-              +1 Sem. Vigencia
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleOpenAddSession}
-              className="h-8 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow-xs"
-            >
-              <PlusCircle className="h-3.5 w-3.5 mr-1" />
-              Programar Recuperación
-            </Button>
+            {!lockEditing && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleExtendPlan(7)}
+                className="h-8 text-xs font-bold border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 rounded-xl"
+                title="Sumar 7 días a la fecha fin del plan para recuperar sesiones"
+              >
+                <CalendarSync className="h-3.5 w-3.5 mr-1" />
+                +1 Sem. Vigencia
+              </Button>
+            )}
+            {!lockEditing && (
+              <Button
+                size="sm"
+                onClick={handleOpenAddSession}
+                className="h-8 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow-xs"
+              >
+                <PlusCircle className="h-3.5 w-3.5 mr-1" />
+                Programar Recuperación
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -895,15 +905,17 @@ export function StudentAttendanceKardex({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsTransitionModalOpen(true)}
-              className="h-8 text-xs font-bold border-amber-500/40 text-amber-800 dark:text-amber-200 hover:bg-amber-500/10 rounded-xl"
-            >
-              <RotateCcw className="h-3.5 w-3.5 mr-1 text-amber-600" />
-              Gestionar o Revertir Transición
-            </Button>
+            {!lockEditing && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsTransitionModalOpen(true)}
+                className="h-8 text-xs font-bold border-amber-500/40 text-amber-800 dark:text-amber-200 hover:bg-amber-500/10 rounded-xl"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1 text-amber-600" />
+                Gestionar o Revertir Transición
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -937,14 +949,16 @@ export function StudentAttendanceKardex({
               El alumno completó todas las sesiones contratadas con 0 créditos pendientes. Listo para renovar su nuevo mes lectivo.
             </p>
           </div>
-          <Button
-            size="sm"
-            onClick={() => setIsRenewModalOpen(true)}
-            className="gap-1.5 font-bold text-xs bg-[#F47B20] text-black hover:bg-[#F47B20]/90 shadow-md shrink-0"
-          >
-            <RotateCw className="h-3.5 w-3.5" />
-            <span>Renovar Ciclo (+1 Mes)</span>
-          </Button>
+          {!lockEditing && (
+            <Button
+              size="sm"
+              onClick={() => setIsRenewModalOpen(true)}
+              className="gap-1.5 font-bold text-xs bg-[#F47B20] text-black hover:bg-[#F47B20]/90 shadow-md shrink-0"
+            >
+              <RotateCw className="h-3.5 w-3.5" />
+              <span>Renovar Ciclo (+1 Mes)</span>
+            </Button>
+          )}
         </div>
       )}
 
@@ -1031,14 +1045,16 @@ export function StudentAttendanceKardex({
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-bold shadow-xs">
               <Lock className="h-3.5 w-3.5 shrink-0" />
               <span>Modo Consulta</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setIsEditMode(true)}
-                className="h-6 px-1.5 text-[11px] font-black underline hover:bg-amber-500/20 text-amber-900 dark:text-amber-100 rounded-md"
-              >
-                ✏️ Editar
-              </Button>
+              {!lockEditing && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setIsEditMode(true)}
+                  className="h-6 px-1.5 text-[11px] font-black underline hover:bg-amber-500/20 text-amber-900 dark:text-amber-100 rounded-md"
+                >
+                  ✏️ Editar
+                </Button>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold shadow-xs">
@@ -1055,27 +1071,31 @@ export function StudentAttendanceKardex({
             </div>
           )}
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleOpenAddSession}
-            className="text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/10 rounded-xl"
-            title="Agregar una sesión puntual, adelanto o clase extra al cronograma"
-          >
-            <PlusCircle className="h-3.5 w-3.5" />
-            <span>➕ Agregar Sesión</span>
-          </Button>
+          {!lockEditing && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleOpenAddSession}
+              className="text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/10 rounded-xl"
+              title="Agregar una sesión puntual, adelanto o clase extra al cronograma"
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              <span>➕ Agregar Sesión</span>
+            </Button>
+          )}
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setIsTransitionModalOpen(true)}
-            className="text-xs font-bold gap-1.5 border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20 rounded-xl shadow-xs"
-            title="Transición de curso o cambio de instrumento/profesor manteniendo asistencias"
-          >
-            <Music className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-            <span>🎸 Cambiar Instrumento / Docente</span>
-          </Button>
+          {!lockEditing && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsTransitionModalOpen(true)}
+              className="text-xs font-bold gap-1.5 border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20 rounded-xl shadow-xs"
+              title="Transición de curso o cambio de instrumento/profesor manteniendo asistencias"
+            >
+              <Music className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span>🎸 Cambiar Instrumento / Docente</span>
+            </Button>
+          )}
 
           <Button
             size="sm"
@@ -1241,6 +1261,7 @@ export function StudentAttendanceKardex({
                             )
                           </span>
                         </Badge>
+                      {!lockEditing && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1250,10 +1271,12 @@ export function StudentAttendanceKardex({
                         >
                           ✏️ Modificar
                         </Button>
+                      )}
                       </div>
                     ) : (
                       /* Si aún no tiene recuperación agendada: mostrar botón directo de Reprogramar (habilitado para faltas, tardanzas, justificadas o anticipadamente en pendientes) */
-                      ((item.status === "ausente" || item.status === "justificada") || (isEditMode && item.status === "pendiente")) && (
+                      {!lockEditing &&
+                        ((item.status === "ausente" || item.status === "justificada") || (isEditMode && item.status === "pendiente")) && (
                         <Button
                           size="sm"
                           onClick={() => handleOpenReschedule(item)}
@@ -1267,7 +1290,7 @@ export function StudentAttendanceKardex({
                     )}
 
                     {/* ➕ Botón rápido de clase de corrido (+45m contiguo) - No aplica para Intensivo (ya es 90 min) */}
-                    {!isIntensivo && (
+                    {!isIntensivo && !lockEditing && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1367,16 +1390,18 @@ export function StudentAttendanceKardex({
                         )}
                       </div>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setIsEditMode(true)}
-                        className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground italic flex items-center gap-1 font-medium bg-muted/40 hover:bg-muted/70 rounded-lg border border-border/50"
-                        title="Haz clic para activar edición y registrar asistencia"
-                      >
-                        <Lock className="h-3 w-3 text-muted-foreground/60" />
-                        <span>Consulta (Clic para editar)</span>
-                      </Button>
+                      !lockEditing && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setIsEditMode(true)}
+                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground italic flex items-center gap-1 font-medium bg-muted/40 hover:bg-muted/70 rounded-lg border border-border/50"
+                          title="Haz clic para activar edición y registrar asistencia"
+                        >
+                          <Lock className="h-3 w-3 text-muted-foreground/60" />
+                          <span>Consulta (Clic para editar)</span>
+                        </Button>
+                      )
                     )}
                   </div>
                 </div>

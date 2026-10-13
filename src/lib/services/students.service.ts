@@ -186,14 +186,14 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
 // ---------------------------------------------------------------
 // EDGE: getStudents
 // Carga alumnos con datos de familia embebidos.
-// Roles permitidos: super_admin, staff, teacher
+// Roles permitidos: super_admin, staff, teacher, family (solo lectura)
 // ---------------------------------------------------------------
 export async function getStudents(
   userRole: Role,
   filterStatus?: "activo" | "pausa" | "baja",
 ): Promise<DBStudent[]> {
-  // [RBAC Gate]
-  assertRole(userRole, ["super_admin", "staff", "teacher"], "ver alumnos");
+  // [RBAC Gate] Rol familia incluido: solo lectura para el portal de padres (ADR-0172)
+  assertRole(userRole, ["super_admin", "staff", "teacher", "family"], "ver alumnos");
 
   // [Payload: solo campos necesarios + join de familia]
   const params: Record<string, string> = {

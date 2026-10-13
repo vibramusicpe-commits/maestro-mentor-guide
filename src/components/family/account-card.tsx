@@ -1,15 +1,28 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Receipt, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/app-store";
+import type { Invoice } from "@/store/admin-seeds";
+import { familyAccountSummary } from "@/lib/laya/laya-family-scope";
 import { PaymentOnboardingModal } from "./payment-onboarding-modal";
 
 export function AccountCard() {
-  const billing = useAppStore((s) => s.billing);
-  const balance = useAppStore((s) => s.balance);
+  const adminStudents = useAppStore((s) => s.adminStudents);
+  const invoices = useAppStore((s) => (s as unknown as { invoices?: Invoice[] }).invoices || []);
+  const currentUser = useAppStore((s) => s.currentUser);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Estado de cuenta real de la familia (reemplaza seeds estáticos, ADR-0172)
+  const account = useMemo(
+    () =>
+      familyAccountSummary(adminStudents, invoices, {
+        familyId: currentUser?.familyId ?? null,
+        userEmail: currentUser?.email ?? null,
+      }),
+    [adminStudents, invoices, currentUser?.familyId, currentUser?.email]
+  );
+  const balance = account.balance;
   const paid = balance <= 0;
 
   return (
@@ -28,7 +41,11 @@ export function AccountCard() {
               S/ {Math.max(balance, 0).toLocaleString("es-PE")}
             </p>
             <p className="text-xs text-muted-foreground">
-              {paid ? "Cuenta al día · gracias" : "Vence el 20 de agosto"}
+              {paid
+                ? "Cuenta al día · gracias"
+                : account.pendingInvoices[0]?.dueDate
+                  ? `Vence el ${account.pendingInvoices[0]?.dueDate}`
+                  : "Con saldo pendiente"}
             </p>
           </div>
           {paid && (
@@ -39,18 +56,23 @@ export function AccountCard() {
         </div>
 
         <ul className="mt-4 divide-y divide-border border-y border-border">
-          {billing.map((l) => (
-            <li key={l.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-              <span className="min-w-0 truncate text-muted-foreground">{l.label}</span>
-              <span
-                className={`shrink-0 font-semibold tabular-nums ${
-                  l.amount < 0 ? "text-success" : ""
-                }`}
-              >
-                {l.amount < 0 ? "-" : ""}S/ {Math.abs(l.amount)}
-              </span>
+          {account.pendingInvoices.length === 0 ? (
+            <li className="flex items-center justify-between gap-3 py-2.5 text-sm">
+              <span className="min-w-0 truncate text-muted-foreground">Sin pagos pendientes</span>
+              <span className="shrink-0 font-semibold tabular-nums text-success">S/ 0</span>
             </li>
-          ))}
+          ) : (
+            account.pendingInvoices.map((l) => (
+              <li key={l.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                <span className="min-w-0 truncate text-muted-foreground">
+                  {(l.concept?.split("—")[0]?.trim() || "Mensualidad") + (l.dueDate ? ` · vence ${l.dueDate}` : "")}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums">
+                  S/ {(l.remainingBalance || 0).toLocaleString("es-PE")}
+                </span>
+              </li>
+            ))
+          )}
         </ul>
 
         <Button

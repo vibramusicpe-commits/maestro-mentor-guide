@@ -824,6 +824,7 @@ export interface ParentInviteResult {
   reused: boolean;
   targetEmail: string;
   expiresAt: string | null;
+  familyId: string | null;
 }
 
 export async function ensureParentInviteForStudent(
@@ -847,6 +848,24 @@ export async function ensureParentInviteForStudent(
     );
   }
   const familyLabel = (student.family || "").trim() || `Familia de ${student.name}`;
+
+  // 🛡️ Lectura antes de escritura (ADR-0172): no confiar en el estado del
+  // navegador de secretaría; resolver el family_id real en PostgreSQL.
+  let familyId: string | null = student.familyId || null;
+  if (!familyId) {
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(student.id);
+      const rows = await postgrestSelect<{ family_id: string | null }>(
+        "students",
+        isUuid
+          ? { id: `eq.${student.id}`, select: "family_id", limit: "1" }
+          : { full_name: `eq.${student.name}`, status: "eq.activo", select: "family_id", limit: "1" }
+      );
+      if (rows && rows[0]?.family_id) familyId = rows[0].family_id;
+    } catch {
+      // Offline: se sigue con email como identidad (el alcance lo resuelve)
+    }
+  }
 
   const list = existingInvites ?? (await getInvitations(userRole));
   const found = list.find(
@@ -882,6 +901,7 @@ export async function ensureParentInviteForStudent(
       reused: true,
       targetEmail: apoderadoEmail,
       expiresAt,
+      familyId: found.target_family_id ?? familyId,
     };
   }
 
@@ -890,7 +910,7 @@ export async function ensureParentInviteForStudent(
     targetRole: "family",
     targetName: `${familyLabel} (Apoderado de ${firstName})`,
     targetEmail: apoderadoEmail,
-    ...(student.familyId ? { targetFamilyId: student.familyId } : {}),
+    ...(familyId ? { targetFamilyId: familyId } : {}),
   });
   return {
     inviteLink: res.inviteLink,
@@ -899,6 +919,7 @@ export async function ensureParentInviteForStudent(
     reused: false,
     targetEmail: apoderadoEmail,
     expiresAt: res.invitation.expires_at || null,
+    familyId,
   };
 }
 
