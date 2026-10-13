@@ -46,8 +46,11 @@ export function resolveAcademyKnowledge(text: string): AcademyKnowledgeResponse 
   if (!norm) return null;
 
   // 1. 🛡️ GUARDRAILS DE SEGURIDAD FINANCIERA Y PRIVACIDAD (ADR-0142)
+  // Ojo (ADR-0170): se usa la frase "tarjeta de credito" y NO "credito" solo,
+  // porque "créditos de recuperación" (clases recuperables, filosofía Vibra)
+  // contiene "credito" y jamás debe bloquearse.
   const sensitivePatterns = [
-    "tarjeta", "credito", "debito", "cvv", "numero de tarjeta",
+    "tarjeta", "tarjeta de credito", "debito", "cvv", "numero de tarjeta",
     "password", "contrasena", "token", "credencial",
     "cuenta bancaria", "extraer datos de dueno", "claves", "clave secreta", "acceso maestro"
   ];

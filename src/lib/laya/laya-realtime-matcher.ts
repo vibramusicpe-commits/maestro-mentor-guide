@@ -35,6 +35,25 @@ export interface StudentKardexSummary {
   remainingRegularCount: number;
   makeupCredits: number;
   cycleCompleted: boolean;
+  makeups: { dateStr: string; time: string; status: string }[];
+}
+
+/**
+ * Lista las sesiones de recuperación del alumno (isMakeup) con su estado
+ * real en esa fecha. Base de la pregunta "¿tiene reprogramaciones?".
+ */
+export function collectMakeupSessions(
+  student: AdminStudent
+): { dateStr: string; time: string; status: string }[] {
+  const lessons = student.scheduleLessons || [];
+  return lessons
+    .filter((l) => l.isMakeup && l.dateStr)
+    .map((l) => ({
+      dateStr: l.dateStr as string,
+      time: l.time || "",
+      status: (l.dateStr && l.attendanceByDate?.[l.dateStr]) || "pendiente",
+    }))
+    .sort((a, b) => a.dateStr.localeCompare(b.dateStr) || a.time.localeCompare(b.time));
 }
 
 export interface MatchedSlotAnalysis {
@@ -348,6 +367,7 @@ export function computeStudentKardexSummary(
       remainingRegularCount: Math.max(0, liq.targetQuota - evaluatedCount),
       makeupCredits: liq.makeupCreditsAvailable,
       cycleCompleted: liq.isCompleted,
+      makeups: collectMakeupSessions(student),
     };
   } catch {
     // Respaldo offline: conteo propio con filtro de elegibilidad (sigue abajo).
@@ -427,6 +447,7 @@ export function computeStudentKardexSummary(
     remainingRegularCount,
     makeupCredits,
     cycleCompleted,
+    makeups: collectMakeupSessions(student),
   };
 }
 
@@ -632,6 +653,29 @@ export function buildWhatsAppReply(params: {
 
   // 2. Caso Reprogramación o Consulta de Vacantes
   if (intent === "reprogramacion" || intent === "consulta_vacantes") {
+    // 🛡️ REGLA (ADR-0170): pregunta de ESTADO ("¿tiene reprogramaciones?")
+    // sin día ni hora => listar sus recuperaciones, jamás silencio ni fallback.
+    if (intent === "reprogramacion" && (day === "indeterminado" || time === "indeterminado") && kardexSummary) {
+      const recs = kardexSummary.makeups || [];
+      if (recs.length === 0) {
+        return (
+          `${greeting}\n\n` +
+          `Revisamos la ficha de ${studentName}: actualmente *no tiene recuperaciones agendadas*.\n\n` +
+          `Si necesita reprogramar alguna clase, dime el día y la hora que le acomoda y lo coordinamos.`
+        );
+      }
+      const pending = recs.filter((r) => !r.status || r.status === "pendiente");
+      const lines = recs
+        .map((r) => `• *${r.dateStr} ${r.time}* — ${r.status && r.status !== "pendiente" ? "✓ " + r.status : "⏳ pendiente"}`)
+        .join("\n");
+      return (
+        `${greeting}\n\n` +
+        `Recuperaciones de ${studentName} (${recs.length}):\n${lines}\n\n` +
+        (pending.length > 0
+          ? `Tiene ${pending.length} pendiente(s). ¿Qué día le gustaría programarlas?`
+          : `Todas fueron asistidas. ¡Va excelente!`)
+      );
+    }
     const isWeekendSlot = day === "Vie" || day === "Sáb";
     const slotNote = isWeekendSlot ? " (turno apto para su clase de recuperación de 45 minutos)" : "";
 
