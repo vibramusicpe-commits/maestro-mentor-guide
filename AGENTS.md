@@ -543,6 +543,10 @@ inferencia.
    - `filteredLedgerList` filtra con condición innegociable `st.status === "activo"`. Ningún alumno inactivo o dado de baja debe figurar en el control de asistencias y plan.
 4. **Leyenda de Categorías en Horario de Clases**:
    - En la interfaz gráfica del horario semanal, diario y vista didáctica Excel, las etiquetas de leyenda se renderizan a través de `legendCategoryStyles`, excluyendo el alias de compatibilidad técnica `ADULTO`. La categoría `MASTER` se renderiza exactamente una sola vez.
+5. **Puntito de Categoría de Edad en Clases de Recuperación (ADR 0169)**:
+   - Las clases de recuperación (pill rojo) muestran un puntito de 8px en la esquina superior derecha con el color de la categoría real del alumno (Junior amarillo `#FBC02D`, Juvenil verde `#4CAF50`, Infantil morado `#7C4DFF`, Estimulación rosa `#EC407A`, Master/Adulto plomo `#546E7A`). El fondo rojo, el chip `🔴 Recuperación` y todo el resto de la píldora permanecen idénticos.
+   - La paleta y la resolución de categoría viven **únicamente** en `src/lib/lesson-category-visual.ts` (`resolveRecoveryCategoryVisual`). Queda **PROHIBIDO** volver a reimplementar el cálculo del puntito (`dotColor`/`dotLabel`) de forma independiente en cada vista de `agenda-board.tsx` (ADR-0119.3).
+   - El puntito debe ser `pointer-events-none` y `aria-hidden`, y en las vistas de tarjeta se reserva espacio (`pr-2.5` / `mr-2.5`) para no tapar el chip de sala ni las siglas `1ra/2da`.
 
 ---
 
@@ -1315,8 +1319,13 @@ inferencia.
    - Actualiza también el espejo local `cadencia-invitations` y soporta IDs `local-inv-*` solo-locales.
 3. **Botón 🔄 Renovar (`src/routes/admin.invitaciones.tsx`)**:
    - Visible únicamente en invitaciones vencidas (`expires_at` pasado y `status !== "revocado"`), con el mismo blindaje de Dueña que Revocar/Reset. Muestra toast con la nueva fecha de vigencia y refresca la lista.
-4. **Cierre del ticket**:
-   - Pulsar Renovar en la fila de Nathaly, confirmar toast "Acceso renovado", verificar que su invitación valida el enlace y que entra a `/teacher` con píldora `🟢 En vivo`.
+4. **Bug #4 — Cobranzas con @mención respondía Kardex + aforo en vez de pagos (2026-10-12)**:
+   - Causa: el intent local (Sistema 1) no tenía opción "cobranzas" (caía en `pago_voucher`), `buildWhatsAppReply` no tenía rama de cobranzas con alumno y el aforo se calculaba aunque la pregunta fuera de pagos. Server-side (`assistant.ts`) sí consultaba invoices, pero `/api` está en 404 en producción.
+   - Fix: opción `cobranzas` en el intent local (`laya-schemas.ts`); `buildStudentPaymentReply(student, invoices)` en el matcher (vinculación por concepto como facturación; todo pagado → "Sin deudas. Ciclo pagado y finalizado."); en el componente se conecta `s.invoices`, la respuesta de pagos es prioritaria y se salta el aforo en cobranzas. Verificado en vivo: Karlitoz → 1 recibo pagado, saldo 0.
+   - Blindaje extra: `if (academyKnowledge && !isCobranzasQuery)` — la inducción académica ya no sobreescribe `intentVal` en cobranzas (la propuesta async con `getInvoicesByFamily` no aplicaba: este codebase no tiene ese cliente; los invoices ya vienen del store).
+   - Cierre Bug #4 (2026-10-12): la @mención ESCRITA no fijaba alumno (`manualStudent` solo se seteaba clicando tarjetas) → caía al fallback genérico. Ahora se parsea `@Nombre` al inicio del análisis con 100% (ADR-0142), con red de seguridad que fuerza intent `cobranzas` ante palabras de pago con alumno fijado, y mensaje honesto si la mención no coincide. Verificado en vivo: "@Karlitoz" → 1 hit → cobranzas → SIN_DEUDAS.
+5. **Cierre del ticket Nathaly**:
+   - Pulsar Renovar en su fila en `/admin/invitaciones`, confirmar toast "Acceso renovado", verificar que su invitación valida el enlace y que entra a `/teacher` con píldora `🟢 En vivo`.
 
 ---
 
@@ -1329,6 +1338,7 @@ inferencia.
    - La hipótesis de fechas faltantes era incorrecta: `planStartDate`/`planEndDate` SÍ llegan (Karlitoz 2026-09-07 → 2026-10-06, verificado en vivo). Causa real: `computeStudentKardexSummary` (`laya-realtime-matcher.ts`) deduplicaba con `dateStr-status`, colapsando lecciones distintas del mismo día. Recomputo con datos vivos: antes 5/2/7 → En Curso; después 11/2/13 → Ciclo Cumplido.
    - Fix: clave de deduplicación `${lessonId}-${dateStr}`. Cada lección evaluada cuenta como sesión independiente.
    - Refinamiento (2026-10-12): el conteo crudo daba "11 asistidas" por marcas residuales sangradas entre plantillas (misma fecha presente en 2-4 lecciones) y 2 faltas viejas en días no correspondientes. Se agregó filtro de elegibilidad por (lección, fecha): recurrente exige día de semana = `lesson.day` + vigencia + no excluida; puntual exige `dateStr` exacto + piso `planStart`, exenta del tope de fin (ADR-0161/0165/0166). Recomputo en vivo: **8/0/8 = Kardex oficial**. Además, `buildWhatsAppReply` responde "ciclo culminado 🎓, listo para renovar" cuando `cycleCompleted`, sin invitar a más recuperaciones.
+   - Motor único (2026-10-12): `computeStudentKardexSummary` ya no cuenta a mano; delega a `computeStudentCycleSessions` + `computeStudentCycleLiquidation` (`kardex-calculator.ts`, sin ciclos de importación) y mapea los mismos campos, con el conteo con elegibilidad como respaldo en `catch`. La rama `consulta_clases_pendientes` de `buildWhatsAppReply` usa las 6 cifras canónicas del Kardex (Contratadas, Asistidas, Faltas, Tardanzas, Justificadas, Pendientes) + próxima acción. Coherencia por construcción para todos los alumnos, no por caso.
 3. **Bug #3 — "5pm" resolvía a "16:00"**:
    - Causa: el schema `horario` (`laya-schemas.ts`) no tenía opción "17:00" (saltaba de 16:45 a 17:30), así que el encoder caía al vecino.
    - Fix: agregada `"17:00": "5:00 pm, 5 de la tarde, 17:00"` solo como reconocimiento NLU; 17:00 no es turno oficial de inicio (ADR-0130), así que el análisis de aforo responde con alternativas reales sin inventar horarios.
