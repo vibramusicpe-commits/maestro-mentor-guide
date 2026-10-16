@@ -1382,3 +1382,15 @@ inferencia.
    - Botón 🔗 por fila en `/admin/alumnos` + modal con enlace, contraseña inicial (solo al crear) y copiar WhatsApp. Verificado: hoy hay 0 invitaciones family en BD (el botón llena ese vacío).
    - `nonParentScopeReply()` (WhatsApp escuela 51970608367): staff/docente/dirección sin vínculo familiar lo reciben en vez del pedido de nombres; rol family conserva el mensaje de vinculación.
 
+---
+
+### 72. Cálculo Quirúrgico de Aforo y Vacantes en Plantillas Semanales Recurrentes y Desacoplamiento por ID (ADR-0165)
+1. **Aislamiento de Lecciones Puntuales (`dateStr` / `isMakeup`)**:
+   - Las sesiones reprogramadas o de recuperación puntual (`isMakeup === true` o que poseen `dateStr: YYYY-MM-DD`) pertenecen **exclusivamente a su fecha exacta**.
+   - Queda **TERMINANTEMENTE PROHIBIDO** que una clase puntual del pasado o futuro bloquee o infle el aforo de la plantilla semanal recurrente oficial en `ScheduleStudentForm`, `VacancyAvailabilityPanel`, `AvailabilitySnapshot` o `LayaRealtimeMatcher`.
+2. **Deduplicación Estricta por Alumno Activo Único**:
+   - El cálculo de alumnos inscritos (`enrolled`) en un turno docente se basa estrictamente en la cantidad de **alumnos activos únicos** (`new Set(...)`), impidiendo que un alumno con múltiples registros o lecciones en el mismo slot ocupe más de una vacante.
+3. **Resolución Unívoca por ID en `setStudentSchedule`**:
+   - Para soportar alumnos matriculados en dos instrumentos simultáneos con ligeras variaciones de nombre (ej. `Mario Keffreen` para Guitarra y `Mario Kefren` para Batería), `setStudentSchedule` en `app-store.ts` resuelve prioritariamente por `isSameStudentId(st.id, studentIdentifier)`.
+   - Esto garantiza que al agendar un curso no se altere ni colisione con el otro instrumento del alumno.
+

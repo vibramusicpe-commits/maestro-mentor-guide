@@ -26,6 +26,8 @@ import { Route as AdminReportesRouteImport } from './routes/admin.reportes'
 import { Route as AdminWhatsappRouteImport } from './routes/admin.whatsapp'
 import { Route as FamilyIndexRouteImport } from './routes/family.index'
 import { Route as FamilyAgendaRouteImport } from './routes/family.agenda'
+import { Route as FamilyAsistenciasRouteImport } from './routes/family.asistencias'
+import { Route as FamilyAvisosRouteImport } from './routes/family.avisos'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as TeacherIndexRouteImport } from './routes/teacher.index'
 import { Route as TeacherAgendaRouteImport } from './routes/teacher.agenda'
@@ -117,6 +119,16 @@ const FamilyAgendaRoute = FamilyAgendaRouteImport.update({
   path: '/agenda',
   getParentRoute: () => FamilyRoute,
 } as any)
+const FamilyAsistenciasRoute = FamilyAsistenciasRouteImport.update({
+  id: '/asistencias',
+  path: '/asistencias',
+  getParentRoute: () => FamilyRoute,
+} as any)
+const FamilyAvisosRoute = FamilyAvisosRouteImport.update({
+  id: '/avisos',
+  path: '/avisos',
+  getParentRoute: () => FamilyRoute,
+} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
@@ -159,6 +171,8 @@ export interface FileRoutesByFullPath {
   '/admin/reportes': typeof AdminReportesRoute
   '/admin/whatsapp': typeof AdminWhatsappRoute
   '/family/agenda': typeof FamilyAgendaRoute
+  '/family/asistencias': typeof FamilyAsistenciasRoute
+  '/family/avisos': typeof FamilyAvisosRoute
   '/invite/$token': typeof InviteTokenRoute
   '/teacher/agenda': typeof TeacherAgendaRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
@@ -180,6 +194,8 @@ export interface FileRoutesByTo {
   '/admin/reportes': typeof AdminReportesRoute
   '/admin/whatsapp': typeof AdminWhatsappRoute
   '/family/agenda': typeof FamilyAgendaRoute
+  '/family/asistencias': typeof FamilyAsistenciasRoute
+  '/family/avisos': typeof FamilyAvisosRoute
   '/invite/$token': typeof InviteTokenRoute
   '/teacher/agenda': typeof TeacherAgendaRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
@@ -205,6 +221,8 @@ export interface FileRoutesById {
   '/admin/reportes': typeof AdminReportesRoute
   '/admin/whatsapp': typeof AdminWhatsappRoute
   '/family/agenda': typeof FamilyAgendaRoute
+  '/family/asistencias': typeof FamilyAsistenciasRoute
+  '/family/avisos': typeof FamilyAvisosRoute
   '/invite/$token': typeof InviteTokenRoute
   '/teacher/agenda': typeof TeacherAgendaRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
@@ -231,6 +249,8 @@ export interface FileRouteTypes {
     | '/admin/reportes'
     | '/admin/whatsapp'
     | '/family/agenda'
+    | '/family/asistencias'
+    | '/family/avisos'
     | '/invite/$token'
     | '/teacher/agenda'
     | '/teacher/alumnos'
@@ -252,6 +272,8 @@ export interface FileRouteTypes {
     | '/admin/reportes'
     | '/admin/whatsapp'
     | '/family/agenda'
+    | '/family/asistencias'
+    | '/family/avisos'
     | '/invite/$token'
     | '/teacher/agenda'
     | '/teacher/alumnos'
@@ -276,6 +298,8 @@ export interface FileRouteTypes {
     | '/admin/reportes'
     | '/admin/whatsapp'
     | '/family/agenda'
+    | '/family/asistencias'
+    | '/family/avisos'
     | '/invite/$token'
     | '/teacher/agenda'
     | '/teacher/alumnos'
@@ -415,6 +439,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FamilyAgendaRouteImport
       parentRoute: typeof FamilyRoute
     }
+    '/family/asistencias': {
+      id: '/family/asistencias'
+      path: '/asistencias'
+      fullPath: '/family/asistencias'
+      preLoaderRoute: typeof FamilyAsistenciasRouteImport
+      parentRoute: typeof FamilyRoute
+    }
+    '/family/avisos': {
+      id: '/family/avisos'
+      path: '/avisos'
+      fullPath: '/family/avisos'
+      preLoaderRoute: typeof FamilyAvisosRouteImport
+      parentRoute: typeof FamilyRoute
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -483,11 +521,15 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface FamilyRouteChildren {
   FamilyAgendaRoute: typeof FamilyAgendaRoute
+  FamilyAsistenciasRoute: typeof FamilyAsistenciasRoute
+  FamilyAvisosRoute: typeof FamilyAvisosRoute
   FamilyIndexRoute: typeof FamilyIndexRoute
 }
 
 const FamilyRouteChildren: FamilyRouteChildren = {
   FamilyAgendaRoute: FamilyAgendaRoute,
+  FamilyAsistenciasRoute: FamilyAsistenciasRoute,
+  FamilyAvisosRoute: FamilyAvisosRoute,
   FamilyIndexRoute: FamilyIndexRoute,
 }
 

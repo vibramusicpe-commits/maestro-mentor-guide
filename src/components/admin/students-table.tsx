@@ -5802,6 +5802,10 @@ function ScheduleStudentForm({
       // Ignorar al propio alumno y a alumnos inactivos/pausados para prevenir falsos cruces
       const matching = schedule.filter((l) => {
         if (l.day !== d || l.time !== t || l.status === "cancelada") return false;
+        // 🛡️ REGLA: Las lecciones puntuales (reprogramadas/recuperación con dateStr o isMakeup)
+        // pertenecen únicamente a una fecha exacta específica y JAMÁS deben ocupar ni bloquear
+        // la plantilla semanal recurrente oficial de la escuela (ADR-0105 / ADR-0155).
+        if (l.dateStr || l.isMakeup) return false;
         if (isMatchingStudentName(l.student, liveStudent.name) || l.student.toLowerCase() === liveStudent.name.toLowerCase()) {
           return false;
         }
@@ -5814,7 +5818,11 @@ function ScheduleStudentForm({
       const teacherLessons = matching.filter((l) =>
         l.teacher.toLowerCase().includes(finalTeacher.toLowerCase())
       );
-      const enrolled = teacherLessons.length;
+      // Deduplicar alumnos activos únicos para garantizar que cada alumno ocupe exactamente 1 cupo
+      const uniqueStudentKeys = new Set(
+        teacherLessons.map((l) => l.student.trim().toLowerCase())
+      );
+      const enrolled = uniqueStudentKeys.size;
       const roomConflictLesson = matching.find(
         (l) => l.room === r && !l.teacher.toLowerCase().includes(finalTeacher.toLowerCase())
       );
@@ -5945,6 +5953,8 @@ function ScheduleStudentForm({
       return schedule
         .filter((l) => {
           if (l.day !== d || l.time !== t || l.room !== r || l.status === "cancelada") return false;
+          // Solo clases recurrentes en la convivencia pedagógica fija
+          if (l.dateStr || l.isMakeup) return false;
           if (
             isMatchingStudentName(l.student, liveStudent.name) ||
             l.student.toLowerCase() === liveStudent.name.toLowerCase()
@@ -6172,7 +6182,7 @@ function ScheduleStudentForm({
       });
     }
 
-    setStudentSchedule(liveStudent.name, lessonsToSet);
+    setStudentSchedule(liveStudent.id, lessonsToSet);
 
     // Actualizar profesor en la ficha si no tenía o cambió
     if (!liveStudent.teacher || liveStudent.teacher === "Prof. por Asignar" || liveStudent.teacher !== finalTeacher) {

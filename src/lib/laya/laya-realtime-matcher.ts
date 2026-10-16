@@ -468,15 +468,17 @@ export function analyzeSlotAvailability(params: {
   const activeNames = new Set(activeStudents.map((st) => normalizeStudentName(st.name)));
 
   // Contar alumnos inscritos en este turno exacto
+  // 🛡️ REGLA: Excluir lecciones puntuales (dateStr / isMakeup) para evaluar disponibilidad semanal recurrente
   const matchingLessons = schedule.filter((l) => {
     if (l.status === "cancelada") return false;
+    if (l.dateStr || l.isMakeup) return false;
     if (l.day !== day) return false;
     if (l.time !== time) return false;
     if (l.teacher !== teacher) return false;
     return activeNames.has(normalizeStudentName(l.student));
   });
 
-  const enrolledStudents = matchingLessons.map((l) => l.student);
+  const enrolledStudents = Array.from(new Set(matchingLessons.map((l) => l.student.trim())));
   const enrolledCount = enrolledStudents.length;
   const availableVacancies = Math.max(0, maxCapacity - enrolledCount);
   const isAvailable = enrolledCount < maxCapacity;
@@ -845,13 +847,15 @@ export function generateRealtimeVacancySnapshot(params: {
       teachersList.forEach((teacher) => {
         const roomInfo = teacherRoomMap[teacher] || { room: "Sala A", specialties: "Música" };
 
-        const enrolledCount = schedule.filter((l) => {
+        const matching = schedule.filter((l) => {
           if (l.status === "cancelada") return false;
+          if (l.dateStr || l.isMakeup) return false;
           if (l.day !== day) return false;
           if (l.time !== time) return false;
           if (l.teacher !== teacher) return false;
           return activeNames.has(normalizeStudentName(l.student));
-        }).length;
+        });
+        const enrolledCount = new Set(matching.map((l) => normalizeStudentName(l.student))).size;
 
         const availableVacancies = Math.max(0, maxCapacity - enrolledCount);
         const status = availableVacancies === 0 ? "LLENO" : availableVacancies <= 2 ? "POCOS_CUPOS" : "DISPONIBLE";

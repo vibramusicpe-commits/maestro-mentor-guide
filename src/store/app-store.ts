@@ -144,7 +144,7 @@ type AppState = {
   deleteLessonFromSchedule: (id: string) => void;
   revertMakeupLesson: (makeupId: string, recoveringLessonDate?: string) => void;
   addLessonToSchedule: (lesson: Omit<ScheduledLesson, "id">) => void;
-  setStudentSchedule: (studentName: string, lessons: Omit<ScheduledLesson, "id">[]) => void;
+  setStudentSchedule: (studentIdentifier: string, lessons: Omit<ScheduledLesson, "id">[]) => void;
   importScheduleFromCSV: (newLessons: ScheduledLesson[]) => void;
   clearSchedule: () => void;
   importStudentsFromCSV: (newStudents: AdminStudent[]) => void;
@@ -1855,28 +1855,34 @@ export const useAppStore = create<AppState>()(
             syncQueue: [...s.syncQueue, queueItem(`Clase programada: ${lesson.student} (${lesson.day} ${lesson.time})`)],
           };
         }),
-      setStudentSchedule: (studentName, lessons) =>
+      setStudentSchedule: (studentIdentifier, lessons) =>
         set((s) => {
+          const targetSt = s.adminStudents.find(
+            (st) =>
+              isSameStudentId(st.id, studentIdentifier) ||
+              isMatchingStudentName(st.name, studentIdentifier) ||
+              st.name.toLowerCase() === studentIdentifier.toLowerCase()
+          );
+          const resolvedName = targetSt ? targetSt.name : studentIdentifier;
           const filtered = s.schedule.filter(
-            (l) => !isMatchingStudentName(l.student, studentName) && l.student.toLowerCase() !== studentName.toLowerCase()
+            (l) =>
+              (targetSt ? !isMatchingStudentName(l.student, targetSt.name) && l.student.toLowerCase() !== targetSt.name.toLowerCase() : true) &&
+              !isMatchingStudentName(l.student, studentIdentifier) &&
+              l.student.toLowerCase() !== studentIdentifier.toLowerCase()
           );
           const newLessons: ScheduledLesson[] = lessons.map((lesson) => ({
             ...lesson,
+            student: resolvedName,
             id: `sch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           }));
           const finalSchedule = [...filtered, ...newLessons];
-          const targetSt = s.adminStudents.find(
-            (st) => isMatchingStudentName(st.name, studentName) || st.name.toLowerCase() === studentName.toLowerCase()
-          );
           let updatedStudents = s.adminStudents;
           if (targetSt) {
             backgroundSyncStudentToDB(s.activeRole, targetSt.id, {
               scheduleLessons: newLessons,
             });
             updatedStudents = s.adminStudents.map((st) =>
-              isMatchingStudentName(st.name, studentName) || st.name.toLowerCase() === studentName.toLowerCase()
-                ? { ...st, scheduleLessons: newLessons }
-                : st
+              isSameStudentId(st.id, targetSt.id) ? { ...st, scheduleLessons: newLessons } : st
             );
           }
           return {
@@ -1884,7 +1890,7 @@ export const useAppStore = create<AppState>()(
             schedule: finalSchedule,
             syncQueue: [
               ...s.syncQueue,
-              queueItem(`Horario actualizado para ${studentName}: ${newLessons.length} clases programadas`),
+              queueItem(`Horario actualizado para ${resolvedName}: ${newLessons.length} clases programadas`),
             ],
           };
         }),

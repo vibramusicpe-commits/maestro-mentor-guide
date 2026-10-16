@@ -58,6 +58,8 @@ function getOccupiedCount(
 
   const matchingLessons = schedule.filter((l) => {
     if (l.day !== day || l.time !== time) return false;
+    // 🛡️ REGLA: Excluir lecciones puntuales (dateStr / isMakeup) para reflejar vacantes semanales recurrentes
+    if (l.dateStr || l.isMakeup) return false;
     if (l.status === "cancelada") return false;
     if (!l.teacher.toLowerCase().includes(teacherKeyword.toLowerCase())) return false;
 
@@ -70,7 +72,8 @@ function getOccupiedCount(
     return true;
   });
 
-  return matchingLessons.length;
+  const uniqueStudents = new Set(matchingLessons.map((l) => l.student.toLowerCase().trim()));
+  return uniqueStudents.size;
 }
 
 /**

@@ -612,7 +612,9 @@ export function AgendaBoard() {
         const teach = l.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").trim();
         return teach.includes(cleanTeacher) || cleanTeacher.includes(teach);
       });
-      const enrolled = teacherLessons.length;
+      // Deduplicar alumnos activos únicos para que cada alumno ocupe exactamente 1 cupo
+      const uniqueStudents = new Set(teacherLessons.map((l) => l.student.toLowerCase().trim()));
+      const enrolled = uniqueStudents.size;
       const roomConflictLesson = matching.find((l) => {
         const teach = l.teacher.toLowerCase().replace(/\s*\(.*?\)/, "").trim();
         return l.room === r && !teach.includes(cleanTeacher) && !cleanTeacher.includes(teach);

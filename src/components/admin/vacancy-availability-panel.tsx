@@ -97,15 +97,18 @@ export function VacancyAvailabilityPanel({
       times.forEach((time) => {
         teachersList.forEach((t) => {
           // Filtrar clases activas en este horario, día y profesor de alumnos estrictamente activos
+          // 🛡️ REGLA: Excluir lecciones puntuales (dateStr / isMakeup) para reflejar vacantes semanales recurrentes
           const matchingLessons = schedule.filter((l) => {
             if (l.day !== day || l.time !== time) return false;
+            if (l.dateStr || l.isMakeup) return false;
             if (!l.teacher.toLowerCase().includes(t.toLowerCase())) return false;
             if (l.status === "cancelada") return false;
             const studentProfile = findStudentProfileByName(adminStudents, l.student);
             return !!(studentProfile && studentProfile.status === "activo");
           });
 
-          const enrolledCount = matchingLessons.length;
+          const uniqueStudents = Array.from(new Set(matchingLessons.map((l) => l.student.trim())));
+          const enrolledCount = uniqueStudents.length;
           const availableVacancies = Math.max(0, MAX_CAPACITY - enrolledCount);
           const roomName =
             matchingLessons[0]?.room ||
@@ -117,7 +120,7 @@ export function VacancyAvailabilityPanel({
               ? "Sala C"
               : "Sala D");
           const instName = matchingLessons[0]?.instrument || undefined;
-          const students = matchingLessons.map((l) => l.student);
+          const students = uniqueStudents;
 
           slots.push({
             day,
