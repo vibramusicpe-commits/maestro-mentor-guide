@@ -1394,3 +1394,25 @@ inferencia.
    - Para soportar alumnos matriculados en dos instrumentos simultáneos con ligeras variaciones de nombre (ej. `Mario Keffreen` para Guitarra y `Mario Kefren` para Batería), `setStudentSchedule` en `app-store.ts` resuelve prioritariamente por `isSameStudentId(st.id, studentIdentifier)`.
    - Esto garantiza que al agendar un curso no se altere ni colisione con el otro instrumento del alumno.
 
+---
+
+### 73. Aprovisionamiento del Segundo Bloque Contiguo en Plan Intensivo y Blindaje Defensivo en `setStudentSchedule` (ADR-0173)
+1. **Diagnóstico (caso Facundo Joaquin, 2026-10-17)**:
+   - Facundo (Intensivo: 4 clases × 90 min) tenía en `emergency_contact.scheduleLessons` **solo el bloque 1 recurrente** (Sáb 09:00, `sessionNumber: 1`, `effectiveFrom 2026-10-03`) y **ningún bloque 2 recurrente**. Los dos bloques de 09:45 existentes eran **recuperaciones puntuales** (`isMakeup: true`, `dateStr` 10-10 y 10-17), no plantillas recurrentes.
+   - Consecuencia: en la Semana 4 (Sábado 24/10) el alumno aparecía a las 09:00 pero **no** a las 09:45, incumpliendo las 2 horas pedagógicas del Plan Intensivo.
+   - Auditoría de los 18 intensivos activos: el mismo faltante se detectó en **Matias Gabriel** (Sáb 12:00 sin 12:45, ciclo vigente) y, ya con ciclo vencido, en **URIEL** y **JUNIOR GABRIEL**. Los "duplicados" de Juan Diego y Kamila **no son duplicados**: son lección vieja (`effectiveUntil`) + lección nueva coexistiendo por ADR-0131.
+2. **Corrección de datos en Insforge PostgreSQL**:
+   - Se aprovisionó el bloque 2 recurrente espejando exactamente el bloque 1 (`day`, `room`, `teacher`, `instrument`, `category`, `year`, `effectiveFrom`, `excludedDates`), con `time` = franja consecutiva canónica, `sessionNumber: 2` y `attendanceByDate`/`attendanceByWeek` vacíos:
+     - **Facundo Joaquin** (`837823f4-693e-469a-8bc9-fe74628ac73f`): `Sáb 09:45 · sn:2 · Sala A · Jeremy · Batería · JUVENIL · effectiveFrom 2026-10-03 · excludedDates [2026-10-10, 2026-10-31]`.
+     - **Matias Gabriel** (`af9e9ac4-910f-4c66-901b-7c65ab7f5f80`): `Sáb 12:45 · sn:2 · Sala C · Nathaly · Canto · JUVENIL · effectiveFrom 2026-09-05 · excludedDates [2026-09-26]`.
+   - Los parches puntuales de 09:45 (10-10 y 10-17) se conservaron: la deduplicación intra-celda (`dedupeLessonsForCell`, ADR-0156) prioriza la sesión puntual evaluada, sin triplicar.
+   - Aforo verificado: Sáb 09:45 Sala A pasó de 1 a 2/5 (mismo instrumento Batería, mismo docente); sin cruce de sala.
+3. **Blindaje de código (`setStudentSchedule`, `src/store/app-store.ts`)**:
+   - Se añadió `normalizeIntensiveSecondBlock`: si el alumno destino tiene modalidad Intensiva (`inten` / `90 min` / `4 clases` sin `45 min`) y las lecciones entrantes **no** traen un bloque recurrente con `sessionNumber: 2`, se auto-completa con la franja consecutiva canónica de `timeSlotsWeekday`/`timeSlotsSaturday` (ADR-0130/ADR-0157), espejando el bloque 1.
+   - Esto cubre el único escritor del horario completo, impidiendo que cualquier camino de guardado vuelva a dejar un intensivo con una sola hora pedagógica. El bloque autocompletado se persiste vía `backgroundSyncStudentToDB` junto con el resto.
+4. **Verificación en runtime con datos vivos (`scratch/test-facundo-intensive.ts`)**:
+   - Usando el motor oficial (`computeStudentMonthSessions` de `kardex-calculator.ts`) y el filtro de AgendaBoard (`isLessonInStudentCycle` de `student-cycle.ts`):
+     - **Facundo**: Sábado 24/10 → 2 bloques (09:00 + 09:45) ✅; 31/10 → 0 (excluido) ✅. Kardex consolidado `09:00–10:30` (90 min).
+     - **Matias**: Sábado 24/10 → 2 bloques (12:00 + 12:45) ✅; 31/10 → 2 (su 4ª clase, ciclo 10/10→09/11) ✅.
+   - `npm run build` local en verde antes de commitear. No se tocó Kardex, Facturación, motor de asistencias ni lógica de ciclos.
+

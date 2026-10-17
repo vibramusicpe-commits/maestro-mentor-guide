@@ -34,6 +34,8 @@ import {
   type DeletionReasonCategory,
   VIBRA_PRICING,
   HISTORICAL_BASE_METADATA,
+  timeSlotsWeekday,
+  timeSlotsSaturday,
 } from "./admin-seeds";
 import { getCurrentWeekIndex } from "@/lib/calendar-utils";
 import { isMatchingStudentName, resolveStudentUUID, isSameStudentId, normalizeStudentName } from "@/lib/student-matching";
@@ -919,6 +921,44 @@ function backgroundSyncPaymentToDB(
         .catch((err) => console.warn(`[Insforge Sync] Error sincronizando abono ${invoiceId}:`, err));
     }).catch(() => {});
   } catch {}
+}
+
+// ---------------------------------------------------------------
+// 🛡️ Normalización de Horario Intensivo (ADR-0165 / ADR-0167)
+// El Plan Intensivo (4 clases / 90 min) ocupa DOS bloques contiguos de 45m en
+// la agenda física. Si un guardado de horario entra con un solo bloque, se
+// autocompleta la franja consecutiva canónica para impedir que el alumno quede
+// como una sola hora pedagógica (casos Facundo Joaquin / Matias Gabriel).
+// ---------------------------------------------------------------
+function isIntensiveModality(modality?: string): boolean {
+  const mStr = (modality || "").toLowerCase();
+  return (
+    mStr.includes("inten") ||
+    mStr.includes("90 min") ||
+    (mStr.includes("4 clases") && !mStr.includes("45 min"))
+  );
+}
+
+function normalizeIntensiveSecondBlock(
+  lessons: Omit<ScheduledLesson, "id">[],
+  modality?: string
+): Omit<ScheduledLesson, "id">[] {
+  if (!isIntensiveModality(modality)) return lessons;
+
+  const recurring = lessons.filter((l) => !l.dateStr && !l.isMakeup);
+  const base1 = recurring.find((l) => l.sessionNumber === 1) || recurring[0];
+  if (!base1) return lessons;
+
+  // Si ya viene el 2º bloque contiguo, no se altera nada.
+  if (recurring.some((l) => l.sessionNumber === 2)) return lessons;
+
+  const slots = base1.day === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
+  const idx = slots.indexOf(base1.time);
+  if (idx === -1) return lessons;
+  const nextTime = slots[idx + 1];
+  if (!nextTime) return lessons;
+
+  return [...lessons, { ...base1, time: nextTime, sessionNumber: 2 }];
 }
 
 export const useAppStore = create<AppState>()(
@@ -1864,13 +1904,21 @@ export const useAppStore = create<AppState>()(
               st.name.toLowerCase() === studentIdentifier.toLowerCase()
           );
           const resolvedName = targetSt ? targetSt.name : studentIdentifier;
+
+          // 🛡️ Blindaje ADR-0165/ADR-0167: el Plan Intensivo (90 min) jamás debe
+          // guardarse con un solo bloque de 45m; se autocompleta la franja contigua.
+          const normalizedLessons = normalizeIntensiveSecondBlock(
+            lessons,
+            targetSt?.modality
+          );
+
           const filtered = s.schedule.filter(
             (l) =>
               (targetSt ? !isMatchingStudentName(l.student, targetSt.name) && l.student.toLowerCase() !== targetSt.name.toLowerCase() : true) &&
               !isMatchingStudentName(l.student, studentIdentifier) &&
               l.student.toLowerCase() !== studentIdentifier.toLowerCase()
           );
-          const newLessons: ScheduledLesson[] = lessons.map((lesson) => ({
+          const newLessons: ScheduledLesson[] = normalizedLessons.map((lesson) => ({
             ...lesson,
             student: resolvedName,
             id: `sch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
