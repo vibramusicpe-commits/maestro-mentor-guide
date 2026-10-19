@@ -1416,3 +1416,27 @@ inferencia.
      - **Matias**: Sábado 24/10 → 2 bloques (12:00 + 12:45) ✅; 31/10 → 2 (su 4ª clase, ciclo 10/10→09/11) ✅.
    - `npm run build` local en verde antes de commitear. No se tocó Kardex, Facturación, motor de asistencias ni lógica de ciclos.
 
+---
+
+### 74. Accesos de Personal (Profesor / Secretaría) sin Caducidad de 30 Días y Vigencia Real en Panel de Invitaciones (ADR-0174)
+1. **Diagnóstico (Caso Prof. Fernando, 2026-10-19)**:
+   - El profesor no podía entrar a su kiosco de asistencia: su enlace `https://musicstaff-vm.pages.dev/invite/inv-teacher-Fernando-Violin_Piano-vibra2026` mostraba **"Enlace expirado (vence a los 30 días)"** y bloqueaba el ingreso antes de pedir contraseña.
+   - Evidencia en vivo (PostgreSQL Insforge, tabla `invitations`): la fila de Fernando (`0e9ad54a-ef5d-49fb-9ae0-4dcdc884d111`) tenía `expires_at = 2026-10-09` (vencida hacía 10 días) con `status = "aceptado"`. **Jeremy** (`2403a9f5-b8b7-4847-94fe-8f05a48bd061`) estaba igual de vencido (2026-10-09). El de **Nathaly** funcionaba porque su fila ya había sido renovada en el incidente anterior (ADR-0169, vence 2026-11-11).
+   - Causa raíz: `verifyInvitationToken` (`src/lib/services/invitations.service.ts`) evaluaba la vigencia por `expires_at` **sin distinguir el rol**, así que la ventana de 30 días —que solo tiene sentido para el onboarding de un apoderado— tumbaba también los accesos de personal docente. El fallback de semillas `TEACHER_SEEDS` ya devolvía `is_valid: true` (diseño original: el enlace docente es permanente), pero la rama de PostgreSQL lo cortocircuitaba.
+   - Agravante: el vencimiento **reincide cada 30 días** (ya ocurrió con Nathaly el 2026-10-12); depender del botón manual "Renovar" no escala para 3+ docentes.
+2. **Correctivo A — Acceso de personal permanente (`verifyInvitationToken`)**:
+   - La caducidad por `expires_at` ahora aplica **solo a invitaciones de `family`**. Los accesos de `teacher` y `staff` (secretaría/dirección) son permanentes: `blocksByExpiry = isExpired && !isStaffOrTeacherInvite`.
+   - La **revocación deliberada** (`status = "revocado"`) sigue invalidando a **todos** por igual (`TOKEN_REVOKED`). El mecanismo de baja de un docente sigue siendo Revocar (genera enlace nuevo), nunca el paso del tiempo.
+   - `error_code` solo reporta `TOKEN_EXPIRED` para invitaciones de familia vencidas.
+3. **Correctivo B — Vigencia real en el Panel de Invitaciones (`getInvitations`)**:
+   - La fusión con PostgreSQL sobrescribía `id`, `token` y `status` desde la fila remota pero **NO** `expires_at`, por lo que `/admin/invitaciones` mostraba siempre la fecha de la semilla local (2026-09-12, ya pasada) y el estado del botón 🔄 Renovar era engañoso (parecía vencida aun después de renovar).
+   - Ahora se fusiona `expires_at: remote.expires_at || item.expires_at`, de modo que el panel refleja la vigencia real de la base de datos.
+4. **Saneamiento de datos (sin borrados)**:
+   - Se extendió `expires_at` a +30 días de las filas **Fernando** y **Jeremy** vía PostgREST (mismo efecto que el botón 🔄 Renovar de ADR-0169): ambos quedan en `2026-11-18`. Con el correctivo A, su enlace funciona igualmente aunque la fecha vuelva a pasar.
+5. **Verificación en runtime con la función real y datos vivos (`scratch/test-invite-teacher-expiry.ts`)**:
+   - `verifyInvitationToken("inv-teacher-Fernando-Violin_Piano-vibra2026")` → `is_valid=true, role=teacher, error=none` ✅.
+   - `verifyInvitationToken("inv-teacher-Jeremy-Guitarra_Bateria-vibra2026")` → `is_valid=true` ✅. `verifyInvitationToken("nayeli-secretaria-vibra")` → `is_valid=true, role=staff` ✅.
+   - Control negativo sin tocar la base viva (`scratch/test-invite-negative.ts`, interceptando `fetch`): **familia vencida → bloqueada (`TOKEN_EXPIRED`)**; **docente vencido → permitido**; **docente revocado → bloqueado (`TOKEN_REVOKED`)**. 3/3 ✅.
+   - `npm run build` local en verde antes de commitear. No se tocó el kiosco, el motor de asistencias, el Kardex ni facturación.
+6. **Protocolo de cierre**: que el Prof. Fernando abra su enlace en el celular y confirme que entra al Kiosco (`/teacher`) con la píldora `🟢 En vivo` y sus clases visibles; repetir con Jeremy cuando entre.
+

@@ -317,13 +317,24 @@ export async function verifyInvitationToken(
       const inv = remoteInvites[0];
       const isExpired = inv.expires_at ? new Date(inv.expires_at).getTime() < Date.now() : false;
       const isRevoked = inv.status === "revocado";
-      const isValid = !isRevoked && !isExpired;
 
       const isStaff =
         inv.target_email?.toLowerCase().includes("karla") ||
         inv.target_email?.toLowerCase().includes("fabricio") ||
         inv.target_email?.toLowerCase().includes("nayeli");
       const effectiveRole = isStaff ? ("staff" as unknown as InviteTargetRole) : inv.target_role;
+
+      // 🛡️ ADR-0174: La caducidad de 30 días aplica SOLO a invitaciones de
+      // FAMILIA (onboarding de un apoderado). Los accesos de personal
+      // (Profesor / Secretaría / Dirección) son permanentes: sin esto, cada
+      // enlace docente se rompía solo a los 30 días y dejaba al profesor sin
+      // su kiosco de asistencia (incidente Fernando/Jeremy 2026-10-19).
+      // La revocación deliberada (status = "revocado") SÍ invalida a todos.
+      const isStaffOrTeacherInvite =
+        inv.target_role === "teacher" ||
+        effectiveRole === ("staff" as unknown as InviteTargetRole);
+      const blocksByExpiry = isExpired && !isStaffOrTeacherInvite;
+      const isValid = !isRevoked && !blocksByExpiry;
 
       // Auto-actualizar almacenamiento local de este navegador para acelerar cargas offline
       try {
@@ -345,7 +356,7 @@ export async function verifyInvitationToken(
         master_password: inv.master_password || null,
         status: inv.status,
         is_valid: isValid,
-        error_code: isRevoked ? "TOKEN_REVOKED" : isExpired ? "TOKEN_EXPIRED" : null,
+        error_code: isRevoked ? "TOKEN_REVOKED" : blocksByExpiry ? "TOKEN_EXPIRED" : null,
       };
     }
   } catch (err) {
@@ -1193,6 +1204,10 @@ export async function getInvitations(
           id: remote.id,
           token: remote.token,
           status: remote.status,
+          // 🛡️ ADR-0174: la vigencia REAL vive en PostgreSQL. Antes NO se
+          // fusionaba `expires_at`, así que el panel mostraba la fecha de la
+          // semilla local (ya vencida) y el estado de "Renovar" era engañoso.
+          expires_at: remote.expires_at || item.expires_at,
           accepted_at: remote.accepted_at || item.accepted_at,
           master_password: (remote as any).master_password || item.master_password,
         };
