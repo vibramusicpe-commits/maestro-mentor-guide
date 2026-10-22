@@ -4,6 +4,18 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.41] - 2026-10-22
+
+### Jeremy habilitado en el piloto de registro de clase (sin despliegue de código)
+- **`org_settings.pilot_teacher_ids`** pasa de 2 a 3 docentes: **Jeremy** (`...003`), Fernando (`...004`) y Nathaly (`...005`).
+  - `feature_flags.evaluationsV2` **sigue en `false`**: la habilitación es solo por piloto, no global.
+  - El gate de `/teacher` lee `pilot_teacher_ids` en runtime con cache de 30 s, así que el cambio surte efecto **sin recompilar ni republicar** el sitio.
+- **Jeremy ve la pestaña "Registro de clase (BETA)"** con sus 17 criterios en **v0 borrador** (Guitarra 8, Batería 9) y escala Inicia / En proceso / Logrado / Destacado.
+- **Los 17 criterios siguen blindados**: `ui_config.draft = true`, `version = 0`, aprobación vacía y `visible_in_report = false`. Nada llega a familias ni a informes.
+- **Revertir** = quitar `00000000-0000-0000-0000-000000000003` del arreglo en `pilot_teacher_ids` (efecto ≤ 30 s). Los criterios quedan intactos en la base.
+- **Verificación en runtime**: gate abierto para Jeremy/Nathaly/Fernando, cerrado para Karla y docentes desconocidos; criterios 8/8/9 resueltos en alumnos reales incluido "Guitarra clásica"; 17/17 sin exposición en informes.
+- **Documentación**: ADR-0175 y AGENTS.md sección 75 actualizados con el estado real y las reglas para las Fases 3–5. Log: `docs/logs/2026-10-22-criterios-borrador-jeremy.log` (sección 9 y handoff).
+
 ## [2.0.40] - 2026-10-22
 
 ### Criterios v0 BORRADOR de Guitarra y Batería (Prof. Jeremy) — ADR-0175

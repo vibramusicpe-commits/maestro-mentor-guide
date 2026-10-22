@@ -1446,9 +1446,9 @@ inferencia.
 
 1. **Estado y alcance**:
    - La **Fase 1 de 7** está implementada y desplegada en el commit `b7a0795`. Incluye migraciones aditivas, tipos, snapshot pedagógico y servicios; **no incluye interfaz visible**.
-   - La **Fase 2 de 7** está implementada y en piloto: registro de clase del docente en `/teacher`, visible solo para **Nathaly** y **Fernando** mediante `org_settings.pilot_teacher_ids`.
+   - La **Fase 2 de 7** está implementada y en piloto: registro de clase del docente en `/teacher`, visible solo para **Jeremy**, **Nathaly** y **Fernando** mediante `org_settings.pilot_teacher_ids`.
    - Los flags `evaluationsV2`, `familyNotesV2`, `progressReportsV2` y `parentReports` siguen en `false`. El kiosco, la agenda, el Kardex, la asistencia y la facturación siguen intactos.
-   - **Jeremy** no ve la pestaña de registro de clase hasta que se levanten sus criterios y/o se le agregue al piloto.
+   - **Jeremy** está en el piloto desde el 2026-10-22 y ve la pestaña con sus criterios en **v0 borrador**.
 2. **Base de datos creada (migraciones `008` y `008b`)**:
    - Tablas: `evaluation_catalog`, `evaluation_fields`, `lesson_evaluations`, `progress_reports`, `family_notes`, `internal_notes`, `evaluation_audit_log`; vista `v_test_records`.
    - `lesson_evaluations.session_key` es determinista: `<student_id>::<YYYY-MM-DD>::<HH:MM>` y `::INT` para 90 min. Guardar dos veces la misma clase actualiza el mismo registro.
@@ -1471,7 +1471,7 @@ inferencia.
    - Ambas pestañas usan `forceMount` para conservar el formulario si el docente cambia de pestaña por error.
    - El formulario registra estado general, criterios dinámicos, repertorio, tema, tarea y comentario. Nathaly usa semáforo de 4 (`traffic_light`); Fernando usa escala 1–10 (`score_1_10`). Canto permite `individual` o `grupal`, nunca coro.
    - Guardado idempotente con `saveLessonEvaluation` y `session_key`; `isTest: false`. La “última evaluación” visible excluye filas `is_test`.
-   - Criterios sembrados en `evaluation_fields`: **49 filas** (Nathaly Canto 12, Nathaly Piano Infantil 12, Fernando Piano 12, Fernando Violín 13; Jeremy 0). Migración idempotente `docs/migrations/009_seed_evaluation_fields.sql`; rollback por `created_by_name = 'Migración 009'`.
+   - Criterios sembrados en `evaluation_fields`: **49 filas** (Nathaly Canto 12, Nathaly Piano Infantil 12, Fernando Piano 12, Fernando Violín 13). Migración idempotente `docs/migrations/009_seed_evaluation_fields.sql`; rollback por `created_by_name = 'Migración 009'`.
    - No se tocó `lesson-notes.tsx`, `teacher-notes-moderation.tsx`, agenda, Kardex, asistencia ni facturación.
 6. **Fases pendientes**: Fase 3 nota a familia y moderación; Fase 4 nota interna y bandeja; Fase 5 informe A4/PDF/Markdown/WhatsApp y portal familia; Fase 6 reportes y CSV; Fase 7 despliegue gradual y retiro del flujo legacy.
 7. **Referencia obligatoria**: `docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md`, `docs/logs/2026-10-21-fase-1-evaluaciones-informes-notas.log` y `docs/logs/2026-10-22-fase-2-registro-clase.log`.
@@ -1482,5 +1482,6 @@ inferencia.
    - **Prohibido** incluir un criterio con `draft = true` en informes de progreso, portal familia o cualquier salida de las Fases 3–5. La Fase 5 debe exigir explícitamente `draft = false` antes de publicar.
    - Escala: `traffic_light` de 4 niveles — **Inicia, En proceso, Logrado, Destacado** (la escala móvil de la Fase 2).
    - `getCriteria` agrupa variantes del mismo instrumento (`Guitarra`, `Guitarra clásica`, `Guitarra eléctrica` → `guitarra`; `Batería` → `bateria`) para que los alumnos con "Guitarra clásica" reciban sus criterios. Piano y Piano Infantil **no** se agrupan. El filtro por `owner_teacher_id` sigue siendo estricto: los criterios de Jeremy no aparecen para docentes ni alumnos de otros docentes.
-   - Jeremy **no** se agregó a `pilot_teacher_ids`: sus criterios existen y están listos, pero la pestaña “Registro de clase” sigue oculta para él hasta que Dirección decida incorporarlo al piloto.
+   - Jeremy **sí** está en `pilot_teacher_ids` desde el 2026-10-22: ve la pestaña con sus 17 criterios en borrador para poder validarlos. Revertir = quitar `00000000-0000-0000-0000-000000000003` del arreglo en `org_settings.pilot_teacher_ids` (efecto en ≤ 30 s, sin desplegar).
+   - Al validar Jeremy: `ui_config.draft = false`, `ui_config.status = 'validado'`, `ui_config.validation.approved_by_id/approved_by_name/approved_at`, y recién entonces `visible_in_report = true`. **Prohibido** ponerlos visibles antes de esa validación.
 

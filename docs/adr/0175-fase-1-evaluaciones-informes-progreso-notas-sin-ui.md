@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Nathaly y Fernando.**
+Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Jeremy, Nathaly y Fernando.**
 
 ## Fecha
 
@@ -77,7 +77,7 @@ La Fase 1 no busca que el usuario final vea algo nuevo. Busca que la Fase 2 (int
 - No se publicó nada a familias.
 - No se tocó facturación ni el informe financiero.
 - No se reimplementó el cálculo de asistencia: todo pasa por `kardex-calculator.ts` y `student-cycle.ts`.
-- No se inventaron criterios para Jeremy: `evaluation_fields` sigue vacío.
+- No se inventaron criterios para Jeremy en la Fase 1: `evaluation_fields` quedó vacío. (La versión 0 borrador se cargó después, en la Fase 2, el 2026-10-22.)
 - No se creó un usuario/UUID para Claudia/Sala D porque hoy no tiene alumnos activos en la base.
 
 ## Fase 2 — Registro de clase del docente (implementada)
@@ -90,8 +90,8 @@ La Fase 2 se habilita **solo por piloto**, no por flag global:
 
 - `evaluationsV2` sigue en `false`.
 - El acceso se muestra si `org_settings.pilot_teacher_ids` contiene al docente resuelto.
-- Pilotos confirmados: **Fernando** (`00000000-0000-0000-0000-000000000004`) y **Nathaly** (`00000000-0000-0000-0000-000000000005`).
-- **Jeremy** no ve la pestaña hasta que se levanten sus criterios y/o se le agregue al piloto.
+- Pilotos confirmados: **Jeremy** (`00000000-0000-0000-0000-000000000003`), **Fernando** (`00000000-0000-0000-0000-000000000004`) y **Nathaly** (`00000000-0000-0000-0000-000000000005`).
+- **Jeremy** entró al piloto el 2026-10-22 para poder ver y validar su **versión 0 borrador** de criterios (Guitarra 8, Batería 9). Mientras siga en borrador (`ui_config.draft = true`, `visible_in_report = false`) esos criterios no pueden salir en informes ni en el portal familia.
 
 ### Interfaz
 
@@ -111,7 +111,7 @@ La Fase 2 se habilita **solo por piloto**, no por flag global:
 
 ### Criterios sembrados
 
-Se cargaron **49 filas** en `evaluation_fields`:
+Se cargaron **49 filas** en `evaluation_fields` con criterios validados:
 
 | Docente | Instrumento | Filas | Escala |
 |---|---|---:|---|
@@ -119,9 +119,26 @@ Se cargaron **49 filas** en `evaluation_fields`:
 | Nathaly | Piano Infantil | 12 | Semáforo de 4 (`traffic_light`) |
 | Fernando | Piano | 12 | Escala 1–10 (`score_1_10`) |
 | Fernando | Violín | 13 | Escala 1–10 (`score_1_10`) |
-| Jeremy | Guitarra / Batería | 0 | Pendiente de levantamiento |
 
-La migración de datos es `docs/migrations/009_seed_evaluation_fields.sql`, idempotente con `ON CONFLICT DO NOTHING`. Rollback: `DELETE FROM evaluation_fields WHERE created_by_name = 'Migración 009';`.
+Y además **17 filas en estado v0 BORRADOR** (no validadas por el docente), cargadas el 2026-10-22:
+
+| Docente | Instrumento | Filas | Escala | Estado |
+|---|---|---:|---|---|
+| Jeremy | Guitarra | 8 | `traffic_light` Inicia / En proceso / Logrado / Destacado | `draft: true`, `visible_in_report: false` |
+| Jeremy | Batería | 9 | `traffic_light` Inicia / En proceso / Logrado / Destacado | `draft: true`, `visible_in_report: false` |
+
+Reglas del borrador (innegociables hasta que Jeremy valide):
+
+- `ui_config.draft = true`, `ui_config.status = "borrador"`, `ui_config.version = 0`, `ui_config.needs_validation = true`.
+- Campos de aprobación **vacíos**: `approved_by_id`, `approved_by_name`, `approved_at`, `approved_role`.
+- Comentario libre por criterio en `ui_config.validation.comment` (`ui_config.comment_enabled = true`).
+- `visible_in_report = FALSE`: **prohibido** publicarlo en informes, portal familia, WhatsApp o exportaciones de las Fases 3–5. La Fase 5 debe exigir `draft = false` **y** `validation.approved_at` no nulo.
+- Al validar: `draft = false`, `status = "validado"`, `validation.approved_*` completos y `visible_in_report = true`.
+- `getCriteria` agrupa variantes del mismo instrumento (`Guitarra`, `Guitarra clásica`, `Guitarra eléctrica` → `guitarra`; `Batería` → `bateria`) para que los 3 alumnos con "Guitarra clásica" reciban sus criterios. Piano y Piano Infantil **no** se agrupan. El filtro por `owner_teacher_id` no se relajó.
+
+La migración de datos de los criterios validados es `docs/migrations/009_seed_evaluation_fields.sql`, idempotente con `ON CONFLICT DO NOTHING`. Rollback: `DELETE FROM evaluation_fields WHERE created_by_name = 'Migración 009';`.
+
+La migración del borrador de Jeremy es `docs/migrations/010_seed_evaluation_fields_jeremy_borrador.sql`, idempotente. Rollback: `DELETE FROM evaluation_fields WHERE created_by_name = 'Criterios v0 borrador (010)';`.
 
 ### Guardado y contratos
 
@@ -137,7 +154,10 @@ La migración de datos es `docs/migrations/009_seed_evaluation_fields.sql`, idem
 
 - `npm run build` en verde (cliente, SSR y Nitro) después de la integración y de `forceMount`.
 - Prueba de runtime con datos vivos:
-  - criterios 12 (Nathaly/Canto), 12 (Nathaly/Piano Infantil), 12 (Fernando/Piano), 13 (Fernando/Violín), 0 (Jeremy);
+  - criterios 12 (Nathaly/Canto), 12 (Nathaly/Piano Infantil), 12 (Fernando/Piano), 13 (Fernando/Violín);
+  - criterios 8 (Jeremy/Guitarra), 8 (Jeremy/"Guitarra clásica"), 9 (Jeremy/Batería) y 0 (Jeremy/Piano);
+  - aislamiento entre docentes: Fernando con un alumno de Guitarra ve **0** criterios de Jeremy;
+  - gate del piloto: abierto para Jeremy, Nathaly y Fernando; cerrado para Karla y docentes desconocidos;
   - guardado idempotente con un alumno real;
   - relectura desde PostgreSQL;
   - exclusión de `is_test` en la última evaluación visible;
@@ -148,7 +168,7 @@ La migración de datos es `docs/migrations/009_seed_evaluation_fields.sql`, idem
 | Tabla | Propósito | Claves y reglas |
 |---|---|---|
 | `evaluation_catalog` | Catálogo de instrumentos, edades y modalidades | Incluye bloque `canto`: `min_students=1`, `max_students=5`, `modes=["individual","grupal"]`, `not_choir=true` |
-| `evaluation_fields` | Criterios configurables por instrumento/edad/nivel | **49 filas** sembradas en Fase 2 (Nathaly 24, Fernando 25); Jeremy pendiente |
+| `evaluation_fields` | Criterios configurables por instrumento/edad/nivel | **66 filas**: 49 validadas (Nathaly 24, Fernando 25) + **17 borrador de Jeremy** (Guitarra 8, Batería 9) con `draft=true` y `visible_in_report=false` |
 | `lesson_evaluations` | Evaluación de una clase concreta | `session_key` único; `is_test` + `test_run_id`; `class_mode` |
 | `progress_reports` | Informe de progreso mensual/trimestral | Flujo `draft → pending → published | rejected`; `published_snapshot` JSONB |
 | `family_notes` | Nota para familia | `scope`: `student | teacher_cohort | academy`; cohorte congelada al publicar |
@@ -303,8 +323,8 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 ### Negativas / pendientes
 
 - **No hay nada visible para el usuario final todavía.** Es intencional: la Fase 1 es infraestructura.
-- Los flags están apagados; la Fase 2 se muestra solo a los docentes del piloto.
-- `evaluation_fields` pasó de 0 a 49 filas para Nathaly y Fernando; Jeremy queda pendiente.
+- Los flags están apagados; la Fase 2 se muestra solo a los docentes del piloto (Jeremy, Nathaly y Fernando).
+- `evaluation_fields` tiene 66 filas: 49 validadas (Nathaly y Fernando) + 17 de Jeremy en **v0 borrador**, sin aprobación y fuera de informes hasta que él las valide.
 - Claudia/Sala D no tiene UUID ni alumnos activos; su configuración queda pendiente.
 - Quedan 51 filas de auditoría de prueba (append-only). No se borran por diseño.
 - El flujo viejo de notas sigue activo y no se retira hasta que el nuevo esté probado.
@@ -314,19 +334,19 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 | Fase | Entregable | Estado |
 |---|---|---|
 | 1 | Datos, tipos, snapshot y servicios | ✅ Implementada |
-| 2 | Registro de clase docente (`class-log.tsx`, pestaña en `/teacher`) | ✅ Implementada (piloto Nathaly/Fernando) |
+| 2 | Registro de clase docente (`class-log.tsx`, pestaña en `/teacher`) | ✅ Implementada (piloto Jeremy/Nathaly/Fernando) |
 | 3 | Nota a familia + moderación (`family-note-form.tsx`, `family-notes-moderation.tsx`) | ⏳ Pendiente |
 | 4 | Nota interna + bandeja (`internal-note-form.tsx`, `internal-notes-inbox.tsx`) | ⏳ Pendiente |
 | 5 | Informe de progreso A4, PDF/Markdown/WhatsApp y ruta `family.progreso.tsx` | ⏳ Pendiente |
 | 6 | Reportes, filtros y exportación CSV en admin | ⏳ Pendiente |
-| 7 | Flags, piloto Nathaly/Fernando y despliegue gradual | ⏳ Pendiente |
+| 7 | Flags, piloto Jeremy/Nathaly/Fernando y despliegue gradual | ⏳ Pendiente |
 
 ## Resultado visible en producción
 
 - **Fase 1:** ninguna pantalla nueva. El deploy de `b7a0795` incluye el código y la migración, pero los flags están en `false`, no hay rutas ni pestañas nuevas y el kiosco, la agenda, el Kardex y facturación siguen exactamente igual.
-- **Fase 2:** los docentes del piloto (**Nathaly** y **Fernando**) ven en `/teacher` la pestaña **“Registro de clase (BETA)”** y el botón **“Registrar clase / evaluación”** en cada tarjeta de alumno. El resto de docentes y roles no ve cambios.
+- **Fase 2:** los docentes del piloto (**Jeremy**, **Nathaly** y **Fernando**) ven en `/teacher` la pestaña **“Registro de clase (BETA)”** y el botón **“Registrar clase / evaluación”** en cada tarjeta de alumno. El resto de docentes y roles no ve cambios.
 - La pestaña **“Notas a familia”** se conserva sin modificaciones.
-- **Jeremy** no ve la pestaña hasta que se levanten sus criterios y/o se le agregue al piloto.
+- **Jeremy** usa la pestaña con sus 17 criterios en **v0 borrador** (Guitarra 8, Batería 9) y escala Inicia / En proceso / Logrado / Destacado. Esos criterios no aparecen en informes ni en el portal familia hasta que él los valide.
 - No se publica nada a familias en esta fase.
 
 La siguiente funcionalidad visible será la **Fase 3** (nota a familia con moderación).

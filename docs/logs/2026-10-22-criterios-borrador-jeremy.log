@@ -145,13 +145,94 @@ Build: npm run build en verde (cliente, SSR y Nitro).
   - No se modificó app-store.ts, kardex-calculator.ts ni student-cycle.ts.
   - No se tocó agenda, Kardex, asistencia, facturación ni el kiosco.
   - No se tocó students.notes ni notification_logs.
-  - No se agregó Jeremy a pilot_teacher_ids: su pestaña sigue oculta.
   - No se publicó nada a familias.
+
+7.1 ACTUALIZACIÓN (mismo día): Jeremy sí fue agregado al piloto.
+  Ver sección 9. La habilitación es un cambio de DATOS en org_settings,
+  sin despliegue ni modificación de código.
 
 8. ROLLBACK
 --------------------------------------------------------------------------------
   DELETE FROM public.evaluation_fields
   WHERE created_by_name = 'Criterios v0 borrador (010)';
+
+9. HABILITACIÓN DE JEREMY EN EL PILOTO (2026-10-22, mismo día)
+--------------------------------------------------------------------------------
+9.1 Qué se cambió
+  Tabla:   public.org_settings
+  Fila:    setting_key = 'pilot_teacher_ids'
+           id = 96bb0c89-3564-4c70-b52b-5ab507515fa5
+  Antes:   ["...004" (Fernando), "...005" (Nathaly)]
+  Después: ["...003" (Jeremy), "...004" (Fernando), "...005" (Nathaly)]
+  updated_by_name = 'Dirección 2026-10-22'
+
+  NO se tocó feature_flags: evaluationsV2 sigue en false.
+  La habilitación es SOLO por piloto, no global.
+
+9.2 Por qué no requirió despliegue
+  El gate real está en src/routes/teacher.index.tsx (línea ~296):
+    Boolean(flags.evaluationsV2 || pilotList.includes(teacherIdForLog))
+  Lee org_settings en runtime con cache de 30 s. Al cambiar el arreglo, la
+  pestaña aparece para Jeremy sin recompilar y sin republicar el sitio.
+
+9.3 Verificación en runtime (scratch/test-jeremy-pilot.mjs)
+  OK  evaluationsV2 sigue en false
+  OK  pilot_teacher_ids tiene 3 docentes
+  OK  piloto incluye a Jeremy, Nathaly y Fernando
+  OK  gate ABIERTO para Jeremy / Nathaly / Fernando
+  OK  gate CERRADO para Karla y para un docente desconocido
+  OK  Bruno (Guitarra clásica) -> 8 criterios
+  OK  Joshua (Guitarra) -> 8 criterios
+  OK  Sasha Dharma (Guitarra) -> 8 criterios
+  OK  GIUSEPPE GRANDA (Batería) -> 9 criterios
+  OK  Mario Keffreen (Guitarra) -> 8 criterios
+  OK  los 17 criterios siguen con visible_in_report = false
+  OK  los 17 criterios siguen con ui_config.draft = true
+
+9.4 Cómo se revierte (una sola operación, sin desplegar)
+  PATCH org_settings?id=eq.96bb0c89-3564-4c70-b52b-5ab507515fa5
+  { "setting_value": ["00000000-0000-0000-0000-000000000004",
+                      "00000000-0000-0000-0000-000000000005"] }
+  Efecto en <= 30 s (cache de feature flags). Los criterios quedan en la base
+  pero Jeremy deja de ver la pestaña.
+
+10. HANDOFF PARA EL SIGUIENTE AGENTE
+--------------------------------------------------------------------------------
+Estado exacto al cierre de este log:
+
+  evaluation_fields        66 filas
+     49 validadas         Nathaly 24 (Canto 12, Piano Infantil 12)
+                           Fernando 25 (Piano 12, Violín 13)
+                            visible_in_report = true
+     17 borrador Jeremy    Guitarra 8, Batería 9
+                            draft = true, version 0,
+                            visible_in_report = false,
+                            aprobación vacía,
+                            comentario libre por criterio
+  lesson_evaluations       0 filas (el piloto todavía no registró clases reales)
+  progress_reports         0 filas
+  family_notes             0 filas
+  internal_notes           0 filas
+  pilot_teacher_ids        3 (Jeremy, Nathaly, Fernando)
+  feature_flags            todos false
+
+Reglas que NO se pueden romper al continuar:
+  1. No poner visible_in_report = true ni draft = false en los 17 criterios de
+     Jeremy sin su validación real y sin registrar approved_*.
+  2. Las Fases 3, 4 y 5 deben filtrar draft = true de toda salida.
+  3. No tocar app-store.ts, kardex-calculator.ts ni student-cycle.ts por este
+     tema: el motor de ciclos y asistencia es compartido con producción.
+  4. No tocar students.notes (legacy congelado) ni notification_logs.
+  5. Cualquier cambio de criterios se hace por datos (evaluation_fields), no
+     por código, para no requerir despliegue.
+  6. Al migrar datos, usar ON CONFLICT DO NOTHING y un created_by_name único
+     para poder revertir con un DELETE acotado.
+
+Pendiente inmediato (no bloqueante):
+  - Que Jeremy revise los 17 criterios y escriba sus observaciones en
+    ui_config.validation.comment.
+  - Que registre 1 o 2 clases reales para validar el guardado en producción.
+  - Nathaly y Fernando: registrar 2-3 clases reales para cerrar el piloto.
 
 ================================================================================
 FIN DEL LOG
