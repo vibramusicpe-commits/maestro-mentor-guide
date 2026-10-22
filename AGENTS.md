@@ -1521,3 +1521,37 @@ inferencia.
    - No agregar botones de “eliminar nota”: el ciclo termina en `archivada`.
 7. **Verificación de referencia**: `scratch/test-fase4-internal-notes.mjs` (20/20 con datos vivos) y `npm run build` en verde antes de commitear.
 
+---
+
+### 77. Informe de Progreso A4, Publicación con Snapshot Congelado y Portal Familia en Solo Lectura (ADR-0175, Fase 5)
+
+1. **Bandeja de Dirección y generación**:
+   - `src/components/admin/progress-reports-panel.tsx` se monta en `/admin/alumnos` como pestaña **“Informes” (BETA)**. Solo lista **alumnos activos**.
+   - `createProgressReport` arma el snapshot pedagógico con el motor oficial (`buildAttendanceSnapshot` → `computeStudentCycleSessions`) y las evaluaciones del periodo. **Nunca** recalcula ciclos por su cuenta ni toca `kardex-calculator.ts`.
+   - Si ya existe un informe del mismo alumno + tipo + rango de fechas, la bandeja abre el existente en lugar de duplicarlo.
+2. **Flujo de estados innegociable**:
+   - `draft` → `pending` → `published` (con `published_snapshot` congelado) o `rejected` (con motivo obligatorio; el contenido se conserva).
+   - `updateProgressReport` prohíbe editar un `published`. Cualquier corrección posterior exige retirar el informe (campos `retracted_*` ya existentes).
+   - Nada llega a la familia antes de `published`.
+3. **Criterios en borrador bloquean la publicación**:
+   - `getDraftCriteriaInReport(report)` consulta `evaluation_fields.ui_config.draft` para los `field_id` del snapshot.
+   - Si hay al menos un criterio en borrador, la UI **bloquea** “Enviar a revisión” y “Publicar” listando los criterios.
+   - Los 17 criterios v0 de Jeremy siguen en `draft = true`: no pueden salir en un informe publicado hasta que él los valide (ADR-0175, Fase 2).
+4. **Formato y salidas en un solo lugar**:
+   - `src/lib/informes/progress-report-format.ts` concentra vista, Markdown, WhatsApp y `PROGRESS_REPORT_PRINT_CSS`. Prohibido reimplementar el formato en otro componente (ADR-0119.3).
+   - El A4 de 2 páginas reutiliza la arquitectura de impresión de ADR-0136/0137: se desmonta el portal Radix, se neutraliza `transform`, se fuerza `table-layout: fixed` y el salto de página `.print-page-break`.
+   - Cero datos financieros en el informe, el Markdown, el WhatsApp y el portal familia.
+5. **Portal familia (`/family/progreso`)**:
+   - Solo lee `published` + `is_test = false` + `published_snapshot` fusionado (`getPublishedReportsForStudent`).
+   - Resuelve el alcance por familia (ADR-0172); si la sesión no tiene `family_id`, consulta por los alumnos del alcance resueltos por correo.
+   - Es **solo lectura**: sin edición, sin reprogramación, sin botones de mutación.
+6. **Habilitación por datos (`getProgressReportsAccess`)**:
+   - `progressReportsV2 = true` abre la bandeja; sin flag se abre por `pilot_teacher_ids` (hoy Jeremy, Fernando y Nathaly).
+   - `parentReports` solo informa el valor `family`; la ruta del portal es de solo lectura y muestra estado vacío mientras no haya publicaciones.
+   - Cualquier error → cerrado. Abrir o cerrar no requiere desplegar.
+7. **Prohibiciones**:
+   - No modificar `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts` para informes.
+   - No tocar `students.notes` (legacy congelado) ni `notification_logs`.
+   - No exponer informes `draft`, `pending`, `rejected` ni filas `is_test` al portal familia.
+8. **Verificación de referencia**: `scratch/test-fase5-progress-reports.mjs` (28/28 con datos vivos, `is_test` + `test_run_id`, limpieza final); rutas `/`, `/admin/alumnos`, `/family/progreso` y `/teacher` en 200; `npm run build` en verde antes de commitear.
+

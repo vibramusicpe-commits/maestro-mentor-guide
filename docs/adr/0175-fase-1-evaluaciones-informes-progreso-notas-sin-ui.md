@@ -1,12 +1,12 @@
-# ADR-0175: Sistema de Evaluaciones, Informes de Progreso y Notas — Fases 1, 2, 3 y 4
+# ADR-0175: Sistema de Evaluaciones, Informes de Progreso y Notas — Fases 1, 2, 3, 4 y 5
 
 ## Estado
 
-Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Jeremy, Nathaly y Fernando. Fase 3 de 7 implementada y en piloto. Fase 4 de 7 implementada y en piloto.**
+Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Jeremy, Nathaly y Fernando. Fase 3 de 7 implementada y en piloto. Fase 4 de 7 implementada y en piloto. Fase 5 de 7 implementada (bandeja Dirección + portal familia).**
 
 ## Fecha
 
-2026-10-21 (Fase 1) · 2026-10-22 (Fases 2, 3 y 4).
+2026-10-21 (Fase 1) · 2026-10-22 (Fases 2, 3, 4 y 5).
 
 ## Contexto
 
@@ -302,6 +302,8 @@ Valores permitidos: `individual`, `grupal`, `no_aplica`.
 - `getReportsForStudent(studentId)` — historial completo del docente/dirección.
 - `getReportsForFamily(familyId)` — solo publicados, **nunca** `is_test`, y devuelve el `published_snapshot`.
 - `getReportsForFamilyForAudit(familyId)` — lectura interna de Dirección; incluye `is_test`. **Nunca** usar en el portal familia.
+- `getPublishedReportsForStudent(studentId)` — solo `published` + `is_test = false`, con el `published_snapshot` fusionado. Lo usa el portal familia cuando la sesión resuelve alumnos pero no un `family_id` explícito (fallback por correo, ADR-0172).
+- `getDraftCriteriaInReport(report)` — devuelve las etiquetas de criterios con `evaluation_fields.ui_config.draft = true` presentes en el snapshot. Guardrail obligatorio antes de `pending` y antes de publicar.
 
 ### `family-notes.service.ts`
 
@@ -456,6 +458,82 @@ Objetivo: que el docente deje una observación que vea solo el equipo, sin expon
 - `pilot_teacher_ids = []` y sin `internal_notes_enabled` → las pestañas desaparecen sin desplegar.
 - Las notas guardadas permanecen en `internal_notes`; último recurso, revertir el commit único de la fase.
 
+## Fase 5 - Informe de progreso, publicación y portal familia (implementada)
+
+Objetivo: convertir las evaluaciones de clase y el snapshot de asistencia en un informe A4 de 2 páginas que Dirección revisa, aprueba y publica, y que la familia puede leer y descargar en PDF.
+
+### Componentes
+
+- `src/components/admin/progress-reports-panel.tsx` — pestaña **“Informes” (BETA)** en `/admin/alumnos`:
+  - Selector de alumno **activo** (buscador por nombre o instrumento), periodo **mensual/trimestral** con fechas editables y botón **Generar informe**.
+  - Listado de informes del alumno con estado (borrador / en revisión / publicado / rechazado), docente y quién publicó.
+  - Si ya existe un informe para ese alumno y periodo, abre el existente en lugar de duplicarlo.
+- `src/components/admin/progress-report-dialog.tsx` — diálogo A4 de 2 páginas:
+  - Página 1: identidad, docente, periodo y nivel, asistencia del periodo (6 KPI), criterios evaluados y repertorio.
+  - Página 2: fortalezas, próxima meta, recomendaciones, mensaje a la familia, comentario del docente y firmas.
+  - Narrativas editables (máx. 1200 caracteres) con contador; al imprimir se renderiza texto plano, no el textarea.
+  - Acciones: **Guardar**, **Enviar a revisión**, **Publicar**, **Rechazar con motivo**, **Markdown**, **WhatsApp** y **PDF / Imprimir**.
+  - Banda de estado con la regla vigente (“solo visible para el equipo”, “contenido congelado”, etc.).
+- `src/components/informes/progress-report-document.tsx` — documento A4 de solo lectura para la familia (mismo contenido, sin edición).
+- `src/routes/family.progreso.tsx` — pestaña **“Progreso”** del portal familia:
+  - Solo informes `published` + `is_test = false` + snapshot fusionado.
+  - Tarjeta por informe (asistencia %, clases asistidas, criterios, próxima meta) y botón **Ver informe y descargar PDF**.
+  - Estado vacío cordial cuando aún no hay informes o la vinculación está pendiente.
+- `src/lib/informes/progress-report-format.ts` — fuente única de formato:
+  - `buildProgressReportView`, `generateProgressReportMarkdown`, `generateProgressReportWhatsApp`, `formatProgressPeriod`, `formatAttendanceRate`, `formatIsoDateShort`, `formatBand` y `PROGRESS_REPORT_PRINT_CSS`.
+  - La misma vista alimenta administración, PDF y portal familia; no hay lógica de filtrado duplicada (ADR-0119.3).
+
+### Flujo y persistencia
+
+- `draft` (al generar) → `pending` (enviado a revisión) → `published` (aprobado, `published_snapshot` congelado) o `rejected` (con motivo, contenido intacto).
+- `progress_reports` ya existía desde las migraciones `008`/`008b`: **no requirió migración nueva**.
+- `updateProgressReport` prohíbe editar un informe publicado; para corregirlo hay que retirarlo (flujo `retracted_*` ya existente en la tabla).
+- Servicios añadidos (aditivos): `getPublishedReportsForStudent(studentId)` y `getDraftCriteriaInReport(report)`.
+- La creación usa `createProgressReport`, que arma el snapshot con `buildAttendanceSnapshot` (motor oficial de ciclos, sin datos financieros) y las evaluaciones del periodo.
+
+### Guardrail de criterios en borrador
+
+- `getDraftCriteriaInReport` lee los `field_id` del snapshot y consulta `evaluation_fields.ui_config.draft`.
+- Si devuelve al menos un criterio, la UI **bloquea** “Enviar a revisión” y “Publicar” con un mensaje que lista los criterios.
+- Esto cumple la regla de Fase 2: los 17 criterios v0 de Jeremy siguen en `draft = true` y no pueden salir en un informe publicado hasta que él los valide.
+
+### Habilitación por datos (sin desplegar)
+
+- `getProgressReportsAccess()` en `feature-flags.service.ts`:
+  - `progressReportsV2 = true` → bandeja abierta para Dirección.
+  - Sin flag → se abre por piloto: si hay docentes en `pilot_teacher_ids` (hoy Jeremy, Fernando y Nathaly) hay material evaluado que consolidar, así que Dirección necesita la bandeja.
+  - `parentReports` solo controla el valor informativo `family`; la ruta `/family/progreso` es de solo lectura y muestra estado vacío mientras no haya publicaciones.
+  - Ante cualquier error → cerrado.
+- Estado actual: `progressReportsV2 = false` y `parentReports = false`; la bandeja se abre por piloto.
+
+### Blindajes
+
+- No modifica `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`.
+- No toca `students.notes` (legacy congelado) ni `notification_logs`.
+- Cero datos financieros: ni montos, ni saldos, ni recibos, ni auditoría de pagos.
+- Identidad por UUID (`student_id`, `teacher_id`, `published_by_id`); el nombre es snapshot legible.
+- `is_test` aislado: `getReportsForStudent` y el portal familia filtran `is_test = false`; las pruebas usan `test_run_id` y se limpian.
+- Impresión: CSS único `PROGRESS_REPORT_PRINT_CSS` que desmonta el portal Radix, neutraliza `transform`, evita cortes y fuerza salto de página (ADR-0136/0137).
+
+### Verificación
+
+- 28/28 checks de runtime con datos vivos (`scratch/test-fase5-progress-reports.mjs`, temporal, no commiteado):
+  - gate abierto por piloto, creación en borrador, snapshot de alumno/periodo/asistencia/ciclo, versión 1;
+  - el listado de producción no expone filas de prueba;
+  - guardrail bloquea un criterio `draft` real (“Postura y sujeción”) y no bloquea informes sin criterios;
+  - narrativas guardadas, envío a revisión con `submitted_at`, publicación con snapshot congelado, inmutabilidad del publicado;
+  - rechazo exige motivo y conserva contenido;
+  - Markdown y WhatsApp incluyen al alumno y el mensaje invita al Portal de Familia, sin “S/” ni cifras de facturación;
+  - el portal familia no ve informes de prueba; limpieza final 0 filas.
+- Rutas `/`, `/admin/alumnos`, `/family/progreso` y `/teacher` en 200 (dev).
+- `npm run build` en verde.
+
+### Reversión
+
+- `progressReportsV2 = false` + `pilot_teacher_ids = []` → la pestaña “Informes” desaparece sin desplegar.
+- La pestaña “Progreso” del portal familia queda vacía por sí sola (solo lee publicados).
+- Los informes guardados permanecen en `progress_reports`; último recurso, revertir el commit único de la fase.
+
 ## Fases restantes
 
 | Fase | Entregable | Estado |
@@ -464,7 +542,7 @@ Objetivo: que el docente deje una observación que vea solo el equipo, sin expon
 | 2 | Registro de clase docente (`class-log.tsx`, pestaña en `/teacher`) | ✅ Implementada (piloto Jeremy/Nathaly/Fernando) |
 | 3 | Nota a familia + moderación (`family-note-form.tsx`, `family-notes-moderation.tsx`) | ✅ Implementada (piloto Jeremy/Nathaly/Fernando + bandeja Dirección) |
 | 4 | Nota interna + bandeja (`internal-note-form.tsx`, `internal-notes-inbox.tsx`) | ✅ Implementada (piloto Jeremy/Nathaly/Fernando + bandeja Dirección) |
-| 5 | Informe de progreso A4, PDF/Markdown/WhatsApp y ruta `family.progreso.tsx` | ⏳ Pendiente |
+| 5 | Informe de progreso A4, PDF/Markdown/WhatsApp y ruta `family.progreso.tsx` | ✅ Implementada (bandeja Dirección + portal familia, solo publicados) |
 | 6 | Reportes, filtros y exportación CSV en admin | ⏳ Pendiente |
 | 7 | Flags, piloto Jeremy/Nathaly/Fernando y despliegue gradual | ⏳ Pendiente |
 
@@ -477,8 +555,9 @@ Objetivo: que el docente deje una observación que vea solo el equipo, sin expon
 - **Fase 3:** los docentes del piloto ven en `/teacher` la pestaña **“Nota nueva” (BETA)** y Dirección/Secretaría ve en `/admin/alumnos` la pestaña **“Notas v2” (BETA)**. Nada llega a las familias sin aprobación explícita; el portal familia sigue leyendo solo `family_notes` con `status = 'publicado'` y `is_test = false`.
 - **Fase 4:** los docentes del piloto ven en `/teacher` la pestaña **“Interna” (BETA)** para dejar observaciones al equipo, y Dirección/Secretaría ve en `/admin/alumnos` la pestaña **“Notas internas” (BETA)** con el flujo nueva → leída → archivada (y reabrir). Nada de esto es visible para la familia.
 - La pestaña **“Notas a familia”** (flujo legacy) se conserva sin modificaciones y sigue operativa durante el piloto.
+- **Fase 5:** Dirección/Secretaría ve en `/admin/alumnos` la pestaña **“Informes” (BETA)**, genera el informe del periodo en borrador, lo edita, lo envía a revisión, lo publica y puede descargarlo en PDF A4 o copiar Markdown/WhatsApp. La familia ve en su portal la pestaña **“Progreso”** con los informes publicados y el botón de descarga en PDF. Nada se muestra a la familia antes de publicar.
 
-La siguiente funcionalidad visible será la **Fase 5** (informe de progreso A4/PDF/Markdown y portal familia).
+La siguiente funcionalidad visible será la **Fase 6** (reportes, filtros y exportación CSV en administración).
 
 ## Referencias
 
@@ -492,8 +571,11 @@ La siguiente funcionalidad visible será la **Fase 5** (informe de progreso A4/P
 - `src/components/teacher/class-log.tsx` — registro de clase de Fase 2.
 - `src/components/teacher/family-note-form.tsx` y `src/components/admin/family-notes-moderation.tsx` — Fase 3.
 - `src/components/teacher/internal-note-form.tsx` y `src/components/admin/internal-notes-inbox.tsx` — Fase 4.
+- `src/components/admin/progress-reports-panel.tsx`, `src/components/admin/progress-report-dialog.tsx`, `src/components/informes/progress-report-document.tsx` y `src/routes/family.progreso.tsx` — Fase 5.
+- `src/lib/informes/progress-report-format.ts` — vista, Markdown, WhatsApp y CSS de impresión (fuente única).
 - `src/routes/teacher.index.tsx` — pestañas, gate de piloto y botón por tarjeta.
-- `src/routes/admin.alumnos.tsx` — pestañas “Notas v2” (Fase 3) y “Notas internas” (Fase 4).
-- `scratch/test-informes-phase1.mjs`, `scratch/test-fase2-class-log.mjs`, `scratch/test-fase3-family-notes.mjs`, `scratch/test-fase3-access.mjs` y `scratch/test-fase4-internal-notes.mjs` — arneses temporales, no commiteados.
+- `src/routes/admin.alumnos.tsx` — pestañas “Notas v2” (Fase 3), “Notas internas” (Fase 4) e “Informes” (Fase 5).
+- `src/routes/family.tsx` — pestaña “Progreso” del portal familia (Fase 5).
+- `scratch/test-informes-phase1.mjs`, `scratch/test-fase2-class-log.mjs`, `scratch/test-fase3-family-notes.mjs`, `scratch/test-fase3-access.mjs`, `scratch/test-fase4-internal-notes.mjs` y `scratch/test-fase5-progress-reports.mjs` — arneses temporales, no commiteados.
 - Commit `b7a0795` — implementación Fase 1.
 - Commit de Fase 2 — registro de clase y seed de criterios.

@@ -1,0 +1,276 @@
+================================================================================
+VIBRA MUSIC STAFF — FASE 5: INFORME DE PROGRESO, PUBLICACIÓN Y PORTAL FAMILIA
+Fecha: 2026-10-22
+ADR: docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md
+Estado: IMPLEMENTADA (bandeja Dirección + portal familia, solo publicados)
+================================================================================
+
+1. OBJETIVO
+--------------------------------------------------------------------------------
+Convertir lo que el docente registró en clase (Fase 2) en un informe de
+progreso A4 de 2 páginas que Dirección revisa, aprueba y publica, y que la
+familia puede leer y descargar en PDF desde su portal.
+
+Flujo oficial:
+
+    Dirección genera            ->  draft      (borrador editable)
+    Dirección envía             ->  pending    (en revisión)
+    Dirección publica           ->  published  (snapshot congelado, visible)
+    Dirección rechaza           ->  rejected   (motivo obligatorio, contenido intacto)
+
+Nada llega a la familia antes de `published`.
+
+2. ARCHIVOS TOCADOS (solo aditivo / quirúrgico)
+--------------------------------------------------------------------------------
+NUEVOS
+  src/lib/informes/progress-report-format.ts
+    Fuente única de formato:
+      - buildProgressReportView(report) -> modelo de vista
+      - generateProgressReportMarkdown(report)
+      - generateProgressReportWhatsApp(report)
+      - formatProgressPeriod / formatAttendanceRate / formatIsoDateShort / formatBand
+      - PROGRESS_REPORT_PRINT_CSS (A4, ADR-0136/0137)
+    Reutilizado por administración, PDF y portal familia. No se duplica
+    lógica de filtrado ni de formato en componentes.
+
+  src/components/admin/progress-report-dialog.tsx
+    Diálogo A4 de 2 páginas con edición de narrativas.
+      Página 1: identidad, docente, periodo/nivel, 6 KPI de asistencia,
+                criterios evaluados y repertorio.
+      Página 2: fortalezas, próxima meta, recomendaciones, mensaje a la
+                familia, comentario del docente y firmas.
+      Acciones: Guardar / Enviar a revisión / Publicar / Rechazar con motivo
+                / Markdown / WhatsApp / PDF-Imprimir.
+      Al imprimir, las narrativas se renderizan como texto plano (no el
+      textarea), evitando recortes.
+
+  src/components/admin/progress-reports-panel.tsx
+    Pestaña "Informes" (BETA) en /admin/alumnos.
+      - Selector de alumno ACTIVO (buscador por nombre o instrumento).
+      - Periodo mensual/trimestral con fechas editables.
+      - Generar informe (createProgressReport) y listado por estado.
+      - Si ya existe el mismo alumno + tipo + rango, abre el existente.
+
+  src/components/informes/progress-report-document.tsx
+    Documento A4 de solo lectura para la familia (sin edición).
+
+  src/routes/family.progreso.tsx
+    Portal familia, pestaña "Progreso".
+      - Solo published + is_test = false + published_snapshot fusionado.
+      - Tarjeta por informe (asistencia %, asistidas, criterios, meta).
+      - Botón "Ver informe y descargar PDF".
+
+MODIFICADOS (mínimo necesario)
+  src/lib/services/progress-reports.service.ts
+    + getPublishedReportsForStudent(studentId)
+        Solo published + is_test=false, con snapshot fusionado. Cubre el
+        caso de sesión familia sin family_id (ADR-0172, fallback por correo).
+    + getDraftCriteriaInReport(report)
+        Lee los field_id del snapshot y consulta
+        evaluation_fields.ui_config.draft. Devuelve etiquetas en borrador.
+
+  src/lib/services/feature-flags.service.ts
+    + getProgressReportsAccess() -> { panel, family, source }
+
+  src/routes/admin.alumnos.tsx
+    + import ProgressReportsPanel + getProgressReportsAccess + icono FileText
+    + estado progressReportsAccess y tab "informes"
+    + soporte de ?tab=informes
+    + pestaña "Informes" (BETA) y su render
+    Las pestañas legacy y las de Fases 3 y 4 quedaron intactas.
+
+  src/routes/family.tsx
+    + pestaña "Progreso" en la navegación del portal familia.
+
+NO SE TOCÓ
+  - app-store.ts, kardex-calculator.ts, student-cycle.ts
+  - agenda, Kardex, asistencia, facturación
+  - students.notes (legacy congelado)
+  - notification_logs
+  - teacher-notes-moderation.tsx, lesson-notes.tsx
+  - family-notes-moderation.tsx, internal-notes-inbox.tsx
+  - ninguna migración (progress_reports ya existía)
+
+3. HABILITACIÓN (sin desplegar)
+--------------------------------------------------------------------------------
+getProgressReportsAccess() en feature-flags.service.ts:
+
+  1. progressReportsV2 = true  -> panel=true, source="flag"
+  2. sin flag + pilot_teacher_ids no vacío -> panel=true, source="pilot"
+     (hay material evaluado que consolidar, Dirección necesita la bandeja)
+  3. piloto vacío y sin flag -> todo false, source="none"
+  4. error -> todo false
+
+  `parentReports` solo informa el valor `family`. La ruta /family/progreso es
+  de solo lectura y muestra estado vacío mientras no haya publicaciones, así
+  que no expone nada si el flag está apagado.
+
+Estado en producción al cierre:
+  org_settings.feature_flags = {
+    evaluationsV2: false, familyNotesV2: false,
+    progressReportsV2: false, parentReports: false
+  }
+  org_settings.pilot_teacher_ids = [
+    "00000000-0000-0000-0000-000000000003",  Jeremy
+    "00000000-0000-0000-0000-000000000004",  Fernando
+    "00000000-0000-0000-0000-000000000005"   Nathaly
+  ]
+
+Resultado: Dirección/Secretaría ve "Informes"; la familia ve "Progreso" con
+sus informes publicados (o el estado vacío).
+
+REVERTIR SIN DESPLEGAR
+  - Cerrar la bandeja: progressReportsV2=false y pilot_teacher_ids=[].
+  - La pestaña "Informes" desaparece; el portal familia queda vacío.
+  - Los informes guardados permanecen en progress_reports (no se borra nada).
+  - Último recurso: revertir el commit único de la fase.
+
+4. BASE DE DATOS (ya existía desde Fase 1; migraciones 008 y 008b)
+--------------------------------------------------------------------------------
+Tabla progress_reports:
+  student_id / student_name_snapshot / teacher_id / teacher_name
+  period_type (mensual | trimestral) / period_start / period_end
+  level_start / level_end
+  attendance_summary (JSONB) / repertoire_summary (JSONB)
+  strengths / goals / recommendations / family_message / teacher_comment
+  content (JSONB)            -> snapshot pedagógico (versión 1)
+  published_snapshot (JSONB) -> congelado al publicar
+  status                     -> draft | pending | published | rejected
+  submitted_at / submitted_by_* / reviewed_* / rejection_reason
+  published_at / published_by_* / retracted_*
+  is_test + test_run_id      (CHECK amarrado)
+
+Guardrail de criterios en borrador:
+  evaluation_fields.ui_config.draft = true
+  Hoy 17 criterios v0 de Jeremy (Guitarra 8, Batería 9) están en borrador.
+  getDraftCriteriaInReport los detecta por field_id y bloquea el envío a
+  revisión y la publicación. No pueden salir en un informe publicado hasta
+  que Jeremy los valide (ADR-0175, Fase 2).
+
+Portal familia:
+  Lee solo status='published' AND is_test=false, con el snapshot fusionado.
+  Nunca ve draft, pending, rejected ni filas de prueba.
+
+5. VERIFICACIÓN EN RUNTIME (datos vivos)
+--------------------------------------------------------------------------------
+Arné: scratch/test-fase5-progress-reports.mjs  (NO se commitea)
+Filas creadas con is_test=true y test_run_id único; limpieza final por run.
+
+  Alumno de prueba: primer activo de la base (Bruno)
+  Periodo: mes anterior completo (no altera lecturas de producción)
+  Actor: Dirección (00000000-0000-0000-0000-000000000001)
+
+  OK  Hay alumno activo para la prueba | Bruno
+  OK  Gate: bandeja de informes abierta | source=pilot
+  OK  Informe creado en borrador | draft
+  OK  Informe marcado is_test + run
+  OK  Snapshot: alumno correcto | Bruno
+  OK  Snapshot: periodo correcto
+  OK  Snapshot: asistencia del periodo
+  OK  Snapshot: ciclo contractual | cuota=8
+  OK  Snapshot: versión 1
+  OK  Listado de producción NO expone is_test | filas=0
+  OK  Guardrail bloquea criterios en borrador | Postura y sujeción
+  OK  Guardrail no bloquea un informe sin criterios
+  OK  Narrativas guardadas
+  OK  Enviado a revisión | pending
+  OK  Registra submitted_at
+  OK  Publicado | published
+  OK  publicado_at registrado
+  OK  Snapshot congelado
+  OK  Publicado es inmutable
+  OK  Rechazo exige motivo
+  OK  Rechazo aplicado con motivo
+  OK  Markdown incluye alumno
+  OK  Markdown sin datos financieros
+  OK  WhatsApp incluye alumno
+  OK  WhatsApp invita al portal familia
+  OK  Periodo legible
+  OK  Portal familia NO ve informes de prueba | filas=0
+  OK  Limpieza de filas de prueba | restantes=0
+
+  RESULTADO: TODO OK (28/28)
+
+Rutas SSR en dev (vite):
+  /                 -> 200
+  /admin/alumnos    -> 200
+  /family/progreso  -> 200
+  /teacher          -> 200
+
+Build:
+  npm run build   -> verde (sin errores de tipos)
+
+6. CÓMO PROBARLO A MANO EN PRODUCCIÓN
+--------------------------------------------------------------------------------
+1. Dirección entra a /admin/alumnos -> pestaña "Informes".
+2. Busca un alumno activo, elige periodo (mensual/trimestral) y fechas.
+3. Pulsa "Generar informe" -> se abre el borrador A4.
+4. Escribe fortalezas, próxima meta, recomendaciones, mensaje a la familia y
+   el nivel alcanzado. Pulsa "Guardar".
+5. "Enviar a revisión" -> estado En revisión.
+6. "Publicar" -> estado Publicado. (Si el informe incluye un criterio en
+   borrador, la publicación se bloquea y lista el criterio.)
+7. "PDF / Imprimir" -> 2 páginas A4 exactas; "Markdown" copia el documento;
+   "WhatsApp" abre wa.me con el mensaje o lo copia si no hay celular.
+8. La familia entra a su portal -> pestaña "Progreso" -> ve el informe
+   publicado -> "Ver informe y descargar PDF".
+9. Comprobar que un borrador NO aparece en el portal familia.
+
+7. RIESGOS CONOCIDOS Y DECISIONES
+--------------------------------------------------------------------------------
+- El informe lo genera Dirección/Secretaría, no el docente. El docente ya
+  aporta con el registro de clase (Fase 2); el informe es la consolidación
+  que Dirección revisa con él. Añadir generación desde /teacher queda para
+  una fase posterior si se requiere.
+- `updateProgressReport` prohíbe editar publicados. Para corregir hay que
+  retirar el informe (campos retracted_* ya en la tabla); el botón de retiro
+  no se expone en esta fase para no abrir un flujo sin probar.
+- El snapshot de asistencia depende de las evaluaciones de clase existentes.
+  Si el docente aún no registró nada en el periodo, el informe sale sin
+  criterios y el repertorio vacío; el resto (asistencia, narrativas) sigue
+  siendo válido.
+- `getDraftCriteriaInReport` consulta `evaluation_fields` en el momento de
+  enviar/publicar. Si un criterio se valida después de generar el informe,
+  la publicación ya no se bloquea (el valor registrado se mantiene).
+- No hay datos financieros en ninguna salida (informe, Markdown, WhatsApp,
+  portal familia), por diseño.
+
+8. HANDOFF PARA EL SIGUIENTE AGENTE
+--------------------------------------------------------------------------------
+Estado exacto al cierre:
+  progress_reports        0 filas de producción
+                          (las de prueba se borraron; la auditoría
+                          append-only conserva sus test_run_id FASE5-*)
+  internal_notes          0 filas
+  family_notes            0 filas
+  lesson_evaluations      0 filas
+  feature_flags           todo en false
+  pilot_teacher_ids       3 (Jeremy, Fernando, Nathaly)
+  evaluation_fields       66 filas (49 validadas + 17 de Jeremy en borrador)
+
+Reglas que NO se pueden romper al continuar:
+  1. El portal familia solo lee published + is_test=false.
+  2. Un informe publicado es inmutable; su snapshot queda congelado.
+  3. Criterios con ui_config.draft=true NO pueden salir en informes.
+  4. Cero datos financieros en informes, Markdown, WhatsApp y portal.
+  5. Identidad por UUID; el nombre es solo snapshot legible.
+  6. No tocar students.notes ni notification_logs.
+  7. No modificar app-store.ts, kardex-calculator.ts ni student-cycle.ts.
+  8. El formato vive en src/lib/informes/progress-report-format.ts.
+  9. Toda prueba debe usar is_test=true + test_run_id y limpiarse al final.
+
+Siguiente (Fase 6):
+  - Reportes, filtros y exportación CSV en administración.
+  - Candidatos: estado de informes por periodo, cobertura de evaluación por
+    docente, exportación CSV de informes publicados (sin datos financieros).
+  - Prohibido exponer filas is_test en exportaciones de producción.
+
+Pendiente de validación con el piloto (Fases 2, 3, 4 y 5):
+  - Que Jeremy, Fernando y Nathaly registren clases reales (Fase 2).
+  - Que Jeremy valide sus 17 criterios v0 antes de usarlos en informes.
+  - Que Dirección genere y publique 1 informe real por docente.
+  - Que una familia real vea su informe en el portal y descargue el PDF.
+
+================================================================================
+FIN DEL LOG
+================================================================================

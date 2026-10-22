@@ -28,6 +28,7 @@ import { Route as FamilyIndexRouteImport } from './routes/family.index'
 import { Route as FamilyAgendaRouteImport } from './routes/family.agenda'
 import { Route as FamilyAsistenciasRouteImport } from './routes/family.asistencias'
 import { Route as FamilyAvisosRouteImport } from './routes/family.avisos'
+import { Route as FamilyProgresoRouteImport } from './routes/family.progreso'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as TeacherIndexRouteImport } from './routes/teacher.index'
 import { Route as TeacherAgendaRouteImport } from './routes/teacher.agenda'
@@ -129,6 +130,11 @@ const FamilyAvisosRoute = FamilyAvisosRouteImport.update({
   path: '/avisos',
   getParentRoute: () => FamilyRoute,
 } as any)
+const FamilyProgresoRoute = FamilyProgresoRouteImport.update({
+  id: '/progreso',
+  path: '/progreso',
+  getParentRoute: () => FamilyRoute,
+} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/family/agenda': typeof FamilyAgendaRoute
   '/family/asistencias': typeof FamilyAsistenciasRoute
   '/family/avisos': typeof FamilyAvisosRoute
+  '/family/progreso': typeof FamilyProgresoRoute
   '/invite/$token': typeof InviteTokenRoute
   '/teacher/agenda': typeof TeacherAgendaRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/family/agenda': typeof FamilyAgendaRoute
   '/family/asistencias': typeof FamilyAsistenciasRoute
   '/family/avisos': typeof FamilyAvisosRoute
+  '/family/progreso': typeof FamilyProgresoRoute
   '/invite/$token': typeof InviteTokenRoute
   '/teacher/agenda': typeof TeacherAgendaRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
@@ -223,6 +231,7 @@ export interface FileRoutesById {
   '/family/agenda': typeof FamilyAgendaRoute
   '/family/asistencias': typeof FamilyAsistenciasRoute
   '/family/avisos': typeof FamilyAvisosRoute
+  '/family/progreso': typeof FamilyProgresoRoute
   '/invite/$token': typeof InviteTokenRoute
   '/teacher/agenda': typeof TeacherAgendaRoute
   '/teacher/alumnos': typeof TeacherAlumnosRoute
@@ -251,6 +260,7 @@ export interface FileRouteTypes {
     | '/family/agenda'
     | '/family/asistencias'
     | '/family/avisos'
+    | '/family/progreso'
     | '/invite/$token'
     | '/teacher/agenda'
     | '/teacher/alumnos'
@@ -274,6 +284,7 @@ export interface FileRouteTypes {
     | '/family/agenda'
     | '/family/asistencias'
     | '/family/avisos'
+    | '/family/progreso'
     | '/invite/$token'
     | '/teacher/agenda'
     | '/teacher/alumnos'
@@ -300,6 +311,7 @@ export interface FileRouteTypes {
     | '/family/agenda'
     | '/family/asistencias'
     | '/family/avisos'
+    | '/family/progreso'
     | '/invite/$token'
     | '/teacher/agenda'
     | '/teacher/alumnos'
@@ -453,6 +465,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FamilyAvisosRouteImport
       parentRoute: typeof FamilyRoute
     }
+    '/family/progreso': {
+      id: '/family/progreso'
+      path: '/progreso'
+      fullPath: '/family/progreso'
+      preLoaderRoute: typeof FamilyProgresoRouteImport
+      parentRoute: typeof FamilyRoute
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -523,6 +542,7 @@ interface FamilyRouteChildren {
   FamilyAgendaRoute: typeof FamilyAgendaRoute
   FamilyAsistenciasRoute: typeof FamilyAsistenciasRoute
   FamilyAvisosRoute: typeof FamilyAvisosRoute
+  FamilyProgresoRoute: typeof FamilyProgresoRoute
   FamilyIndexRoute: typeof FamilyIndexRoute
 }
 
@@ -530,6 +550,7 @@ const FamilyRouteChildren: FamilyRouteChildren = {
   FamilyAgendaRoute: FamilyAgendaRoute,
   FamilyAsistenciasRoute: FamilyAsistenciasRoute,
   FamilyAvisosRoute: FamilyAvisosRoute,
+  FamilyProgresoRoute: FamilyProgresoRoute,
   FamilyIndexRoute: FamilyIndexRoute,
 }
 

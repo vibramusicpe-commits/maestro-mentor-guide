@@ -133,6 +133,7 @@ function FamilyLayout() {
             { to: "/family", label: "Inicio", end: true },
             { to: "/family/agenda", label: "Horario" },
             { to: "/family/asistencias", label: "Asistencias" },
+            { to: "/family/progreso", label: "Progreso" },
             { to: "/family/avisos", label: "Avisar" },
           ].map((tab) => (
             <Link

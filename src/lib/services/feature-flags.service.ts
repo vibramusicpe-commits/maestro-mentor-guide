@@ -157,6 +157,51 @@ export async function getFamilyNotesAccess(
   }
 }
 
+export interface ProgressReportsAccess {
+  /** Bandeja de Informes de Progreso (Dirección/Secretaría). */
+  panel: boolean;
+  /** Portal familia con informes publicados. */
+  family: boolean;
+  /** De dónde viene el acceso: flag global, piloto de docentes o ninguno. */
+  source: "flag" | "pilot" | "none";
+}
+
+/**
+ * Acceso a la Fase 5 (informes de progreso).
+ *
+ * - Con `progressReportsV2 = true` se abre la bandeja para Dirección.
+ * - Sin flag, se abre por piloto: si hay docentes en `pilot_teacher_ids`
+ *   existe material evaluado que consolidar, así que Dirección necesita la
+ *   bandeja para revisar y publicar.
+ * - El portal familia solo se considera habilitado con `parentReports`.
+ *   Aun así, la ruta `/family/progreso` es de solo lectura y muestra un
+ *   estado vacío mientras no haya informes publicados.
+ * - Ante cualquier error, todo cerrado.
+ */
+export async function getProgressReportsAccess(): Promise<ProgressReportsAccess> {
+  try {
+    const [flags, pilots] = await Promise.all([
+      getFeatureFlags(),
+      getOrgSetting<string[]>("pilot_teacher_ids", []),
+    ]);
+
+    const pilotList = Array.isArray(pilots) ? pilots.map(String) : [];
+    const family = Boolean(flags.parentReports);
+
+    if (flags.progressReportsV2) {
+      return { panel: true, family, source: "flag" };
+    }
+
+    if (pilotList.length > 0) {
+      return { panel: true, family, source: "pilot" };
+    }
+
+    return { panel: false, family: false, source: "none" };
+  } catch {
+    return { panel: false, family: false, source: "none" };
+  }
+}
+
 export interface InternalNotesAccess {
   /** Formulario de nota interna del docente. */
   teacher: boolean;

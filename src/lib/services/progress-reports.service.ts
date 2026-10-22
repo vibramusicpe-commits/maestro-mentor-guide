@@ -513,3 +513,69 @@ export function getReportRepertoire(
     ? report.repertoire_summary
     : [];
 }
+
+/**
+ * Informes publicados de un alumno, con el snapshot congelado fusionado.
+ * Lo usa el portal familia cuando la sesión resuelve alumnos pero no un
+ * `family_id` explícito (fallback por correo del apoderado, ADR-0172).
+ */
+export async function getPublishedReportsForStudent(
+  studentId: string,
+): Promise<ProgressReportRow[]> {
+  const clean = (studentId || "").trim();
+  if (!clean) return [];
+
+  const rows = await postgrestSelect<ProgressReportRow>(
+    "progress_reports",
+    {
+      student_id: `eq.${clean}`,
+      status: "eq.published",
+      is_test: "eq.false",
+      order: "period_end.desc",
+    },
+    "*",
+  );
+
+  return rows.map(mergePublishedSnapshot);
+}
+
+function collectReportFieldIds(report: ProgressReportRow): string[] {
+  const content =
+    report.content && typeof report.content === "object"
+      ? (report.content as Record<string, unknown>)
+      : {};
+  const criteria = Array.isArray(content.criteria)
+    ? (content.criteria as Array<Record<string, unknown>>)
+    : [];
+  const ids = criteria
+    .map((item) => (item?.field_id ? String(item.field_id).trim() : ""))
+    .filter(Boolean);
+  return Array.from(new Set(ids));
+}
+
+/**
+ * Criterios en borrador (`ui_config.draft = true`) presentes en el informe.
+ *
+ * Regla ADR-0175: un criterio no validado por el docente NUNCA puede salir
+ * en un informe publicado. La UI llama a esta función antes de enviar a
+ * revisión y antes de publicar; si devuelve algo, se bloquea la acción.
+ */
+export async function getDraftCriteriaInReport(
+  report: ProgressReportRow,
+): Promise<string[]> {
+  const ids = collectReportFieldIds(report);
+  if (ids.length === 0) return [];
+
+  const rows = await postgrestSelect<{
+    id: string;
+    label: string | null;
+    ui_config: Record<string, unknown> | null;
+  }>("evaluation_fields", { id: `in.(${ids.join(",")})` }, "id,label,ui_config");
+
+  return rows
+    .filter((row) => {
+      const config = row.ui_config;
+      return Boolean(config && typeof config === "object" && config.draft === true);
+    })
+    .map((row) => (row.label || row.id).trim());
+}

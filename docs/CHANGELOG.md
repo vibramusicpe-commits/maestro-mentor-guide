@@ -4,6 +4,32 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.44] - 2026-10-22
+
+### Fase 5 — Informe de progreso, publicación y portal familia
+- **Nueva bandeja de Dirección** `src/components/admin/progress-reports-panel.tsx`, montada en `/admin/alumnos` como pestaña **“Informes” (BETA)**.
+  - Selector de alumno **activo**, periodo **mensual/trimestral** con fechas editables y botón **Generar informe**.
+  - Listado por alumno con estado (borrador / en revisión / publicado / rechazado), docente y quién publicó.
+  - Si ya existe un informe para ese alumno y periodo, abre el existente en lugar de duplicarlo.
+- **Nuevo diálogo A4 de 2 páginas** `src/components/admin/progress-report-dialog.tsx`.
+  - Página 1: identidad, docente, periodo y nivel, asistencia del periodo (6 KPI), criterios evaluados y repertorio.
+  - Página 2: fortalezas, próxima meta, recomendaciones, mensaje a la familia, comentario del docente y firmas.
+  - Acciones: **Guardar**, **Enviar a revisión**, **Publicar**, **Rechazar con motivo**, **Markdown**, **WhatsApp** y **PDF / Imprimir**.
+  - Narrativas editables con contador; al imprimir se renderiza texto plano (no el textarea).
+- **Nuevo portal familia** `src/routes/family.progreso.tsx` con pestaña **“Progreso”** en `src/routes/family.tsx`.
+  - Solo informes `published` + `is_test = false` + `published_snapshot` fusionado.
+  - Tarjeta por informe con asistencia %, clases asistidas, criterios y próxima meta; botón **Ver informe y descargar PDF**.
+  - Estado vacío cordial cuando no hay publicaciones o la vinculación está pendiente.
+- **Formato en un solo lugar** `src/lib/informes/progress-report-format.ts`: `buildProgressReportView`, `generateProgressReportMarkdown`, `generateProgressReportWhatsApp`, `formatProgressPeriod`, `formatAttendanceRate`, `formatIsoDateShort`, `formatBand` y `PROGRESS_REPORT_PRINT_CSS` (ADR-0136/0137).
+- **Flujo `draft → pending → published | rejected`** con `published_snapshot` congelado; un informe publicado es inmutable.
+- **Guardrail de criterios en borrador**: `getDraftCriteriaInReport` consulta `evaluation_fields.ui_config.draft` y bloquea el envío a revisión y la publicación si el informe incluye criterios sin validar (los 17 v0 de Jeremy hasta que él los valide).
+- **Portal familia sin `family_id`**: `getPublishedReportsForStudent(studentId)` resuelve el fallback por correo del apoderado (ADR-0172).
+- **Habilitación data-driven sin desplegar**: `getProgressReportsAccess()` se abre con `progressReportsV2 = true` o, sin flag, por `pilot_teacher_ids` (hoy Jeremy, Fernando y Nathaly). Cualquier error → cerrado.
+- **Sin migración nueva**: `progress_reports` ya existía con estados, snapshot, campos de revisión y `is_test` + `test_run_id`.
+- **Blindajes**: no toca `app-store.ts`, `kardex-calculator.ts`, `student-cycle.ts`, `students.notes` ni `notification_logs`; cero datos financieros; identidad por UUID; `is_test` aislado del portal y del listado de producción.
+- **Verificación**: 28/28 checks de runtime con datos vivos (`is_test` + `test_run_id`, limpieza final); rutas `/`, `/admin/alumnos`, `/family/progreso` y `/teacher` en 200; `npm run build` en verde.
+- **Documentación**: ADR-0175 (sección Fase 5), AGENTS.md sección 77 y log `docs/logs/2026-10-22-fase-5-informe-progreso.log`.
+
 ## [2.0.43] - 2026-10-22
 
 ### Fase 4 — Nota interna a Dirección (en piloto)

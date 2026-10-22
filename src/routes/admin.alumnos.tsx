@@ -1,16 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { GraduationCap, ShieldCheck, DoorOpen, Clock, Sparkles, RotateCw, MessageSquare, Lock } from "lucide-react";
+import { GraduationCap, ShieldCheck, DoorOpen, Clock, Sparkles, RotateCw, MessageSquare, Lock, FileText } from "lucide-react";
 import { StudentsTable } from "@/components/admin/students-table";
 import { StudentRenewalsRetentionPanel } from "@/components/admin/student-renewals-retention-panel";
 import { VacancyAvailabilityPanel } from "@/components/admin/vacancy-availability-panel";
 import { TeacherNotesModeration } from "@/components/admin/teacher-notes-moderation";
 import { FamilyNotesModeration } from "@/components/admin/family-notes-moderation";
 import { InternalNotesInbox } from "@/components/admin/internal-notes-inbox";
+import { ProgressReportsPanel } from "@/components/admin/progress-reports-panel";
 import { StudentCleanupPanel } from "@/components/admin/student-cleanup-panel";
 import { useAppStore } from "@/store/app-store";
 import { computeStudentCycleSessions, computeStudentRetentionStatus } from "@/lib/kardex-calculator";
-import { getFamilyNotesAccess, getInternalNotesAccess } from "@/lib/services/feature-flags.service";
+import { getFamilyNotesAccess, getInternalNotesAccess, getProgressReportsAccess } from "@/lib/services/feature-flags.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -34,11 +35,12 @@ export const Route = createFileRoute("/admin/alumnos")({
 });
 
 function AdminAlumnosPage() {
-  const [activeTab, setActiveTab] = useState<"directorio" | "renovaciones" | "notas" | "notas-v2" | "notas-internas" | "vacantes">("directorio");
+  const [activeTab, setActiveTab] = useState<"directorio" | "renovaciones" | "notas" | "notas-v2" | "notas-internas" | "informes" | "vacantes">("directorio");
   const [mounted, setMounted] = useState(false);
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
   const [familyNotesAccess, setFamilyNotesAccess] = useState(false);
   const [internalNotesAccess, setInternalNotesAccess] = useState(false);
+  const [progressReportsAccess, setProgressReportsAccess] = useState(false);
   const teacherNotes = useAppStore((s) => s.teacherNotes);
   const pendingCount = teacherNotes.filter((n) => n.status === "pendiente").length;
   const students = useAppStore((s) => s.adminStudents);
@@ -70,7 +72,7 @@ function AdminAlumnosPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const tab = params.get("tab");
-        if (tab === "notas" || tab === "notas-v2" || tab === "notas-internas" || tab === "vacantes" || tab === "directorio" || tab === "renovaciones") {
+        if (tab === "notas" || tab === "notas-v2" || tab === "notas-internas" || tab === "informes" || tab === "vacantes" || tab === "directorio" || tab === "renovaciones") {
           setActiveTab(tab);
         }
       }
@@ -101,6 +103,21 @@ function AdminAlumnosPage() {
       })
       .catch(() => {
         if (!cancelled) setInternalNotesAccess(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Fase 5: bandeja de informes de progreso. Se abre por flag o por piloto docente.
+  useEffect(() => {
+    let cancelled = false;
+    getProgressReportsAccess()
+      .then((access) => {
+        if (!cancelled) setProgressReportsAccess(Boolean(access.panel));
+      })
+      .catch(() => {
+        if (!cancelled) setProgressReportsAccess(false);
       });
     return () => {
       cancelled = true;
@@ -227,6 +244,27 @@ function AdminAlumnosPage() {
               </button>
             )}
 
+            {progressReportsAccess && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("informes")}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
+                  activeTab === "informes"
+                    ? "bg-card text-foreground shadow-xs border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5 text-primary" />
+                <span>Informes</span>
+                <Badge
+                  variant="secondary"
+                  className="ml-1 text-[9px] px-1 py-0 h-4 font-black bg-primary/15 text-primary"
+                >
+                  BETA
+                </Badge>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setActiveTab("vacantes")}
@@ -251,6 +289,8 @@ function AdminAlumnosPage() {
       {activeTab === "notas-v2" && familyNotesAccess && <FamilyNotesModeration />}
 
       {activeTab === "notas-internas" && internalNotesAccess && <InternalNotesInbox />}
+
+      {activeTab === "informes" && progressReportsAccess && <ProgressReportsPanel />}
 
       {activeTab === "vacantes" && <VacancyAvailabilityPanel />}
 
