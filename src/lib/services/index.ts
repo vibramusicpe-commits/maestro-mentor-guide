@@ -18,3 +18,20 @@ export * from "./invitations.service";
 export * from "./time-tracking.service";
 export * from "./leads.service";
 export * from "./whatsapp.service";
+
+// ================================================================
+// Informes, evaluaciones y notas (Fase 1)
+// ================================================================
+// `resolveTeacherUserId` ya se re-exporta desde time-tracking.service.
+// Aquí solo agregamos los helpers nuevos del resolvedor para no duplicar.
+export {
+  resolveTeacherName,
+  resolveActor,
+  TEACHER_IDS,
+  isSyntheticTeacherId,
+} from "./teacher-resolver";
+export * from "./evaluations.service";
+export * from "./progress-reports.service";
+export * from "./family-notes.service";
+export * from "./internal-notes.service";
+export * from "./feature-flags.service";

@@ -11,6 +11,9 @@ import {
   InsforgeEdgeError,
 } from "@/lib/insforge";
 import type { Role } from "@/store/app-store";
+import { resolveTeacherUserId } from "./teacher-resolver";
+
+export { resolveTeacherUserId };
 
 export type ShiftStatus = "trabajando" | "pausa" | "finalizado";
 
@@ -68,21 +71,11 @@ export function parseShiftLocation(shift?: DBTeacherTimeLog | null): ShiftDevice
 }
 
 // ---------------------------------------------------------------
-// MAPEO DE UUIDs DE PROFESORES Y STAFF EN POSTGRESQL
+// RESOLUCIÓN DE IDENTIDAD DOCENTE
 // ---------------------------------------------------------------
-export function resolveTeacherUserId(email?: string, name?: string): string {
-  const e = (email || "").toLowerCase();
-  const n = (name || "").toLowerCase();
-  if (e.includes("jeremy") || n.includes("jeremy")) return "00000000-0000-0000-0000-000000000003";
-  if (e.includes("fernando") || n.includes("fernando")) return "00000000-0000-0000-0000-000000000004";
-  if (e.includes("nathaly") || n.includes("nathaly")) return "00000000-0000-0000-0000-000000000005";
-  if (e.includes("karla") || n.includes("karla")) return "00000000-0000-0000-0000-000000000008"; // Karla (Staff / Secretaría)
-  if (e.includes("sergio") || n.includes("sergio")) return "00000000-0000-0000-0000-000000000007"; // Sergio (Dirección)
-  if (e.includes("fabricio") || n.includes("fabricio")) return "00000000-0000-0000-0000-000000000009"; // Fabricio (Marketing)
-  if (e.includes("dueña") || e.includes("duena") || n.includes("dueña") || n.includes("rocío") || n.includes("rocio")) return "00000000-0000-0000-0000-000000000001"; // Rocío (Dueña)
-  if (e.includes("nayeli") || n.includes("nayeli")) return "00000000-0000-0000-0000-000000000002"; // Nayeli (Secretaría)
-  return "00000000-0000-0000-0000-000000000006"; // Profesor Demo / General
-}
+// La implementación vive en `teacher-resolver.ts` para que los servicios de
+// informes no dependan del control horario. Se re-exporta arriba para
+// conservar los imports existentes del kiosco y los widgets de turno.
 
 export const SHIFT_SYNC_CHANNEL = "vibra_shifts_channel";
 export const SHIFT_STORAGE_KEY = "cadencia-active-shifts";
