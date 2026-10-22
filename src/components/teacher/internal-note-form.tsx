@@ -197,30 +197,22 @@ export function InternalNoteForm({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-background/60 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="flex items-center gap-1.5 text-sm font-bold text-foreground">
-              <Lock className="h-3.5 w-3.5 text-primary" />
-              Nota interna para Dirección
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              Queda dentro del equipo. La familia nunca la ve. No incluyas montos ni
-              datos de pago.
-            </p>
-          </div>
-          <Badge
-            variant="outline"
-            className="border-primary/40 bg-primary/10 text-[10px] font-black text-primary"
-          >
-            BETA
-          </Badge>
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+            <Lock className="h-3.5 w-3.5 text-primary" />
+            Nota interna para Dirección
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Queda dentro del equipo. La familia nunca la ve. No incluyas montos ni
+            datos de pago.
+          </p>
         </div>
 
         {/* Alumno (opcional) */}
         <div className="mt-3 grid gap-1.5">
           <label
             htmlFor="internal-note-student"
-            className="text-[10px] font-black uppercase tracking-wide text-muted-foreground"
+            className="text-xs font-black uppercase tracking-wide text-muted-foreground"
           >
             Alumno (opcional)
           </label>
@@ -237,7 +229,7 @@ export function InternalNoteForm({
 
         {/* Visibilidad */}
         <div className="mt-3 grid gap-1.5">
-          <span className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+          <span className="text-xs font-black uppercase tracking-wide text-muted-foreground">
             Quién la puede leer
           </span>
           <div className="grid grid-cols-2 gap-1.5">
@@ -265,7 +257,7 @@ export function InternalNoteForm({
               );
             })}
           </div>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {VISIBILITY_META[visibility].hint}
           </p>
         </div>
@@ -274,7 +266,7 @@ export function InternalNoteForm({
         <div className="mt-3 grid gap-1.5">
           <label
             htmlFor="internal-note-body"
-            className="text-[10px] font-black uppercase tracking-wide text-muted-foreground"
+            className="text-xs font-black uppercase tracking-wide text-muted-foreground"
           >
             Observación interna
           </label>
@@ -286,13 +278,13 @@ export function InternalNoteForm({
             placeholder="Ej. El alumno llegó sin el libro; conviene avisar a la familia antes del sábado…"
             className="min-h-[110px] text-sm"
           />
-          <span className="text-right text-[10px] text-muted-foreground">
+          <span className="text-right text-xs text-muted-foreground">
             {body.length}/{BODY_MAX}
           </span>
         </div>
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Se enviará como <strong>{teacherName}</strong>.
           </p>
           <Button
@@ -311,12 +303,22 @@ export function InternalNoteForm({
         </div>
       </div>
 
-      {/* Mis notas internas */}
-      <div className="rounded-xl border border-border bg-background/60 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+      {/* Mis notas internas (acordeón colapsado) */}
+      <details className="rounded-xl border border-border bg-background/60 px-3 py-1">
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center gap-1.5 text-xs font-bold text-foreground">
             <StickyNote className="h-3.5 w-3.5 text-primary" />
             Mis notas internas
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-bold text-muted-foreground">
+              {notes.length}
+            </span>
+          </span>
+          <span className="text-xs font-semibold text-muted-foreground">Ver / ocultar</span>
+        </summary>
+
+        <div className="flex items-center justify-between gap-2 pb-1 pt-1">
+          <p className="text-xs text-muted-foreground">
+            Solo Dirección y Secretaría pueden leerlas.
           </p>
           <Button
             type="button"
@@ -324,7 +326,7 @@ export function InternalNoteForm({
             size="sm"
             onClick={() => void loadNotes()}
             disabled={loading || !teacherId}
-            className="h-7 gap-1 px-2 text-[11px]"
+            className="h-9 gap-1 px-2 text-xs"
           >
             <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
             Actualizar
@@ -332,19 +334,19 @@ export function InternalNoteForm({
         </div>
 
         {!teacherId && (
-          <p className="mt-2 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             No se pudo resolver tu identificador docente; podrás enviar la nota, pero
             el historial no se mostrará en este dispositivo.
           </p>
         )}
 
         {teacherId && notes.length === 0 && !loading && (
-          <p className="mt-2 text-[11px] text-muted-foreground">
+          <p className="mt-1 pb-2 text-xs text-muted-foreground">
             Aún no registraste notas internas desde este sistema.
           </p>
         )}
 
-        <div className="mt-2 space-y-2">
+        <div className="mt-2 space-y-2 pb-1">
           {notes.map((note) => {
             const meta = STATUS_META[note.status];
             const StatusIcon = meta.icon;
@@ -358,26 +360,26 @@ export function InternalNoteForm({
                     <p className="truncate text-xs font-bold text-foreground">
                       {note.student_name_snapshot || "Nota general"}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {VISIBILITY_META[note.visibility].label} ·{" "}
                       {formatDateTime(note.created_at)}
                     </p>
                   </div>
                   <Badge
                     variant="outline"
-                    className={`gap-1 text-[10px] font-black ${meta.className}`}
+                    className={`gap-1 text-xs font-bold ${meta.className}`}
                   >
                     <StatusIcon className="h-3 w-3" />
                     {meta.label}
                   </Badge>
                 </div>
 
-                <p className="mt-1.5 line-clamp-3 whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/90">
+                <p className="mt-1.5 line-clamp-3 whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">
                   {note.body}
                 </p>
 
                 {note.read_at && note.read_by_name && (
-                  <p className="mt-1 text-[10px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Vista por {note.read_by_name} · {formatDateTime(note.read_at)}
                   </p>
                 )}
@@ -385,7 +387,7 @@ export function InternalNoteForm({
             );
           })}
         </div>
-      </div>
+      </details>
     </div>
   );
 }

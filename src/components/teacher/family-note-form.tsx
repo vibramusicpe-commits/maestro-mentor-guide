@@ -241,24 +241,19 @@ export function FamilyNoteForm({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-background/60 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-bold text-foreground">
-              Escribir nota para la familia
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              Dirección revisa cada nota antes de publicarla. No incluyas montos ni
-              datos de pago.
-            </p>
-          </div>
-          <Badge variant="outline" className="border-primary/40 bg-primary/10 text-[10px] font-black text-primary">
-            BETA
-          </Badge>
+        <div>
+          <p className="text-sm font-bold text-foreground">
+            Escribir nota para la familia
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Dirección revisa cada nota antes de publicarla. No incluyas montos ni
+            datos de pago.
+          </p>
         </div>
 
         {/* Alcance */}
         <div className="mt-3 grid gap-1.5">
-          <span className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+          <span className="text-xs font-black uppercase tracking-wide text-muted-foreground">
             Para quién es la nota
           </span>
           <div className="grid grid-cols-2 gap-1.5">
@@ -294,7 +289,7 @@ export function FamilyNoteForm({
           <div className="mt-3 grid gap-1.5">
             <label
               htmlFor="family-note-student"
-              className="text-[10px] font-black uppercase tracking-wide text-muted-foreground"
+              className="text-xs font-black uppercase tracking-wide text-muted-foreground"
             >
               Alumno
             </label>
@@ -308,7 +303,7 @@ export function FamilyNoteForm({
               placeholder="Buscar alumno: escribe 2 letras…"
             />
             {activeStudents.length === 0 && (
-              <p className="text-[11px] text-amber-600">
+              <p className="text-xs text-amber-600">
                 No hay alumnos activos en tu lista. La nota de cohorte sigue disponible.
               </p>
             )}
@@ -316,7 +311,7 @@ export function FamilyNoteForm({
         )}
 
         {scope === "teacher_cohort" && (
-          <p className="mt-3 rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground">
+          <p className="mt-3 rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
             {cohortCount === null
               ? "La lista de alumnos se congela al publicarse."
               : `Se publicará para ${cohortCount} alumno(s) activo(s) de tu cohorte. La lista se congela al publicarse.`}
@@ -327,7 +322,7 @@ export function FamilyNoteForm({
         <div className="mt-3 grid gap-1.5">
           <label
             htmlFor="family-note-title"
-            className="text-[10px] font-black uppercase tracking-wide text-muted-foreground"
+            className="text-xs font-black uppercase tracking-wide text-muted-foreground"
           >
             Título
           </label>
@@ -339,7 +334,7 @@ export function FamilyNoteForm({
             placeholder="Ej. Excelente avance en el repertorio de octubre"
             className="h-9 text-sm"
           />
-          <span className="text-right text-[10px] text-muted-foreground">
+          <span className="text-right text-xs text-muted-foreground">
             {title.length}/{TITLE_MAX}
           </span>
         </div>
@@ -348,7 +343,7 @@ export function FamilyNoteForm({
         <div className="mt-1 grid gap-1.5">
           <label
             htmlFor="family-note-body"
-            className="text-[10px] font-black uppercase tracking-wide text-muted-foreground"
+            className="text-xs font-black uppercase tracking-wide text-muted-foreground"
           >
             Mensaje para la familia
           </label>
@@ -360,13 +355,13 @@ export function FamilyNoteForm({
             placeholder="Describe el avance del alumno en lenguaje claro para la familia…"
             className="min-h-[110px] text-sm"
           />
-          <span className="text-right text-[10px] text-muted-foreground">
+          <span className="text-right text-xs text-muted-foreground">
             {body.length}/{BODY_MAX}
           </span>
         </div>
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Se enviará como <strong>{teacherName}</strong>.
           </p>
           <Button
@@ -385,17 +380,29 @@ export function FamilyNoteForm({
         </div>
       </div>
 
-      {/* Mis notas enviadas */}
-      <div className="rounded-xl border border-border bg-background/60 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-bold text-foreground">Mis notas enviadas</p>
+      {/* Mis notas enviadas (acordeón colapsado) */}
+      <details className="rounded-xl border border-border bg-background/60 px-3 py-1">
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+            Mis notas enviadas
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-bold text-muted-foreground">
+              {notes.length}
+            </span>
+          </span>
+          <span className="text-xs font-semibold text-muted-foreground">Ver / ocultar</span>
+        </summary>
+
+        <div className="flex items-center justify-between gap-2 pb-1 pt-1">
+          <p className="text-xs text-muted-foreground">
+            Estado de cada nota enviada a Dirección.
+          </p>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => void loadNotes()}
             disabled={loading || !teacherId}
-            className="h-7 gap-1 px-2 text-[11px]"
+            className="h-9 gap-1 px-2 text-xs"
           >
             <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
             Actualizar
@@ -403,19 +410,19 @@ export function FamilyNoteForm({
         </div>
 
         {!teacherId && (
-          <p className="mt-2 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             No se pudo resolver tu identificador docente; podrás enviar la nota, pero
             el historial no se mostrará en este dispositivo.
           </p>
         )}
 
         {teacherId && notes.length === 0 && !loading && (
-          <p className="mt-2 text-[11px] text-muted-foreground">
+          <p className="mt-1 pb-2 text-xs text-muted-foreground">
             Aún no enviaste notas desde este sistema.
           </p>
         )}
 
-        <div className="mt-2 space-y-2">
+        <div className="mt-2 space-y-2 pb-1">
           {notes.map((note) => {
             const meta = STATUS_META[note.status];
             const StatusIcon = meta.icon;
@@ -429,13 +436,13 @@ export function FamilyNoteForm({
                     <p className="truncate text-xs font-bold text-foreground">
                       {note.title}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {scopeLabel(note)} · {formatDateTime(note.submitted_at)}
                     </p>
                   </div>
                   <Badge
                     variant="outline"
-                    className={`gap-1 text-[10px] font-black ${meta.className}`}
+                    className={`gap-1 text-xs font-bold ${meta.className}`}
                   >
                     <StatusIcon className="h-3 w-3" />
                     {meta.label}
@@ -444,7 +451,7 @@ export function FamilyNoteForm({
 
                 {note.status === "rechazado" && note.rejection_reason && (
                   <div className="mt-2 rounded-md border border-red-500/30 bg-red-500/5 p-2">
-                    <p className="flex items-start gap-1 text-[11px] font-semibold text-red-600">
+                    <p className="flex items-start gap-1 text-xs font-semibold text-red-600">
                       <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                       <span>Motivo: {note.rejection_reason}</span>
                     </p>
@@ -453,7 +460,7 @@ export function FamilyNoteForm({
                       variant="outline"
                       size="sm"
                       onClick={() => loadAsDraft(note)}
-                      className="mt-1.5 h-7 px-2 text-[10px] font-bold"
+                      className="mt-1.5 h-9 px-2 text-xs font-bold"
                     >
                       Usar como base para corregir
                     </Button>
@@ -461,7 +468,7 @@ export function FamilyNoteForm({
                 )}
 
                 {note.status === "publicado" && (
-                  <p className="mt-1 text-[10px] text-emerald-600">
+                  <p className="mt-1 text-xs text-emerald-600">
                     Publicada el {formatDateTime(note.published_at)}
                     {note.cohort_snapshot_at
                       ? ` · Cohortes congeladas (${note.cohort_student_ids?.length || 0} alumnos)`
@@ -472,7 +479,7 @@ export function FamilyNoteForm({
             );
           })}
         </div>
-      </div>
+      </details>
     </div>
   );
 }
