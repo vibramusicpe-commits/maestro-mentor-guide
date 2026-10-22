@@ -1440,3 +1440,31 @@ inferencia.
    - `npm run build` local en verde antes de commitear. No se tocó el kiosco, el motor de asistencias, el Kardex ni facturación.
 6. **Protocolo de cierre**: que el Prof. Fernando abra su enlace en el celular y confirme que entra al Kiosco (`/teacher`) con la píldora `🟢 En vivo` y sus clases visibles; repetir con Jeremy cuando entre.
 
+---
+
+### 75. Fase 1 del Sistema de Evaluaciones, Informes de Progreso y Notas — Infraestructura sin UI (ADR-0175)
+
+1. **Estado y alcance**:
+   - La **Fase 1 de 7** está implementada y desplegada en el commit `b7a0795`. Incluye migraciones aditivas, tipos, snapshot pedagógico y servicios; **no incluye interfaz visible**.
+   - Los flags `evaluationsV2`, `familyNotesV2`, `progressReportsV2` y `parentReports` están en `false`. El kiosco, la agenda, el Kardex, la asistencia y la facturación siguen intactos.
+   - La primera pantalla nueva llegará en la **Fase 2** (registro de clase del docente). Hasta entonces, no ver cambios visuales en producción es el comportamiento esperado.
+2. **Base de datos creada (migraciones `008` y `008b`)**:
+   - Tablas: `evaluation_catalog`, `evaluation_fields`, `lesson_evaluations`, `progress_reports`, `family_notes`, `internal_notes`, `evaluation_audit_log`; vista `v_test_records`.
+   - `lesson_evaluations.session_key` es determinista: `<student_id>::<YYYY-MM-DD>::<HH:MM>` y `::INT` para 90 min. Guardar dos veces la misma clase actualiza el mismo registro.
+   - `class_mode` admite `individual`, `grupal`, `no_aplica`. Canto admite 1 a 5 alumnos, individual o grupal, **nunca coro**.
+   - `progress_reports` sigue `draft → pending → published | rejected`; al publicar se congela `published_snapshot` y el informe queda inmutable.
+   - `family_notes` distingue `student | teacher_cohort | academy`; al publicar una cohorte se congelan `cohort_student_ids` y `cohort_snapshot_at`.
+   - `internal_notes` usa `nueva | leida | archivada` con `read_at`, `read_by_id` y `read_by_name`.
+   - `evaluation_audit_log` es **append-only** (`SELECT, INSERT`); `org_settings` no permite `DELETE`.
+3. **Reglas innegociables**:
+   - **No tocar `students.notes`**: queda congelado como legacy. **No tocar `notification_logs`**.
+   - **No modificar `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`** para esta funcionalidad: el snapshot y los servicios consumen el motor oficial, no lo duplican.
+   - **Cero datos financieros** en el snapshot o en el informe pedagógico.
+   - **Moderación obligatoria** antes de publicar cualquier nota a familia.
+   - **Identidad por UUID** (`student_id` / `family_id`), nunca por nombre.
+   - **Datos de prueba aislados**: `is_test = true` exige `test_run_id`; el portal familia filtra `is_test = false`; solo las variantes `*ForAudit` (Dirección) pueden leer pruebas.
+   - **No usar `localStorage`** como fuente de verdad transaccional.
+4. **Servicios disponibles**: `evaluations.service.ts`, `progress-reports.service.ts`, `family-notes.service.ts`, `internal-notes.service.ts`, `feature-flags.service.ts` y `teacher-resolver.ts` (re-exportado desde `time-tracking.service.ts`).
+5. **Fases pendientes**: Fase 2 registro de clase; Fase 3 nota a familia y moderación; Fase 4 nota interna y bandeja; Fase 5 informe A4/PDF/Markdown/WhatsApp y portal familia; Fase 6 reportes y CSV; Fase 7 flags, piloto Nathaly/Fernando y despliegue gradual.
+6. **Referencia obligatoria**: `docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md` y `docs/logs/2026-10-21-fase-1-evaluaciones-informes-notas.log`.
+

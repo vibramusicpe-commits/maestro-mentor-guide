@@ -1,0 +1,298 @@
+================================================================================
+LOG DE EJECUCIÓN — FASE 1: EVALUACIONES, INFORMES DE PROGRESO Y NOTAS
+Vibra Music Staff
+Fecha de implementación: 2026-10-21
+Fecha de documentación: 2026-10-22
+ADR: docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md
+Commit: b7a0795
+Estado: Fase 1 completada, probada y desplegada. Fases 2–7 pendientes.
+================================================================================
+
+1. OBJETIVO DE LA FASE
+--------------------------------------------------------------------------------
+Reemplazar a futuro el flujo de notas basado en students.notes por un sistema
+normalizado, moderado y auditable, sin romper producción.
+
+La Fase 1 NO incluye interfaz. Su entregable es:
+  - esquema PostgreSQL,
+  - tipos compartidos,
+  - snapshot pedagógico,
+  - servicios de evaluación, informes y notas,
+  - feature flags apagados.
+
+Resultado esperado para el usuario final: NINGUNA PANTALLA NUEVA.
+El deploy es exitoso aunque visualmente todo siga igual.
+
+2. MIGRACIONES EJECUTADAS
+--------------------------------------------------------------------------------
+2.1. 008_evaluations_progress_reports.sql
+  - 7 tablas:
+      evaluation_catalog
+      evaluation_fields
+      lesson_evaluations
+      progress_reports
+      family_notes
+      internal_notes
+      evaluation_audit_log
+  - Vista:
+      v_test_records
+  - Seeds en org_settings:
+      feature_flags
+      pilot_student_ids
+      teacher_specialties
+      + 6 seeds adicionales de catálogo/configuración
+  - 12 triggers:
+      updated_at, auditoría y validaciones.
+  - class_mode: individual | grupal | no_aplica (sin "coro").
+  - evaluation_catalog.canto:
+      min_students = 1
+      max_students = 5
+      modes = ["individual", "grupal"]
+      not_choir = true
+
+2.2. 008b_internal_notes_read_status.sql
+  - internal_notes.status: nueva | leida | archivada
+  - internal_notes.read_at
+  - internal_notes.read_by_id
+  - internal_notes.read_by_name
+  - Índice y check de estado.
+  - Grants SELECT/INSERT/UPDATE para anon y authenticated.
+
+2.3. Permisos endurecidos
+  - evaluation_audit_log: solo SELECT, INSERT (append-only).
+  - org_settings: sin DELETE.
+  - No se otorgaron permisos destructivos nuevos.
+
+3. ARCHIVOS CREADOS
+--------------------------------------------------------------------------------
+  src/lib/informes/types.ts
+  src/lib/informes/utils.ts
+  src/lib/informes/attendance-snapshot.ts
+  src/lib/services/teacher-resolver.ts
+  src/lib/services/evaluations.service.ts
+  src/lib/services/progress-reports.service.ts
+  src/lib/services/family-notes.service.ts
+  src/lib/services/internal-notes.service.ts
+  src/lib/services/feature-flags.service.ts
+
+4. ARCHIVOS MODIFICADOS
+--------------------------------------------------------------------------------
+  src/lib/services/index.ts
+      Barrel actualizado. resolveTeacherUserId se mantiene re-exportado desde
+      time-tracking.service.ts para no duplicar el símbolo.
+
+  src/lib/services/time-tracking.service.ts
+      Importa y re-exporta resolveTeacherUserId desde teacher-resolver.ts.
+
+5. CONTRATOS CLAVE
+--------------------------------------------------------------------------------
+5.1. session_key
+  Formato:
+    <student_id>::<YYYY-MM-DD>::<HH:MM>
+  Intensivo 90 min:
+    <student_id>::<YYYY-MM-DD>::INT
+  Efecto:
+    Guardar dos veces la misma clase actualiza el mismo registro.
+
+5.2. progress_reports
+  Flujo:
+    draft -> pending -> published
+                     -> rejected
+  Al publicar:
+    se guarda published_snapshot (JSONB) con el contenido exacto que verá
+    la familia.
+  Un informe published es inmutable.
+
+5.3. family_notes
+  scope: student | teacher_cohort | academy
+  Al publicar teacher_cohort:
+    se calcula la cohorte y se congelan cohort_student_ids y
+    cohort_snapshot_at.
+  students.notes NO se modifica.
+
+5.4. internal_notes
+  Flujo:
+    nueva -> leida -> archivada
+  Bandeja:
+    por defecto oculta archivadas y datos de prueba.
+
+5.5. feature_flags
+  Valores actuales:
+    evaluationsV2   = false
+    familyNotesV2   = false
+    progressReportsV2 = false
+    parentReports   = false
+  Cache: 30 s.
+  Fallback: todo apagado.
+
+6. REGLAS DE SEGURIDAD
+--------------------------------------------------------------------------------
+  - El portal familia solo lee publicados y nunca is_test=true.
+  - Las funciones *ForAudit son exclusivas de Dirección y no deben usarse en
+    el portal familia.
+  - is_test=true exige test_run_id; las pruebas se limpian por test_run_id.
+  - evaluation_audit_log es append-only.
+  - No se usa localStorage como fuente de verdad.
+  - No se incluyen datos financieros en el snapshot ni en el informe.
+  - Identidad por UUID (student_id / family_id), no por nombre.
+
+7. PRUEBAS EJECUTADAS
+--------------------------------------------------------------------------------
+Arnés: scratch/test-informes-phase1.mjs (temporal, no commiteado).
+Método: Vite createServer + ssrLoadModule, datos vivos de Insforge PostgreSQL.
+Resultado: 24/24 pasos OK.
+
+7.1. session_key
+  OK  45 min: stu-1::2026-10-21::16:45
+  OK  90 min: stu-1::2026-10-21::INT
+
+7.2. Feature flags
+  OK  Todos en false.
+  OK  pilot_student_ids: 4 IDs.
+
+7.3. Snapshots de pilotos
+  OK  Layla:  cuota 8, periodo 0/4, ciclo 0%
+  OK  Alonso: cuota 8, periodo 4/8, ciclo 63%
+  OK  Kayra:  cuota 4, periodo 3/4, ciclo 75%
+  OK  Ethan:  cuota 8, periodo 7/8, ciclo 100%
+  OK  Snapshot congelado (Object.isFrozen).
+  OK  Sin claves financieras.
+
+7.4. Evaluaciones
+  OK  saveLessonEvaluation crea.
+  OK  Segunda llamada actualiza el mismo id por session_key.
+  OK  getStudentEvaluations incluye la prueba con includeTest.
+  OK  getLatestEvaluation excluye is_test.
+
+7.5. Informe de progreso
+  OK  createProgressReport -> draft.
+  OK  updateProgressReport -> pending.
+  OK  publishProgressReport -> published.
+  OK  published_snapshot no nulo.
+  OK  updateProgressReport sobre published falla (inmutable).
+  OK  Portal familia no ve is_test.
+  OK  Auditoría interna sí ve el informe publicado.
+
+7.6. Nota de familia
+  OK  resolveTeacherCohort(Nathaly) = 14 alumnos.
+  OK  submitFamilyNote -> pendiente.
+  OK  approveFamilyNote -> publicado con 14 alumnos congelados.
+  OK  Visible para alumno incluido en auditoría.
+  OK  Invisible para alumno fuera de la cohorte.
+  OK  Invisible para el portal familia si is_test.
+
+7.7. Nota interna
+  OK  createInternalNote -> nueva.
+  OK  markInternalNoteRead -> leida.
+  OK  archiveInternalNote -> archivada.
+  OK  listInternalNotes oculta archivadas por defecto.
+  OK  includeArchived las muestra.
+
+8. INCIDENCIA: CACHE DE POSTGREST
+--------------------------------------------------------------------------------
+Síntoma:
+  INSERT en internal_notes fallaba con:
+    PGRST204 "Could not find the 'status' column of 'internal_notes' in the
+    schema cache"
+  y variante para 'read_at'.
+  Los grants y las columnas físicas existían; el SELECT de las columnas nuevas
+  respondía OK.
+
+Causa:
+  Cache de esquema de PostgREST desactualizado tras la migración 008b.
+
+Solución:
+  NOTIFY pgrst, 'reload schema';
+  NOTIFY pgrst, 'reload config';
+
+Verificación:
+  POST mínimo a internal_notes respondió OK.
+  Se eliminó el registro de prueba.
+  La prueba completa volvió a pasar.
+  No se relajaron permisos ni se modificó el esquema.
+
+9. ESTADO DE DATOS AL CIERRE
+--------------------------------------------------------------------------------
+  lesson_evaluations      0 filas
+  progress_reports        0 filas
+  family_notes            0 filas
+  internal_notes          0 filas
+  evaluation_audit_log   53 filas (51 is_test=true)
+  v_test_records         51 filas
+
+Nota:
+  evaluation_audit_log es append-only por diseño. Las 51 filas de prueba se
+  conservan como rastro de auditoría y son visibles en v_test_records.
+
+10. BUILD Y DESPLIEGUE
+--------------------------------------------------------------------------------
+  npm run build
+    OK cliente
+    OK SSR
+    OK Nitro (Cloudflare module)
+
+  Commit:
+    b7a0795 feat(informes): Fase 1 de evaluaciones, informes de progreso y notas internas
+
+  Push:
+    main -> origin/main (maestro-mentor-guide)
+    main -> core/main   (music-staff-core)
+
+  Deploy anterior: 6cfcb4b
+  Deploy nuevo:    b7a0795 (Cloudflare Pages, proyecto musicstaff-vm)
+
+11. QUÉ VERÁ EL USUARIO ONLINE
+--------------------------------------------------------------------------------
+  Nada nuevo en pantalla. Es lo esperado:
+    - Los flags están apagados.
+    - No hay rutas ni pestañas nuevas.
+    - Kiosco, agenda, Kardex, asistencia y facturación siguen igual.
+
+  La primera funcionalidad visible llegará en la Fase 2:
+    - Registro de clase del docente.
+
+12. FASES PENDIENTES
+--------------------------------------------------------------------------------
+  Fase 2  Registro de clase (docente)
+          class-log.tsx + pestaña en teacher.index.tsx
+  Fase 3  Nota a familia + moderación
+          family-note-form.tsx + family-notes-moderation.tsx
+  Fase 4  Nota interna + bandeja
+          internal-note-form.tsx + internal-notes-inbox.tsx
+  Fase 5  Informe de progreso A4
+          progress-report-dialog.tsx + family.progreso.tsx + PDF/MD/WhatsApp
+  Fase 6  Reportes y analítica
+          admin.reportes.tsx + admin.alumnos.tsx + CSV
+  Fase 7  Flags, piloto y despliegue gradual
+          Nathaly y Fernando, 2–3 alumnos cada uno
+
+13. BLOQUEOS Y DECISIONES PENDIENTES
+--------------------------------------------------------------------------------
+  - evaluation_fields está vacío: los criterios por instrumento/docente se
+    configuran en Fase 2. No se inventaron criterios de Jeremy.
+  - Claudia/Sala D no tiene UUID ni alumnos activos en la base actual.
+  - El flujo viejo de notas sigue activo hasta que el nuevo esté probado.
+  - No se publicó nada a familias.
+  - No se tocó notification_logs.
+  - No se tocó students.notes.
+
+14. REFERENCIAS
+--------------------------------------------------------------------------------
+  docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md
+  docs/CHANGELOG.md (2.0.38)
+  docs/PROMPT_OPUS_IMPLEMENTACION_INFORMES.md
+  docs/migrations/008_evaluations_progress_reports.sql
+  docs/migrations/008b_internal_notes_read_status.sql
+  src/lib/informes/types.ts
+  src/lib/informes/utils.ts
+  src/lib/informes/attendance-snapshot.ts
+  src/lib/services/evaluations.service.ts
+  src/lib/services/progress-reports.service.ts
+  src/lib/services/family-notes.service.ts
+  src/lib/services/internal-notes.service.ts
+  src/lib/services/feature-flags.service.ts
+  src/lib/services/teacher-resolver.ts
+
+================================================================================
+FIN DEL LOG
+================================================================================

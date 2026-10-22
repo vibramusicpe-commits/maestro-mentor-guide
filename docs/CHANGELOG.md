@@ -4,6 +4,36 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.38] - 2026-10-21
+
+### Fase 1 del Sistema de Evaluaciones, Informes de Progreso y Notas — Datos y Servicios sin UI (ADR-0175)
+- **Migraciones aditivas ejecutadas en Insforge PostgreSQL**:
+  - `008_evaluations_progress_reports.sql`: 7 tablas (`evaluation_catalog`, `evaluation_fields`, `lesson_evaluations`, `progress_reports`, `family_notes`, `internal_notes`, `evaluation_audit_log`), vista `v_test_records`, 9 seeds en `org_settings`, 12 triggers y constraints de estado/modo de clase.
+  - `008b_internal_notes_read_status.sql`: `internal_notes.status` (`nueva | leida | archivada`), `read_at`, `read_by_id`, `read_by_name`, índice y check.
+  - Permisos endurecidos: `evaluation_audit_log` append-only (`SELECT, INSERT`); `org_settings` sin `DELETE`.
+- **Tipos, utilidades y snapshot pedagógico**:
+  - `src/lib/informes/types.ts`, `utils.ts`, `attendance-snapshot.ts`.
+  - `session_key` determinista `<student_id>::<YYYY-MM-DD>::<HH:MM>` y `::INT` para 90 min.
+  - Snapshot delegado al motor oficial (`computeStudentCycleSessions` + `computeStudentCycleLiquidation`), sin datos financieros.
+- **Servicios nuevos**:
+  - `evaluations.service.ts`: criterios, evaluaciones por alumno, última evaluación y guardado idempotente por `session_key`.
+  - `progress-reports.service.ts`: flujo `draft → pending → published | rejected`, `published_snapshot` congelado e inmutabilidad de publicados.
+  - `family-notes.service.ts`: notas `student | teacher_cohort | academy`, cohorte congelada al publicar y sin tocar `students.notes`.
+  - `internal-notes.service.ts`: bandeja `nueva → leida → archivada`.
+  - `feature-flags.service.ts`: lectura de `org_settings.feature_flags`, cache de 30 s y default seguro (todo apagado).
+  - `teacher-resolver.ts`: resolución de docente por email/nombre; re-exportado desde `time-tracking.service.ts`.
+- **Frontera de seguridad para datos de prueba**:
+  - `is_test=true` exige `test_run_id`.
+  - El portal familia excluye `is_test` en informes y notas.
+  - Se agregaron variantes `*ForAudit` solo para Dirección, sin relajar las funciones del portal.
+- **Verificación**:
+  - `npm run build` en verde (cliente, SSR y Nitro).
+  - Arnés con datos vivos: 24/24 pasos OK, incluidos los 4 pilotos, el flujo de informe, la cohorte de Nathaly (14 alumnos) y la bandeja interna.
+  - Tablas operativas quedaron en 0 filas; `evaluation_audit_log` conserva 51 filas de prueba append-only.
+- **Incidencia resuelta**: cache de esquema de PostgREST (`PGRST204`) corregido con `NOTIFY pgrst, 'reload schema'` y `'reload config'`; no se relajaron permisos.
+- **Alcance visible**: esta fase **no tiene UI ni flags activos**. El kiosco, agenda, Kardex, asistencia y facturación siguen igual. La primera pantalla nueva llega en la Fase 2.
+- **Commit**: `b7a0795` (local y pusheado a `main` en ambos remotos).
+
 ## [2.0.37] - 2026-10-12
 
 ### Blindaje Integral de Plan Intensivo (90m), Motor de Ciclos/Kardex, Renovaciones y Sincronización Automática de Facturación (ADR-0167)
