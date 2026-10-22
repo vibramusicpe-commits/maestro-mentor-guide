@@ -1,7 +1,17 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Play, Pause, Square, ShieldCheck, MapPin, UserCheck, Clock } from "lucide-react";
+import { Play, Pause, Square, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useAppStore } from "@/store/app-store";
 import {
@@ -35,6 +45,7 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
   const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
   const [currentShift, setCurrentShift] = useState<DBTeacherTimeLog | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmClockOut, setConfirmClockOut] = useState(false);
 
   // 1. Restaurar turno activo al cargar desde PostgreSQL / Insforge
   useEffect(() => {
@@ -216,99 +227,126 @@ export function IntegratedTeacherKioskHeader({ totalDayStudents = 0 }: Integrate
   const parsedLocation = parseShiftLocation(currentShift);
   const inLoc = parsedLocation.in;
 
+  const statusLabel =
+    shiftStatus === "trabajando"
+      ? "En jornada"
+      : shiftStatus === "pausa"
+        ? "En pausa"
+        : "Fuera de turno";
+
+  const statusDot =
+    shiftStatus === "trabajando"
+      ? "bg-emerald-400"
+      : shiftStatus === "pausa"
+        ? "bg-amber-400"
+        : "bg-slate-400";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-3xl border border-sidebar-border bg-sidebar p-4 text-sidebar-foreground shadow-lg space-y-3"
+      className="rounded-2xl border border-sidebar-border bg-sidebar px-3 py-2.5 text-sidebar-foreground shadow-sm"
     >
-      {/* 1. FICHAJE Y RELOJ DE SEDE (TOP BAR) */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-sidebar-primary flex items-center gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5" /> Fichaje de Sede
-          </p>
-          <p className="text-xs text-sidebar-foreground font-bold mt-0.5">
-            {currentUser?.name ?? "Profesor/a Vibra"}
-          </p>
-        </div>
+      {/* FICHAJE COMPACTO: cronómetro + estado + acciones.
+          Nombre y sede ya los muestra la cabecera del portal. */}
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${statusDot}`} aria-hidden />
+        <span className="font-mono text-base font-black tabular-nums tracking-tight">
+          {formatTimer(seconds)}
+        </span>
+        <span className="truncate text-xs font-semibold text-sidebar-foreground/70">
+          {statusLabel}
+        </span>
 
-        <div className="flex items-center gap-2.5">
-          <div className="font-mono text-base font-black tracking-tight text-sidebar-foreground bg-sidebar-accent px-2.5 py-1 rounded-xl border border-sidebar-border">
-            {formatTimer(seconds)}
-          </div>
-
+        <div className="ml-auto flex items-center gap-1.5">
           {shiftStatus === "fuera" ? (
             <Button
               size="sm"
               onClick={handleClockIn}
               disabled={loading}
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs h-8 shadow-xs cursor-pointer"
+              className="h-11 gap-1.5 rounded-xl bg-emerald-600 px-3 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 cursor-pointer"
             >
-              <Play className="h-3.5 w-3.5 fill-current" /> Fichar Entrada
+              <Play className="h-3.5 w-3.5 fill-current" /> Fichar
             </Button>
           ) : (
-            <div className="flex items-center gap-1">
+            <>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={handleToggleBreak}
                 disabled={loading}
-                className="h-8 px-2 text-[11px] font-bold rounded-xl border-sidebar-border text-sidebar-foreground"
+                className="h-11 gap-1 rounded-xl border-sidebar-border px-3 text-xs font-bold text-sidebar-foreground cursor-pointer"
               >
-                <Pause className="h-3 w-3" /> {shiftStatus === "pausa" ? "Reanudar" : "Pausa"}
+                <Pause className="h-3.5 w-3.5" />
+                {shiftStatus === "pausa" ? "Reanudar" : "Pausa"}
               </Button>
+
+              <span className="mx-0.5 h-6 w-px bg-sidebar-border" aria-hidden />
+
               <Button
                 size="sm"
                 variant="destructive"
-                onClick={handleClockOut}
+                onClick={() => setConfirmClockOut(true)}
                 disabled={loading}
-                className="h-8 px-2 text-[11px] font-bold rounded-xl"
+                className="h-11 gap-1 rounded-xl px-3 text-xs font-bold cursor-pointer"
               >
                 <Square className="h-3 w-3 fill-current" /> Salir
               </Button>
-            </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* 2. BARRA DE ESTADO DE LA JORNADA Y GEOCONTROL */}
-      <div className="flex items-center justify-between pt-2 border-t border-sidebar-border/50 text-[11px] text-sidebar-foreground/80">
-        <div className="flex items-center gap-1.5">
-          <MapPin className="h-3 w-3 text-sidebar-primary" />
-          <span>Sede SJL (Las Flores)</span>
-          {inLoc && inLoc.status === "en_sede" ? (
-            <span
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md border border-emerald-500/20 cursor-pointer"
+      {/* Geocontrol: solo se muestra si hay una marca GPS registrada */}
+      {inLoc && (
+        <div className="mt-1.5 flex items-center gap-1.5 text-xs text-sidebar-foreground/70">
+          <MapPin className="h-3 w-3 shrink-0 text-sidebar-primary" />
+          {inLoc.status === "en_sede" ? (
+            <button
+              type="button"
               onClick={() => inLoc.googleMapsUrl && window.open(inLoc.googleMapsUrl, "_blank")}
+              className="inline-flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 font-bold text-emerald-400"
               title="GPS verificado en sede"
             >
-              🟢 Sede ({formatDistance(inLoc.distanceMeters)})
-            </span>
-          ) : inLoc && inLoc.status === "fuera_de_sede" ? (
-            <span
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md border border-amber-500/20 cursor-pointer"
+              Sede · {formatDistance(inLoc.distanceMeters)}
+            </button>
+          ) : inLoc.status === "fuera_de_sede" ? (
+            <button
+              type="button"
               onClick={() => inLoc.googleMapsUrl && window.open(inLoc.googleMapsUrl, "_blank")}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 font-bold text-amber-400"
               title="Marcado fuera de sede"
             >
-              📍 Fuera ({formatDistance(inLoc.distanceMeters)})
-            </span>
-          ) : inLoc && inLoc.status === "sin_gps" ? (
-            <span className="text-[10px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded-md">
-              ⚠️ Sin GPS
-            </span>
-          ) : null}
-        </div>
-        <span className="font-medium">
-          {shiftStatus === "trabajando" ? (
-            <strong className="text-emerald-400">● En Jornada Activa</strong>
-          ) : shiftStatus === "pausa" ? (
-            <strong className="text-amber-400">● En Pausa</strong>
+              Fuera de sede · {formatDistance(inLoc.distanceMeters)}
+            </button>
           ) : (
-            <span className="text-muted-foreground">● Fuera de Turno</span>
+            <span className="rounded-md bg-muted/40 px-1.5 py-0.5">Sin GPS</span>
           )}
-        </span>
-      </div>
+        </div>
+      )}
+
+      <AlertDialog open={confirmClockOut} onOpenChange={setConfirmClockOut}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Finalizar el turno?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se registrará tu hora de salida y ubicación final en PostgreSQL. El
+              cronómetro volverá a cero y este turno no se puede reanudar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmClockOut(false);
+                void handleClockOut();
+              }}
+            >
+              Sí, finalizar turno
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }

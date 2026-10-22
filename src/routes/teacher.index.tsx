@@ -1,33 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
   Clock,
-  Users,
   MapPin,
-  CheckCircle2,
-  AlertCircle,
-  Sparkles,
-  Calendar,
+  ChevronLeft,
+  ChevronRight,
   MessageCircle,
-  UserCheck,
   RotateCw,
   ClipboardList,
-  PenLine,
-  Lock,
 } from "lucide-react";
 import { IntegratedTeacherKioskHeader } from "@/components/teacher/integrated-kiosk-header";
-import { LessonNotes } from "@/components/teacher/lesson-notes";
 import { ClassLog, type ClassLogSeed } from "@/components/teacher/class-log";
-import { FamilyNoteForm } from "@/components/teacher/family-note-form";
-import { InternalNoteForm } from "@/components/teacher/internal-note-form";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppStore, type AdminStudent, type ScheduledLesson, type WeekDay, type AttendanceStatus } from "@/store/app-store";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  useAppStore,
+  type AdminStudent,
+  type ScheduledLesson,
+  type WeekDay,
+} from "@/store/app-store";
 import { getCurrentWeekIndex, getMonthWeeks } from "@/lib/calendar-utils";
-import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
+import { findStudentProfileByName } from "@/lib/student-matching";
 import { isLessonInStudentCycle } from "@/lib/student-cycle";
-import { resolveTeacherUserId } from "@/lib/services/teacher-resolver";
-import { getFeatureFlags, getFamilyNotesAccess, getInternalNotesAccess, getOrgSetting } from "@/lib/services/feature-flags.service";
+import { useTeacherIdentity } from "@/hooks/use-teacher-identity";
+import { useTeacherPilotAccess } from "@/hooks/use-teacher-pilot-access";
 import { toIsoDate } from "@/lib/informes/utils";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { toast } from "sonner";
@@ -39,12 +35,12 @@ export const Route = createFileRoute("/teacher/")({
       {
         name: "description",
         content:
-          "Marca asistencia en un toque, revisa la clase en curso y deja notas privadas o para la familia.",
+          "Marca asistencia en un toque, revisa la clase en curso y registra la evaluación de la clase.",
       },
       { property: "og:title", content: "Kiosco de Clase — VM STAFF" },
       {
         property: "og:description",
-        content: "Asistencia instantánea y notas de clase desde el móvil del profesor.",
+        content: "Asistencia instantánea y registro de clase desde el móvil del profesor.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -62,6 +58,15 @@ const DAYS_OF_WEEK: { short: WeekDay; full: string }[] = [
   { short: "Sáb", full: "Sábado" },
 ];
 
+const MONTH_OPTIONS = [
+  { value: 6, label: "Julio 2026" },
+  { value: 7, label: "Agosto 2026" },
+  { value: 8, label: "Setiembre 2026" },
+  { value: 9, label: "Octubre 2026" },
+  { value: 10, label: "Noviembre 2026" },
+  { value: 11, label: "Diciembre 2026" },
+];
+
 const statusStyles: Record<string, string> = {
   pendiente: "bg-muted text-muted-foreground border-border",
   programada: "bg-muted text-muted-foreground border-border",
@@ -74,9 +79,20 @@ const statusStyles: Record<string, string> = {
 export function TeacherKiosk() {
   const schedule = useAppStore((s) => s.schedule);
   const adminStudents = useAppStore((s) => s.adminStudents);
-  const currentUser = useAppStore((s) => s.currentUser);
   const markLessonAttendance = useAppStore((s) => s.markLessonAttendance);
   const { isSyncing, syncNow, lastSyncTime } = useInsforgeSync();
+
+  const {
+    teacherClean,
+    teacherDisplayName,
+    teacherId,
+    isDirector,
+    teacherScheduleLessons,
+    teacherStudentList,
+    selectTeacher,
+  } = useTeacherIdentity();
+
+  const { classLogAccess, isPilotTeacher, v2FlagsOn } = useTeacherPilotAccess(teacherId);
 
   // Determinar día actual por defecto
   const todayDayShort = useMemo<WeekDay>(() => {
@@ -88,7 +104,7 @@ export function TeacherKiosk() {
   const [selectedDay, setSelectedDay] = useState<WeekDay>(todayDayShort);
 
   // Navegación de Mes y Semana dinámicos (ADR-0158)
-  const [selectedYear, setSelectedYear] = useState<number>(() => {
+  const [selectedYear] = useState<number>(() => {
     const now = new Date();
     return now.getFullYear() === 2026 ? 2026 : now.getFullYear();
   });
@@ -112,81 +128,10 @@ export function TeacherKiosk() {
 
   const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(computedWeekIndex);
 
-  // Sincronizar semana activa cuando cambia el mes
-  useEffect(() => {
-    const curIdx = getCurrentWeekIndex(selectedYear, selectedMonth);
-    setSelectedWeekIndex(Math.max(0, Math.min(curIdx, monthWeeks.length - 1)));
-  }, [selectedYear, selectedMonth, monthWeeks.length]);
-
   const safeWeekIndex = Math.min(Math.max(0, selectedWeekIndex), Math.max(0, monthWeeks.length - 1));
   const currentWeekObj = monthWeeks[safeWeekIndex] || monthWeeks[0];
   const targetDayInfo = currentWeekObj?.days.find((d) => d.dayKey === selectedDay);
   const targetDateStr = targetDayInfo?.dateStr;
-
-  const [adminSelectedTeacher, setAdminSelectedTeacher] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return sessionStorage.getItem("vibra_audit_teacher");
-    }
-    return null;
-  });
-
-  const handleSelectTeacher = (t: string) => {
-    setAdminSelectedTeacher(t);
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("vibra_audit_teacher", t);
-    }
-  };
-
-  // Extraer el nombre del profesor logueado de forma inteligente (por email o nombre)
-  const teacherClean = useMemo(() => {
-    if (adminSelectedTeacher) return adminSelectedTeacher.toLowerCase();
-    const email = currentUser?.email?.toLowerCase() || "";
-    if (email.includes("fernando")) return "fernando";
-    if (email.includes("nathaly")) return "nathaly";
-    if (email.includes("jeremy")) return "jeremy";
-    const name = (currentUser?.name || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
-    if (name.includes("fernando")) return "fernando";
-    if (name.includes("nathaly")) return "nathaly";
-    if (name.includes("jeremy")) return "jeremy";
-    // Si entra un admin/dueña/secretaria, mostrar Fernando por defecto para soporte
-    return "fernando";
-  }, [currentUser, adminSelectedTeacher]);
-
-  const teacherDisplayName = useMemo(() => {
-    if (teacherClean === "fernando") return "Fernando";
-    if (teacherClean === "nathaly") return "Nathaly";
-    if (teacherClean === "jeremy") return "Jeremy";
-    return currentUser?.name?.split(" ")[0] || "Fernando";
-  }, [teacherClean, currentUser]);
-
-  // Filtrar todas las clases de este profesor desde el horario central (únicamente alumnos ACTIVOS)
-  const teacherScheduleLessons = useMemo(() => {
-    return schedule.filter((sch) => {
-      if (sch.status === "cancelada") return false;
-
-      // 🛡️ REGLA DE ORO (ADR 0098 & 0100): El kiosco solo muestra clases de alumnos con status === 'activo'
-      const studentProfile = findStudentProfileByName(adminStudents, sch.student);
-      if (!studentProfile || studentProfile.status !== "activo") {
-        return false;
-      }
-
-      const isFernandoStudent = (teacherClean === "fernando") && (
-        isMatchingStudentName("Camila Valentina Pastor Conco", sch.student) ||
-        isMatchingStudentName("Emma Micaela Sevilla Perez", sch.student) ||
-        isMatchingStudentName("Emma Sevilla", sch.student)
-      );
-
-      const schTeacher = (sch.teacher || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
-      const profTeacher = (studentProfile.teacher || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
-      return (
-        isFernandoStudent ||
-        schTeacher.includes(teacherClean) ||
-        teacherClean.includes(schTeacher) ||
-        profTeacher.includes(teacherClean) ||
-        teacherClean.includes(profTeacher)
-      );
-    });
-  }, [schedule, adminStudents, teacherClean]);
 
   // Función determinista para evaluar si una clase pertenece a un día y fecha específica (ADR-0105, ADR-0108, ADR-0128)
   const isLessonInDay = (lesson: ScheduledLesson, dayKey: WeekDay, dateStr?: string) => {
@@ -224,7 +169,7 @@ export function TeacherKiosk() {
     return true;
   };
 
-  // Contadores por día de la semana para los tabs
+  // Contadores por día de la semana para la tira de días
   const countsByDay = useMemo(() => {
     const map = new Map<WeekDay, number>();
     DAYS_OF_WEEK.forEach((d) => {
@@ -277,84 +222,18 @@ export function TeacherKiosk() {
     }));
   }, [dayLessons]);
 
-  // 🧪 Fase 2 — Registro de clase (piloto Nathaly / Fernando)
-  const classLogSectionRef = useRef<HTMLDivElement | null>(null);
-  const [notesTab, setNotesTab] = useState<"notes" | "class-log" | "family-note" | "internal-note">("notes");
+  // 🧪 Fase 2 — Registro de clase (hoja inferior, piloto Nathaly / Fernando / Jeremy)
   const [classLogSeed, setClassLogSeed] = useState<ClassLogSeed | null>(null);
-  const [classLogAccess, setClassLogAccess] = useState(false);
-  const [familyNoteAccess, setFamilyNoteAccess] = useState(false);
-  const [internalNoteAccess, setInternalNoteAccess] = useState(false);
 
-  const teacherIdForLog = useMemo(
-    () => resolveTeacherUserId(undefined, teacherDisplayName),
-    [teacherDisplayName],
-  );
+  const handleMonthChange = (newMonth: number) => {
+    setSelectedMonth(newMonth);
+    const curW = getCurrentWeekIndex(selectedYear, newMonth);
+    setSelectedWeekIndex(Math.max(0, Math.min(curW, getMonthWeeks(selectedYear, newMonth).length - 1)));
+  };
 
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      getFeatureFlags(),
-      getOrgSetting<string[]>("pilot_teacher_ids", []),
-      getFamilyNotesAccess(teacherIdForLog),
-      getInternalNotesAccess(teacherIdForLog),
-    ])
-      .then(([flags, pilots, familyAccess, internalAccess]) => {
-        if (cancelled) return;
-        const pilotList = Array.isArray(pilots) ? pilots.map(String) : [];
-        setClassLogAccess(
-          Boolean(flags.evaluationsV2 || pilotList.includes(teacherIdForLog)),
-        );
-        setFamilyNoteAccess(Boolean(familyAccess.teacher));
-        setInternalNoteAccess(Boolean(internalAccess.teacher));
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setClassLogAccess(false);
-          setFamilyNoteAccess(false);
-          setInternalNoteAccess(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [teacherIdForLog]);
-
-  // Cuántas pestañas hay realmente disponibles (para que la barra no se rompa).
-  const notesTabsGridClass = useMemo(() => {
-    const count =
-      1 +
-      (familyNoteAccess ? 1 : 0) +
-      (classLogAccess ? 1 : 0) +
-      (internalNoteAccess ? 1 : 0);
-    if (count >= 4) return "grid-cols-4";
-    if (count === 3) return "grid-cols-3";
-    return "grid-cols-2";
-  }, [classLogAccess, familyNoteAccess, internalNoteAccess]);
-
-  const teacherStudentList = useMemo(() => {
-    const activeStudents = adminStudents.filter(
-      (student) => student.status === "activo",
-    );
-    const scheduledNames = new Set(
-      teacherScheduleLessons.map((lesson) => lesson.student.toLowerCase().trim()),
-    );
-    const seen = new Set<string>();
-
-    return activeStudents.filter((student) => {
-      if (seen.has(student.id)) return false;
-      const studentTeacher = (student.teacher || "")
-        .toLowerCase()
-        .replace(/\s*\(.*?\)/, "")
-        .replace(/^prof\.\s*/i, "")
-        .trim();
-      const matches =
-        scheduledNames.has(student.name.toLowerCase().trim()) ||
-        Boolean(studentTeacher && studentTeacher.includes(teacherClean)) ||
-        Boolean(studentTeacher && teacherClean.includes(studentTeacher));
-      if (matches) seen.add(student.id);
-      return matches;
-    });
-  }, [adminStudents, teacherScheduleLessons, teacherClean]);
+  const moveWeek = (delta: number) => {
+    setSelectedWeekIndex((prev) => Math.max(0, Math.min(prev + delta, monthWeeks.length - 1)));
+  };
 
   const openClassLog = (
     student: AdminStudent,
@@ -377,50 +256,69 @@ export function TeacherKiosk() {
       instrument: student.instrument || lesson.instrument,
       nonce: Date.now(),
     });
-    setNotesTab("class-log");
-    if (typeof window !== "undefined") {
-      window.setTimeout(() => {
-        classLogSectionRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }, 80);
-    }
   };
 
   const selectedDayFull = DAYS_OF_WEEK.find((d) => d.short === selectedDay)?.full || selectedDay;
+  const hasDayLessons = groupedTimeSlots.length > 0;
+  const showPilotBadge = isPilotTeacher && !v2FlagsOn;
 
   return (
-    <div className="space-y-5 pb-6">
-      {/* 🚀 CABECERA INTEGRADA: FICHAJE DE SEDE + RELOJ DE TURNO */}
+    <div className="space-y-3 pb-6">
+      {/* FICHAJE: cronómetro y turno (nombre y sede viven en la cabecera del portal) */}
       <IntegratedTeacherKioskHeader totalDayStudents={dayLessons.length} />
 
-      {/* 👨‍🏫 SELECTOR DE PROFESOR (Auditoría y Soporte) + Botón de Sincronización en Vivo */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-1 min-w-[240px] items-center gap-1 p-1 rounded-2xl bg-card border border-border shadow-xs">
-          {["Fernando", "Nathaly", "Jeremy"].map((t) => (
-            <button
-              key={t}
-              onClick={() => handleSelectTeacher(t)}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                teacherDisplayName === t
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Prof. {t}
-            </button>
-          ))}
-        </div>
+      {/* Barra de control: auditoría docente solo para Dirección + estado en vivo */}
+      <div className="flex items-center justify-between gap-2">
+        {isDirector ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1 rounded-2xl border border-border bg-card p-1">
+            {["Fernando", "Nathaly", "Jeremy"].map((t) => (
+              <button
+                key={t}
+                onClick={() => selectTeacher(t)}
+                aria-pressed={teacherDisplayName === t}
+                className={`min-h-[40px] min-w-0 flex-1 rounded-xl px-1 text-xs font-bold transition-colors ${
+                  teacherDisplayName === t
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <p className="truncate text-sm font-bold text-foreground">
+              {selectedDayFull} · {dayLessons.length}{" "}
+              {dayLessons.length === 1 ? "clase" : "clases"}
+            </p>
+            {showPilotBadge && (
+              <span className="shrink-0 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                Piloto
+              </span>
+            )}
+          </div>
+        )}
 
-        {/* 🟢 Indicador en vivo + Botón Sincronizar */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-card border border-border shadow-xs text-[11px] font-bold text-muted-foreground">
-          <span className="relative flex h-2 w-2">
-            <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${isSyncing ? "bg-amber-400 animate-ping" : "bg-emerald-400 animate-ping"}`}></span>
-            <span className={`relative inline-flex rounded-full h-2 w-2 ${isSyncing ? "bg-amber-500" : "bg-emerald-500"}`}></span>
-          </span>
-          <span className="hidden sm:inline">
-            {isSyncing ? "Sincronizando..." : lastSyncTime ? `En vivo · ${new Date(lastSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : "En vivo"}
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="hidden items-center gap-1.5 text-xs font-semibold text-muted-foreground sm:flex">
+            <span className="relative flex h-2 w-2">
+              <span
+                className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
+                  isSyncing ? "bg-amber-400" : "bg-emerald-400"
+                }`}
+              />
+              <span
+                className={`relative inline-flex h-2 w-2 rounded-full ${
+                  isSyncing ? "bg-amber-500" : "bg-emerald-500"
+                }`}
+              />
+            </span>
+            {isSyncing
+              ? "Sincronizando…"
+              : lastSyncTime
+                ? `En vivo · ${new Date(lastSyncTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : "En vivo"}
           </span>
           <button
             onClick={async () => {
@@ -429,70 +327,64 @@ export function TeacherKiosk() {
             }}
             disabled={isSyncing}
             title="Actualizar datos en tiempo real con PostgreSQL"
-            className="ml-1 text-muted-foreground hover:text-primary transition-all disabled:opacity-50"
+            aria-label="Sincronizar con PostgreSQL"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:text-primary disabled:opacity-50"
           >
-            <RotateCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin text-primary" : ""}`} />
+            <RotateCw className={`h-4 w-4 ${isSyncing ? "animate-spin text-primary" : ""}`} />
           </button>
         </div>
       </div>
 
-      {/* 📅 NAVEGACIÓN TEMPORAL: SELECTOR DE MES Y SEMANAS (ADR-0158) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-2xl bg-card border border-border shadow-xs">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-primary shrink-0" />
-          <select
-            value={selectedMonth}
-            onChange={(e) => {
-              const newM = Number(e.target.value);
-              setSelectedMonth(newM);
-              const curW = getCurrentWeekIndex(selectedYear, newM);
-              setSelectedWeekIndex(Math.max(0, Math.min(curW, getMonthWeeks(selectedYear, newM).length - 1)));
-            }}
-            className="bg-background px-3 py-1.5 rounded-xl border border-border text-xs font-bold text-foreground cursor-pointer shadow-2xs focus:ring-2 focus:ring-primary outline-none"
+      {/* FECHA: tira de días con flechas + selector compacto de mes/semana */}
+      <div className="space-y-2 rounded-2xl border border-border bg-card p-2">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => moveWeek(-1)}
+            disabled={safeWeekIndex <= 0}
+            aria-label="Semana anterior"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border text-foreground transition-colors hover:bg-muted disabled:opacity-40"
           >
-            <option value={6}>Julio 2026</option>
-            <option value={7}>Agosto 2026</option>
-            <option value={8}>Setiembre 2026</option>
-            <option value={9}>Octubre 2026</option>
-            <option value={10}>Noviembre 2026</option>
-            <option value={11}>Diciembre 2026</option>
-          </select>
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <select
+              value={selectedMonth}
+              onChange={(e) => handleMonthChange(Number(e.target.value))}
+              aria-label="Mes lectivo"
+              className="h-11 min-w-0 flex-1 cursor-pointer rounded-xl border border-border bg-background px-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-primary"
+            >
+              {MONTH_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={safeWeekIndex}
+              onChange={(e) => setSelectedWeekIndex(Number(e.target.value))}
+              aria-label="Semana del mes"
+              className="h-11 min-w-0 flex-1 cursor-pointer rounded-xl border border-border bg-background px-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-primary"
+            >
+              {monthWeeks.map((w) => (
+                <option key={w.weekIndex} value={w.weekIndex}>
+                  Sem {w.weekIndex + 1} · {w.dateRangeLabel}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={() => moveWeek(1)}
+            disabled={safeWeekIndex >= monthWeeks.length - 1}
+            aria-label="Semana siguiente"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
 
-        {/* Píldoras de Semanas (Sem 1, Sem 2, etc.) */}
-        <div className="flex items-center gap-1 overflow-x-auto p-1 bg-muted/60 rounded-xl border border-border/80">
-          {monthWeeks.map((w) => {
-            const isSelected = safeWeekIndex === w.weekIndex;
-            return (
-              <button
-                key={w.weekIndex}
-                onClick={() => setSelectedWeekIndex(w.weekIndex)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all whitespace-nowrap ${
-                  isSelected
-                    ? "bg-primary text-primary-foreground shadow-xs scale-102"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background"
-                }`}
-                title={`Semana ${w.weekIndex + 1}: ${w.dateRangeLabel}`}
-              >
-                Sem {w.weekIndex + 1}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 🗓️ SELECTOR DE DÍAS EN TABS MÓVILES (LUN..SÁB) */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between px-1">
-          <p className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-primary" /> {currentWeekObj?.fullLabel || `Semana ${safeWeekIndex + 1}`}
-          </p>
-          <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
-            {dayLessons.length} {dayLessons.length === 1 ? "alumno" : "alumnos"} · {selectedDayFull} {targetDayInfo?.dayNum ? `(${targetDayInfo.dayNum})` : ""}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-6 gap-1 rounded-2xl border border-border bg-card p-1 shadow-sm">
+        <div className="grid grid-cols-6 gap-1">
           {DAYS_OF_WEEK.map((day) => {
             const isSelected = selectedDay === day.short;
             const count = countsByDay.get(day.short) || 0;
@@ -502,57 +394,61 @@ export function TeacherKiosk() {
               <button
                 key={day.short}
                 onClick={() => setSelectedDay(day.short)}
-                className={`flex flex-col items-center justify-center py-2 rounded-xl transition-all ${
+                aria-pressed={isSelected}
+                className={`flex min-h-[56px] flex-col items-center justify-center rounded-xl px-0.5 py-1 transition-colors ${
                   isSelected
-                    ? "bg-primary text-primary-foreground font-black shadow-md scale-105"
-                    : "text-foreground/80 font-semibold hover:bg-muted hover:text-foreground"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground hover:bg-muted"
                 }`}
               >
                 <span className="text-xs font-bold">{day.short}</span>
-                {dayInfo?.dayNum && <span className="text-[9px] opacity-75 font-semibold">{dayInfo.dayNum}</span>}
-                {count > 0 ? (
-                  <span
-                    className={`mt-0.5 text-[9px] px-1.5 py-0.2 rounded-full font-black ${
-                      isSelected
-                        ? "bg-primary-foreground/25 text-primary-foreground"
-                        : "bg-primary/15 text-primary"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                ) : (
-                  <span className="mt-0.5 text-[9px] opacity-40">-</span>
-                )}
+                <span
+                  className={`text-xs ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}
+                >
+                  {dayInfo?.dayNum ?? ""}
+                </span>
+                <span
+                  className={`text-xs font-bold ${
+                    isSelected
+                      ? "text-primary-foreground"
+                      : count > 0
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {count > 0 ? count : "–"}
+                </span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* 📋 LISTA CRONOLÓGICA DE BLOQUES HORARIOS */}
-      <div className="space-y-3">
-        {groupedTimeSlots.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-xs space-y-2">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mx-auto text-xl">
-              🏖️
-            </div>
-            <p className="text-sm font-bold text-foreground">Sin clases programadas para el {selectedDayFull}</p>
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              {teacherDisplayName} no tiene alumnos asignados los {selectedDayFull}s en sala.
+      {/* LISTA CRONOLÓGICA DE BLOQUES HORARIOS */}
+      <div className="space-y-2.5">
+        {!hasDayLessons ? (
+          <div className="space-y-2 rounded-2xl border border-dashed border-border bg-card p-6 text-center">
+            <p className="text-sm font-bold text-foreground">
+              Sin clases el {selectedDayFull}
             </p>
-            {Array.from(countsByDay.entries()).some(([_, c]) => c > 0) && (
-              <div className="pt-2 flex flex-col items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-muted-foreground">Ver días con clases activas:</span>
+            <p className="text-xs text-muted-foreground">
+              {teacherDisplayName} no tiene alumnos asignados ese día.
+            </p>
+            {Array.from(countsByDay.entries()).some(([, c]) => c > 0) && (
+              <div className="space-y-1.5 pt-1">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Días con clases:
+                </span>
                 <div className="flex flex-wrap items-center justify-center gap-1.5">
                   {Array.from(countsByDay.entries())
-                    .filter(([_, c]) => c > 0)
+                    .filter(([, c]) => c > 0)
                     .map(([dayShort, c]) => (
                       <button
                         key={dayShort}
                         onClick={() => setSelectedDay(dayShort)}
-                        className="px-2.5 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold transition-all shadow-2xs"
+                        className="min-h-[40px] rounded-xl border border-border px-3 text-xs font-bold text-foreground transition-colors hover:bg-muted"
                       >
-                        {dayShort} ({c} {c === 1 ? "alumno" : "alumnos"})
+                        {dayShort} ({c})
                       </button>
                     ))}
                 </div>
@@ -560,104 +456,107 @@ export function TeacherKiosk() {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {groupedTimeSlots.map((slot, sIdx) => (
               <motion.div
                 key={slot.time}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: sIdx * 0.04 }}
-                className="rounded-2xl border-2 border-border/80 bg-card p-3.5 shadow-sm space-y-2.5"
+                className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
               >
                 {/* Encabezado del Bloque Horario */}
-                <div className="flex items-center justify-between pb-2 border-b border-border/60">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 font-mono text-xs font-black text-primary bg-primary/10 px-2.5 py-1 rounded-xl">
-                      <Clock className="h-3.5 w-3.5" />
+                <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-foreground">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                       {slot.time}
                     </span>
-                    <span className="text-xs font-bold text-foreground flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-muted-foreground" /> {slot.room} · {slot.instrument}
+                    <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        {slot.room} · {slot.instrument}
+                      </span>
                     </span>
                   </div>
 
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-muted text-foreground border border-border">
-                    👥 {slot.lessons.length} {slot.lessons.length === 1 ? "alumno" : "alumnos"}
+                  <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+                    {slot.lessons.length} {slot.lessons.length === 1 ? "alumno" : "alumnos"}
                   </span>
                 </div>
 
                 {/* Lista de Alumnos en este Bloque Horario */}
-                <div className="space-y-2">
+                <div className="divide-y divide-border/60">
                   {slot.lessons.map((lesson) => {
                     const studentProfile = findStudentProfileByName(adminStudents, lesson.student);
                     const profileLesson = studentProfile?.scheduleLessons?.find(
                       (pl) =>
                         pl.id === lesson.id ||
                         (pl.day === lesson.day &&
-                         pl.time === lesson.time &&
-                         (pl.dateStr === lesson.dateStr || (!pl.dateStr && !lesson.dateStr)))
+                          pl.time === lesson.time &&
+                          (pl.dateStr === lesson.dateStr || (!pl.dateStr && !lesson.dateStr))),
                     );
                     const effectiveAttendanceByDate = profileLesson?.attendanceByDate || lesson.attendanceByDate;
 
-                    const status = (targetDateStr && effectiveAttendanceByDate?.[targetDateStr]) ? effectiveAttendanceByDate[targetDateStr]! : "pendiente";
+                    const status = targetDateStr && effectiveAttendanceByDate?.[targetDateStr]
+                      ? effectiveAttendanceByDate[targetDateStr]!
+                      : "pendiente";
 
                     const isIntensiveStudent = Boolean(
                       studentProfile?.modality?.toLowerCase().includes("inten") ||
-                      studentProfile?.modality?.toLowerCase().includes("90 min") ||
-                      (studentProfile?.modality?.toLowerCase().includes("4 clases") && !studentProfile?.modality?.toLowerCase().includes("45 min"))
+                        studentProfile?.modality?.toLowerCase().includes("90 min") ||
+                        (studentProfile?.modality?.toLowerCase().includes("4 clases") &&
+                          !studentProfile?.modality?.toLowerCase().includes("45 min")),
                     );
 
                     return (
-                      <div
-                        key={lesson.id}
-                        className="rounded-xl border border-border/70 bg-background/80 p-3 space-y-2 hover:border-primary/40 transition-colors"
-                      >
-                        {/* Nombre y Badge de Tipo */}
-                        <div className="flex items-center justify-between gap-2">
+                      <div key={lesson.id} className="space-y-2 px-3 py-2.5">
+                        {/* Nombre, badges y estado */}
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <p className="font-black text-sm text-foreground truncate">{lesson.student}</p>
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="truncate text-sm font-bold text-foreground">{lesson.student}</p>
+                            <p className="text-xs text-muted-foreground">
                               {lesson.instrument} · {lesson.teacher}
                             </p>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
                             {lesson.isMakeup && (
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-600 border border-red-500/30">
-                                🔄 Recup.
+                              <span className="rounded-md border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-xs font-bold text-red-600">
+                                Recup.
                               </span>
                             )}
                             {lesson.category === "PERSONALIZADA" && (
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-600 border border-amber-500/30">
-                                ⭐ Personalizada
+                              <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-xs font-bold text-amber-600">
+                                Personalizada
                               </span>
                             )}
                             {isIntensiveStudent && (
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                                ⚡ 90 min
+                              <span className="rounded-md border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300">
+                                90 min
                               </span>
                             )}
                             <span
-                              className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                              className={`rounded-full border px-2 py-0.5 text-xs uppercase ${
                                 statusStyles[status] || statusStyles.pendiente
                               }`}
                             >
-                              ● {status}
+                              {status}
                             </span>
                           </div>
                         </div>
 
-                        {/* Botones de Marcado de Asistencia en 1 Clic (Móvil) */}
-                        <div className="pt-1.5 border-t border-border/40 grid grid-cols-4 gap-1.5">
+                        {/* Asistencia en 1 toque (móvil) */}
+                        <div className="grid grid-cols-4 gap-1.5">
                           <button
                             onClick={() => {
                               markLessonAttendance(lesson.id, "presente", "", safeWeekIndex, targetDateStr);
                               toast.success(`Asistencia: ${lesson.student} PRESENTE 🟢 (${targetDateStr || `Semana ${safeWeekIndex + 1}`})`);
                             }}
-                            className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
+                            className={`min-h-[44px] rounded-xl border px-1 text-xs font-bold transition-colors ${
                               status === "presente"
-                                ? "bg-emerald-600 text-white border-emerald-700 shadow-xs scale-102"
-                                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20"
+                                ? "border-emerald-700 bg-emerald-600 text-white"
+                                : "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
                             }`}
                           >
                             🟢 Pres.
@@ -667,10 +566,10 @@ export function TeacherKiosk() {
                               markLessonAttendance(lesson.id, "ausente", "", safeWeekIndex, targetDateStr);
                               toast.error(`Asistencia: ${lesson.student} AUSENTE 🔴 (+1 Crédito de Recup.)`);
                             }}
-                            className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
+                            className={`min-h-[44px] rounded-xl border px-1 text-xs font-bold transition-colors ${
                               status === "ausente"
-                                ? "bg-red-600 text-white border-red-700 shadow-xs scale-102"
-                                : "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/25 hover:bg-red-500/20"
+                                ? "border-red-700 bg-red-600 text-white"
+                                : "border-red-500/25 bg-red-500/10 text-red-700 hover:bg-red-500/20 dark:text-red-300"
                             }`}
                           >
                             🔴 Aus.
@@ -680,10 +579,10 @@ export function TeacherKiosk() {
                               markLessonAttendance(lesson.id, "tarde", "", safeWeekIndex, targetDateStr);
                               toast.warning(`Asistencia: ${lesson.student} TARDE 🟡`);
                             }}
-                            className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
+                            className={`min-h-[44px] rounded-xl border px-1 text-xs font-bold transition-colors ${
                               status === "tarde"
-                                ? "bg-amber-600 text-white border-amber-700 shadow-xs scale-102"
-                                : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25 hover:bg-amber-500/20"
+                                ? "border-amber-700 bg-amber-600 text-white"
+                                : "border-amber-500/25 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
                             }`}
                           >
                             🟡 Tar.
@@ -693,10 +592,10 @@ export function TeacherKiosk() {
                               markLessonAttendance(lesson.id, "justificada", "", safeWeekIndex, targetDateStr);
                               toast.info(`Asistencia: ${lesson.student} JUSTIFICADA 🔵 (+1 Crédito)`);
                             }}
-                            className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition-all border text-center ${
+                            className={`min-h-[44px] rounded-xl border px-1 text-xs font-bold transition-colors ${
                               status === "justificada"
-                                ? "bg-blue-600 text-white border-blue-700 shadow-xs scale-102"
-                                : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25 hover:bg-blue-500/20"
+                                ? "border-blue-700 bg-blue-600 text-white"
+                                : "border-blue-500/25 bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:text-blue-300"
                             }`}
                           >
                             🔵 Just.
@@ -706,13 +605,11 @@ export function TeacherKiosk() {
                         {classLogAccess && studentProfile?.id && (
                           <button
                             type="button"
-                            onClick={() =>
-                              openClassLog(studentProfile, lesson, targetDateStr)
-                            }
-                            className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 py-2 text-[11px] font-black text-primary transition-all hover:bg-primary/20"
+                            onClick={() => openClassLog(studentProfile, lesson, targetDateStr)}
+                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-primary/30 bg-primary/5 text-xs font-bold text-primary transition-colors hover:bg-primary/10"
                           >
-                            <ClipboardList className="h-3.5 w-3.5" />
-                            Registrar clase / evaluación
+                            <ClipboardList className="h-4 w-4" />
+                            Registrar clase
                           </button>
                         )}
                       </div>
@@ -725,121 +622,51 @@ export function TeacherKiosk() {
         )}
       </div>
 
-      {/* Bitácora de Notas para la Familia / Alumno + Registro de clase (Fase 2) */}
-      <section
-        ref={classLogSectionRef}
-        className="rounded-2xl border border-border bg-card p-4 shadow-xs"
-      >
-        {classLogAccess || familyNoteAccess || internalNoteAccess ? (
-          <Tabs
-            value={notesTab}
-            onValueChange={(value) =>
-              setNotesTab(
-                value as "notes" | "class-log" | "family-note" | "internal-note",
-              )
-            }
-            className="w-full"
-          >
-            <TabsList className={`grid w-full ${notesTabsGridClass}`}>
-              <TabsTrigger
-                value="notes"
-                className="gap-1 px-1 text-[10px] font-bold sm:text-xs"
-              >
-                <MessageCircle className="h-3.5 w-3.5 shrink-0" />
-                Notas a familia
-              </TabsTrigger>
-              {familyNoteAccess && (
-                <TabsTrigger
-                  value="family-note"
-                  className="gap-1 px-1 text-[10px] font-bold sm:text-xs"
-                >
-                  <PenLine className="h-3.5 w-3.5 shrink-0" />
-                  Nota nueva
-                  <span className="ml-0.5 rounded-full bg-primary/15 px-1 py-0.5 text-[8px] font-black text-primary">
-                    BETA
-                  </span>
-                </TabsTrigger>
-              )}
-              {internalNoteAccess && (
-                <TabsTrigger
-                  value="internal-note"
-                  className="gap-1 px-1 text-[10px] font-bold sm:text-xs"
-                >
-                  <Lock className="h-3.5 w-3.5 shrink-0" />
-                  Interna
-                  <span className="ml-0.5 rounded-full bg-primary/15 px-1 py-0.5 text-[8px] font-black text-primary">
-                    BETA
-                  </span>
-                </TabsTrigger>
-              )}
-              {classLogAccess && (
-                <TabsTrigger
-                  value="class-log"
-                  className="gap-1 px-1 text-[10px] font-bold sm:text-xs"
-                >
-                  <ClipboardList className="h-3.5 w-3.5 shrink-0" />
-                  Registro
-                  <span className="ml-0.5 rounded-full bg-primary/15 px-1 py-0.5 text-[8px] font-black text-primary">
-                    BETA
-                  </span>
-                </TabsTrigger>
-              )}
-            </TabsList>
-            <TabsContent value="notes" className="mt-3" forceMount>
-              <LessonNotes />
-            </TabsContent>
-            {familyNoteAccess && (
-              <TabsContent value="family-note" className="mt-3" forceMount>
-                <FamilyNoteForm
-                  teacherName={teacherDisplayName}
-                  teacherId={teacherIdForLog}
-                  students={teacherStudentList}
-                />
-              </TabsContent>
-            )}
-            {internalNoteAccess && (
-              <TabsContent value="internal-note" className="mt-3" forceMount>
-                <InternalNoteForm
-                  teacherName={teacherDisplayName}
-                  teacherId={teacherIdForLog}
-                  students={teacherStudentList}
-                />
-              </TabsContent>
-            )}
-            {classLogAccess && (
-              <TabsContent value="class-log" className="mt-3" forceMount>
-                <ClassLog
-                  key={classLogSeed?.nonce ?? "class-log-empty"}
-                  teacherName={teacherDisplayName}
-                  teacherClean={teacherClean}
-                  students={teacherStudentList}
-                  schedule={teacherScheduleLessons}
-                  initialSeed={classLogSeed}
-                />
-              </TabsContent>
-            )}
-          </Tabs>
-        ) : (
-          <LessonNotes />
-        )}
-      </section>
-
-      {/* Nota al pie: Contacto Directo con Nayeli */}
-      <div className="rounded-2xl border border-border bg-card p-3.5 text-center space-y-1.5 shadow-xs">
-        <p className="text-xs font-medium text-muted-foreground">
-          ¿Dudas sobre tus alumnos o necesitas coordinar una suplencia?
-        </p>
+      {/* Contacto con secretaría */}
+      <div className="rounded-2xl border border-border bg-card px-3 py-2.5 text-center">
         <a
-          href="https://wa.me/51970608367?text=Hola%20Nayeli,%20te%20escribe%20un%20profesor%20de%20Vibra%20Music%20para%20coordinar%20una%20clase."
+          href="https://wa.me/51970608367?text=Hola%2C%20te%20escribe%20un%20profesor%20de%20Vibra%20Music%20para%20coordinar%20una%20clase."
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-success hover:underline"
+          className="inline-flex min-h-[44px] items-center justify-center gap-1.5 text-xs font-bold text-success hover:underline"
         >
           <MessageCircle className="h-4 w-4 fill-current" />
-          Contactar a Nayeli (Secretaría) por WhatsApp →
+          Contactar a Secretaría por WhatsApp
         </a>
       </div>
+
+      {/* Registro de clase en hoja inferior (solo docentes del piloto) */}
+      <Sheet
+        open={Boolean(classLogSeed)}
+        onOpenChange={(open) => {
+          if (!open) setClassLogSeed(null);
+        }}
+      >
+        <SheetContent
+          side="bottom"
+          className="max-h-[92vh] overflow-y-auto rounded-t-3xl px-4 pb-6 pt-5"
+        >
+          <SheetHeader className="mb-3 text-left">
+            <SheetTitle className="text-base font-black">Registro de clase</SheetTitle>
+            <SheetDescription className="text-xs">
+              {classLogSeed?.studentName || "Alumno"}
+              {classLogSeed?.sessionDate ? ` · ${classLogSeed.sessionDate}` : ""}
+              {classLogSeed?.startTime ? ` · ${classLogSeed.startTime}` : ""}
+            </SheetDescription>
+          </SheetHeader>
+
+          {classLogSeed && classLogAccess && (
+            <ClassLog
+              key={classLogSeed.nonce}
+              teacherName={teacherDisplayName}
+              teacherClean={teacherClean}
+              students={teacherStudentList}
+              schedule={teacherScheduleLessons}
+              initialSeed={classLogSeed}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
-
