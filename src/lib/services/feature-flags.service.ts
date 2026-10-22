@@ -108,3 +108,51 @@ export async function isFeatureEnabled(
 export function clearFeatureFlagsCache(): void {
   cache = null;
 }
+
+export interface FamilyNotesAccess {
+  /** Formulario de nota del docente. */
+  teacher: boolean;
+  /** Bandeja de moderación de Dirección/Secretaría. */
+  moderation: boolean;
+  /** De dónde viene el acceso: flag global, piloto de docentes o ninguno. */
+  source: "flag" | "pilot" | "none";
+}
+
+/**
+ * Acceso a la Fase 3 (notas a familia + moderación).
+ *
+ * - Con `familyNotesV2 = true` se abre para todos.
+ * - Sin flag, se abre solo por piloto: el docente debe estar en
+ *   `pilot_teacher_ids`; la bandeja de Dirección aparece si hay al menos
+ *   un docente en el piloto (para poder moderar lo que ellos envían).
+ * - Ante cualquier error, todo cerrado.
+ */
+export async function getFamilyNotesAccess(
+  teacherId?: string | null,
+): Promise<FamilyNotesAccess> {
+  try {
+    const [flags, pilots] = await Promise.all([
+      getFeatureFlags(),
+      getOrgSetting<string[]>("pilot_teacher_ids", []),
+    ]);
+
+    const pilotList = Array.isArray(pilots) ? pilots.map(String) : [];
+
+    if (flags.familyNotesV2) {
+      return { teacher: true, moderation: true, source: "flag" };
+    }
+
+    if (pilotList.length > 0) {
+      const clean = (teacherId || "").trim();
+      return {
+        teacher: Boolean(clean && pilotList.includes(clean)),
+        moderation: true,
+        source: "pilot",
+      };
+    }
+
+    return { teacher: false, moderation: false, source: "none" };
+  } catch {
+    return { teacher: false, moderation: false, source: "none" };
+  }
+}

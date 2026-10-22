@@ -1442,11 +1442,12 @@ inferencia.
 
 ---
 
-### 75. Sistema de Evaluaciones, Informes de Progreso y Notas — Fase 1 (Infraestructura) y Fase 2 (Registro de Clase) (ADR-0175)
+### 75. Sistema de Evaluaciones, Informes de Progreso y Notas — Fases 1, 2 y 3 (ADR-0175)
 
 1. **Estado y alcance**:
    - La **Fase 1 de 7** está implementada y desplegada en el commit `b7a0795`. Incluye migraciones aditivas, tipos, snapshot pedagógico y servicios; **no incluye interfaz visible**.
    - La **Fase 2 de 7** está implementada y en piloto: registro de clase del docente en `/teacher`, visible solo para **Jeremy**, **Nathaly** y **Fernando** mediante `org_settings.pilot_teacher_ids`.
+   - La **Fase 3 de 7** está implementada y en piloto: nota del docente a la familia (`/teacher` → “Nota nueva”) y bandeja de moderación de Dirección (`/admin/alumnos` → “Notas v2”). Nada llega a la familia sin aprobación explícita.
    - Los flags `evaluationsV2`, `familyNotesV2`, `progressReportsV2` y `parentReports` siguen en `false`. El kiosco, la agenda, el Kardex, la asistencia y la facturación siguen intactos.
    - **Jeremy** está en el piloto desde el 2026-10-22 y ve la pestaña con sus criterios en **v0 borrador**.
 2. **Base de datos creada (migraciones `008` y `008b`)**:
@@ -1473,8 +1474,8 @@ inferencia.
    - Guardado idempotente con `saveLessonEvaluation` y `session_key`; `isTest: false`. La “última evaluación” visible excluye filas `is_test`.
    - Criterios sembrados en `evaluation_fields`: **49 filas** (Nathaly Canto 12, Nathaly Piano Infantil 12, Fernando Piano 12, Fernando Violín 13). Migración idempotente `docs/migrations/009_seed_evaluation_fields.sql`; rollback por `created_by_name = 'Migración 009'`.
    - No se tocó `lesson-notes.tsx`, `teacher-notes-moderation.tsx`, agenda, Kardex, asistencia ni facturación.
-6. **Fases pendientes**: Fase 3 nota a familia y moderación; Fase 4 nota interna y bandeja; Fase 5 informe A4/PDF/Markdown/WhatsApp y portal familia; Fase 6 reportes y CSV; Fase 7 despliegue gradual y retiro del flujo legacy.
-7. **Referencia obligatoria**: `docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md`, `docs/logs/2026-10-21-fase-1-evaluaciones-informes-notas.log` y `docs/logs/2026-10-22-fase-2-registro-clase.log`.
+6. **Fases pendientes**: Fase 4 nota interna y bandeja; Fase 5 informe A4/PDF/Markdown/WhatsApp y portal familia; Fase 6 reportes y CSV; Fase 7 despliegue gradual y retiro del flujo legacy.
+7. **Referencia obligatoria**: `docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md`, `docs/logs/2026-10-21-fase-1-evaluaciones-informes-notas.log`, `docs/logs/2026-10-22-fase-2-registro-clase.log` y `docs/logs/2026-10-22-fase-3-notas-familia-moderacion.log`.
 8. **Criterios v0 BORRADOR de Jeremy (Guitarra y Batería) — 17 filas nuevas, sin validar**:
    - Cargados como **datos de configuración editables** en `evaluation_fields` (no en código). Migración idempotente `docs/migrations/010_seed_evaluation_fields_jeremy_borrador.sql`; rollback por `created_by_name = 'Criterios v0 borrador (010)'`.
    - Guitarra **8** (Postura y sujeción, Mano izquierda, Mano derecha, Acordes y cambios, Ritmo y pulso, Lectura, Afinación y oído, Práctica y actitud). Batería **9** (Postura y agarre, Coordinación, Técnica de baquetas, Pulso y tempo, Grooves y patrones, Fills y transiciones, Lectura rítmica, Dinámica y musicalidad, Práctica y actitud).
@@ -1484,4 +1485,14 @@ inferencia.
    - `getCriteria` agrupa variantes del mismo instrumento (`Guitarra`, `Guitarra clásica`, `Guitarra eléctrica` → `guitarra`; `Batería` → `bateria`) para que los alumnos con "Guitarra clásica" reciban sus criterios. Piano y Piano Infantil **no** se agrupan. El filtro por `owner_teacher_id` sigue siendo estricto: los criterios de Jeremy no aparecen para docentes ni alumnos de otros docentes.
    - Jeremy **sí** está en `pilot_teacher_ids` desde el 2026-10-22: ve la pestaña con sus 17 criterios en borrador para poder validarlos. Revertir = quitar `00000000-0000-0000-0000-000000000003` del arreglo en `org_settings.pilot_teacher_ids` (efecto en ≤ 30 s, sin desplegar).
    - Al validar Jeremy: `ui_config.draft = false`, `ui_config.status = 'validado'`, `ui_config.validation.approved_by_id/approved_by_name/approved_at`, y recién entonces `visible_in_report = true`. **Prohibido** ponerlos visibles antes de esa validación.
+9. **Fase 3 — Nota a familia y moderación**:
+   - **Componentes**: `src/components/teacher/family-note-form.tsx` (docente) y `src/components/admin/family-notes-moderation.tsx` (Dirección). Montados como pestañas en `/teacher` (“Nota nueva”, BETA) y `/admin/alumnos` (“Notas v2”, BETA).
+   - **Habilitación sin desplegar** (`getFamilyNotesAccess` en `feature-flags.service.ts`): con `familyNotesV2 = true` se abre para todos; sin flag, el formulario se abre solo a docentes de `pilot_teacher_ids` y la bandeja de Dirección si hay al menos un docente en el piloto. Cualquier error → todo cerrado.
+   - **Flujo**: `submitFamilyNote` siempre crea en `pendiente`; `approveFamilyNote` pasa a `publicado` (registra `published_at` y `reviewed_by_*`, y para `teacher_cohort` congela `cohort_student_ids` + `cohort_snapshot_at`); `rejectFamilyNote` exige motivo, deja `rechazado` y **conserva el contenido**.
+   - **Auditoría**: el trigger `trg_audit_family_notes` registra INSERT/UPDATE/DELETE en `evaluation_audit_log` con `entity_type = 'family_note'`. La UI no duplica auditoría y `evaluation_audit_log` sigue append-only.
+   - **Reglas**: no toca `students.notes` ni `notification_logs`; cero datos financieros; el portal familia sigue leyendo solo `publicado` y `is_test = false`; identidad por UUID.
+   - **Legacy intacto**: `teacher-notes-moderation.tsx` y `LessonNotes` siguen operativos en la pestaña “Notas a Familias”. No retirarlos hasta cerrar la Fase 7.
+   - **Cómo probar**: docente del piloto → `/teacher` → “Nota nueva” → enviar; Dirección → `/admin/alumnos` → “Notas v2” → aprobar o rechazar con motivo; el docente ve el estado y, si fue rechazada, el motivo con “Usar como base para corregir”.
+   - **Verificación**: 24/24 checks de runtime con datos vivos (`is_test` + `test_run_id`, limpieza final) y 7/7 del gate; rutas `/teacher`, `/admin/alumnos` y `/` en 200; `npm run build` en verde.
+   - **Revertir**: dejar `pilot_teacher_ids = []` y `familyNotesV2 = false`; las pestañas desaparecen sin desplegar. Las notas ya guardadas permanecen en `family_notes`.
 

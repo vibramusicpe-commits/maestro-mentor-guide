@@ -436,3 +436,57 @@ export async function getPublishedFamilyNotesForFamilyForAudit(
 ): Promise<FamilyNoteRow[]> {
   return fetchPublishedFamilyNotesForFamily(familyId, true);
 }
+
+/* ================================================================
+ * Sincronización de UI (Fase 3)
+ * ----------------------------------------------------------------
+ * Solo señaliza "algo cambió" para que el formulario del docente y la
+ * bandeja de Dirección se recarguen. NO transporta datos ni estado
+ * transaccional: la fuente de verdad sigue siendo PostgreSQL.
+ * ================================================================ */
+
+export const FAMILY_NOTES_SYNC_CHANNEL = "vibra-family-notes-sync";
+export const FAMILY_NOTES_UPDATED_EVENT = "vibra-family-notes-updated";
+
+let broadcastChannel: BroadcastChannel | null = null;
+
+/** Avisa a las demás pestañas/vistas que la bandeja debe recargarse. */
+export function notifyFamilyNotesChanged(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new Event(FAMILY_NOTES_UPDATED_EVENT));
+  } catch {
+    /* no-op */
+  }
+  try {
+    if ("BroadcastChannel" in window) {
+      broadcastChannel = broadcastChannel || new BroadcastChannel(FAMILY_NOTES_SYNC_CHANNEL);
+      broadcastChannel.postMessage({ at: Date.now() });
+    }
+  } catch {
+    /* no-op */
+  }
+}
+
+/** Suscribe una vista a los cambios. Devuelve la función de limpieza. */
+export function subscribeToFamilyNotesChanges(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const handler = () => callback();
+  window.addEventListener(FAMILY_NOTES_UPDATED_EVENT, handler);
+
+  let bc: BroadcastChannel | null = null;
+  try {
+    if ("BroadcastChannel" in window) {
+      bc = new BroadcastChannel(FAMILY_NOTES_SYNC_CHANNEL);
+      bc.onmessage = () => callback();
+    }
+  } catch {
+    bc = null;
+  }
+
+  return () => {
+    window.removeEventListener(FAMILY_NOTES_UPDATED_EVENT, handler);
+    bc?.close();
+  };
+}

@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { GraduationCap, ShieldCheck, DoorOpen, Clock, Sparkles, RotateCw } from "lucide-react";
+import { GraduationCap, ShieldCheck, DoorOpen, Clock, Sparkles, RotateCw, MessageSquare } from "lucide-react";
 import { StudentsTable } from "@/components/admin/students-table";
 import { StudentRenewalsRetentionPanel } from "@/components/admin/student-renewals-retention-panel";
 import { VacancyAvailabilityPanel } from "@/components/admin/vacancy-availability-panel";
 import { TeacherNotesModeration } from "@/components/admin/teacher-notes-moderation";
+import { FamilyNotesModeration } from "@/components/admin/family-notes-moderation";
 import { StudentCleanupPanel } from "@/components/admin/student-cleanup-panel";
 import { useAppStore } from "@/store/app-store";
 import { computeStudentCycleSessions, computeStudentRetentionStatus } from "@/lib/kardex-calculator";
+import { getFamilyNotesAccess } from "@/lib/services/feature-flags.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -31,9 +33,10 @@ export const Route = createFileRoute("/admin/alumnos")({
 });
 
 function AdminAlumnosPage() {
-  const [activeTab, setActiveTab] = useState<"directorio" | "renovaciones" | "notas" | "vacantes">("directorio");
+  const [activeTab, setActiveTab] = useState<"directorio" | "renovaciones" | "notas" | "notas-v2" | "vacantes">("directorio");
   const [mounted, setMounted] = useState(false);
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
+  const [familyNotesAccess, setFamilyNotesAccess] = useState(false);
   const teacherNotes = useAppStore((s) => s.teacherNotes);
   const pendingCount = teacherNotes.filter((n) => n.status === "pendiente").length;
   const students = useAppStore((s) => s.adminStudents);
@@ -65,11 +68,26 @@ function AdminAlumnosPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const tab = params.get("tab");
-        if (tab === "notas" || tab === "vacantes" || tab === "directorio" || tab === "renovaciones") {
+        if (tab === "notas" || tab === "notas-v2" || tab === "vacantes" || tab === "directorio" || tab === "renovaciones") {
           setActiveTab(tab);
         }
       }
     } catch {}
+  }, []);
+
+  // Fase 3: bandeja de notas a familia. Se abre por flag o por piloto docente.
+  useEffect(() => {
+    let cancelled = false;
+    getFamilyNotesAccess()
+      .then((access) => {
+        if (!cancelled) setFamilyNotesAccess(Boolean(access.moderation));
+      })
+      .catch(() => {
+        if (!cancelled) setFamilyNotesAccess(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -150,6 +168,27 @@ function AdminAlumnosPage() {
               )}
             </button>
 
+            {familyNotesAccess && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("notas-v2")}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
+                  activeTab === "notas-v2"
+                    ? "bg-card text-foreground shadow-xs border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                <span>Notas v2</span>
+                <Badge
+                  variant="secondary"
+                  className="ml-1 text-[9px] px-1 py-0 h-4 font-black bg-primary/15 text-primary"
+                >
+                  BETA
+                </Badge>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setActiveTab("vacantes")}
@@ -161,8 +200,7 @@ function AdminAlumnosPage() {
             >
               <DoorOpen className="h-3.5 w-3.5 text-emerald-500" />
               <span>Vacantes</span>
-            </button>
-          </div>
+            </button>          </div>
         </div>
       </div>
 
@@ -171,6 +209,8 @@ function AdminAlumnosPage() {
       {activeTab === "renovaciones" && <StudentRenewalsRetentionPanel />}
 
       {activeTab === "notas" && <TeacherNotesModeration />}
+
+      {activeTab === "notas-v2" && familyNotesAccess && <FamilyNotesModeration />}
 
       {activeTab === "vacantes" && <VacancyAvailabilityPanel />}
 

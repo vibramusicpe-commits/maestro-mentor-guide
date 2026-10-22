@@ -1,12 +1,12 @@
-# ADR-0175: Sistema de Evaluaciones, Informes de Progreso y Notas — Fase 1 (Datos y Servicios) y Fase 2 (Registro de Clase)
+# ADR-0175: Sistema de Evaluaciones, Informes de Progreso y Notas — Fases 1, 2 y 3
 
 ## Estado
 
-Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Jeremy, Nathaly y Fernando.**
+Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Jeremy, Nathaly y Fernando. Fase 3 de 7 implementada y en piloto.**
 
 ## Fecha
 
-2026-10-21 (Fase 1) · 2026-10-22 (documentación de Fase 1 y Fase 2).
+2026-10-21 (Fase 1) · 2026-10-22 (Fase 2 y Fase 3).
 
 ## Contexto
 
@@ -162,6 +162,86 @@ La migración del borrador de Jeremy es `docs/migrations/010_seed_evaluation_fie
   - relectura desde PostgreSQL;
   - exclusión de `is_test` en la última evaluación visible;
   - limpieza de la fila de prueba al finalizar.
+
+## Fase 3 — Nota a la familia y moderación (implementada)
+
+### Objetivo y alcance
+
+El docente redacta una nota dirigida a una familia y Dirección/Secretaría la modera antes de publicarla. La nota **nunca** nace publicada: se crea en `pendiente` y solo Dirección la pasa a `publicado` o `rechazado`.
+
+Qué se construyó:
+
+| Archivo | Rol |
+|---|---|
+| `src/components/teacher/family-note-form.tsx` | Formulario del docente + historial de sus notas enviadas |
+| `src/components/admin/family-notes-moderation.tsx` | Bandeja de moderación de Dirección/Secretaría |
+| `src/lib/services/family-notes.service.ts` | Se agregaron helpers de señalización de UI (`notifyFamilyNotesChanged`, `subscribeToFamilyNotesChanges`) |
+| `src/lib/services/feature-flags.service.ts` | Se agregó `getFamilyNotesAccess(teacherId?)` |
+| `src/routes/teacher.index.tsx` | Pestaña **“Nota nueva” (BETA)** junto a las existentes |
+| `src/routes/admin.alumnos.tsx` | Pestaña **“Notas v2” (BETA)** |
+
+### Habilitación (data-driven, sin desplegar)
+
+`getFamilyNotesAccess(teacherId?)` resuelve el acceso así:
+
+1. Si `feature_flags.familyNotesV2 = true` → docente y moderación abiertos para todos.
+2. Si el flag está apagado y hay docentes en `org_settings.pilot_teacher_ids`:
+   - el **formulario** se muestra solo a los docentes del piloto;
+   - la **bandeja de moderación** se muestra a Dirección/Secretaría (para poder moderar lo que envían los pilotos).
+3. Cualquier error o lista vacía → todo cerrado.
+
+Estado actual en producción: `familyNotesV2 = false` y piloto = Jeremy, Fernando y Nathaly. Por eso el formulario se ve con esos 3 docentes y la bandeja con Dirección/Secretaría.
+
+Revertir sin desplegar:
+
+- Cerrar el formulario a un docente: quitarlo de `pilot_teacher_ids`.
+- Cerrar todo (formulario + bandeja): dejar `pilot_teacher_ids` en `[]` y `familyNotesV2 = false`.
+
+### Flujo y estados
+
+```text
+Docente envía  ->  pendiente
+Dirección aprueba -> publicado   (+ published_at, reviewed_by_*, cohorte congelada)
+Dirección rechaza -> rechazado   (+ rejection_reason, contenido intacto)
+```
+
+- El docente ve el estado de sus notas en “Mis notas enviadas”.
+- Si una nota fue rechazada, ve el motivo y puede **“Usar como base para corregir”**: el contenido se recarga en el formulario y se envía una nota nueva. No se reabre la rechazada.
+- Una nota publicada no se puede rechazar (lo bloquea el servicio).
+
+### Reglas que respeta esta fase
+
+- **No toca `students.notes`** (legacy congelado).
+- **No incluye datos financieros**: ni montos, ni saldos, ni referencias de pago.
+- **Cohorte congelada**: al publicar una nota `teacher_cohort`, el servicio recalcula la cohorte y guarda `cohort_student_ids` + `cohort_snapshot_at`. Si entra un alumno nuevo después, no recibe esa nota.
+- **Auditoría automática**: cada INSERT/UPDATE/DELETE lo registra el trigger `trg_audit_family_notes` en `evaluation_audit_log` con `entity_type = 'family_note'`. La UI no duplica esa auditoría.
+- **Portal familia**: sigue leyendo solo `status = 'publicado'` y `is_test = false`.
+- **`teacher-notes-moderation.tsx` se conserva intacto** en la pestaña “Notas a Familias”. Se retirará cuando el flujo nuevo esté validado en producción (Fase 7).
+
+### Cómo probarlo en producción
+
+1. Docente del piloto entra a `/teacher` → pestaña **“Nota nueva”** → elige “Un alumno” o “Todos mis alumnos” → escribe título y mensaje → **Enviar a Dirección**.
+2. Dirección entra a `/admin/alumnos` → pestaña **“Notas v2”** → la nota aparece en **Pendientes**.
+3. **Aprobar y publicar** → confirmación → estado **Publicada** (si era cohorte, muestra “Cohorte congelada (N)”).
+4. **Rechazar** → escribe motivo → estado **Rechazada** y el docente ve el motivo en su historial.
+5. Verificar que la pestaña **“Notas a Familias”** (legacy) sigue funcionando igual.
+
+### Verificación ejecutada (2026-10-22)
+
+Prueba de runtime con datos vivos (`scratch/test-fase3-family-notes.mjs`, filas `is_test` con `test_run_id` y limpieza final) — **24/24**:
+
+- la nota nace `pendiente`, `is_test = true`, sin `published_at`;
+- la bandeja interna la ve con `includeTest`; la bandeja normal no muestra filas de prueba;
+- el portal familia no la ve antes ni después de aprobar (por ser `is_test`);
+- la lectura de auditoría sí la ve;
+- cohorte de Fernando: 19 alumnos, snapshot congelado al publicar;
+- rechazo: estado `rechazado`, motivo guardado, `body` intacto; rechazo sin motivo bloqueado;
+- `evaluation_audit_log`: 6 filas para el `test_run_id` con `insert`, `update` y `delete`;
+- limpieza: 0 filas de prueba restantes en `family_notes`.
+
+Gate (`scratch/test-fase3-access.mjs`) — **7/7**: flag apagado, formulario abierto para Jeremy y Nathaly, cerrado para Karla, bandeja abierta para Dirección, `source = "pilot"`.
+
+Rutas SSR en dev: `/teacher`, `/admin/alumnos` y `/` responden **200**. `npm run build` en verde.
 
 ## Modelo de datos
 
@@ -335,7 +415,7 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 |---|---|---|
 | 1 | Datos, tipos, snapshot y servicios | ✅ Implementada |
 | 2 | Registro de clase docente (`class-log.tsx`, pestaña en `/teacher`) | ✅ Implementada (piloto Jeremy/Nathaly/Fernando) |
-| 3 | Nota a familia + moderación (`family-note-form.tsx`, `family-notes-moderation.tsx`) | ⏳ Pendiente |
+| 3 | Nota a familia + moderación (`family-note-form.tsx`, `family-notes-moderation.tsx`) | ✅ Implementada (piloto Jeremy/Nathaly/Fernando + bandeja Dirección) |
 | 4 | Nota interna + bandeja (`internal-note-form.tsx`, `internal-notes-inbox.tsx`) | ⏳ Pendiente |
 | 5 | Informe de progreso A4, PDF/Markdown/WhatsApp y ruta `family.progreso.tsx` | ⏳ Pendiente |
 | 6 | Reportes, filtros y exportación CSV en admin | ⏳ Pendiente |
@@ -347,9 +427,10 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 - **Fase 2:** los docentes del piloto (**Jeremy**, **Nathaly** y **Fernando**) ven en `/teacher` la pestaña **“Registro de clase (BETA)”** y el botón **“Registrar clase / evaluación”** en cada tarjeta de alumno. El resto de docentes y roles no ve cambios.
 - La pestaña **“Notas a familia”** se conserva sin modificaciones.
 - **Jeremy** usa la pestaña con sus 17 criterios en **v0 borrador** (Guitarra 8, Batería 9) y escala Inicia / En proceso / Logrado / Destacado. Esos criterios no aparecen en informes ni en el portal familia hasta que él los valide.
-- No se publica nada a familias en esta fase.
+- **Fase 3:** los docentes del piloto ven en `/teacher` la pestaña **“Nota nueva” (BETA)** y Dirección/Secretaría ve en `/admin/alumnos` la pestaña **“Notas v2” (BETA)**. Nada llega a las familias sin aprobación explícita; el portal familia sigue leyendo solo `family_notes` con `status = 'publicado'` y `is_test = false`.
+- La pestaña **“Notas a familia”** (flujo legacy) se conserva sin modificaciones y sigue operativa durante el piloto.
 
-La siguiente funcionalidad visible será la **Fase 3** (nota a familia con moderación).
+La siguiente funcionalidad visible será la **Fase 4** (nota interna a Dirección).
 
 ## Referencias
 
@@ -361,7 +442,9 @@ La siguiente funcionalidad visible será la **Fase 3** (nota a familia con moder
 - `src/lib/informes/types.ts`, `utils.ts`, `attendance-snapshot.ts`.
 - `src/lib/services/evaluations.service.ts`, `progress-reports.service.ts`, `family-notes.service.ts`, `internal-notes.service.ts`, `feature-flags.service.ts`, `teacher-resolver.ts`.
 - `src/components/teacher/class-log.tsx` — registro de clase de Fase 2.
-- `src/routes/teacher.index.tsx` — pestaña, gate de piloto y botón por tarjeta.
-- `scratch/test-informes-phase1.mjs` y `scratch/test-fase2-class-log.mjs` — arneses temporales, no commiteados.
+- `src/components/teacher/family-note-form.tsx` y `src/components/admin/family-notes-moderation.tsx` — Fase 3.
+- `src/routes/teacher.index.tsx` — pestañas, gate de piloto y botón por tarjeta.
+- `src/routes/admin.alumnos.tsx` — pestaña “Notas v2” (Fase 3).
+- `scratch/test-informes-phase1.mjs`, `scratch/test-fase2-class-log.mjs`, `scratch/test-fase3-family-notes.mjs` y `scratch/test-fase3-access.mjs` — arneses temporales, no commiteados.
 - Commit `b7a0795` — implementación Fase 1.
 - Commit de Fase 2 — registro de clase y seed de criterios.

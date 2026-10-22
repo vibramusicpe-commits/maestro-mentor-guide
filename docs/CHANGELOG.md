@@ -4,6 +4,26 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.42] - 2026-10-22
+
+### Fase 3 — Nota a la familia y moderación (en piloto)
+- **Nuevo formulario docente** `src/components/teacher/family-note-form.tsx`, montado en `/teacher` como pestaña **“Nota nueva” (BETA)**.
+  - Alcance: **un alumno** o **toda la cohorte del docente**.
+  - La nota **siempre nace `pendiente`**: nada llega a la familia sin aprobación de Dirección.
+  - Historial “Mis notas enviadas” con estado, fecha y, si fue rechazada, el **motivo** y el botón **“Usar como base para corregir”**.
+- **Nueva bandeja de moderación** `src/components/admin/family-notes-moderation.tsx`, montada en `/admin/alumnos` como pestaña **“Notas v2” (BETA)**.
+  - Filtros por estado (Pendientes / Publicadas / Rechazadas / Todas), buscador y contadores.
+  - **Aprobar y publicar** con confirmación explícita; en cohortes se congela la lista de alumnos y se muestra el tamaño congelado.
+  - **Rechazar** exige motivo (mínimo 5 caracteres) y **no borra el contenido**.
+  - La auditoría la registra el trigger `trg_audit_family_notes` en `evaluation_audit_log` (`entity_type = 'family_note'`).
+- **Habilitación data-driven sin desplegar**: `getFamilyNotesAccess()` en `feature-flags.service.ts`.
+  - Con `familyNotesV2 = true` se abre para todos; sin flag, el formulario se abre solo a docentes de `pilot_teacher_ids` y la bandeja a Dirección.
+  - Estado actual: `familyNotesV2 = false` y piloto = Jeremy, Fernando y Nathaly.
+- **Blindajes**: no toca `students.notes` ni `notification_logs`; cero datos financieros; el portal familia sigue leyendo solo `publicado` e `is_test = false`; identidad por UUID.
+- **Legacy intacto**: `TeacherNotesModeration` y `LessonNotes` siguen operativos en “Notas a Familias”.
+- **Verificación**: 24/24 checks de runtime con datos vivos (`is_test` + `test_run_id`, limpieza final) y 7/7 del gate; `/teacher`, `/admin/alumnos` y `/` en 200; `npm run build` en verde.
+- **Documentación**: ADR-0175 (sección Fase 3), AGENTS.md sección 75 punto 9 y log `docs/logs/2026-10-22-fase-3-notas-familia-moderacion.log`.
+
 ## [2.0.41] - 2026-10-22
 
 ### Jeremy habilitado en el piloto de registro de clase (sin despliegue de código)

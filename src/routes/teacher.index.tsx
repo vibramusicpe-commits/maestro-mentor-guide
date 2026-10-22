@@ -13,17 +13,19 @@ import {
   UserCheck,
   RotateCw,
   ClipboardList,
+  PenLine,
 } from "lucide-react";
 import { IntegratedTeacherKioskHeader } from "@/components/teacher/integrated-kiosk-header";
 import { LessonNotes } from "@/components/teacher/lesson-notes";
 import { ClassLog, type ClassLogSeed } from "@/components/teacher/class-log";
+import { FamilyNoteForm } from "@/components/teacher/family-note-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore, type AdminStudent, type ScheduledLesson, type WeekDay, type AttendanceStatus } from "@/store/app-store";
 import { getCurrentWeekIndex, getMonthWeeks } from "@/lib/calendar-utils";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { isLessonInStudentCycle } from "@/lib/student-cycle";
 import { resolveTeacherUserId } from "@/lib/services/teacher-resolver";
-import { getFeatureFlags, getOrgSetting } from "@/lib/services/feature-flags.service";
+import { getFeatureFlags, getFamilyNotesAccess, getOrgSetting } from "@/lib/services/feature-flags.service";
 import { toIsoDate } from "@/lib/informes/utils";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { toast } from "sonner";
@@ -275,9 +277,10 @@ export function TeacherKiosk() {
 
   // 🧪 Fase 2 — Registro de clase (piloto Nathaly / Fernando)
   const classLogSectionRef = useRef<HTMLDivElement | null>(null);
-  const [notesTab, setNotesTab] = useState<"notes" | "class-log">("notes");
+  const [notesTab, setNotesTab] = useState<"notes" | "class-log" | "family-note">("notes");
   const [classLogSeed, setClassLogSeed] = useState<ClassLogSeed | null>(null);
   const [classLogAccess, setClassLogAccess] = useState(false);
+  const [familyNoteAccess, setFamilyNoteAccess] = useState(false);
 
   const teacherIdForLog = useMemo(
     () => resolveTeacherUserId(undefined, teacherDisplayName),
@@ -289,16 +292,21 @@ export function TeacherKiosk() {
     Promise.all([
       getFeatureFlags(),
       getOrgSetting<string[]>("pilot_teacher_ids", []),
+      getFamilyNotesAccess(teacherIdForLog),
     ])
-      .then(([flags, pilots]) => {
+      .then(([flags, pilots, familyAccess]) => {
         if (cancelled) return;
         const pilotList = Array.isArray(pilots) ? pilots.map(String) : [];
         setClassLogAccess(
           Boolean(flags.evaluationsV2 || pilotList.includes(teacherIdForLog)),
         );
+        setFamilyNoteAccess(Boolean(familyAccess.teacher));
       })
       .catch(() => {
-        if (!cancelled) setClassLogAccess(false);
+        if (!cancelled) {
+          setClassLogAccess(false);
+          setFamilyNoteAccess(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -704,43 +712,77 @@ export function TeacherKiosk() {
         ref={classLogSectionRef}
         className="rounded-2xl border border-border bg-card p-4 shadow-xs"
       >
-        {classLogAccess ? (
+        {classLogAccess || familyNoteAccess ? (
           <Tabs
             value={notesTab}
             onValueChange={(value) =>
-              setNotesTab(value as "notes" | "class-log")
+              setNotesTab(value as "notes" | "class-log" | "family-note")
             }
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="notes" className="gap-1.5 text-xs font-bold">
-                <MessageCircle className="h-3.5 w-3.5" />
+            <TabsList
+              className={`grid w-full ${
+                classLogAccess && familyNoteAccess
+                  ? "grid-cols-3"
+                  : "grid-cols-2"
+              }`}
+            >
+              <TabsTrigger
+                value="notes"
+                className="gap-1 px-1 text-[10px] font-bold sm:text-xs"
+              >
+                <MessageCircle className="h-3.5 w-3.5 shrink-0" />
                 Notas a familia
               </TabsTrigger>
-              <TabsTrigger
-                value="class-log"
-                className="gap-1.5 text-xs font-bold"
-              >
-                <ClipboardList className="h-3.5 w-3.5" />
-                Registro de clase
-                <span className="ml-1 rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-black text-primary">
-                  BETA
-                </span>
-              </TabsTrigger>
+              {familyNoteAccess && (
+                <TabsTrigger
+                  value="family-note"
+                  className="gap-1 px-1 text-[10px] font-bold sm:text-xs"
+                >
+                  <PenLine className="h-3.5 w-3.5 shrink-0" />
+                  Nota nueva
+                  <span className="ml-0.5 rounded-full bg-primary/15 px-1 py-0.5 text-[8px] font-black text-primary">
+                    BETA
+                  </span>
+                </TabsTrigger>
+              )}
+              {classLogAccess && (
+                <TabsTrigger
+                  value="class-log"
+                  className="gap-1 px-1 text-[10px] font-bold sm:text-xs"
+                >
+                  <ClipboardList className="h-3.5 w-3.5 shrink-0" />
+                  Registro
+                  <span className="ml-0.5 rounded-full bg-primary/15 px-1 py-0.5 text-[8px] font-black text-primary">
+                    BETA
+                  </span>
+                </TabsTrigger>
+              )}
             </TabsList>
             <TabsContent value="notes" className="mt-3" forceMount>
               <LessonNotes />
             </TabsContent>
-            <TabsContent value="class-log" className="mt-3" forceMount>
-              <ClassLog
-                key={classLogSeed?.nonce ?? "class-log-empty"}
-                teacherName={teacherDisplayName}
-                teacherClean={teacherClean}
-                students={teacherStudentList}
-                schedule={teacherScheduleLessons}
-                initialSeed={classLogSeed}
-              />
-            </TabsContent>
+            {familyNoteAccess && (
+              <TabsContent value="family-note" className="mt-3" forceMount>
+                <FamilyNoteForm
+                  teacherName={teacherDisplayName}
+                  teacherId={teacherIdForLog}
+                  students={teacherStudentList}
+                />
+              </TabsContent>
+            )}
+            {classLogAccess && (
+              <TabsContent value="class-log" className="mt-3" forceMount>
+                <ClassLog
+                  key={classLogSeed?.nonce ?? "class-log-empty"}
+                  teacherName={teacherDisplayName}
+                  teacherClean={teacherClean}
+                  students={teacherStudentList}
+                  schedule={teacherScheduleLessons}
+                  initialSeed={classLogSeed}
+                />
+              </TabsContent>
+            )}
           </Tabs>
         ) : (
           <LessonNotes />

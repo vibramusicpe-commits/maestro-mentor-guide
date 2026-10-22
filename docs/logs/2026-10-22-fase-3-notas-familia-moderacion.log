@@ -1,0 +1,224 @@
+================================================================================
+VIBRA MUSIC STAFF — FASE 3: NOTA A LA FAMILIA Y MODERACIÓN
+Fecha: 2026-10-22
+ADR: docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md
+Estado: IMPLEMENTADA Y EN PILOTO (producción)
+================================================================================
+
+1. OBJETIVO
+--------------------------------------------------------------------------------
+Que el docente pueda enviar una nota a la familia y que Dirección/Secretaría la
+modere antes de publicarla. Nada llega a las familias sin aprobación explícita.
+
+Flujo oficial:
+
+    Docente escribe  ->  pendiente
+    Dirección aprueba ->  publicado  (visible para la familia)
+    Dirección rechaza ->  rechazado  (con motivo, contenido intacto)
+
+2. ARCHIVOS TOCADOS (solo aditivo / quirúrgico)
+--------------------------------------------------------------------------------
+NUEVOS
+  src/components/teacher/family-note-form.tsx
+    Formulario del docente + historial "Mis notas enviadas".
+    Alcance: student | teacher_cohort. Nada de academia (esa la maneja Dirección).
+    Rechazadas: muestra motivo y "Usar como base para corregir".
+
+  src/components/admin/family-notes-moderation.tsx
+    Bandeja de Dirección: filtros por estado, buscador, contadores,
+    aprobar (con confirmación) y rechazar (motivo obligatorio).
+
+MODIFICADOS (mínimo necesario)
+  src/lib/services/family-notes.service.ts
+    + notifyFamilyNotesChanged()
+    + subscribeToFamilyNotesChanges()
+    + FAMILY_NOTES_SYNC_CHANNEL / FAMILY_NOTES_UPDATED_EVENT
+    Solo señalizan "algo cambió" para recargar listas. No transportan estado.
+
+  src/lib/services/feature-flags.service.ts
+    + getFamilyNotesAccess(teacherId?) -> { teacher, moderation, source }
+
+  src/routes/teacher.index.tsx
+    + import FamilyNoteForm + getFamilyNotesAccess
+    + estado familyNoteAccess
+    + pestaña "Nota nueva" (BETA) y su TabsContent
+    El gate de Fase 2 (class-log) quedó igual.
+
+  src/routes/admin.alumnos.tsx
+    + import FamilyNotesModeration + getFamilyNotesAccess
+    + estado familyNotesAccess
+    + pestaña "Notas v2" (BETA) y su render
+    La pestaña legacy "Notas a Familias" quedó intacta.
+
+NO SE TOCÓ
+  - app-store.ts, kardex-calculator.ts, student-cycle.ts
+  - agenda, Kardex, asistencia, facturación
+  - students.notes (legacy congelado)
+  - notification_logs
+  - teacher-notes-moderation.tsx ni lesson-notes.tsx
+
+3. HABILITACIÓN (sin desplegar)
+--------------------------------------------------------------------------------
+getFamilyNotesAccess(teacherId?) en feature-flags.service.ts:
+
+  1. familyNotesV2 = true            -> teacher=true,  moderation=true, source="flag"
+  2. flag false + pilot_teacher_ids  -> teacher = (teacherId in pilot)
+                                        moderation = true
+                                        source = "pilot"
+  3. error o piloto vacío            -> todo false, source="none"
+
+Estado en producción al cierre:
+  feature_flags.familyNotesV2 = false
+  org_settings.pilot_teacher_ids = [
+    "00000000-0000-0000-0000-000000000003",  Jeremy
+    "00000000-0000-0000-0000-000000000004",  Fernando
+    "00000000-0000-0000-0000-000000000005"   Nathaly
+  ]
+
+Resultado: los 3 docentes ven "Nota nueva"; Dirección/Secretaría ve "Notas v2";
+Karla y cualquier otro docente NO ven el formulario.
+
+REVERTIR SIN DESPLEGAR
+  - Cerrar el formulario a un docente: quitarlo de pilot_teacher_ids.
+  - Cerrar todo: pilot_teacher_ids = [] y familyNotesV2 = false.
+  - Las notas ya guardadas permanecen en family_notes (no se borra nada).
+
+4. BASE DE DATOS (ya existía desde la Fase 1, migración 008)
+--------------------------------------------------------------------------------
+Tabla family_notes:
+  scope                 student | teacher_cohort | academy
+  status                pendiente | publicado | rechazado
+  cohort_student_ids    UUID[] congelado al publicar
+  cohort_snapshot_at    TIMESTAMPTZ del congelamiento
+  rejection_reason      motivo del rechazo (el contenido NO se borra)
+  published_at / published_by_* / reviewed_by_* / reviewed_at
+  is_test + test_run_id para pruebas aisladas
+
+Auditoría:
+  trg_audit_family_notes (AFTER INSERT/UPDATE/DELETE)
+  -> evaluation_audit_log.entity_type = 'family_note'
+  -> append-only (REVOKE UPDATE, DELETE). La UI no duplica auditoría.
+
+Portal familia:
+  getPublishedFamilyNotesForStudent / ForFamily
+  -> status = 'publicado' AND is_test = false
+  -> nota directa + cohorte que lo congeló + notas de academia
+
+5. VERIFICACIÓN EN RUNTIME (datos vivos)
+--------------------------------------------------------------------------------
+Arné: scratch/test-fase3-family-notes.mjs  (NO se commitea)
+Filas creadas con is_test=true y test_run_id único; limpieza final por test_run_id.
+
+  Alumno de prueba: Aaron (0a899060-3aaf-4574-b1ea-71163953dbae)
+  Docente: Fernando (00000000-0000-0000-0000-000000000004)
+
+  OK  nota creada
+  OK  nace en pendiente
+  OK  marcada como prueba (is_test)
+  OK  no publica automáticamente (published_at null)
+  OK  la bandeja interna la ve (includeTest)
+  OK  la bandeja normal NO muestra filas de prueba
+  OK  portal familia no la ve antes de aprobar
+  OK  estado publicado
+  OK  published_at registrado
+  OK  reviewed_by registrado
+  OK  portal familia sigue sin verla (is_test)
+  OK  lectura de auditoría sí la ve
+  OK  cohorte del docente no vacía (19 alumnos)
+  OK  nota de cohorte nace sin snapshot
+  OK  cohorte publicada
+  OK  snapshot de cohorte congelado
+  OK  lista de alumnos congelada (19)
+  OK  estado rechazado
+  OK  motivo guardado
+  OK  contenido NO borrado
+  OK  rechazo sin motivo bloqueado
+  OK  auditoría registró los cambios (6 filas)
+  OK  auditoría incluye INSERT y UPDATE
+  OK  limpieza de family_notes de prueba (0 restantes)
+
+  RESULTADO: TODO OK (24/24)
+
+Arné: scratch/test-fase3-access.mjs  (NO se commitea)
+  OK  flag familyNotesV2 sigue apagado
+  OK  Jeremy ve el formulario (piloto)
+  OK  Nathaly ve el formulario (piloto)
+  OK  Karla NO ve el formulario
+  OK  Dirección ve la bandeja
+  OK  la bandeja no depende de un docente concreto
+  OK  source = "pilot"
+
+  RESULTADO: TODO OK (7/7)
+
+Rutas SSR en dev (vite):
+  /teacher        -> 200
+  /admin/alumnos  -> 200
+  /               -> 200
+
+Build:
+  npm run build   -> verde (sin errores de tipos)
+
+6. CÓMO PROBARLO A MANO EN PRODUCCIÓN
+--------------------------------------------------------------------------------
+1. Docente del piloto entra a /teacher con su enlace de invitación.
+2. Pestaña "Nota nueva" -> elige "Un alumno" o "Todos mis alumnos".
+3. Escribe título y mensaje -> "Enviar a Dirección".
+   Resultado esperado: toast de enviado + aparece en "Mis notas enviadas"
+   con estado "En revisión".
+4. Dirección entra a /admin/alumnos -> pestaña "Notas v2".
+5. En "Pendientes" pulsa "Aprobar y publicar" -> confirma -> estado "Publicada".
+   Si era cohorte: "Cohorte congelada (N)".
+6. Alternativa: "Rechazar" -> escribe motivo -> estado "Rechazada".
+   El docente ve el motivo y puede reenviar con "Usar como base para corregir".
+7. Verificar que la pestaña legacy "Notas a Familias" sigue funcionando igual.
+
+7. RIESGOS CONOCIDOS Y DECISIONES
+--------------------------------------------------------------------------------
+- La bandeja de Dirección se muestra si hay al menos un docente en el piloto.
+  Es intencional: permite moderar lo que envían los pilotos. Al vaciar el
+  piloto, desaparece.
+- No se retiró el flujo legacy (teacher-notes-moderation / lesson-notes).
+  Se retirará en la Fase 7 cuando el flujo nuevo esté validado.
+- El formulario docente no permite notas de alcance "academy": esa potestad
+  queda para Dirección (el servicio sí la soporta).
+- Las notas publicadas no se pueden rechazar; el servicio lo bloquea.
+
+8. HANDOFF PARA EL SIGUIENTE AGENTE
+--------------------------------------------------------------------------------
+Estado exacto al cierre:
+  family_notes            0 filas (las de prueba se limpiaron)
+  lesson_evaluations      0 filas
+  progress_reports        0 filas
+  internal_notes          0 filas
+  evaluation_audit_log    incluye filas is_test de las pruebas de Fase 3
+                          (append-only: no se pueden borrar con la anon key;
+                          están marcadas con test_run_id FASE3-* y se listan
+                          en la vista v_test_records)
+  flag familyNotesV2      false
+  pilot_teacher_ids       3 (Jeremy, Fernando, Nathaly)
+
+Reglas que NO se pueden romper al continuar:
+  1. Ninguna nota a familia se publica sin approveFamilyNote (moderación).
+  2. rejectFamilyNote exige motivo y NO borra el contenido.
+  3. La cohorte se congela al publicar; no recalcularla después.
+  4. No tocar students.notes ni notification_logs.
+  5. Cero datos financieros en notas, informes o portal familia.
+  6. El portal familia lee solo publicado + is_test = false.
+  7. No modificar app-store.ts, kardex-calculator.ts ni student-cycle.ts
+     por este tema.
+  8. Toda prueba debe usar is_test=true + test_run_id y limpiarse al final.
+
+Pendiente (Fase 4):
+  - src/components/teacher/internal-note-form.tsx
+  - src/components/admin/internal-notes-inbox.tsx
+  - internal_notes: nueva | leida | archivada (migración 008b ya lista)
+  - No visible en el portal familia.
+
+Pendiente de validación con el piloto (Fase 3):
+  - Que Jeremy, Fernando y Nathaly envíen 1-2 notas reales.
+  - Que Dirección apruebe y rechace al menos una de cada tipo.
+  - Confirmar que la familia no ve nada hasta la aprobación.
+
+================================================================================
+FIN DEL LOG
+================================================================================
