@@ -266,7 +266,7 @@ export function LessonNotes() {
             <span className="flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5 text-primary" /> Destinatario de la Nota
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {teacherStudents.length} alumnos asignados
             </span>
           </label>
@@ -335,11 +335,11 @@ export function LessonNotes() {
                         <p className="font-bold text-foreground group-hover:text-primary transition-colors">
                           {st.name}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {st.family} · {st.instrument} ({st.ageCategory || "JUNIOR"})
                         </p>
                       </div>
-                      <Badge variant="outline" className="text-[9px] font-bold">
+                      <Badge variant="outline" className="text-xs font-bold">
                         Seleccionar →
                       </Badge>
                     </button>
@@ -370,7 +370,7 @@ export function LessonNotes() {
                 </p>
               </div>
 
-              <div className="text-right text-[11px] text-muted-foreground">
+              <div className="text-right text-xs text-muted-foreground">
                 <span className="flex items-center gap-1 text-foreground font-semibold">
                   <Phone className="h-3 w-3 text-success" />
                   {selectedStudent.phone || selectedStudent.emergencyContact?.phone || "Sin teléfono"}
@@ -388,7 +388,7 @@ export function LessonNotes() {
                       <Clock className="h-4 w-4" />
                       <span>⏳ Nota en Revisión por Administración</span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
                       Esta nota fue enviada a Dirección / Secretaría y está en cola de moderación. Se publicará automáticamente en el Portal de la Familia en cuanto sea aprobada.
                     </p>
                   </div>
@@ -398,7 +398,7 @@ export function LessonNotes() {
                       <ShieldCheck className="h-4 w-4" />
                       <span>✅ Nota Aprobada y Publicada</span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
                       {latestStudentNote.moderatedBy ? `Autorizada por ${latestStudentNote.moderatedBy}. ` : ""}
                       Ya se encuentra disponible en el Portal Familiar del alumno y lista para enviarse por WhatsApp.
                     </p>
@@ -409,10 +409,10 @@ export function LessonNotes() {
                       <AlertCircle className="h-4 w-4" />
                       <span>❌ Nota Devuelta con Observaciones</span>
                     </div>
-                    <p className="text-[11px] text-foreground font-medium">
+                    <p className="text-xs text-foreground font-medium">
                       Motivo de administración: &ldquo;{latestStudentNote.moderationComment || "Ajustar redacción antes de enviar a la familia"}&rdquo;
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Corrige el texto a continuación y presiona &ldquo;Reenviar a Revisión&rdquo;.
                     </p>
                   </div>
@@ -422,7 +422,7 @@ export function LessonNotes() {
 
             {/* Plantillas de texto rápido */}
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <span className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1">
                 <Sparkles className="h-3 w-3 text-[#FFB52E]" /> Plantillas Rápidas:
               </span>
               <div className="flex flex-wrap gap-1.5">
@@ -433,7 +433,7 @@ export function LessonNotes() {
                     variant="outline"
                     size="sm"
                     onClick={() => setStudentNote(tpl.text)}
-                    className="h-6 text-[10px] px-2 rounded-lg border-primary/30 text-primary hover:bg-primary/10"
+                    className="h-6 text-xs px-2 rounded-lg border-primary/30 text-primary hover:bg-primary/10"
                   >
                     {tpl.label}
                   </Button>
@@ -445,7 +445,7 @@ export function LessonNotes() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground flex items-center justify-between">
                 <span>Reporte Pedagógico / Mensaje para los Padres</span>
-                <span className="text-[10px] text-muted-foreground">Filtro Administrativo Requerido</span>
+                <span className="text-xs text-muted-foreground">Filtro Administrativo Requerido</span>
               </label>
               <Textarea
                 value={studentNote}
@@ -519,7 +519,7 @@ export function LessonNotes() {
               <p className="font-bold text-foreground flex items-center gap-1.5">
                 📢 Comunicado General a Todas tus Familias
               </p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Este mensaje se mostrará a todos los apoderados de tus alumnos en el Portal de Familia de Vibra Music.
               </p>
             </div>
@@ -553,7 +553,7 @@ export function LessonNotes() {
           placeholder="Solo tú y la dirección ven esta nota… (ej. incidencias de conducta, instrumentos de la sede, temas administrativos)"
           className="min-h-24 text-xs"
         />
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>🔒 Confidencial: Visible únicamente para el equipo docente y dirección.</span>
           <Button
             type="button"
@@ -563,7 +563,7 @@ export function LessonNotes() {
               setNote("private", privateNote);
               toast.success("✓ Nota privada guardada");
             }}
-            className="h-7 text-[11px] font-bold"
+            className="h-7 text-xs font-bold"
           >
             Guardar
           </Button>
@@ -588,23 +588,23 @@ export function LessonNotes() {
                 <div className="min-w-0 space-y-0.5">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-bold text-foreground">{n.studentName}</span>
-                    <span className="text-[10px] text-muted-foreground">· {n.instrument}</span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">· {n.instrument}</span>
+                    <span className="text-xs text-muted-foreground">
                       · {new Date(n.createdAt).toLocaleDateString("es-PE", { day: "2-digit", month: "short" })}
                     </span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1 italic">
+                  <p className="text-xs text-muted-foreground line-clamp-1 italic">
                     &ldquo;{n.content}&rdquo;
                   </p>
                   {n.status === "rechazado" && n.moderationComment && (
-                    <p className="text-[10px] text-rose-500 font-semibold">
+                    <p className="text-xs text-rose-500 font-semibold">
                       Motivo: {n.moderationComment}
                     </p>
                   )}
                 </div>
 
                 <span
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 border ${
+                  className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 border ${
                     n.status === "aprobado"
                       ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                       : n.status === "rechazado"

@@ -241,7 +241,7 @@ export function InternalNoteForm({
                   key={option}
                   type="button"
                   onClick={() => setVisibility(option)}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-bold transition-all ${
+                  className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-bold transition-all ${
                     isActive
                       ? meta.className
                       : "border-border bg-background text-muted-foreground hover:text-foreground"
@@ -291,7 +291,7 @@ export function InternalNoteForm({
             type="button"
             onClick={() => void handleSubmit()}
             disabled={submitting}
-            className="h-9 gap-1.5 text-xs font-bold"
+            className="min-h-[44px] gap-1.5 px-4 text-xs font-bold"
           >
             {submitting ? (
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />

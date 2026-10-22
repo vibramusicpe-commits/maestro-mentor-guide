@@ -226,7 +226,7 @@ function TeacherStudents() {
             Guía de alumnos de la academia para seguimiento, coordinación y suplencias ante imprevistos.
           </p>
         </div>
-        <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary">
+        <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-black text-primary">
           {filtered.length}/{unifiedStudents.length}
         </span>
       </div>
@@ -266,7 +266,7 @@ function TeacherStudents() {
             value={selectedTeacher}
             onChange={(e) => setSelectedTeacher(e.target.value)}
             aria-label="Filtrar por profesor"
-            className="h-10 w-[6.75rem] shrink-0 rounded-xl border border-input bg-background px-2 text-[11px] font-bold shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:w-auto sm:px-3 sm:text-sm"
+            className="h-10 w-[6.75rem] shrink-0 rounded-xl border border-input bg-background px-2 text-xs font-bold shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:w-auto sm:px-3 sm:text-sm"
           >
             <option value="todos">Todos</option>
             {availableTeachers.map((t) => (
@@ -280,12 +280,12 @@ function TeacherStudents() {
 
       {/* Leyenda colapsable: en móvil no roba pantalla */}
       <details className="rounded-xl border border-border bg-card px-3 py-2 shadow-xs">
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-bold text-foreground">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-bold text-foreground">
           <Sparkles className="h-3.5 w-3.5 shrink-0 text-warning" />
           Leyenda de categorías
-          <span className="ml-auto text-[10px] font-semibold text-muted-foreground">toca para ver</span>
+          <span className="ml-auto text-xs font-semibold text-muted-foreground">toca para ver</span>
         </summary>
-        <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold">
+        <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-bold">
           <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-300">
             ● JUNIOR (7 a 12)
           </span>
@@ -340,7 +340,7 @@ function TeacherStudents() {
             >
               <div className="flex items-center gap-2.5">
                 <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="bg-primary/15 text-[10px] font-bold text-primary">
+                  <AvatarFallback className="bg-primary/15 text-xs font-bold text-primary">
                     {s.name
                       .split(" ")
                       .map((p: string) => p[0])
@@ -355,16 +355,16 @@ function TeacherStudents() {
                       {s.name}
                     </span>
                     <span
-                      className={`shrink-0 rounded border px-1 text-[9px] font-bold leading-4 ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
+                      className={`shrink-0 rounded border px-1 text-xs font-bold leading-4 ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
                     >
                       {catShort}
                     </span>
-                    <span className="ml-auto shrink-0 text-[10px] font-bold text-muted-foreground">
+                    <span className="ml-auto shrink-0 text-xs font-bold text-muted-foreground">
                       {s.age ? `${s.age}a` : ""}
                     </span>
                   </div>
 
-                  <p className="truncate text-[11px] font-medium text-muted-foreground">
+                  <p className="truncate text-xs font-medium text-muted-foreground">
                     {s.instrument} ·{" "}
                     <span className="font-semibold text-foreground">Prof. {s.teacher}</span>
                     {studentLesson
@@ -372,7 +372,7 @@ function TeacherStudents() {
                       : ""}
                   </p>
 
-                  <p className="truncate text-[10px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     <Phone className="mr-1 inline h-2.5 w-2.5 text-primary" />
                     {isAdult
                       ? `Alumno (+18): ${s.phone || "sin tel."}`
@@ -380,7 +380,7 @@ function TeacherStudents() {
                   </p>
 
                   {!studentLesson && (
-                    <p className="flex items-center gap-1 truncate text-[10px] italic text-muted-foreground">
+                    <p className="flex items-center gap-1 truncate text-xs italic text-muted-foreground">
                       <Clock className="h-2.5 w-2.5 shrink-0" />
                       Sin horario agendado · {s.modality}
                     </p>
@@ -391,13 +391,13 @@ function TeacherStudents() {
                   <button
                     type="button"
                     onClick={() => setKardexStudent(s)}
-                    className="rounded-lg border border-primary/30 bg-primary/10 px-1.5 py-1 text-[9px] font-black text-primary transition-colors hover:bg-primary/20"
+                    className="min-h-[44px] rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-black text-primary transition-colors hover:bg-primary/20"
                     title="Ver Kardex de asistencias, fechas y horas"
                   >
                     📖 Kardex
                   </button>
                   <span
-                    className={`text-[9px] font-bold ${
+                    className={`text-xs font-bold ${
                       s.attendanceRate > 0 ? "text-success" : "text-muted-foreground"
                     }`}
                   >

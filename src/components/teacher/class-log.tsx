@@ -202,12 +202,12 @@ function CriterionField({
   const label = (
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0">
-        <p className="text-[11px] font-bold text-foreground">
+        <p className="text-xs font-bold text-foreground">
           {field.label}
           {field.required && <span className="ml-1 text-red-500">*</span>}
         </p>
         {field.help_text && (
-          <p className="text-[10px] text-muted-foreground">{field.help_text}</p>
+          <p className="text-xs text-muted-foreground">{field.help_text}</p>
         )}
       </div>
     </div>
@@ -227,7 +227,7 @@ function CriterionField({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => onChange(selected ? "" : option.value)}
-                className={`rounded-lg border px-1.5 py-1.5 text-[10px] font-black transition-all ${
+                className={`rounded-lg border px-1.5 py-1.5 text-xs font-black transition-all ${
                   selected
                     ? "text-white shadow-sm scale-[1.02]"
                     : "bg-background text-muted-foreground hover:text-foreground"
@@ -283,11 +283,11 @@ function CriterionField({
         }`}
       >
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-bold">{field.label}</p>
+          <p className="text-xs font-bold">{field.label}</p>
           <span className="text-xs">{checked ? "✅" : "⬜"}</span>
         </div>
         {field.help_text && (
-          <p className="text-[10px] text-muted-foreground">{field.help_text}</p>
+          <p className="text-xs text-muted-foreground">{field.help_text}</p>
         )}
       </button>
     );
@@ -695,18 +695,18 @@ export function ClassLog({
             <p className="text-sm font-black text-foreground">
               Registro de clase
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Objetivo: 30–90 segundos. Se guarda por sesión y puedes corregirlo
               después.
             </p>
           </div>
-          <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-black text-primary">
+          <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-black text-primary">
             BETA
           </span>
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+          <label className="text-xs font-black uppercase tracking-wide text-muted-foreground">
             Alumno
           </label>
           <StudentPicker
@@ -725,7 +725,7 @@ export function ClassLog({
             <p className="text-xs font-bold text-foreground">
               Busca y elige un alumno para empezar
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               También puedes entrar desde el botón “Registrar clase” de su
               tarjeta en el kiosco.
             </p>
@@ -733,20 +733,20 @@ export function ClassLog({
         ) : (
           <>
             <div className="flex flex-wrap gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-[10px] font-bold text-foreground">
+              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs font-bold text-foreground">
                 <Music2 className="h-3 w-3 text-primary" />
                 {instrument || selectedStudent.instrument}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-[10px] font-bold text-foreground">
+              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs font-bold text-foreground">
                 <BookOpen className="h-3 w-3 text-primary" />
                 {selectedStudent.level || "Nivel no registrado"}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-[10px] font-bold text-foreground">
+              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs font-bold text-foreground">
                 <Clock className="h-3 w-3 text-primary" />
                 {durationMin} min
               </span>
               {selectedStudent.ageCategory && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-[10px] font-bold text-foreground">
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs font-bold text-foreground">
                   <User className="h-3 w-3 text-primary" />
                   {selectedStudent.ageCategory}
                 </span>
@@ -755,7 +755,7 @@ export function ClassLog({
 
             <div className="rounded-xl border border-border/70 bg-background/70 p-2.5 space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-black text-foreground">
+                <p className="text-xs font-black text-foreground">
                   Última evaluación
                 </p>
                 {latestLoading && (
@@ -764,7 +764,7 @@ export function ClassLog({
               </div>
               {latest ? (
                 <>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {formatDate(latest.session_date)} ·{" "}
                     {STATUS_LABELS[latest.overall_status]}
                   </p>
@@ -774,19 +774,19 @@ export function ClassLog({
                     </p>
                   )}
                   {latest.repertoire?.length > 0 && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Repertorio:{" "}
                       {latest.repertoire.map((item) => item.title).join(" · ")}
                     </p>
                   )}
                   {latest.teacher_comment && (
-                    <p className="text-[11px] text-muted-foreground line-clamp-2">
+                    <p className="text-xs text-muted-foreground line-clamp-2">
                       {latest.teacher_comment}
                     </p>
                   )}
                 </>
               ) : (
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Sin evaluaciones previas. Esta será la primera.
                 </p>
               )}
@@ -794,7 +794,7 @@ export function ClassLog({
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                   Fecha
                 </label>
                 <Input
@@ -805,7 +805,7 @@ export function ClassLog({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                   Hora de inicio
                 </label>
                 <Input
@@ -819,14 +819,14 @@ export function ClassLog({
 
             {isCanto && (
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                   Modalidad de Canto
                 </label>
                 <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setClassMode("individual")}
-                    className={`rounded-xl border px-2 py-2 text-[11px] font-black transition-all ${
+                    className={`min-h-[44px] rounded-xl border px-2 py-2 text-xs font-black transition-all ${
                       classMode === "individual"
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background text-muted-foreground"
@@ -837,7 +837,7 @@ export function ClassLog({
                   <button
                     type="button"
                     onClick={() => setClassMode("grupal")}
-                    className={`rounded-xl border px-2 py-2 text-[11px] font-black transition-all ${
+                    className={`min-h-[44px] rounded-xl border px-2 py-2 text-xs font-black transition-all ${
                       classMode === "grupal"
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background text-muted-foreground"
@@ -846,7 +846,7 @@ export function ClassLog({
                     Grupal (2 a 5)
                   </button>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Canto nunca se registra como coro.
                 </p>
               </div>
@@ -854,13 +854,13 @@ export function ClassLog({
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                <label className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                   Estado general de la clase
                 </label>
                 <button
                   type="button"
                   onClick={() => setOverallStatus("sin_evaluar")}
-                  className="text-[10px] font-bold text-muted-foreground hover:text-primary"
+                  className="text-xs font-bold text-muted-foreground hover:text-primary"
                 >
                   Limpiar
                 </button>
@@ -872,7 +872,7 @@ export function ClassLog({
                     type="button"
                     aria-pressed={overallStatus === option.value}
                     onClick={() => setOverallStatus(option.value)}
-                    className={`rounded-xl border px-2 py-2 text-[10px] font-black transition-all ${
+                    className={`min-h-[44px] rounded-xl border px-2 py-2 text-xs font-black transition-all ${
                       overallStatus === option.value
                         ? option.selectedClassName
                         : option.className
@@ -883,7 +883,7 @@ export function ClassLog({
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] leading-snug text-muted-foreground">
+              <p className="text-xs leading-snug text-muted-foreground">
                 {STATUS_HELP[overallStatus]}
               </p>
             </div>
@@ -891,10 +891,10 @@ export function ClassLog({
             {usesNumericScale && (
               <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/70 p-2.5">
                 <div>
-                  <p className="text-[11px] font-black text-foreground">
+                  <p className="text-xs font-black text-foreground">
                     Puntaje general 1–10
                   </p>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Escala del Prof. Fernando
                   </p>
                 </div>
@@ -913,7 +913,7 @@ export function ClassLog({
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                   Criterios de la clase
                 </p>
                 {criteriaLoading && (
@@ -922,7 +922,7 @@ export function ClassLog({
               </div>
 
               {criteria.length > 0 && (
-                <p className="text-[10px] leading-snug text-muted-foreground">
+                <p className="text-xs leading-snug text-muted-foreground">
                   Escala: <strong>Logrado</strong> ·{" "}
                   <strong>En proceso</strong> · <strong>No logrado</strong> ·{" "}
                   <strong>No aplicó</strong> (hoy no se trabajó ese aspecto; no
@@ -933,7 +933,7 @@ export function ClassLog({
               {criteria.length === 0 && !criteriaLoading ? (
                 <div className="flex items-start gap-2 rounded-xl border border-dashed border-border bg-background/50 p-2.5">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {teacherClean.includes("jeremy")
                       ? "Los criterios de Guitarra y Batería están pendientes de levantamiento con el Prof. Jeremy. Puedes guardar la clase con los campos base."
                       : "Aún no hay criterios configurados para este instrumento. Puedes guardar la clase con los campos base."}
@@ -942,7 +942,7 @@ export function ClassLog({
               ) : (
                 groupedCriteria.map(([group, fields]) => (
                   <div key={group} className="space-y-1.5">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                    <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                       {group}
                     </p>
                     {fields.map((field) => (
@@ -965,13 +965,13 @@ export function ClassLog({
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                   Repertorio trabajado
                 </p>
                 <button
                   type="button"
                   onClick={addRepertoireRow}
-                  className="inline-flex items-center gap-1 text-[10px] font-black text-primary hover:underline"
+                  className="inline-flex items-center gap-1 text-xs font-black text-primary hover:underline"
                 >
                   <Plus className="h-3 w-3" />
                   Agregar pieza
@@ -994,7 +994,7 @@ export function ClassLog({
                         status: event.target.value as RepertoireStatus,
                       })
                     }
-                    className="h-9 w-28 rounded-lg border border-border bg-background px-1.5 text-[10px] font-bold text-foreground outline-none focus:ring-2 focus:ring-primary"
+                    className="h-9 w-28 rounded-lg border border-border bg-background px-1.5 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="logrado">Logrado</option>
                     <option value="en_proceso">En proceso</option>
@@ -1015,7 +1015,7 @@ export function ClassLog({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                 Tema trabajado
               </label>
               <Input
@@ -1027,7 +1027,7 @@ export function ClassLog({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                 Tarea para casa
               </label>
               <Input
@@ -1039,7 +1039,7 @@ export function ClassLog({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+              <label className="text-xs font-black uppercase tracking-wide text-muted-foreground">
                 Comentario corto
               </label>
               <Textarea
@@ -1070,7 +1070,7 @@ export function ClassLog({
             </Button>
 
             {savedAt && (
-              <p className="text-center text-[11px] font-bold text-emerald-600">
+              <p className="text-center text-xs font-bold text-emerald-600">
                 ✓ Guardado. Puedes corregir y volver a guardar; se actualiza el
                 mismo registro.
               </p>
