@@ -1,0 +1,158 @@
+================================================================================
+LOG DE EJECUCIÓN — CRITERIOS v0 BORRADOR DE GUITARRA Y BATERÍA (PROF. JEREMY)
+Vibra Music Staff
+Fecha: 2026-10-22
+ADR: docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md
+Alcance: cierre de la Fase 2 (criterios de Jeremy como borrador)
+Migración: docs/migrations/010_seed_evaluation_fields_jeremy_borrador.sql
+================================================================================
+
+1. QUÉ SE CREÓ
+--------------------------------------------------------------------------------
+17 filas nuevas en public.evaluation_fields, propiedad del Prof. Jeremy
+(00000000-0000-0000-0000-000000000003):
+
+  Guitarra (8)
+    guitarra_postura_sujecion      Postura y sujeción
+    guitarra_mano_izquierda        Mano izquierda
+    guitarra_mano_derecha          Mano derecha
+    guitarra_acordes_cambios       Acordes y cambios
+    guitarra_ritmo_pulso           Ritmo y pulso
+    guitarra_lectura               Lectura
+    guitarra_afinacion_oido        Afinación y oído
+    guitarra_practica_actitud      Práctica y actitud
+
+  Batería (9)
+    bateria_postura_agarre         Postura y agarre
+    bateria_coordinacion           Coordinación
+    bateria_tecnica_baquetas       Técnica de baquetas
+    bateria_pulso_tempo            Pulso y tempo
+    bateria_grooves_patrones       Grooves y patrones
+    bateria_fills_transiciones     Fills y transiciones
+    bateria_lectura_ritmica        Lectura rítmica
+    bateria_dinamica_musicalidad   Dinámica y musicalidad
+    bateria_practica_actitud       Práctica y actitud
+
+Cada fila guarda en help_text el "qué se observa" indicado por Dirección.
+
+2. ESTADO DE BORRADOR (INNEGOCIABLE)
+--------------------------------------------------------------------------------
+  field_type        traffic_light
+  options           Inicia / En proceso / Logrado / Destacado
+  required          FALSE
+  is_active         TRUE
+  visible_in_report FALSE          <- fuera de informes y del portal familia
+  created_by_name   'Criterios v0 borrador (010)'
+
+  ui_config:
+    draft             true
+    status            "borrador"
+    version           0
+    needs_validation  true
+    group             Técnica | Lectura y teoría | Repertorio | Actitud
+    compact           true
+    comment_enabled   true
+    comment_field     "validation_comment"
+    source            "Borrador Dirección 2026-10-22"
+    validation:
+      status            "pendiente_validacion"
+      required_by_id    Jeremy
+      required_by_name  "Jeremy"
+      approved_by_id    null      <- vacío a propósito
+      approved_by_name  null      <- vacío a propósito
+      approved_at       null      <- vacío a propósito
+      approved_role     null      <- vacío a propósito
+      comment           ""        <- comentario libre por criterio
+
+3. REGLA PARA LAS FASES 3 A 5
+--------------------------------------------------------------------------------
+  Ningún criterio con ui_config.draft = true puede aparecer en:
+    - informes de progreso,
+    - portal familia,
+    - mensajes de WhatsApp,
+    - exportaciones.
+  La Fase 5 debe exigir explícitamente draft = false y leer
+  ui_config.validation.approved_at para decidir si publica.
+  visible_in_report = FALSE ya bloquea la ruta actual de informes.
+
+4. CAMBIO DE CÓDIGO (1 función, mínimo)
+--------------------------------------------------------------------------------
+  src/lib/services/evaluations.service.ts -> getCriteria
+
+  Motivo: la base viva guarda "Guitarra", "Guitarra clásica" y
+  "Guitarra eléctrica". Sin normalización, 3 alumnos activos con
+  "Guitarra clásica" no recibían los criterios configurados como "Guitarra".
+
+  Se agregó instrumentFamily():
+    "guitarra*" -> guitarra
+    "bateria*"  -> bateria
+    resto       -> nombre normalizado exacto (Piano != Piano Infantil)
+
+  El filtro por owner_teacher_id NO se relajó: un docente no ve criterios de
+  otro, aunque coincida el instrumento.
+
+5. PRUEBAS EN RUNTIME (datos vivos de Insforge PostgreSQL)
+--------------------------------------------------------------------------------
+Arnés: scratch/test-jeremy-criteria.mjs (temporal, no commiteado).
+
+Resolución de criterios:
+  OK  Jeremy + Guitarra                    8
+  OK  Jeremy + Guitarra clásica (alias)    8
+  OK  Jeremy + Batería                     9
+  OK  Jeremy + Piano                       0
+  OK  Fernando + Piano                    12   (sin cambios)
+  OK  Fernando + Violín                   13   (sin cambios)
+  OK  Fernando + Guitarra                  0   (no ve los de Jeremy)
+  OK  Nathaly + Canto                     12   (sin cambios)
+  OK  Nathaly + Piano Infantil            12   (sin cambios)
+
+Invariantes del borrador:
+  OK  visible_in_report = false en los 17
+  OK  ui_config.draft = true en los 17
+  OK  campos de aprobación vacíos en los 17
+  OK  comentario libre editable por criterio
+  OK  escala Inicia / En proceso / Logrado / Destacado
+  OK  todos traffic_light
+  OK  todos activos
+  OK  todos con owner_teacher_id = Jeremy
+
+Build: npm run build en verde (cliente, SSR y Nitro).
+
+6. DÓNDE SE EDITA
+--------------------------------------------------------------------------------
+  Tabla: public.evaluation_fields
+  Filtro: owner_teacher_id = '00000000-0000-0000-0000-000000000003'
+
+  Campos editables:
+    label         nombre visible del criterio
+    help_text     qué se observa
+    options       etiquetas/colores de la escala
+    report_order  orden en pantalla
+    is_active     prender/apagar sin borrar
+    ui_config     grupo, draft, version y validation.*
+
+  Al validar Jeremy:
+    ui_config.draft             = false
+    ui_config.status            = 'validado'
+    ui_config.validation.status = 'validado'
+    ui_config.validation.approved_by_id   = '00000000-...-003'
+    ui_config.validation.approved_by_name = 'Jeremy'
+    ui_config.validation.approved_at      = now()
+    visible_in_report           = true
+
+7. ALCANCE NO TOCADO
+--------------------------------------------------------------------------------
+  - No se modificó app-store.ts, kardex-calculator.ts ni student-cycle.ts.
+  - No se tocó agenda, Kardex, asistencia, facturación ni el kiosco.
+  - No se tocó students.notes ni notification_logs.
+  - No se agregó Jeremy a pilot_teacher_ids: su pestaña sigue oculta.
+  - No se publicó nada a familias.
+
+8. ROLLBACK
+--------------------------------------------------------------------------------
+  DELETE FROM public.evaluation_fields
+  WHERE created_by_name = 'Criterios v0 borrador (010)';
+
+================================================================================
+FIN DEL LOG
+================================================================================

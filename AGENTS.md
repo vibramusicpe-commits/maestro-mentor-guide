@@ -1475,4 +1475,12 @@ inferencia.
    - No se tocó `lesson-notes.tsx`, `teacher-notes-moderation.tsx`, agenda, Kardex, asistencia ni facturación.
 6. **Fases pendientes**: Fase 3 nota a familia y moderación; Fase 4 nota interna y bandeja; Fase 5 informe A4/PDF/Markdown/WhatsApp y portal familia; Fase 6 reportes y CSV; Fase 7 despliegue gradual y retiro del flujo legacy.
 7. **Referencia obligatoria**: `docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md`, `docs/logs/2026-10-21-fase-1-evaluaciones-informes-notas.log` y `docs/logs/2026-10-22-fase-2-registro-clase.log`.
+8. **Criterios v0 BORRADOR de Jeremy (Guitarra y Batería) — 17 filas nuevas, sin validar**:
+   - Cargados como **datos de configuración editables** en `evaluation_fields` (no en código). Migración idempotente `docs/migrations/010_seed_evaluation_fields_jeremy_borrador.sql`; rollback por `created_by_name = 'Criterios v0 borrador (010)'`.
+   - Guitarra **8** (Postura y sujeción, Mano izquierda, Mano derecha, Acordes y cambios, Ritmo y pulso, Lectura, Afinación y oído, Práctica y actitud). Batería **9** (Postura y agarre, Coordinación, Técnica de baquetas, Pulso y tempo, Grooves y patrones, Fills y transiciones, Lectura rítmica, Dinámica y musicalidad, Práctica y actitud).
+   - **Estados obligatorios**: `ui_config.draft = true`, `status = "borrador"`, `version = 0`, `needs_validation = true` y `visible_in_report = FALSE`. Los campos de aprobación (`approved_by_id`, `approved_by_name`, `approved_at`, `approved_role`) quedan **vacíos** hasta que Jeremy los valide. Cada criterio tiene su comentario libre en `ui_config.validation.comment`.
+   - **Prohibido** incluir un criterio con `draft = true` en informes de progreso, portal familia o cualquier salida de las Fases 3–5. La Fase 5 debe exigir explícitamente `draft = false` antes de publicar.
+   - Escala: `traffic_light` de 4 niveles — **Inicia, En proceso, Logrado, Destacado** (la escala móvil de la Fase 2).
+   - `getCriteria` agrupa variantes del mismo instrumento (`Guitarra`, `Guitarra clásica`, `Guitarra eléctrica` → `guitarra`; `Batería` → `bateria`) para que los alumnos con "Guitarra clásica" reciban sus criterios. Piano y Piano Infantil **no** se agrupan. El filtro por `owner_teacher_id` sigue siendo estricto: los criterios de Jeremy no aparecen para docentes ni alumnos de otros docentes.
+   - Jeremy **no** se agregó a `pilot_teacher_ids`: sus criterios existen y están listos, pero la pestaña “Registro de clase” sigue oculta para él hasta que Dirección decida incorporarlo al piloto.
 

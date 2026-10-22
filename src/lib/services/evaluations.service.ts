@@ -67,6 +67,22 @@ function ageCategoryToRange(
   }
 }
 
+/**
+ * Familia de instrumento para emparejar plantillas de criterios.
+ *
+ * La base viva guarda variantes del mismo instrumento ("Guitarra",
+ * "Guitarra clásica", "Guitarra eléctrica"). Sin esta normalización, un alumno
+ * con "Guitarra clásica" no recibiría los criterios configurados como
+ * "Guitarra". Solo agrupa variantes explícitas; Piano y Piano Infantil siguen
+ * siendo instrumentos distintos.
+ */
+function instrumentFamily(value?: string | null): string {
+  const normalized = normalizeTitle(value || "");
+  if (normalized.startsWith("guitarra")) return "guitarra";
+  if (normalized.startsWith("bateria")) return "bateria";
+  return normalized;
+}
+
 function programFromLevel(level?: string | null): string | null {
   const normalized = normalizeTitle(level || "");
   if (!normalized) return null;
@@ -152,7 +168,13 @@ export async function getCriteria(
       }
 
       if (instrument && field.instrument) {
-        if (normalizeTitle(field.instrument) !== instrument) return false;
+        const fieldInstrument = normalizeTitle(field.instrument);
+        if (
+          fieldInstrument !== instrument &&
+          instrumentFamily(fieldInstrument) !== instrumentFamily(instrument)
+        ) {
+          return false;
+        }
       }
 
       if (program && field.program) {

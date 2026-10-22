@@ -4,6 +4,24 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.40] - 2026-10-22
+
+### Criterios v0 BORRADOR de Guitarra y Batería (Prof. Jeremy) — ADR-0175
+- **17 criterios cargados como datos de configuración** en `evaluation_fields`, no en código. Se editan sin desplegar:
+  - Guitarra 8: Postura y sujeción · Mano izquierda · Mano derecha · Acordes y cambios · Ritmo y pulso · Lectura · Afinación y oído · Práctica y actitud.
+  - Batería 9: Postura y agarre · Coordinación · Técnica de baquetas · Pulso y tempo · Grooves y patrones · Fills y transiciones · Lectura rítmica · Dinámica y musicalidad · Práctica y actitud.
+  - Cada criterio guarda en `help_text` el "qué se observa" que indicó Dirección.
+- **Marcados como borrador pendiente de validación**:
+  - `ui_config.draft = true`, `status = "borrador"`, `version = 0`, `needs_validation = true`.
+  - Campos de aprobación vacíos (`approved_by_id`, `approved_by_name`, `approved_at`, `approved_role`) hasta que Jeremy los valide.
+  - Comentario libre por criterio en `ui_config.validation.comment` (`comment_enabled = true`).
+- **No expuestos a familias ni a informes**: `visible_in_report = FALSE` mientras sigan en borrador. La Fase 5 debe exigir `draft = false` antes de publicar.
+- **Escala**: `traffic_light` de 4 niveles — Inicia, En proceso, Logrado, Destacado.
+- **Emparejamiento de instrumento (`getCriteria`)**: `Guitarra`, `Guitarra clásica` y `Guitarra eléctrica` se resuelven como la misma familia, igual que `Batería`. Piano y Piano Infantil siguen separados. El filtro por `owner_teacher_id` no se relajó: Fernando no ve los criterios de Jeremy aunque tenga un alumno de Guitarra.
+- **Jeremy no se agregó al piloto**: los criterios existen, pero su pestaña "Registro de clase" sigue oculta hasta que Dirección lo decida.
+- **Migración**: `docs/migrations/010_seed_evaluation_fields_jeremy_borrador.sql` (idempotente). Rollback: `DELETE FROM evaluation_fields WHERE created_by_name = 'Criterios v0 borrador (010)'`.
+- **Verificación**: runtime con datos vivos 9/9 casos de criterios + 8/8 invariantes del borrador; `npm run build` en verde.
+
 ## [2.0.39] - 2026-10-22
 
 ### Fase 2 — Registro de clase del docente en el kiosco (ADR-0175)
