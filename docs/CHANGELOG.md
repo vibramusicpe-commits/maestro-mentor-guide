@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.47] - 2026-10-22
+
+### Rediseño UI/UX Portal Docente Móvil — 9 puntos (ADR-0177)
+- **Fix de pestañas** (`tabs.tsx`): `data-[state=inactive]:hidden` elimina render de paneles inactivos; conserva estado montado.
+- **Nav de 5 pestañas** en `/teacher`: Kiosco | Agenda | Alumnos | Notas | Nómina; `grid-cols-5`, 48 px, etiquetas sin truncar a 390 px.
+- **Nueva página `/teacher/notas`**: segmentado [A la familia] [Interna] para pilotos; formulario siempre visible; historial en `<details>` con chips de estado; fallback `<LessonNotes />` para no-piloto.
+- **Helpers puros** `src/lib/teacher-portal.ts` + hooks `use-teacher-identity.ts` / `use-teacher-pilot-access.ts`, reutilizados por Kiosco, Notas y Agenda.
+- **`integrated-kiosk-header.tsx` compacto**: cabecera sin nombre/sede duplicados; Pausa + Salir con `AlertDialog` de confirmación; cronómetro integrado.
+- **Selector docente visible solo a Dirección** (`super_admin | staff | admin`); docentes con rol `teacher` no ven el `<select>` de Prof. Fernando/Nathaly/Jeremy.
+- **Chip "Piloto" único** en cabecera; eliminadas todas las etiquetas BETA por bloque.
+- **Tira de días con flechas `‹ ›`**: navegar semanas sin saltar mes; `<select>` compacto de mes y semana en una fila; bug corregido `w.dateRangeLabel` → `w.startDayNum`–`w.endDayNum`.
+- **`ClassLog` en `<Sheet side="bottom">`**: registro de clase abierto desde botón de tarjeta; sección "Registro de clase" fija eliminada del final de pantalla.
+- **Tipografía y táctiles normalizados**: `text-[9px]/[10px]/[11px]` → `text-xs` (≥ 12 px); botones de acción y formularios a `min-h-[44px]`; naranja solo para acción principal.
+- **Build verde**: ✓ 2.24 s; rutas `/teacher*` → 200.
+- **Documentación**: ADR-0177, AGENTS.md §80, `docs/logs/2026-10-22-ui-portal-docente.log`.
 ## [2.0.46] - 2026-10-22
 
 ### Fase 6 — Bandeja general de informes, filtros y exportación CSV (ADR-0175)

@@ -1,0 +1,50 @@
+# Log: Rediseño UI/UX Portal Docente Móvil
+**Fecha:** 2026-10-22  
+**Versión:** 2.0.47  
+**ADR:** 0177  
+**Rama:** main  
+
+---
+
+## Resumen
+
+Rediseño quirúrgico de la UI/UX del portal docente (/teacher) para eliminar saturación visual y paneles apilados, preservando toda la lógica, conectores, permisos y funciones.
+
+---
+
+## Fases ejecutadas
+
+### Commits del rediseño (sin push hasta este log)
+
+| Hash | Descripción |
+|---|---|
+| efb339a | Fix data-[state=inactive]:hidden en tabs.tsx; nav 5 pestañas; nueva ruta teacher.notas.tsx; src/lib/teacher-portal.ts; hooks identidad/piloto. Build verde. |
+| 483e406 | integrated-kiosk-header.tsx compacto; teacher.index.tsx reescrito (tira días, selects, selector Dirección, chip Piloto único, ClassLog en Sheet). Build verde. |
+| fa98721 | Historial family-note-form.tsx e internal-note-form.tsx en details con chips; sin etiquetas BETA; text-[10px]/[11px] → text-xs; fix div extra. Build verde. |
+| d7888bf | text-[9px]/[10px]/[11px] → text-xs en class-log, lesson-notes, teacher.alumnos, teacher.nomina, teacher.agenda; táctiles 44 px; agenda con useTeacherIdentity. Build verde. |
+
+### Bug corregido (pendiente de commit en este log)
+- `teacher.index.tsx` línea 371: `w.dateRangeLabel` (no existe en CalendarWeekInfo) → `w.startDayNum`-`w.endDayNum`.
+
+---
+
+## Verificación
+
+- Build: ✓ built in 2.24 s
+- HTTP dev (http://localhost:4399): /, /teacher, /teacher/notas, /teacher/agenda, /teacher/alumnos, /teacher/nomina → 200
+- Navegador: sesión fernando@vibramusic.pe (teacher) muestra /teacher/agenda con 242 clases y /teacher/notas funcionando
+
+---
+
+## Pendientes tras este log
+
+- Verificación visual captura 390×844 del kiosco (hidratación de store).
+- Validación en producción de Fases 4 y 5 (Jeremy/Fernando/Nathaly).
+- 17 criterios v0 de Jeremy siguen en draft — bloquean publicar sus informes.
+- Push a origin/main y core/main de los 5 commits.
+
+---
+
+## Archivos modificados
+
+src/components/ui/tabs.tsx, src/routes/teacher.tsx, src/routes/teacher.index.tsx, src/routes/teacher.notas.tsx, src/routes/teacher.agenda.tsx, src/components/teacher/integrated-kiosk-header.tsx, src/lib/teacher-portal.ts, src/hooks/use-teacher-identity.ts, src/hooks/use-teacher-pilot-access.ts, src/components/teacher/family-note-form.tsx, src/components/teacher/internal-note-form.tsx, src/components/teacher/class-log.tsx, src/routes/teacher.alumnos.tsx, src/routes/teacher.nomina.tsx

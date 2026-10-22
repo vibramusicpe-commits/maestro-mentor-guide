@@ -1610,3 +1610,54 @@ inferencia.
    - La bandeja y los contadores de `/admin/reportes` siguen la regla de base activa (ADR-0132) y jamás mezclan datos financieros con lo pedagógico.
 
 5. **Verificación de referencia**: `scratch/test-fase6-reports.mjs` **22/22** con datos vivos (crea 3 informes de producción marcados + 1 `is_test`, valida listado sin pruebas, filtros por estado/docente/instrumento/periodo/combinados, `getReportInstrument`, ausencia de campos financieros y limpieza por ID); `/admin/reportes` y `/admin/alumnos` en 200; `npm run build` en verde antes de commitear. Documentación: ADR-0175 (sección Fase 6) y `docs/logs/2026-10-22-fase-6-reportes-csv.log`.
+
+---
+
+### 80. Rediseño UI/UX Portal Docente Móvil 390 px — 9 Puntos (ADR-0177)
+
+1. **Fix de pestañas compartidas (`tabs.tsx`)**:
+   - Añadir `data-[state=inactive]:hidden` al `TabsContent`. Los paneles siguen montados (preserva estado React) pero se ocultan cuando la pestaña está inactiva, eliminando el scroll simultáneo de todos los paneles.
+
+2. **Navegación de 5 pestañas en `/teacher`**:
+   - Kiosco · Agenda · Alumnos · Notas · Nómina con `grid-cols-5`, altura mínima 48 px, etiquetas de texto sin truncar a 390 px (icono + texto corto).
+
+3. **Página `/teacher/notas` y separación de notas del Kiosco**:
+   - Docentes piloto: segmentado `[A la familia] [Interna]` + formulario siempre visible + historial en `<details>` colapsado con contador y chips de estado.
+   - Docentes no-piloto: fallback `<LessonNotes />` con aviso "Tu cuenta usa el flujo anterior de notas".
+   - Queda **PROHIBIDO** re-mezclar notas de docente con la vista de asistencia del Kiosco.
+
+4. **Helpers puros y hooks compartidos**:
+   - `src/lib/teacher-portal.ts`: `resolveTeacherClean`, `filterTeacherScheduleLessons`, `resolveTeacherStudentList`, `AUDIT_TEACHER_STORAGE_KEY`.
+   - `src/hooks/use-teacher-identity.ts`: UUID, displayName, isPilot, isDirector del docente activo.
+   - `src/hooks/use-teacher-pilot-access.ts`: gate de piloto; activa flujo v2 solo si UUID ∈ `pilot_teacher_ids`.
+   - Reutilizados por Kiosco, Notas y Agenda. **PROHIBIDO** duplicar la lógica de identidad/filtros en cada componente.
+
+5. **`integrated-kiosk-header.tsx` compacto**:
+   - Sin nombre/sede duplicados respecto al layout padre.
+   - Cronómetro + "Pausa" + "Salir" en una sola fila; "Salir" abre `<AlertDialog>` de confirmación antes de cerrar sesión.
+
+6. **Selector de docente visible solo a Dirección**:
+   - `isDirector = super_admin | staff | admin`. Los docentes (`teacher`) no ven el `<select>` de Prof. Fernando/Nathaly/Jeremy.
+   - **PROHIBIDO** mostrar ese selector a docentes, aunque el flag o la URL digan otra cosa.
+
+7. **Chip "Piloto" único + eliminación de etiquetas BETA por bloque**:
+   - Un solo `<Badge>` naranja "Piloto" en la cabecera del layout docente. Sin etiqueta BETA en cada sección, tarjeta o bloque.
+
+8. **Tira de días con flechas `‹ ›` y selector compacto mes/semana**:
+   - Navegar semanas con botones flecha izquierda/derecha (sin saltar de mes).
+   - `<select>` de mes y `<select>` de semana en una fila compacta.
+   - Propiedad correcta de `CalendarWeekInfo`: `w.startDayNum`–`w.endDayNum` (no `w.dateRangeLabel`, que no existe en esa interfaz).
+
+9. **`ClassLog` en `<Sheet side="bottom">`**:
+   - Registro de clase abierto exclusivamente desde el botón de la tarjeta de clase.
+   - La sección fija "Registro de clase" al final de la pantalla queda eliminada; el acceso sigue existiendo desde cada tarjeta.
+
+10. **Tipografía y táctiles normalizados**:
+    - `text-[9px]` / `text-[10px]` / `text-[11px]` → `text-xs` (mínimo 12 px) en todos los archivos del portal docente.
+    - Todos los botones de formulario y acciones principales a `min-h-[44px]`.
+    - Color naranja (`primary`) reservado exclusivamente para la acción principal de cada pantalla.
+
+11. **Verificación de referencia**:
+    - `npm run build` en verde (✓ 2.24 s). Rutas `/teacher*` → 200.
+    - Criterio de aceptación 390×844: primera pantalla con cabecera, tira de días y próxima clase + botón registrar, sin scroll.
+    - Documentación: ADR-0177, CHANGELOG 2.0.47, `docs/logs/2026-10-22-ui-portal-docente.log`.
