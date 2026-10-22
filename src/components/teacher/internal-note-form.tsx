@@ -30,6 +30,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { StudentPicker } from "@/components/teacher/student-picker";
 import { toast } from "sonner";
 import type { InternalNoteRow, InternalNoteVisibility } from "@/lib/informes/types";
 import { InformesValidationError } from "@/lib/informes/utils";
@@ -223,20 +224,15 @@ export function InternalNoteForm({
           >
             Alumno (opcional)
           </label>
-          <select
+          <StudentPicker
             id="internal-note-student"
+            students={activeStudents}
             value={studentId}
-            onChange={(event) => setStudentId(event.target.value)}
-            className="h-9 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground"
-          >
-            <option value="">Nota general (sin alumno)</option>
-            {activeStudents.map((student) => (
-              <option key={student.id} value={student.id}>
-                {student.name}
-                {student.instrument ? ` · ${student.instrument}` : ""}
-              </option>
-            ))}
-          </select>
+            onChange={setStudentId}
+            allowEmpty
+            emptyLabel="Nota general (sin alumno)"
+            placeholder="Buscar alumno (opcional)…"
+          />
         </div>
 
         {/* Visibilidad */}

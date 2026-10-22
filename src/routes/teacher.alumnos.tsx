@@ -1,13 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, UserCheck, Phone, Clock, AlertCircle, Sparkles } from "lucide-react";
+import { Search, X, UserCheck, Phone, Clock, AlertCircle, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/app-store";
 import { categoryStyles } from "@/components/admin/agenda-board";
-import { teachers, type AdminStudent } from "@/store/admin-seeds";
+import type { AdminStudent } from "@/store/admin-seeds";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 
@@ -29,6 +28,18 @@ export const Route = createFileRoute("/teacher/alumnos")({
   }),
   component: TeacherStudents,
 });
+
+/** Etiqueta corta de categoría para el chip del listado móvil (ADR-0176). */
+const SHORT_CATEGORY: Record<string, string> = {
+  ESTIMULACION: "ESTIM.",
+  INFANTIL: "INFANTIL",
+  JUNIOR: "JUNIOR",
+  JUVENIL: "JUVENIL",
+  MASTER: "MASTER",
+  ADULTO: "MASTER",
+  RECUPERACION: "RECUP.",
+  PERSONALIZADA: "PERSONAL.",
+};
 
 function normalize(str: string) {
   return (str || "")
@@ -135,7 +146,6 @@ function TeacherStudents() {
       if (l.status === "cancelada") continue;
 
       const normL = normalize(l.student);
-      const words = normL.split(" ").filter((w) => w.length > 2);
 
       // Verificar si el alumno existe en adminStudents y está activo
       const studentProfile = findStudentProfileByName(adminStudents, l.student);
@@ -178,14 +188,12 @@ function TeacherStudents() {
 
   // Filtrado de alumnos
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalize(query);
     return unifiedStudents.filter((s) => {
-      const matchQuery =
-        !q ||
-        s.name.toLowerCase().includes(q) ||
-        (s.family && s.family.toLowerCase().includes(q)) ||
-        (s.instrument && s.instrument.toLowerCase().includes(q)) ||
-        (s.emergencyContact?.name && s.emergencyContact.name.toLowerCase().includes(q));
+      const haystack = normalize(
+        `${s.name} ${s.family || ""} ${s.instrument || ""} ${s.emergencyContact?.name || ""} ${s.emergencyContact?.phone || ""} ${s.phone || ""}`,
+      );
+      const matchQuery = !q || q.split(" ").every((token) => haystack.includes(token));
 
       const cleanTarget = selectedTeacher.toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
       const stTeacherClean = (s.teacher || "").toLowerCase().replace(/\s*\(.*?\)/, "").replace(/^prof\.\s*/i, "").trim();
@@ -207,88 +215,109 @@ function TeacherStudents() {
   }, [unifiedStudents, query, selectedTeacher, selectedCategory]);
 
   return (
-    <div className="space-y-6">
-      {/* Cabecera */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-foreground flex items-center gap-2">
-            <UserCheck className="h-6 w-6 text-primary" /> Directorio de Alumnos y Horarios
+    <div className="space-y-3">
+      {/* Cabecera compacta (móvil primero) */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-1.5 text-base font-black text-foreground sm:text-2xl">
+            <UserCheck className="h-4 w-4 shrink-0 text-primary sm:h-6 sm:w-6" /> Directorio de alumnos
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="hidden text-xs text-muted-foreground sm:block">
             Guía de alumnos de la academia para seguimiento, coordinación y suplencias ante imprevistos.
           </p>
         </div>
+        <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary">
+          {filtered.length}/{unifiedStudents.length}
+        </span>
+      </div>
+
+      {/* 🔎 Búsqueda primero: sin scroll para encontrar al alumno */}
+      <div className="space-y-1.5">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold px-3 py-1 bg-primary/10 text-primary rounded-full">
-            {filtered.length} alumno(s) listados
-          </span>
-        </div>
-      </div>
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar alumno, apoderado o instrumento…"
+              className="h-10 rounded-xl pl-9 pr-9 text-sm"
+              type="search"
+              inputMode="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
+            {query.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Limpiar búsqueda"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
 
-      {/* Leyenda Oficial de Categorías */}
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-xs space-y-2">
-        <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5 text-warning" /> Leyenda Oficial de Categorías:
-        </p>
-        <div className="flex flex-wrap gap-2 text-[11px] font-bold">
-          <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300">
-            ● CATEGORÍA JUNIOR (7 a 12)
-          </span>
-          <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
-            ● CATEGORÍA JUVENIL (13 a 17)
-          </span>
-          <span className="px-3 py-1 rounded-full bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-300 border border-slate-400">
-            ● CATEGORÍA ADULTO (18 a +)
-          </span>
-          <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-300 border border-purple-300">
-            ● CATEGORÍA INFANTIL (5 y 6)
-          </span>
-          <span className="px-3 py-1 rounded-full bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-300 border border-red-300">
-            ● RECUPERACIÓN DE CLASES
-          </span>
-          <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-300 border border-cyan-300">
-            ● CLASES PERSONALIZADAS
-          </span>
-        </div>
-      </div>
-
-      {/* Barra de Búsqueda y Filtros de Profesor */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="relative sm:col-span-2">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por alumno, apoderado, instrumento..."
-            className="pl-9 rounded-xl text-sm"
-          />
-        </div>
-
-        {/* Filtro por Profesor Asignado */}
-        <div>
+          {/* Filtro por Profesor Asignado */}
           <select
             value={selectedTeacher}
             onChange={(e) => setSelectedTeacher(e.target.value)}
-            className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-medium"
+            aria-label="Filtrar por profesor"
+            className="h-10 w-[6.75rem] shrink-0 rounded-xl border border-input bg-background px-2 text-[11px] font-bold shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:w-auto sm:px-3 sm:text-sm"
           >
-            <option value="todos">Todos los profesores</option>
+            <option value="todos">Todos</option>
             {availableTeachers.map((t) => (
               <option key={t} value={t}>
-                Prof. {t}
+                {t}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Lista de Alumnos */}
-      <ul className="grid gap-3 sm:grid-cols-2">
+      {/* Leyenda colapsable: en móvil no roba pantalla */}
+      <details className="rounded-xl border border-border bg-card px-3 py-2 shadow-xs">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-bold text-foreground">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-warning" />
+          Leyenda de categorías
+          <span className="ml-auto text-[10px] font-semibold text-muted-foreground">toca para ver</span>
+        </summary>
+        <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold">
+          <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-300">
+            ● JUNIOR (7 a 12)
+          </span>
+          <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
+            ● JUVENIL (13 a 17)
+          </span>
+          <span className="rounded-full border border-slate-400 bg-slate-200 px-2 py-0.5 text-slate-900 dark:bg-slate-800 dark:text-slate-300">
+            ● MASTER (18 a +)
+          </span>
+          <span className="rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 text-purple-900 dark:bg-purple-950 dark:text-purple-300">
+            ● INFANTIL (5 y 6)
+          </span>
+          <span className="rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-red-900 dark:bg-red-950 dark:text-red-300">
+            ● RECUPERACIÓN
+          </span>
+          <span className="rounded-full border border-cyan-300 bg-cyan-100 px-2 py-0.5 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-300">
+            ● PERSONALIZADA
+          </span>
+        </div>
+      </details>
+
+      {/* Lista compacta de Alumnos */}
+      <ul className="grid gap-2">
         {filtered.map((s, i) => {
           const cat = s.ageCategory || "JUNIOR";
           const catStyle = categoryStyles[cat] ?? {
-            badge: "bg-muted text-muted-foreground",
+            bg: "bg-muted",
+            text: "text-muted-foreground",
+            border: "border-border",
             label: cat,
           };
+          const catShort = SHORT_CATEGORY[cat] ?? cat;
 
           // Buscar el horario de la clase del alumno en la agenda
           const studentLesson =
@@ -298,80 +327,82 @@ function TeacherStudents() {
             );
 
           const isAdult = (s.age ?? 10) >= 18;
+          const contactName = s.emergencyContact?.name || s.family || "Sin apoderado";
+          const contactPhone = s.emergencyContact?.phone || s.phone || "sin tel.";
 
           return (
             <motion.li
               key={s.id}
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03 }}
-              className="flex flex-col justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-xs hover:border-primary/40 transition-all"
+              transition={{ delay: Math.min(i * 0.02, 0.2) }}
+              className="rounded-xl border border-border bg-card px-2.5 py-2 shadow-xs transition-all hover:border-primary/40"
             >
-              <div className="flex items-start gap-3">
-                <Avatar className="h-11 w-11 shrink-0 mt-0.5">
-                  <AvatarFallback className="bg-primary/15 text-xs font-bold text-primary">
+              <div className="flex items-center gap-2.5">
+                <Avatar className="h-8 w-8 shrink-0">
+                  <AvatarFallback className="bg-primary/15 text-[10px] font-bold text-primary">
                     {s.name
                       .split(" ")
-                      .map((p) => p[0])
+                      .map((p: string) => p[0])
                       .join("")
                       .slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
 
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center justify-between gap-1">
-                    <p className="font-bold text-sm text-foreground truncate">{s.name}</p>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}>
-                      {catStyle.label} {s.age ? `(${s.age}a)` : ""}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-[13px] font-bold leading-tight text-foreground">
+                      {s.name}
+                    </span>
+                    <span
+                      className={`shrink-0 rounded border px-1 text-[9px] font-bold leading-4 ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
+                    >
+                      {catShort}
+                    </span>
+                    <span className="ml-auto shrink-0 text-[10px] font-bold text-muted-foreground">
+                      {s.age ? `${s.age}a` : ""}
                     </span>
                   </div>
 
-                  <p className="text-xs text-muted-foreground font-medium">
-                    {s.instrument} · <span className="text-foreground font-semibold">Prof. {s.teacher}</span>
+                  <p className="truncate text-[11px] font-medium text-muted-foreground">
+                    {s.instrument} ·{" "}
+                    <span className="font-semibold text-foreground">Prof. {s.teacher}</span>
+                    {studentLesson
+                      ? ` · ${studentLesson.day} ${studentLesson.time} · ${studentLesson.room}`
+                      : ""}
                   </p>
 
-                  {/* Horario de la clase para salvataje/suplencia */}
-                  {studentLesson ? (
-                    <div className="flex items-center gap-1.5 text-xs text-primary font-semibold pt-1">
-                      <Clock className="h-3.5 w-3.5 shrink-0" />
-                      <span>{studentLesson.day} {studentLesson.time} · {studentLesson.room}</span>
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground italic pt-1">
-                      Horario: {s.modality}
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    <Phone className="mr-1 inline h-2.5 w-2.5 text-primary" />
+                    {isAdult
+                      ? `Alumno (+18): ${s.phone || "sin tel."}`
+                      : `${contactName} · ${contactPhone}`}
+                  </p>
+
+                  {!studentLesson && (
+                    <p className="flex items-center gap-1 truncate text-[10px] italic text-muted-foreground">
+                      <Clock className="h-2.5 w-2.5 shrink-0" />
+                      Sin horario agendado · {s.modality}
                     </p>
                   )}
                 </div>
-              </div>
 
-              {/* Información de Contacto / Apoderado o Propio */}
-              <div className="border-t border-border/60 pt-2.5 flex items-center justify-between text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Phone className="h-3 w-3 text-primary" />
-                  {isAdult ? (
-                    <span>Alumno (+18): <strong className="text-foreground">{s.phone || "Sin tel."}</strong></span>
-                  ) : (
-                    <span>Apoderado: <strong className="text-foreground">{s.emergencyContact?.name || s.family}</strong> ({s.emergencyContact?.phone || s.phone || "Sin tel."})</span>
-                  )}
-                </span>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex shrink-0 flex-col items-end gap-1">
                   <button
                     type="button"
                     onClick={() => setKardexStudent(s)}
-                    className="inline-flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded-md transition-colors"
+                    className="rounded-lg border border-primary/30 bg-primary/10 px-1.5 py-1 text-[9px] font-black text-primary transition-colors hover:bg-primary/20"
                     title="Ver Kardex de asistencias, fechas y horas"
                   >
                     📖 Kardex
                   </button>
-                  {s.attendanceRate > 0 ? (
-                    <span className="text-[11px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">
-                      {s.attendanceRate}% asist.
-                    </span>
-                  ) : (
-                    <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                      Sin registros
-                    </span>
-                  )}
+                  <span
+                    className={`text-[9px] font-bold ${
+                      s.attendanceRate > 0 ? "text-success" : "text-muted-foreground"
+                    }`}
+                  >
+                    {s.attendanceRate > 0 ? `${s.attendanceRate}% asist.` : "sin registros"}
+                  </span>
                 </div>
               </div>
             </motion.li>
@@ -379,9 +410,25 @@ function TeacherStudents() {
         })}
 
         {filtered.length === 0 && (
-          <li className="sm:col-span-2 rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
-            No se encontraron alumnos con los filtros seleccionados (“{query}”).
+          <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            <AlertCircle className="mx-auto mb-2 h-7 w-7 text-muted-foreground opacity-50" />
+            {query ? (
+              <>
+                Sin resultados para “{query}”. Prueba con el apellido o el instrumento.
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    setSelectedTeacher("todos");
+                  }}
+                  className="mt-2 block w-full text-xs font-bold text-primary hover:underline"
+                >
+                  Ver todos los alumnos
+                </button>
+              </>
+            ) : (
+              "No hay alumnos activos para los filtros seleccionados."
+            )}
           </li>
         )}
       </ul>

@@ -1,0 +1,95 @@
+================================================================================
+VIBRA MUSIC STAFF — UI/UX MÓVIL DEL PORTAL DOCENTE (BUSCADOR + "NO APLICÓ")
+Fecha: 2026-10-22
+ADR: docs/adr/0176-ui-movil-docente-buscador-alumnos-y-estado-no-aplico.md
+Estado: IMPLEMENTADA (interfaz; sin cambios de esquema ni de motores)
+================================================================================
+
+1. OBJETIVO
+--------------------------------------------------------------------------------
+Corregir dos problemas reportados por Dirección al probar el piloto en celular:
+
+  (a) La búsqueda de alumno se veía mal y obligaba a demasiado scroll: el
+      docente abría un <select> con toda la base activa y, en el Directorio,
+      la caja de búsqueda quedaba debajo de la cabecera grande y de la
+      leyenda de categorías.
+  (b) La opción "No corresponde" del Registro de clase (BETA) no se entendía
+      y, en el informe de progreso, se imprimía el valor crudo
+      `no_corresponde`.
+
+Criterio de salida: escribir 2-3 letras para encontrar al alumno y entender
+la escala de evaluación sin explicación verbal.
+
+2. ARCHIVOS TOCADOS
+--------------------------------------------------------------------------------
+NUEVO
+  src/components/teacher/student-picker.tsx
+    Buscador táctil reutilizable (ADR-0176):
+      - normalización sin tildes/mayúsculas, varias palabras en cualquier orden
+      - filtra por nombre, instrumento, docente y categoría
+      - filas min-h-[44px], lista max-h-64 con scroll propio, contador
+      - colapsa a una fila con botón "Cambiar" cuando hay selección
+      - Enter selecciona el único resultado; Escape y clic/touch fuera cierran
+      - allowEmpty + emptyLabel para los casos que admiten "sin alumno"
+
+MODIFICADOS
+  src/components/teacher/class-log.tsx
+    - Reemplaza el <select> de alumno por StudentPicker.
+    - STATUS_OPTIONS / STATUS_LABELS / DEFAULT_TRAFFIC_OPTIONS: "No aplicó".
+    - OPTION_LABEL_OVERRIDES: traduce etiquetas crudas de evaluation_fields.
+    - STATUS_HELP: explica el estado seleccionado ("No aplicó" no es nota baja).
+    - Leyenda de escala antes de los criterios.
+    - Se retira no_corresponde del desplegable de repertorio.
+
+  src/components/teacher/family-note-form.tsx
+  src/components/teacher/internal-note-form.tsx
+    - <select> de alumno reemplazado por StudentPicker (con allowEmpty).
+
+  src/lib/informes/progress-report-format.ts
+    - TRAFFIC_LABELS: no_corresponde / no_aplica -> "No aplicó".
+      Fuente única de vista, Markdown, WhatsApp y CSS de impresión.
+
+  src/routes/teacher.alumnos.tsx
+    - Cabecera compacta; búsqueda PRIMERO (sin scroll previo).
+    - Input type="search" con botón X y autofill bloqueado.
+    - Filtro de docente en la misma fila; contador N/total.
+    - Leyenda de categorías colapsada en <details>, chips cortos.
+    - Tarjetas -> filas densas de 3 líneas; "📖 Kardex" y % a la derecha.
+    - Animación de entrada acotada (delay máx. 0.2 s).
+
+DOCUMENTACIÓN
+  AGENTS.md (sección 78), docs/adr/0176-*.md, docs/CHANGELOG.md (2.0.45).
+
+3. QUÉ NO SE TOCÓ
+--------------------------------------------------------------------------------
+  - app-store.ts, kardex-calculator.ts, student-cycle.ts
+  - students.notes (legacy congelado) y notification_logs
+  - Esquema, migraciones y valores persistidos (`no_corresponde` sigue igual)
+  - Flujo de moderación de la Fase 3 (toda nota nace `pendiente`)
+  - Kiosco de asistencia, agenda, Kardex y facturación
+
+4. VERIFICACIÓN EJECUTADA
+--------------------------------------------------------------------------------
+  - npm run build ...................... VERDE (sin errores de tipos)
+  - GET / ............................... 200
+  - GET /teacher ........................ 200
+  - GET /teacher/alumnos ................ 200
+      contiene "Directorio de alumnos", "Buscar alumno, apoderado o
+      instrumento…" y "Leyenda de categorías" (colapsable)
+  - GET /admin/alumnos .................. 200
+  - GET /family/progreso ................ 200
+  - grep "No corresponde" en src/ ....... 0 resultados
+
+5. PENDIENTE DE CONFIRMACIÓN HUMANA (celular real)
+--------------------------------------------------------------------------------
+  1. /teacher -> pestaña "Registro de clase (BETA)": escribir 2 letras,
+     elegir alumno, marcar estado y comprobar el texto de ayuda.
+  2. /teacher/alumnos: confirmar que la búsqueda aparece sin deslizar y que
+     la lista se recorre con la mitad de scroll que antes.
+  3. Nota a familia y Nota interna: mismo picker, sin regresiones.
+
+6. REVERSIÓN
+--------------------------------------------------------------------------------
+  git revert del commit. No hay datos que limpiar: el valor `no_corresponde`
+  nunca cambió y ningún registro se migró.
+================================================================================

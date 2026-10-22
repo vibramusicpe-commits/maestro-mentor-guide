@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { StudentPicker } from "@/components/teacher/student-picker";
 import type { AdminStudent, ScheduledLesson } from "@/store/app-store";
 import {
   getCriteria,
@@ -87,7 +88,7 @@ const STATUS_OPTIONS: Array<{
   },
   {
     value: "no_corresponde",
-    label: "No corresponde",
+    label: "No aplicó",
     emoji: "⚪",
     className:
       "border-slate-400/40 bg-slate-400/10 text-slate-600 dark:text-slate-300",
@@ -100,15 +101,31 @@ const STATUS_LABELS: Record<OverallStatus, string> = {
   logrado: "Logrado",
   en_proceso: "En proceso",
   pendiente: "No logrado",
-  no_corresponde: "No corresponde",
+  no_corresponde: "No aplicó",
   sin_evaluar: "Sin marcar",
+};
+
+const STATUS_HELP: Record<OverallStatus, string> = {
+  logrado: "🟢 Logrado: el alumno cumplió el objetivo de la clase.",
+  en_proceso: "🟡 En proceso: avanzó, pero aún falta consolidar.",
+  pendiente: "🔴 No logrado: el objetivo no se alcanzó esta clase.",
+  no_corresponde:
+    "⚪ No aplicó: hoy no se trabajó ese aspecto. No cuenta como bajo desempeño.",
+  sin_evaluar:
+    "Marca cómo cerró la clase. ⚪ No aplicó = el aspecto no se trabajó hoy.",
+};
+
+/** Etiquetas visibles para valores crudos que llegan desde la base de datos. */
+const OPTION_LABEL_OVERRIDES: Record<string, string> = {
+  no_corresponde: "No aplicó",
+  no_aplica: "No aplicó",
 };
 
 const DEFAULT_TRAFFIC_OPTIONS = [
   { value: "logrado", label: "Logrado", color: "#43A047" },
   { value: "en_proceso", label: "En proceso", color: "#FBC02D" },
   { value: "pendiente", label: "No logrado", color: "#E53935" },
-  { value: "no_corresponde", label: "No corresponde", color: "#9E9E9E" },
+  { value: "no_corresponde", label: "No aplicó", color: "#9E9E9E" },
 ];
 
 function formatDate(iso: string): string {
@@ -150,7 +167,11 @@ function resolveTrafficOptions(field: EvaluationFieldRow) {
   const parsed = raw
     .map((option) => {
       if (typeof option === "string") {
-        return { value: option, label: option, color: "#9E9E9E" };
+        return {
+          value: option,
+          label: OPTION_LABEL_OVERRIDES[option] || option,
+          color: "#9E9E9E",
+        };
       }
       if (!option || typeof option !== "object") return null;
       const record = option as Record<string, unknown>;
@@ -158,7 +179,9 @@ function resolveTrafficOptions(field: EvaluationFieldRow) {
       if (!value) return null;
       return {
         value,
-        label: String(record.label ?? value),
+        label:
+          OPTION_LABEL_OVERRIDES[value] ||
+          String(record.label ?? value),
         color: String(record.color ?? "#9E9E9E"),
       };
     })
@@ -686,25 +709,21 @@ export function ClassLog({
           <label className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
             Alumno
           </label>
-          <select
+          <StudentPicker
+            id="class-log-student"
+            students={students}
             value={selectedStudentId}
-            onChange={(event) => handleStudentChange(event.target.value)}
-            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">Elegir alumno...</option>
-            {students.map((student) => (
-              <option key={student.id} value={student.id}>
-                {student.name} · {student.instrument}
-              </option>
-            ))}
-          </select>
+            onChange={handleStudentChange}
+            placeholder="Buscar alumno: escribe 2 letras…"
+            hint="Escribe parte del nombre, apellido o instrumento."
+          />
         </div>
 
         {!selectedStudent ? (
           <div className="rounded-xl border border-dashed border-border bg-background/50 p-4 text-center space-y-1">
             <Sparkles className="mx-auto h-5 w-5 text-primary" />
             <p className="text-xs font-bold text-foreground">
-              Elige un alumno para empezar
+              Busca y elige un alumno para empezar
             </p>
             <p className="text-[11px] text-muted-foreground">
               También puedes entrar desde el botón “Registrar clase” de su
@@ -864,6 +883,9 @@ export function ClassLog({
                   </button>
                 ))}
               </div>
+              <p className="text-[10px] leading-snug text-muted-foreground">
+                {STATUS_HELP[overallStatus]}
+              </p>
             </div>
 
             {usesNumericScale && (
@@ -898,6 +920,15 @@ export function ClassLog({
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 )}
               </div>
+
+              {criteria.length > 0 && (
+                <p className="text-[10px] leading-snug text-muted-foreground">
+                  Escala: <strong>Logrado</strong> ·{" "}
+                  <strong>En proceso</strong> · <strong>No logrado</strong> ·{" "}
+                  <strong>No aplicó</strong> (hoy no se trabajó ese aspecto; no
+                  es una nota baja).
+                </p>
+              )}
 
               {criteria.length === 0 && !criteriaLoading ? (
                 <div className="flex items-start gap-2 rounded-xl border border-dashed border-border bg-background/50 p-2.5">
@@ -968,7 +999,6 @@ export function ClassLog({
                     <option value="logrado">Logrado</option>
                     <option value="en_proceso">En proceso</option>
                     <option value="pendiente">Pendiente</option>
-                    <option value="no_corresponde">No corresponde</option>
                   </select>
                   {repertoire.length > 1 && (
                     <button

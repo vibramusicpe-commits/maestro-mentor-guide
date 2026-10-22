@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { StudentPicker } from "@/components/teacher/student-picker";
 import { toast } from "sonner";
 import type { FamilyNoteRow, FamilyNoteScope } from "@/lib/informes/types";
 import { InformesValidationError } from "@/lib/informes/utils";
@@ -297,20 +298,15 @@ export function FamilyNoteForm({
             >
               Alumno
             </label>
-            <select
+            <StudentPicker
               id="family-note-student"
+              students={activeStudents}
               value={studentId}
-              onChange={(event) => setStudentId(event.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground"
-            >
-              <option value="">Selecciona un alumno…</option>
-              {activeStudents.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.name}
-                  {student.instrument ? ` · ${student.instrument}` : ""}
-                </option>
-              ))}
-            </select>
+              onChange={setStudentId}
+              allowEmpty
+              emptyLabel="Sin alumno específico"
+              placeholder="Buscar alumno: escribe 2 letras…"
+            />
             {activeStudents.length === 0 && (
               <p className="text-[11px] text-amber-600">
                 No hay alumnos activos en tu lista. La nota de cohorte sigue disponible.

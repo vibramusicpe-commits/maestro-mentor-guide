@@ -1555,3 +1555,32 @@ inferencia.
    - No exponer informes `draft`, `pending`, `rejected` ni filas `is_test` al portal familia.
 8. **Verificación de referencia**: `scratch/test-fase5-progress-reports.mjs` (28/28 con datos vivos, `is_test` + `test_run_id`, limpieza final); rutas `/`, `/admin/alumnos`, `/family/progreso` y `/teacher` en 200; `npm run build` en verde antes de commitear.
 
+
+---
+
+### 78. UI/UX Móvil del Portal Docente: Buscador Táctil de Alumnos y Estado "No aplicó" (ADR-0176)
+
+1. **Un solo buscador de alumno reutilizable (`StudentPicker`)**:
+   - `src/components/teacher/student-picker.tsx` reemplaza los `<select>` de alumno en **Registro de clase** (`class-log.tsx`), **Nota a familia** (`family-note-form.tsx`) y **Nota interna** (`internal-note-form.tsx`).
+   - Búsqueda que ignora tildes y mayúsculas, admite varias palabras en cualquier orden y filtra por nombre, instrumento, docente y categoría. Filas táctiles de **mínimo 44 px**, lista con scroll propio (`max-h-64`) y contador de resultados.
+   - Con un alumno elegido, el control **se colapsa a una sola fila** con botón **Cambiar**; `Enter` selecciona el único resultado, `Escape` y el clic/touch fuera cierran.
+   - `allowEmpty` + `emptyLabel` conservan los casos que sí admiten "sin alumno". Queda **PROHIBIDO** volver a introducir un `<select>` con la base activa de alumnos en formularios docentes.
+
+2. **Estado visible "No aplicó" (valor de base intacto)**:
+   - El valor persistido sigue siendo **`no_corresponde`** en `lesson_evaluations.overall_status`, en el repertorio y en `evaluation_fields.options`. Solo cambia la etiqueta visible.
+   - `STATUS_OPTIONS`, `STATUS_LABELS` y `DEFAULT_TRAFFIC_OPTIONS` muestran **"⚪ No aplicó"**; `OPTION_LABEL_OVERRIDES` traduce las etiquetas crudas que llegan de `evaluation_fields`; `STATUS_HELP` explica cada estado al seleccionarlo, aclarando que "No aplicó" **no cuenta como bajo desempeño**.
+   - Leyenda de una línea antes de los criterios: `Logrado · En proceso · No logrado · No aplicó (hoy no se trabajó ese aspecto; no es una nota baja)`.
+   - Se retira `no_corresponde` del desplegable de **repertorio**: una pieza listada en la clase sí se trabajó.
+
+3. **Informes y WhatsApp sin valores crudos**:
+   - `TRAFFIC_LABELS` en `src/lib/informes/progress-report-format.ts` mapea `no_corresponde` y `no_aplica` → **"No aplicó"**. Como ese archivo es la fuente única de vista, Markdown, WhatsApp y CSS de impresión (ADR-0119.3), la corrección aplica a las cuatro salidas.
+   - Queda **TERMINANTEMENTE PROHIBIDO** imprimir `no_corresponde` en pantalla, informe, Markdown o WhatsApp, y **prohibido renombrar el valor persistido** sin una migración de esquema explícita.
+
+4. **Directorio Docente (`/teacher/alumnos`) optimizado para celular**:
+   - La **búsqueda va primero**, debajo de una cabecera compacta: el profesor escribe sin deslizar. Botón **X** para limpiar y `autoComplete/autoCorrect/autoCapitalize off`, `spellCheck={false}` y `type="search"` (ADR-0164).
+   - Filtro de docente compacto en la misma fila que la búsqueda; contador `N/total` en la cabecera.
+   - **Leyenda de categorías colapsada** en `<details>` ("toca para ver"), con etiquetas cortas (`ESTIM.`, `INFANTIL`, `JUNIOR`, `JUVENIL`, `MASTER`, `RECUP.`, `PERSONAL.`).
+   - Tarjetas convertidas en **filas densas de 3 líneas**: nombre + chip de categoría + edad; instrumento · docente · día/hora · sala; apoderado/teléfono (teléfono del propio alumno si es +18). `📖 Kardex` y % de asistencia a la derecha. Sin horario agendado se indica explícitamente.
+   - La animación de entrada se acota (`delay` máximo 0.2 s) para listas largas.
+
+5. **Verificación de referencia**: `npm run build` en verde; rutas `/`, `/teacher`, `/teacher/alumnos`, `/admin/alumnos` y `/family/progreso` en 200; `grep "No corresponde"` en `src/` sin resultados. Documentación: ADR-0176 y `docs/logs/2026-10-22-ui-movil-docente.log`.

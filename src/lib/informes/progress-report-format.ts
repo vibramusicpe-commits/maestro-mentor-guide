@@ -33,6 +33,11 @@ const TRAFFIC_LABELS: Record<string, string> = {
   pendiente: "No logrado",
   no_logrado: "No logrado",
   no_logrado_aun: "No logrado aún",
+  // ADR-0176: "no_corresponde" se muestra al docente y a la familia como
+  // "No aplicó" (el aspecto no se trabajó esa clase). El valor en la base de
+  // datos no cambia.
+  no_corresponde: "No aplicó",
+  no_aplica: "No aplicó",
 };
 
 export interface ProgressReportCriterion {

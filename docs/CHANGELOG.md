@@ -4,6 +4,27 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.45] - 2026-10-22
+
+### UI/UX móvil del portal docente — buscador de alumnos y estado "No aplicó" (ADR-0176)
+- **Nuevo buscador táctil reutilizable** `src/components/teacher/student-picker.tsx` (`StudentPicker`), usado en **Registro de clase**, **Nota a familia** y **Nota interna** en reemplazo de los `<select>` de alumno.
+  - Filtro que ignora tildes y mayúsculas, varias palabras en cualquier orden, búsqueda por nombre, instrumento, docente y categoría.
+  - Filas de mínimo 44 px, lista con scroll propio, contador de resultados y mensaje de "sin resultados".
+  - Con un alumno elegido el control **se colapsa a una sola fila** con botón **Cambiar**; `Enter` selecciona el único resultado y `Escape`/clic fuera cierran.
+  - `allowEmpty` + `emptyLabel` cubren los casos válidos de "sin alumno".
+- **Estado "No aplicó" comprensible sin cambiar la base de datos**:
+  - Etiqueta visible "⚪ No aplicó" en `STATUS_OPTIONS`, `STATUS_LABELS` y `DEFAULT_TRAFFIC_OPTIONS`; `OPTION_LABEL_OVERRIDES` traduce las etiquetas que llegan de `evaluation_fields`.
+  - `STATUS_HELP` explica cada estado al seleccionarlo y aclara que "No aplicó" no cuenta como bajo desempeño; leyenda de una línea antes de los criterios.
+  - Se retira `no_corresponde` del desplegable de repertorio (una pieza listada sí se trabajó).
+- **Informes sin valores crudos**: `TRAFFIC_LABELS` en `src/lib/informes/progress-report-format.ts` mapea `no_corresponde` y `no_aplica` → "No aplicó" en vista, Markdown, WhatsApp e impresión.
+- **Directorio docente (`/teacher/alumnos`) optimizado para celular**:
+  - Búsqueda **primero**, bajo una cabecera compacta, con botón X, `type="search"` y autofill bloqueado; filtro de docente en la misma fila; contador `N/total`.
+  - Leyenda de categorías colapsada en `<details>` con etiquetas cortas.
+  - Tarjetas convertidas en filas densas de 3 líneas (nombre + categoría + edad / instrumento · docente · horario · sala / apoderado o teléfono), con `📖 Kardex` y % de asistencia a la derecha.
+- **Blindajes**: sin migraciones, sin datos financieros, sin tocar `app-store.ts`, `kardex-calculator.ts`, `student-cycle.ts`, `students.notes` ni `notification_logs`; el flujo de moderación de la Fase 3 no cambia.
+- **Verificación**: `npm run build` en verde; rutas `/`, `/teacher`, `/teacher/alumnos`, `/admin/alumnos` y `/family/progreso` en 200; `grep "No corresponde"` en `src/` sin resultados.
+- **Documentación**: ADR-0176, AGENTS.md sección 78 y log `docs/logs/2026-10-22-ui-movil-docente.log`.
+
 ## [2.0.44] - 2026-10-22
 
 ### Fase 5 — Informe de progreso, publicación y portal familia
