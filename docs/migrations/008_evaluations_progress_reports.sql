@@ -5,8 +5,10 @@
 -- Depende de: public.students (id uuid), public.families (opcional)
 --
 -- IMPORTANTE:
---   * Este archivo NO se ejecuta automáticamente. Lo corre el usuario/dirección.
---   * El agente no ejecuta DDL en producción.
+--   * Este archivo NO se ejecuta automáticamente. Lo corre Dirección o el agente
+--     bajo autorización explícita, dentro de una transacción.
+--   * Ejecución registrada: 2026-10-21 por el agente, autorizada por Dirección,
+--     vía conexión directa a Insforge PostgreSQL (transacción + verificación).
 --   * El rollback está al final, comentado. No ejecutarlo sin respaldo previo.
 --   * Si ya se ejecutó una versión parcial, revisar columnas antes de re-ejecutar:
 --     el script es idempotente para tablas/índices/triggers, no para cambios de
@@ -935,6 +937,9 @@ COMMENT ON VIEW public.v_test_records IS
 -- 10. PERMISOS (ANON KEY / AUTHENTICATED)
 --     Se otorgan permisos porque la app usa la anon key. evaluation_audit_log
 --     es append-only: solo SELECT e INSERT (el trigger inserta como definer).
+--     Insforge aplica privilegios por defecto (ALL) a tablas nuevas, así que
+--     se revocan explícitamente DELETE en org_settings y UPDATE/DELETE en el
+--     audit log para que la intención del diseño no quede abierta.
 -- ============================================================================
 
 DO $$
@@ -952,6 +957,8 @@ BEGIN
       EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.internal_notes TO %I', v_role);
       EXECUTE format('GRANT SELECT, INSERT ON public.evaluation_audit_log TO %I', v_role);
       EXECUTE format('GRANT SELECT ON public.v_test_records TO %I', v_role);
+      EXECUTE format('REVOKE DELETE ON public.org_settings FROM %I', v_role);
+      EXECUTE format('REVOKE UPDATE, DELETE ON public.evaluation_audit_log FROM %I', v_role);
     END IF;
   END LOOP;
 END;
