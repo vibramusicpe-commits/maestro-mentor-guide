@@ -1442,12 +1442,13 @@ inferencia.
 
 ---
 
-### 75. Fase 1 del Sistema de Evaluaciones, Informes de Progreso y Notas — Infraestructura sin UI (ADR-0175)
+### 75. Sistema de Evaluaciones, Informes de Progreso y Notas — Fase 1 (Infraestructura) y Fase 2 (Registro de Clase) (ADR-0175)
 
 1. **Estado y alcance**:
    - La **Fase 1 de 7** está implementada y desplegada en el commit `b7a0795`. Incluye migraciones aditivas, tipos, snapshot pedagógico y servicios; **no incluye interfaz visible**.
-   - Los flags `evaluationsV2`, `familyNotesV2`, `progressReportsV2` y `parentReports` están en `false`. El kiosco, la agenda, el Kardex, la asistencia y la facturación siguen intactos.
-   - La primera pantalla nueva llegará en la **Fase 2** (registro de clase del docente). Hasta entonces, no ver cambios visuales en producción es el comportamiento esperado.
+   - La **Fase 2 de 7** está implementada y en piloto: registro de clase del docente en `/teacher`, visible solo para **Nathaly** y **Fernando** mediante `org_settings.pilot_teacher_ids`.
+   - Los flags `evaluationsV2`, `familyNotesV2`, `progressReportsV2` y `parentReports` siguen en `false`. El kiosco, la agenda, el Kardex, la asistencia y la facturación siguen intactos.
+   - **Jeremy** no ve la pestaña de registro de clase hasta que se levanten sus criterios y/o se le agregue al piloto.
 2. **Base de datos creada (migraciones `008` y `008b`)**:
    - Tablas: `evaluation_catalog`, `evaluation_fields`, `lesson_evaluations`, `progress_reports`, `family_notes`, `internal_notes`, `evaluation_audit_log`; vista `v_test_records`.
    - `lesson_evaluations.session_key` es determinista: `<student_id>::<YYYY-MM-DD>::<HH:MM>` y `::INT` para 90 min. Guardar dos veces la misma clase actualiza el mismo registro.
@@ -1459,12 +1460,19 @@ inferencia.
 3. **Reglas innegociables**:
    - **No tocar `students.notes`**: queda congelado como legacy. **No tocar `notification_logs`**.
    - **No modificar `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`** para esta funcionalidad: el snapshot y los servicios consumen el motor oficial, no lo duplican.
-   - **Cero datos financieros** en el snapshot o en el informe pedagógico.
+   - **Cero datos financieros** en el snapshot, en el informe pedagógico o en el registro de clase.
    - **Moderación obligatoria** antes de publicar cualquier nota a familia.
    - **Identidad por UUID** (`student_id` / `family_id`), nunca por nombre.
    - **Datos de prueba aislados**: `is_test = true` exige `test_run_id`; el portal familia filtra `is_test = false`; solo las variantes `*ForAudit` (Dirección) pueden leer pruebas.
    - **No usar `localStorage`** como fuente de verdad transaccional.
 4. **Servicios disponibles**: `evaluations.service.ts`, `progress-reports.service.ts`, `family-notes.service.ts`, `internal-notes.service.ts`, `feature-flags.service.ts` y `teacher-resolver.ts` (re-exportado desde `time-tracking.service.ts`).
-5. **Fases pendientes**: Fase 2 registro de clase; Fase 3 nota a familia y moderación; Fase 4 nota interna y bandeja; Fase 5 informe A4/PDF/Markdown/WhatsApp y portal familia; Fase 6 reportes y CSV; Fase 7 flags, piloto Nathaly/Fernando y despliegue gradual.
-6. **Referencia obligatoria**: `docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md` y `docs/logs/2026-10-21-fase-1-evaluaciones-informes-notas.log`.
+5. **Fase 2 — Registro de clase (`src/components/teacher/class-log.tsx`)**:
+   - En `/teacher` se conserva la pestaña **“Notas a familia”** (`LessonNotes`) y se agrega **“Registro de clase (BETA)”**. Cada tarjeta de alumno tiene el botón **“Registrar clase / evaluación”**, que precarga alumno, fecha, hora, duración e instrumento.
+   - Ambas pestañas usan `forceMount` para conservar el formulario si el docente cambia de pestaña por error.
+   - El formulario registra estado general, criterios dinámicos, repertorio, tema, tarea y comentario. Nathaly usa semáforo de 4 (`traffic_light`); Fernando usa escala 1–10 (`score_1_10`). Canto permite `individual` o `grupal`, nunca coro.
+   - Guardado idempotente con `saveLessonEvaluation` y `session_key`; `isTest: false`. La “última evaluación” visible excluye filas `is_test`.
+   - Criterios sembrados en `evaluation_fields`: **49 filas** (Nathaly Canto 12, Nathaly Piano Infantil 12, Fernando Piano 12, Fernando Violín 13; Jeremy 0). Migración idempotente `docs/migrations/009_seed_evaluation_fields.sql`; rollback por `created_by_name = 'Migración 009'`.
+   - No se tocó `lesson-notes.tsx`, `teacher-notes-moderation.tsx`, agenda, Kardex, asistencia ni facturación.
+6. **Fases pendientes**: Fase 3 nota a familia y moderación; Fase 4 nota interna y bandeja; Fase 5 informe A4/PDF/Markdown/WhatsApp y portal familia; Fase 6 reportes y CSV; Fase 7 despliegue gradual y retiro del flujo legacy.
+7. **Referencia obligatoria**: `docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md`, `docs/logs/2026-10-21-fase-1-evaluaciones-informes-notas.log` y `docs/logs/2026-10-22-fase-2-registro-clase.log`.
 

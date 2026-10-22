@@ -4,6 +4,37 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.39] - 2026-10-22
+
+### Fase 2 — Registro de clase del docente en el kiosco (ADR-0175)
+- **Componente nuevo `src/components/teacher/class-log.tsx`**:
+  - Registro de clase en 30–90 segundos con alumno, fecha, hora, duración, instrumento, estado general, criterios, repertorio, tema, tarea y comentario.
+  - Escala de Nathaly: semáforo de 4 (`traffic_light`). Escala de Fernando: puntaje 1–10 (`score_1_10`).
+  - Canto: modalidad `individual` o `grupal` (1 a 5 alumnos), nunca coro.
+  - Guardado idempotente por `session_key`; la última evaluación visible excluye filas `is_test`.
+- **Integración en `/teacher` (`src/routes/teacher.index.tsx`)**:
+  - Se conserva la pestaña **“Notas a familia”** y se agrega **“Registro de clase (BETA)”**.
+  - Cada tarjeta de alumno incorpora el botón **“Registrar clase / evaluación”**, que precarga alumno, fecha, hora, duración e instrumento.
+  - `forceMount` en ambas pestañas para no perder el formulario al cambiar de pestaña.
+  - Gate de piloto: `evaluationsV2` sigue en `false`; el acceso se habilita con `org_settings.pilot_teacher_ids` (Fernando y Nathaly). Jeremy no ve la pestaña hasta levantar sus criterios.
+- **Criterios sembrados (49 filas en `evaluation_fields`)**:
+  - Nathaly: Canto 12 y Piano Infantil 12.
+  - Fernando: Piano 12 y Violín 13.
+  - Jeremy: 0 (pendiente de levantamiento).
+  - Migración idempotente `docs/migrations/009_seed_evaluation_fields.sql`; rollback por `created_by_name = 'Migración 009'`.
+- **Frontera de seguridad y alcance**:
+  - No se modificó `app-store.ts`, `kardex-calculator.ts`, `student-cycle.ts`, agenda, Kardex, asistencia, facturación, `lesson-notes.tsx` ni `teacher-notes-moderation.tsx`.
+  - No se publica nada a familias en esta fase.
+  - No se incluyen datos financieros en el registro pedagógico.
+- **Verificación**:
+  - `npm run build` en verde (cliente, SSR y Nitro).
+  - Prueba de runtime con datos vivos: criterios 12/12/12/13/0; guardado, relectura desde PostgreSQL y exclusión de `is_test`; limpieza de la fila de prueba.
+- **Resultado visible**: solo los docentes del piloto ven la pestaña y el botón. El resto del kiosco, agenda, Kardex y facturación sigue igual.
+- **Correccion de tooling local (no afecta produccion)**:
+  - `src/lib/session-store.ts`, `src/lib/insforge.ts` y `src/routes/checkout.tsx` leian `import.meta.env` mediante un cast dinamico. Vite 8 lo rechaza en SSR con `Dynamic access of "import.meta.env" is not supported` y el dev server respondia 500 en todas las rutas. Ahora el acceso es estatico y el entorno local vuelve a levantar.
+  - `npm run preview` no es el comando correcto para este stack: el build de Nitro escribe en `.output/`, no en `dist/`. El preview local es `npx wrangler dev` sobre `.output/server/wrangler.json`.
+  - Verificado en `vite dev`: `/`, `/admin`, `/teacher`, `/teacher/agenda` y `/admin/facturacion` responden 200.
+
 ## [2.0.38] - 2026-10-21
 
 ### Fase 1 del Sistema de Evaluaciones, Informes de Progreso y Notas — Datos y Servicios sin UI (ADR-0175)

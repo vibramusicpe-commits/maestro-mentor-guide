@@ -1,0 +1,196 @@
+================================================================================
+LOG DE EJECUCIÓN — FASE 2: REGISTRO DE CLASE DEL DOCENTE
+Vibra Music Staff
+Fecha de implementación: 2026-10-22
+ADR: docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md
+Estado: Fase 2 implementada y en piloto (Nathaly y Fernando). Fases 3–7 pendientes.
+================================================================================
+
+1. OBJETIVO DE LA FASE
+--------------------------------------------------------------------------------
+Permitir que el docente registre la evaluación de la clase que acaba de dictar,
+sin retirar el flujo actual de "Notas a familia" y sin tocar agenda, Kardex,
+asistencia ni facturación.
+
+La Fase 2 NO publica nada a las familias: solo acumula evaluaciones internas
+para que la Fase 5 pueda generar el informe de progreso.
+
+Piloto controlado:
+  - Nathaly  (00000000-0000-0000-0000-000000000005)
+  - Fernando (00000000-0000-0000-0000-000000000004)
+  Jeremy queda fuera hasta sembrar sus criterios y/o agregarlo al piloto.
+
+2. CRITERIOS DE ACCESO (GATE)
+--------------------------------------------------------------------------------
+  org_settings.feature_flags.evaluationsV2 = false   (sigue apagado)
+  org_settings.pilot_teacher_ids = [Fernando, Nathaly]
+
+El acceso se habilita si el docente resuelto por resolveTeacherUserId figura en
+pilot_teacher_ids. No se activó ningún flag global ni se expuso la pestaña al
+resto de docentes.
+
+3. ARCHIVOS CREADOS
+--------------------------------------------------------------------------------
+  src/components/teacher/class-log.tsx
+      Formulario de registro/evaluación de clase.
+      - Precarga alumno, fecha, hora, duración, instrumento.
+      - Estado general + criterios dinámicos + repertorio + tema + tarea +
+        comentario.
+      - Nathaly: semáforo de 4 (traffic_light).
+      - Fernando: escala 1–10 (score_1_10).
+      - Canto: individual | grupal, nunca coro.
+      - Guardado idempotente por session_key.
+      - isTest: false siempre.
+      - Muestra la última evaluación excluyendo filas is_test.
+      - Estado vacío explícito cuando el docente no tiene criterios sembrados.
+
+  docs/migrations/009_seed_evaluation_fields.sql
+      Seed idempotente (ON CONFLICT DO NOTHING) de 49 criterios.
+      Rollback por created_by_name = 'Migración 009'.
+
+4. ARCHIVOS MODIFICADOS
+--------------------------------------------------------------------------------
+  src/routes/teacher.index.tsx
+      - Import de ClassLog.
+      - Gate de piloto (pilotTeacherIds).
+      - teacherStudentList y openClassLog.
+      - Botón "Registrar clase / evaluación" en cada tarjeta del kiosco.
+      - Pestañas inferiores: "Notas a familia" y "Registro de clase (BETA)".
+      - forceMount en ambas pestañas para no perder el formulario si el docente
+        cambia de pestaña por error.
+      No se modificó lesson-notes.tsx ni teacher-notes-moderation.tsx.
+
+  src/lib/session-store.ts
+      Acceso a import.meta.env convertido a forma estática.
+      Motivo: el module runner de Vite 8 rechaza el acceso dinámico con
+      "Dynamic access of import.meta.env is not supported" y tumbaba el dev
+      server (500 en todas las rutas). Sin impacto en producción.
+
+  src/lib/insforge.ts
+      Mismo cambio: (import.meta as any).env?.VITE_INSFORGE_* ->
+      import.meta.env.VITE_INSFORGE_*.
+
+  src/routes/checkout.tsx
+      Mismo cambio para VITE_CULQI_PUBLIC_KEY.
+
+5. CRITERIOS SEMBRADOS (evaluation_fields → 49 filas)
+--------------------------------------------------------------------------------
+  Nathaly · Canto             12
+  Nathaly · Piano Infantil    12
+  Fernando · Piano            12
+  Fernando · Violín           13
+  Jeremy                       0   (no se inventaron criterios)
+
+  Fuente: docs/BRIEF_INFORMES_PROGRESO_2026_10.md
+
+6. REGLAS RESPETADAS
+--------------------------------------------------------------------------------
+  - No se tocó app-store.ts.
+  - No se tocó kardex-calculator.ts ni student-cycle.ts.
+  - No se duplicó el motor oficial de ciclos ni de asistencia.
+  - students.notes queda congelado como legacy.
+  - notification_logs intacto.
+  - Cero datos financieros en el formulario ni en el registro guardado.
+  - Identidad por UUID (student_id), nunca por nombre.
+  - No se usa localStorage como fuente de verdad transaccional.
+  - No se publicó nada a familias: family_notes y progress_reports sin cambios.
+
+7. PRUEBAS EJECUTADAS
+--------------------------------------------------------------------------------
+Arnés: scratch/test-fase2-class-log.mjs (temporal, no commiteado).
+Método: Vite createServer + ssrLoadModule, datos vivos de Insforge PostgreSQL.
+
+7.1. Criterios por docente/instrumento
+  OK  Nathaly / Canto            12
+  OK  Nathaly / Piano Infantil   12
+  OK  Fernando / Piano           12
+  OK  Fernando / Violín          13
+  OK  Jeremy                      0
+
+7.2. Guardado y relectura
+  OK  saveLessonEvaluation crea el registro.
+  OK  Segunda llamada con el mismo session_key actualiza el mismo id.
+  OK  Relectura desde PostgreSQL devuelve los valores guardados.
+  OK  getLatestEvaluation ignora la fila de prueba (is_test = true).
+  OK  Registro de prueba eliminado al finalizar.
+
+  session_key usado en la prueba:
+    0a899060-3aaf-4574-b1ea-71163953dbae::2099-02-01::16:00
+
+8. INCIDENCIA DE TOOLING LOCAL (no de producto)
+--------------------------------------------------------------------------------
+Síntoma:
+  npm run dev respondía 500 en todas las rutas con
+    Error: [module runner] Dynamic access of "import.meta.env" is not supported.
+    Please, use "import.meta.env.VITE_UPSTASH_REDIS_REST_URL" instead.
+  en src/lib/session-store.ts:145.
+  npm run preview fallaba con
+    ERR_MODULE_NOT_FOUND: dist/server/server.js.
+
+Causa real:
+  1) Tres módulos leían import.meta.env a través de un cast
+     ((import.meta as any).env?.X), patrón que Vite 8 prohíbe en SSR.
+  2) npm run preview espera dist/, pero el build de Nitro escribe .output/.
+     El preview correcto es npx wrangler dev sobre .output/server/wrangler.json.
+
+Solución:
+  Acceso estático en session-store.ts, insforge.ts y checkout.tsx.
+  Verificado: dev server arriba y rutas 200 (ver sección 9).
+
+  No era un fallo de la Fase 2. El build de producción ya estaba en verde
+  antes de este cambio.
+
+9. VERIFICACIÓN POSTERIOR AL FIX DE TOOLING
+--------------------------------------------------------------------------------
+  npm run build
+    OK cliente
+    OK SSR
+    OK Nitro (Cloudflare module)
+
+  Dev server (vite dev --port 5181):
+    /                 200
+    /admin            200
+    /teacher          200
+    /teacher/agenda   200
+    /admin/facturacion 200
+    Sin errores en consola del servidor.
+
+10. QUÉ VERÁ EL USUARIO ONLINE
+--------------------------------------------------------------------------------
+  Admin y familias: nada nuevo.
+  Nathaly y Fernando: en /teacher aparece una segunda pestaña
+    "Registro de clase (BETA)" y un botón "Registrar clase / evaluación"
+    en cada tarjeta de alumno del día.
+  Jeremy y el resto de docentes: sin cambios.
+
+11. FASES PENDIENTES
+--------------------------------------------------------------------------------
+  Fase 3  Nota a familia + moderación
+  Fase 4  Nota interna + bandeja
+  Fase 5  Informe de progreso A4/PDF/Markdown/WhatsApp + portal familia
+  Fase 6  Reportes y exportación CSV
+  Fase 7  Despliegue gradual y retiro del flujo legacy
+
+12. BLOQUEOS Y DECISIONES PENDIENTES
+--------------------------------------------------------------------------------
+  - Criterios de Jeremy sin definir: no se inventaron.
+  - Claudia / Sala D sin UUID ni alumnos activos en la base actual.
+  - El flujo legacy de notas sigue activo hasta que Fase 3 esté probada.
+  - evaluation_fields y lesson_evaluations arrancan el piloto sin datos reales.
+
+13. REFERENCIAS
+--------------------------------------------------------------------------------
+  docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md
+  docs/PROMPT_OPUS_IMPLEMENTACION_INFORMES.md
+  docs/BRIEF_INFORMES_PROGRESO_2026_10.md
+  docs/migrations/009_seed_evaluation_fields.sql
+  docs/logs/2026-10-21-fase-1-evaluaciones-informes-notas.log
+  src/components/teacher/class-log.tsx
+  src/routes/teacher.index.tsx
+  src/lib/services/evaluations.service.ts
+  src/lib/services/feature-flags.service.ts
+  src/lib/services/teacher-resolver.ts
+
+================================================================================
+FIN DEL LOG
+================================================================================

@@ -117,7 +117,7 @@ export function CheckoutPage() {
 
     const culqiKey =
       process.env.VITE_CULQI_PUBLIC_KEY ||
-      (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_CULQI_PUBLIC_KEY ||
+      import.meta.env.VITE_CULQI_PUBLIC_KEY ||
       "pk_test_vibramusic_2026";
 
     if (window.Culqi) {

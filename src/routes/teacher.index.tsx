@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
@@ -12,13 +12,19 @@ import {
   MessageCircle,
   UserCheck,
   RotateCw,
+  ClipboardList,
 } from "lucide-react";
 import { IntegratedTeacherKioskHeader } from "@/components/teacher/integrated-kiosk-header";
 import { LessonNotes } from "@/components/teacher/lesson-notes";
-import { useAppStore, type ScheduledLesson, type WeekDay, type AttendanceStatus } from "@/store/app-store";
+import { ClassLog, type ClassLogSeed } from "@/components/teacher/class-log";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAppStore, type AdminStudent, type ScheduledLesson, type WeekDay, type AttendanceStatus } from "@/store/app-store";
 import { getCurrentWeekIndex, getMonthWeeks } from "@/lib/calendar-utils";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { isLessonInStudentCycle } from "@/lib/student-cycle";
+import { resolveTeacherUserId } from "@/lib/services/teacher-resolver";
+import { getFeatureFlags, getOrgSetting } from "@/lib/services/feature-flags.service";
+import { toIsoDate } from "@/lib/informes/utils";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { toast } from "sonner";
 
@@ -266,6 +272,95 @@ export function TeacherKiosk() {
       instrument: lessons[0]?.instrument || "Instrumento",
     }));
   }, [dayLessons]);
+
+  // 🧪 Fase 2 — Registro de clase (piloto Nathaly / Fernando)
+  const classLogSectionRef = useRef<HTMLDivElement | null>(null);
+  const [notesTab, setNotesTab] = useState<"notes" | "class-log">("notes");
+  const [classLogSeed, setClassLogSeed] = useState<ClassLogSeed | null>(null);
+  const [classLogAccess, setClassLogAccess] = useState(false);
+
+  const teacherIdForLog = useMemo(
+    () => resolveTeacherUserId(undefined, teacherDisplayName),
+    [teacherDisplayName],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      getFeatureFlags(),
+      getOrgSetting<string[]>("pilot_teacher_ids", []),
+    ])
+      .then(([flags, pilots]) => {
+        if (cancelled) return;
+        const pilotList = Array.isArray(pilots) ? pilots.map(String) : [];
+        setClassLogAccess(
+          Boolean(flags.evaluationsV2 || pilotList.includes(teacherIdForLog)),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setClassLogAccess(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [teacherIdForLog]);
+
+  const teacherStudentList = useMemo(() => {
+    const activeStudents = adminStudents.filter(
+      (student) => student.status === "activo",
+    );
+    const scheduledNames = new Set(
+      teacherScheduleLessons.map((lesson) => lesson.student.toLowerCase().trim()),
+    );
+    const seen = new Set<string>();
+
+    return activeStudents.filter((student) => {
+      if (seen.has(student.id)) return false;
+      const studentTeacher = (student.teacher || "")
+        .toLowerCase()
+        .replace(/\s*\(.*?\)/, "")
+        .replace(/^prof\.\s*/i, "")
+        .trim();
+      const matches =
+        scheduledNames.has(student.name.toLowerCase().trim()) ||
+        Boolean(studentTeacher && studentTeacher.includes(teacherClean)) ||
+        Boolean(studentTeacher && teacherClean.includes(studentTeacher));
+      if (matches) seen.add(student.id);
+      return matches;
+    });
+  }, [adminStudents, teacherScheduleLessons, teacherClean]);
+
+  const openClassLog = (
+    student: AdminStudent,
+    lesson: ScheduledLesson,
+    dateStr?: string,
+  ) => {
+    const modality = (student.modality || "").toLowerCase();
+    const isIntensive =
+      modality.includes("inten") ||
+      modality.includes("90 min") ||
+      (modality.includes("4 clases") && !modality.includes("45 min"));
+
+    setClassLogSeed({
+      studentId: student.id,
+      studentName: student.name,
+      lessonId: lesson.id,
+      sessionDate: lesson.dateStr || dateStr || toIsoDate(new Date()),
+      startTime: lesson.time,
+      durationMin: isIntensive ? 90 : 45,
+      instrument: student.instrument || lesson.instrument,
+      nonce: Date.now(),
+    });
+    setNotesTab("class-log");
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        classLogSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 80);
+    }
+  };
 
   const selectedDayFull = DAYS_OF_WEEK.find((d) => d.short === selectedDay)?.full || selectedDay;
 
@@ -581,6 +676,19 @@ export function TeacherKiosk() {
                             🔵 Just.
                           </button>
                         </div>
+
+                        {classLogAccess && studentProfile?.id && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openClassLog(studentProfile, lesson, targetDateStr)
+                            }
+                            className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 py-2 text-[11px] font-black text-primary transition-all hover:bg-primary/20"
+                          >
+                            <ClipboardList className="h-3.5 w-3.5" />
+                            Registrar clase / evaluación
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -591,9 +699,52 @@ export function TeacherKiosk() {
         )}
       </div>
 
-      {/* Bitácora de Notas para la Familia / Alumno */}
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-xs">
-        <LessonNotes />
+      {/* Bitácora de Notas para la Familia / Alumno + Registro de clase (Fase 2) */}
+      <section
+        ref={classLogSectionRef}
+        className="rounded-2xl border border-border bg-card p-4 shadow-xs"
+      >
+        {classLogAccess ? (
+          <Tabs
+            value={notesTab}
+            onValueChange={(value) =>
+              setNotesTab(value as "notes" | "class-log")
+            }
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="notes" className="gap-1.5 text-xs font-bold">
+                <MessageCircle className="h-3.5 w-3.5" />
+                Notas a familia
+              </TabsTrigger>
+              <TabsTrigger
+                value="class-log"
+                className="gap-1.5 text-xs font-bold"
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+                Registro de clase
+                <span className="ml-1 rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-black text-primary">
+                  BETA
+                </span>
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="notes" className="mt-3" forceMount>
+              <LessonNotes />
+            </TabsContent>
+            <TabsContent value="class-log" className="mt-3" forceMount>
+              <ClassLog
+                key={classLogSeed?.nonce ?? "class-log-empty"}
+                teacherName={teacherDisplayName}
+                teacherClean={teacherClean}
+                students={teacherStudentList}
+                schedule={teacherScheduleLessons}
+                initialSeed={classLogSeed}
+              />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <LessonNotes />
+        )}
       </section>
 
       {/* Nota al pie: Contacto Directo con Nayeli */}

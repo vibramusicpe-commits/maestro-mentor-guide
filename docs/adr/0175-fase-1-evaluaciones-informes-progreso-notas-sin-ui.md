@@ -1,12 +1,12 @@
-# ADR-0175: Fase 1 del Sistema de Evaluaciones, Informes de Progreso y Notas (Datos y Servicios sin UI)
+# ADR-0175: Sistema de Evaluaciones, Informes de Progreso y Notas — Fase 1 (Datos y Servicios) y Fase 2 (Registro de Clase)
 
 ## Estado
 
-Aceptado e implementado. **Fase 1 de 7.**
+Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Nathaly y Fernando.**
 
 ## Fecha
 
-2026-10-21 (implementación) · 2026-10-22 (documentación).
+2026-10-21 (Fase 1) · 2026-10-22 (documentación de Fase 1 y Fase 2).
 
 ## Contexto
 
@@ -80,12 +80,75 @@ La Fase 1 no busca que el usuario final vea algo nuevo. Busca que la Fase 2 (int
 - No se inventaron criterios para Jeremy: `evaluation_fields` sigue vacío.
 - No se creó un usuario/UUID para Claudia/Sala D porque hoy no tiene alumnos activos en la base.
 
+## Fase 2 — Registro de clase del docente (implementada)
+
+### Objetivo y alcance
+
+Incorporar la primera pantalla visible del sistema: el docente registra la evaluación de una clase en **30–90 segundos**, sin salir del kiosco y sin retirar la pestaña actual de notas a familia.
+
+La Fase 2 se habilita **solo por piloto**, no por flag global:
+
+- `evaluationsV2` sigue en `false`.
+- El acceso se muestra si `org_settings.pilot_teacher_ids` contiene al docente resuelto.
+- Pilotos confirmados: **Fernando** (`00000000-0000-0000-0000-000000000004`) y **Nathaly** (`00000000-0000-0000-0000-000000000005`).
+- **Jeremy** no ve la pestaña hasta que se levanten sus criterios y/o se le agregue al piloto.
+
+### Interfaz
+
+- Archivo nuevo: `src/components/teacher/class-log.tsx`.
+- En `/teacher` se conserva la pestaña **“Notas a familia”** (`LessonNotes`) y se agrega **“Registro de clase (BETA)”**.
+- Cada tarjeta de alumno del kiosco incorpora el botón **“Registrar clase / evaluación”**, que abre la pestaña y precarga alumno, fecha, hora, duración e instrumento.
+- Ambas pestañas usan `forceMount` para conservar el formulario si el docente cambia de pestaña por error.
+- El formulario incluye:
+  - alumno, fecha y hora;
+  - modalidad de Canto: `individual` o `grupal` (nunca coro);
+  - estado general de la clase (semáforo de 4);
+  - puntaje global 1–10 solo para Fernando;
+  - criterios dinámicos por instrumento/categoría/nivel;
+  - repertorio trabajado con estado por pieza;
+  - tema, tarea y comentario corto.
+- La “última evaluación” visible excluye filas `is_test`.
+
+### Criterios sembrados
+
+Se cargaron **49 filas** en `evaluation_fields`:
+
+| Docente | Instrumento | Filas | Escala |
+|---|---|---:|---|
+| Nathaly | Canto | 12 | Semáforo de 4 (`traffic_light`) |
+| Nathaly | Piano Infantil | 12 | Semáforo de 4 (`traffic_light`) |
+| Fernando | Piano | 12 | Escala 1–10 (`score_1_10`) |
+| Fernando | Violín | 13 | Escala 1–10 (`score_1_10`) |
+| Jeremy | Guitarra / Batería | 0 | Pendiente de levantamiento |
+
+La migración de datos es `docs/migrations/009_seed_evaluation_fields.sql`, idempotente con `ON CONFLICT DO NOTHING`. Rollback: `DELETE FROM evaluation_fields WHERE created_by_name = 'Migración 009';`.
+
+### Guardado y contratos
+
+- `saveLessonEvaluation` guarda con `isTest: false`.
+- La idempotencia sigue siendo por `session_key` (`<student_id>::<YYYY-MM-DD>::<HH:MM>` y `::INT` para 90 min): guardar dos veces la misma clase actualiza el mismo registro.
+- No se envía ningún dato financiero.
+- No se publica nada a familias en esta fase.
+- `getCriteria` ahora recibe también `teacherId` para filtrar la plantilla del docente correcto.
+- No se modificó `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`.
+- No se tocó `lesson-notes.tsx`, agenda, Kardex, asistencia ni facturación.
+
+### Verificación
+
+- `npm run build` en verde (cliente, SSR y Nitro) después de la integración y de `forceMount`.
+- Prueba de runtime con datos vivos:
+  - criterios 12 (Nathaly/Canto), 12 (Nathaly/Piano Infantil), 12 (Fernando/Piano), 13 (Fernando/Violín), 0 (Jeremy);
+  - guardado idempotente con un alumno real;
+  - relectura desde PostgreSQL;
+  - exclusión de `is_test` en la última evaluación visible;
+  - limpieza de la fila de prueba al finalizar.
+
 ## Modelo de datos
 
 | Tabla | Propósito | Claves y reglas |
 |---|---|---|
 | `evaluation_catalog` | Catálogo de instrumentos, edades y modalidades | Incluye bloque `canto`: `min_students=1`, `max_students=5`, `modes=["individual","grupal"]`, `not_choir=true` |
-| `evaluation_fields` | Criterios configurables por instrumento/edad/nivel | Hoy **0 filas**; la UI de Fase 2 podrá poblarlo |
+| `evaluation_fields` | Criterios configurables por instrumento/edad/nivel | **49 filas** sembradas en Fase 2 (Nathaly 24, Fernando 25); Jeremy pendiente |
 | `lesson_evaluations` | Evaluación de una clase concreta | `session_key` único; `is_test` + `test_run_id`; `class_mode` |
 | `progress_reports` | Informe de progreso mensual/trimestral | Flujo `draft → pending → published | rejected`; `published_snapshot` JSONB |
 | `family_notes` | Nota para familia | `scope`: `student | teacher_cohort | academy`; cohorte congelada al publicar |
@@ -122,7 +185,7 @@ Valores permitidos: `individual`, `grupal`, `no_aplica`.
 
 ### `evaluations.service.ts`
 
-- `getCriteria({ instrument, ageCategory, level })`
+- `getCriteria({ instrument, ageCategory, level, teacherId })`
 - `getStudentEvaluations(studentId, { from, to })`
 - `getEvaluationBySessionKey(sessionKey)`
 - `getLatestEvaluation(studentId)` — excluye datos de prueba.
@@ -177,6 +240,8 @@ Flags actuales, todos en `false`:
   "parentReports": false
 }
 ```
+
+La Fase 2 no enciende `evaluationsV2`: el acceso se controla con `org_settings.pilot_teacher_ids` para no exponer la pantalla a todos los docentes antes del piloto.
 
 ## Reglas de negocio y seguridad
 
@@ -238,8 +303,8 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 ### Negativas / pendientes
 
 - **No hay nada visible para el usuario final todavía.** Es intencional: la Fase 1 es infraestructura.
-- Los flags están apagados; no se monta ninguna pestaña ni ruta nueva.
-- `evaluation_fields` está vacío; los criterios por instrumento/docente se configuran en Fase 2.
+- Los flags están apagados; la Fase 2 se muestra solo a los docentes del piloto.
+- `evaluation_fields` pasó de 0 a 49 filas para Nathaly y Fernando; Jeremy queda pendiente.
 - Claudia/Sala D no tiene UUID ni alumnos activos; su configuración queda pendiente.
 - Quedan 51 filas de auditoría de prueba (append-only). No se borran por diseño.
 - El flujo viejo de notas sigue activo y no se retira hasta que el nuevo esté probado.
@@ -249,7 +314,7 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 | Fase | Entregable | Estado |
 |---|---|---|
 | 1 | Datos, tipos, snapshot y servicios | ✅ Implementada |
-| 2 | Registro de clase docente (`class-log.tsx`, pestaña en `/teacher`) | ⏳ Pendiente |
+| 2 | Registro de clase docente (`class-log.tsx`, pestaña en `/teacher`) | ✅ Implementada (piloto Nathaly/Fernando) |
 | 3 | Nota a familia + moderación (`family-note-form.tsx`, `family-notes-moderation.tsx`) | ⏳ Pendiente |
 | 4 | Nota interna + bandeja (`internal-note-form.tsx`, `internal-notes-inbox.tsx`) | ⏳ Pendiente |
 | 5 | Informe de progreso A4, PDF/Markdown/WhatsApp y ruta `family.progreso.tsx` | ⏳ Pendiente |
@@ -258,20 +323,25 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 
 ## Resultado visible en producción
 
-**Ninguna pantalla nueva.** El deploy de `b7a0795` incluye el código y la migración, pero:
+- **Fase 1:** ninguna pantalla nueva. El deploy de `b7a0795` incluye el código y la migración, pero los flags están en `false`, no hay rutas ni pestañas nuevas y el kiosco, la agenda, el Kardex y facturación siguen exactamente igual.
+- **Fase 2:** los docentes del piloto (**Nathaly** y **Fernando**) ven en `/teacher` la pestaña **“Registro de clase (BETA)”** y el botón **“Registrar clase / evaluación”** en cada tarjeta de alumno. El resto de docentes y roles no ve cambios.
+- La pestaña **“Notas a familia”** se conserva sin modificaciones.
+- **Jeremy** no ve la pestaña hasta que se levanten sus criterios y/o se le agregue al piloto.
+- No se publica nada a familias en esta fase.
 
-- los flags están en `false`,
-- no hay rutas ni pestañas nuevas,
-- el kiosco, la agenda, el Kardex y facturación siguen exactamente igual.
-
-La primera funcionalidad visible llegará en la **Fase 2** (registro de clase del docente). Hasta entonces, “no ver nada nuevo” es el comportamiento esperado, no un fallo del deploy.
+La siguiente funcionalidad visible será la **Fase 3** (nota a familia con moderación).
 
 ## Referencias
 
 - `docs/PROMPT_OPUS_IMPLEMENTACION_INFORMES.md` — plan de 7 fases.
+- `docs/BRIEF_INFORMES_PROGRESO_2026_10.md` — criterios validados de Nathaly y Fernando.
 - `docs/migrations/008_evaluations_progress_reports.sql`.
 - `docs/migrations/008b_internal_notes_read_status.sql`.
+- `docs/migrations/009_seed_evaluation_fields.sql` — 49 criterios de Fase 2, idempotente.
 - `src/lib/informes/types.ts`, `utils.ts`, `attendance-snapshot.ts`.
 - `src/lib/services/evaluations.service.ts`, `progress-reports.service.ts`, `family-notes.service.ts`, `internal-notes.service.ts`, `feature-flags.service.ts`, `teacher-resolver.ts`.
-- `scratch/test-informes-phase1.mjs` — arnés temporal, no commiteado.
+- `src/components/teacher/class-log.tsx` — registro de clase de Fase 2.
+- `src/routes/teacher.index.tsx` — pestaña, gate de piloto y botón por tarjeta.
+- `scratch/test-informes-phase1.mjs` y `scratch/test-fase2-class-log.mjs` — arneses temporales, no commiteados.
 - Commit `b7a0795` — implementación Fase 1.
+- Commit de Fase 2 — registro de clase y seed de criterios.

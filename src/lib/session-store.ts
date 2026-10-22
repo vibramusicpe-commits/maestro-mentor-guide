@@ -142,8 +142,11 @@ function createSessionStore(): SessionStore {
   const envUrl = typeof process !== "undefined" && process.env ? process.env.UPSTASH_REDIS_REST_URL : undefined;
   const envToken = typeof process !== "undefined" && process.env ? process.env.UPSTASH_REDIS_REST_TOKEN : undefined;
   
-  const viteUrl = (import.meta as unknown as { env?: Record<string, string> })?.env?.VITE_UPSTASH_REDIS_REST_URL;
-  const viteToken = (import.meta as unknown as { env?: Record<string, string> })?.env?.VITE_UPSTASH_REDIS_REST_TOKEN;
+  // Acceso estatico obligatorio: Vite/Nitro reemplaza estos valores en build time.
+  // El acceso dinamico (`import.meta.env[...]` o un cast de `import.meta`) rompe el
+  // module runner del dev server con "Dynamic access of import.meta.env is not supported".
+  const viteUrl = import.meta.env.VITE_UPSTASH_REDIS_REST_URL;
+  const viteToken = import.meta.env.VITE_UPSTASH_REDIS_REST_TOKEN;
 
   const url = envUrl || viteUrl;
   const token = envToken || viteToken;
