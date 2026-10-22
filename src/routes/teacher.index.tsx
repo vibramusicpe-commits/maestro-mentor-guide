@@ -368,7 +368,7 @@ export function TeacherKiosk() {
             >
               {monthWeeks.map((w) => (
                 <option key={w.weekIndex} value={w.weekIndex}>
-                  Sem {w.weekIndex + 1} · {w.dateRangeLabel}
+                  Sem {w.weekIndex + 1} · {w.startDayNum}-{w.endDayNum}
                 </option>
               ))}
             </select>
