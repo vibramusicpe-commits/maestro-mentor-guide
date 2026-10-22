@@ -1,0 +1,127 @@
+================================================================================
+VIBRA MUSIC STAFF — FASE 6: BANDEJA GENERAL DE INFORMES, FILTROS Y CSV
+Fecha: 2026-10-22
+ADR: docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md
+Estado: IMPLEMENTADA (administración; sin cambios de esquema ni de motores)
+================================================================================
+
+1. OBJETIVO
+--------------------------------------------------------------------------------
+Cerrar la Fase 6 del plan de informes: que Dirección/Secretaría pueda ver TODOS
+los informes de progreso de la escuela en una sola bandeja, filtrarlos por
+estado, docente, instrumento y periodo, exportarlos a CSV, y que el Reporte
+Maestro (/admin/reportes) muestre el estado del último informe de cada alumno.
+
+Reglas de la fase:
+  - Solo producción (nunca filas is_test).
+  - Cero datos financieros.
+  - Sin tocar el flujo draft -> pending -> published | rejected.
+
+2. ARCHIVOS TOCADOS
+--------------------------------------------------------------------------------
+MODIFICADOS
+  src/lib/services/progress-reports.service.ts
+    + getReportInstrument(report)
+        Lee content.student.instrument (jsonb). El instrumento no es columna de
+        progress_reports, por eso el filtro se hace en cliente.
+    + listProgressReports(filters)
+        is_test = eq.false SIEMPRE
+        order = created_at.desc
+        limit acotado 1..1000 (default 300)
+        Filtros server-side: status, student_id, teacher_name (ilike),
+        period_start >= desde y period_end <= hasta (solo fechas ISO válidas).
+        Filtro de instrumento en cliente.
+
+  src/components/admin/progress-reports-panel.tsx
+    + Bandeja general de informes (FASE 6):
+        - Carga listProgressReports con los filtros activos.
+        - Contadores Borradores / En revisión / Publicados / Rechazados y
+          contador de filas visibles.
+        - Filtros: estado, docente, instrumento (musicalInstruments) y rango de
+          periodo (dos inputs type="date").
+        - Limpiar filtros, Actualizar y Exportar CSV (BOM UTF-8).
+        - Filas: alumno, instrumento, tipo y rango de periodo, docente,
+          actualización, publicado por, badge de estado y botón Abrir.
+    + El diálogo resuelve el teléfono del apoderado con activeReportStudent
+      (alumno del informe abierto) en lugar del alumno preseleccionado.
+    + onChanged recarga la lista del alumno y la bandeja general.
+    + downloadCsv / csvCell: generación local del archivo, sin dependencias.
+
+  src/routes/admin.reportes.tsx
+    + Carga de informes de producción (listProgressReports, limit 500), con
+      refresco cuando cambia lastSyncTime.
+    + latestReportByStudent: último informe por alumno (period_end + created_at).
+    + Columna "Último informe": badge de estado + fin de periodo, o "Sin informe".
+    + Filtro "Informe": sin informe / draft / pending / published / rejected,
+      incluido en "Limpiar todos los filtros".
+    + Franja "Informes de progreso" con Total / Borradores / En revisión /
+      Publicados / Rechazados, calculada solo sobre alumnos activos.
+    + CSV existente: columnas "Último informe de progreso" y
+      "Periodo del último informe". colSpan del estado vacío: 10 -> 11.
+
+NUEVO (temporal, no commiteado)
+  scratch/test-fase6-reports.mjs
+    Arnés de runtime con Vite SSR + PostgreSQL vivo. 22 comprobaciones.
+
+DOCUMENTACIÓN
+  docs/adr/0175-*.md (Estado + sección "Fase 6" + referencias),
+  AGENTS.md (sección 79), docs/CHANGELOG.md (2.0.46).
+
+3. QUÉ NO SE TOCÓ
+--------------------------------------------------------------------------------
+  - app-store.ts, kardex-calculator.ts, student-cycle.ts
+  - students.notes (legacy congelado) y notification_logs
+  - Esquema, migraciones y políticas RLS
+  - Flujo de moderación: toda nota y todo informe sigue naciendo en borrador
+  - Kiosco docente, agenda, Kardex, asistencia y facturación
+
+4. VERIFICACIÓN EN RUNTIME (datos vivos)
+--------------------------------------------------------------------------------
+Arnés scratch/test-fase6-reports.mjs — 22/22 OK:
+  1. Hay un alumno activo para la prueba ....................... OK (Aaron)
+  2. Se crearon 3 informes de producción + 1 de prueba ......... OK
+  3. listProgressReports incluye el borrador de producción ...... OK
+  4. listProgressReports incluye el publicado ................... OK
+  5. listProgressReports incluye el pendiente ................... OK
+  6. listProgressReports EXCLUYE is_test = true ................. OK
+  7. Ninguna fila devuelta es de prueba ......................... OK (3 filas)
+  8. Filtro estado=published incluye el publicado ............... OK
+  9. Filtro estado=published excluye borrador y pendiente ....... OK
+ 10. Filtro estado=pending aísla el pendiente ................... OK
+ 11. Filtro docente=Nathaly incluye su borrador ................. OK
+ 12. Filtro docente=Nathaly excluye a Jeremy y Fernando ......... OK
+ 13. Filtro instrumento=Guitarra incluye el de Jeremy ........... OK
+ 14. Filtro instrumento=Guitarra excluye Piano Infantil/Violín .. OK
+ 15. Filtro periodo agosto incluye el publicado de agosto ....... OK
+ 16. Filtro periodo agosto excluye los de setiembre ............. OK
+ 17. getReportInstrument lee Piano Infantil ..................... OK
+ 18. getReportInstrument lee Violín ............................. OK
+ 19. Los informes no exponen campos financieros ................. OK
+ 20. El JSON de un informe no contiene montos "S/" .............. OK
+ 21. Filtros combinados devuelven solo el borrador creado ....... OK (1 fila)
+ 22. Limpieza: no quedan informes de prueba ..................... OK (0 restos)
+
+Rutas servidas en 200: /admin/reportes y /admin/alumnos.
+El HTML de /admin/reportes incluye "Informes de progreso", "Último informe" y
+el filtro de informe (los Radix Select renderizan su contenido en portal, por
+eso la etiqueta "Informe: Todos" no aparece en el HTML del servidor).
+
+npm run build ........................................ VERDE
+
+Nota: producción quedó con 0 informes después de la limpieza del arnés; la
+columna "Último informe" mostrará "Sin informe" hasta que Dirección genere el
+primero desde la pestaña "Informes".
+
+5. PENDIENTE DE CONFIRMACIÓN HUMANA
+--------------------------------------------------------------------------------
+  1. /admin/alumnos -> pestaña "Informes" -> Bandeja general: filtrar por
+     docente/instrumento y exportar CSV (abrir en Excel y verificar tildes).
+  2. /admin/reportes: columna "Último informe" y filtro "Informe".
+  3. Tras generar y publicar un informe real, comprobar que aparece en la
+     bandeja general y en la columna del Reporte Maestro.
+
+6. REVERSIÓN
+--------------------------------------------------------------------------------
+  git revert del commit. No hay migraciones ni datos que limpiar: la bandeja y
+  la columna son solo vistas sobre progress_reports.
+================================================================================

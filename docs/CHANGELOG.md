@@ -4,6 +4,28 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.46] - 2026-10-22
+
+### Fase 6 — Bandeja general de informes, filtros y exportación CSV (ADR-0175)
+- **Bandeja general de informes** en la pestaña **“Informes” (BETA)** de `/admin/alumnos` (`src/components/admin/progress-reports-panel.tsx`):
+  - Lista todos los informes de producción (orden `created_at DESC`), no solo los del alumno seleccionado.
+  - Filtros por **estado**, **docente**, **instrumento** y **rango de periodo** (`desde`–`hasta`), con **Limpiar filtros** y **Actualizar**.
+  - Contadores por estado (Borradores / En revisión / Publicados / Rechazados) y contador de filas visibles.
+  - Botón **Exportar CSV** con BOM UTF-8 (Excel): N°, alumno, instrumento, docente, tipo y rango de periodo, estado, publicado por, fechas de publicación y actualización, ID de alumno e ID de informe. Sin datos financieros.
+  - Cada fila muestra alumno, instrumento, periodo, docente, última actualización, quién publicó, badge de estado y botón **Abrir**.
+  - El diálogo resuelve el teléfono del apoderado con el alumno **del informe abierto**, y al guardar recarga la lista del alumno y la bandeja general.
+- **Servicio** (`src/lib/services/progress-reports.service.ts`):
+  - `listProgressReports(filters)`: `is_test = false` siempre, orden `created_at.desc`, `limit` 1–1000, filtros server-side por estado, alumno, docente (`ilike`) y rango de periodo; instrumento filtrado en cliente.
+  - `getReportInstrument(report)`: lee `content.student.instrument` (jsonb).
+- **`/admin/reportes`**:
+  - Nueva columna **“Último informe”** (estado + fin de periodo; “Sin informe” si no hay).
+  - Nuevo filtro **Informe** (sin informe, borrador, en revisión, publicado, rechazado) incluido en “Limpiar todos los filtros”.
+  - Franja **Informes de progreso** con contadores calculados solo sobre alumnos activos, con nota “Solo producción · sin datos financieros”.
+  - CSV existente ampliado con “Último informe de progreso” y “Periodo del último informe”; `colSpan` del estado vacío a 11.
+- **Blindajes**: no se altera el flujo `draft → pending → published | rejected`, ni la inmutabilidad de `published_snapshot`; no se tocan `app-store.ts`, `kardex-calculator.ts`, `student-cycle.ts`, `students.notes` ni `notification_logs`.
+- **Verificación**: `scratch/test-fase6-reports.mjs` **22/22** con datos vivos (3 informes de producción marcados + 1 `is_test`, limpieza por ID); `/admin/reportes` y `/admin/alumnos` en 200; `npm run build` en verde.
+- **Documentación**: ADR-0175 (sección Fase 6), AGENTS.md sección 79 y log `docs/logs/2026-10-22-fase-6-reportes-csv.log`.
+
 ## [2.0.45] - 2026-10-22
 
 ### UI/UX móvil del portal docente — buscador de alumnos y estado "No aplicó" (ADR-0176)

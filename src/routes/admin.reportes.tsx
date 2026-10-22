@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAppStore, type AdminStudent } from "@/store/app-store";
 import {
   FileSpreadsheet,
+  FileText,
   Search,
   Filter,
   Users,
@@ -37,6 +38,11 @@ import { musicalInstruments, teachers } from "@/store/admin-seeds";
 import { toast } from "sonner";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { isMatchingStudentName } from "@/lib/student-matching";
+import {
+  listProgressReports,
+} from "@/lib/services/progress-reports.service";
+import type { ProgressReportRow } from "@/lib/informes/types";
+import { formatIsoDateShort } from "@/lib/informes/progress-report-format";
 
 export const Route = createFileRoute("/admin/reportes")({
   head: () => ({
@@ -52,6 +58,20 @@ export const Route = createFileRoute("/admin/reportes")({
   }),
   component: AdminReportesPage,
 });
+
+const REPORT_STATUS_LABEL: Record<string, string> = {
+  draft: "Borrador",
+  pending: "En revisión",
+  published: "Publicado",
+  rejected: "Rechazado",
+};
+
+const REPORT_STATUS_CLASS: Record<string, string> = {
+  draft: "border-slate-400/40 bg-slate-500/10 text-slate-600",
+  pending: "border-amber-500/40 bg-amber-500/10 text-amber-600",
+  published: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
+  rejected: "border-red-500/40 bg-red-500/10 text-red-600",
+};
 
 export function AdminReportesPage() {
   const [mounted, setMounted] = useState(false);
@@ -77,7 +97,61 @@ export function AdminReportesPage() {
   const [paymentFilter, setPaymentFilter] = useState<string>("todos");
   const [teacherFilter, setTeacherFilter] = useState<string>("todos");
   const [instrumentFilter, setInstrumentFilter] = useState<string>("todos");
+  const [reportFilter, setReportFilter] = useState<string>("todos");
   const [selectedAuditStudent, setSelectedAuditStudent] = useState<AdminStudent | null>(null);
+  const [progressReports, setProgressReports] = useState<ProgressReportRow[]>([]);
+
+  // Fase 6: informes de progreso de producción (nunca `is_test`) para la
+  // columna "Último informe", el filtro por estado y los contadores.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await listProgressReports({ limit: 500 });
+        if (!cancelled) setProgressReports(rows);
+      } catch {
+        if (!cancelled) setProgressReports([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lastSyncTime]);
+
+  const latestReportByStudent = useMemo(() => {
+    const map = new Map<string, ProgressReportRow>();
+    for (const report of progressReports) {
+      const id = report.student_id;
+      if (!id) continue;
+      const current = map.get(id);
+      if (!current) {
+        map.set(id, report);
+        continue;
+      }
+      const currentKey = `${current.period_end}|${current.created_at}`;
+      const nextKey = `${report.period_end}|${report.created_at}`;
+      if (nextKey > currentKey) map.set(id, report);
+    }
+    return map;
+  }, [progressReports]);
+
+  const activeStudentIds = useMemo(
+    () => new Set(activeStudents.map((student) => student.id)),
+    [activeStudents],
+  );
+
+  const reportStats = useMemo(() => {
+    const relevant = progressReports.filter(
+      (report) => report.student_id && activeStudentIds.has(report.student_id),
+    );
+    return {
+      total: relevant.length,
+      draft: relevant.filter((report) => report.status === "draft").length,
+      pending: relevant.filter((report) => report.status === "pending").length,
+      published: relevant.filter((report) => report.status === "published").length,
+      rejected: relevant.filter((report) => report.status === "rejected").length,
+    };
+  }, [progressReports, activeStudentIds]);
 
   // Calcular deuda consolidada por familia / alumno
   const getStudentDebt = (st: AdminStudent): { totalDebt: number; pendingCount: number } => {
@@ -155,9 +229,24 @@ export function AdminReportesPage() {
         instrumentFilter === "todos" ||
         (st.instrument && st.instrument.toLowerCase() === instrumentFilter.toLowerCase());
 
-      return matchSearch && matchPayment && matchTeacher && matchInstrument;
+      const latestReport = latestReportByStudent.get(st.id);
+      const matchReport =
+        reportFilter === "todos" ||
+        (reportFilter === "sin_informe" && !latestReport) ||
+        (reportFilter !== "sin_informe" && latestReport?.status === reportFilter);
+
+      return matchSearch && matchPayment && matchTeacher && matchInstrument && matchReport;
     });
-  }, [activeStudents, search, paymentFilter, teacherFilter, instrumentFilter, invoices]);
+  }, [
+    activeStudents,
+    search,
+    paymentFilter,
+    teacherFilter,
+    instrumentFilter,
+    reportFilter,
+    latestReportByStudent,
+    invoices,
+  ]);
 
   // Indicadores Globales (KPIs) sobre Alumnos Activos Oficiales
   const stats = useMemo(() => {
@@ -214,11 +303,14 @@ export function AdminReportesPage() {
       "Asistencia (%)",
       "Deuda Pendiente (S/)",
       "Celular WhatsApp",
+      "Último informe de progreso",
+      "Periodo del último informe",
     ];
 
     const rows = filteredStudents.map((st, index) => {
       const { totalDebt } = getStudentDebt(st);
       const scheduleText = getStudentScheduleText(st);
+      const latestReport = latestReportByStudent.get(st.id);
       return [
         index + 1,
         `"${st.name.replace(/"/g, '""')}"`,
@@ -231,6 +323,8 @@ export function AdminReportesPage() {
         `${st.attendanceRate || 0}%`,
         `S/ ${totalDebt.toFixed(2)}`,
         `"${st.phone || st.emergencyContact?.phone || ""}"`,
+        `"${latestReport ? REPORT_STATUS_LABEL[latestReport.status] || latestReport.status : "Sin informe"}"`,
+        `"${latestReport ? `${latestReport.period_start} a ${latestReport.period_end}` : "—"}"`,
       ];
     });
 
@@ -368,6 +462,36 @@ export function AdminReportesPage() {
         </Card>
       </div>
 
+      {/* Fase 6 — Estado de informes de progreso (pedagógico, sin datos financieros) */}
+      <Card className="border-border shadow-xs">
+        <CardContent className="flex flex-wrap items-center gap-2 p-3">
+          <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-foreground">
+            <FileText className="h-4 w-4 text-primary" /> Informes de progreso
+          </span>
+          <span className="rounded-lg border border-border bg-background px-2 py-1 text-[10px] font-bold text-muted-foreground">
+            Total{" "}
+            <strong className="text-foreground">
+              {mounted ? reportStats.total : "—"}
+            </strong>
+          </span>
+          <span className="rounded-lg border border-slate-400/40 bg-slate-500/10 px-2 py-1 text-[10px] font-bold text-slate-600">
+            Borradores {mounted ? reportStats.draft : "—"}
+          </span>
+          <span className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-600">
+            En revisión {mounted ? reportStats.pending : "—"}
+          </span>
+          <span className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-600">
+            Publicados {mounted ? reportStats.published : "—"}
+          </span>
+          <span className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-600">
+            Rechazados {mounted ? reportStats.rejected : "—"}
+          </span>
+          <span className="ml-auto text-[10px] text-muted-foreground">
+            Solo producción · sin datos financieros
+          </span>
+        </CardContent>
+      </Card>
+
       {/* Barra de Filtros y Búsqueda */}
       <Card className="border-border shadow-xs">
         <CardContent className="p-4 space-y-3">
@@ -384,7 +508,7 @@ export function AdminReportesPage() {
             </div>
 
             {/* Filtros Dropdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               <Select value={paymentFilter} onValueChange={setPaymentFilter}>
                 <SelectTrigger className="text-xs rounded-xl h-9">
                   <SelectValue placeholder="Pagos" />
@@ -422,6 +546,20 @@ export function AdminReportesPage() {
                   ))}
                 </SelectContent>
               </Select>
+
+              <Select value={reportFilter} onValueChange={setReportFilter}>
+                <SelectTrigger className="text-xs rounded-xl h-9">
+                  <SelectValue placeholder="Informe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Informe: Todos</SelectItem>
+                  <SelectItem value="sin_informe">Sin informe de progreso</SelectItem>
+                  <SelectItem value="draft">Informe en borrador</SelectItem>
+                  <SelectItem value="pending">Informe en revisión</SelectItem>
+                  <SelectItem value="published">Informe publicado</SelectItem>
+                  <SelectItem value="rejected">Informe rechazado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -430,7 +568,7 @@ export function AdminReportesPage() {
               Mostrando <strong>{filteredStudents.length}</strong> de <strong>{activeStudents.length}</strong> alumnos activos oficiales
             </span>
 
-            {(search || paymentFilter !== "todos" || teacherFilter !== "todos" || instrumentFilter !== "todos") && (
+            {(search || paymentFilter !== "todos" || teacherFilter !== "todos" || instrumentFilter !== "todos" || reportFilter !== "todos") && (
               <button
                 type="button"
                 onClick={() => {
@@ -438,6 +576,7 @@ export function AdminReportesPage() {
                   setPaymentFilter("todos");
                   setTeacherFilter("todos");
                   setInstrumentFilter("todos");
+                  setReportFilter("todos");
                 }}
                 className="text-primary hover:underline font-bold text-xs"
               >
@@ -461,6 +600,7 @@ export function AdminReportesPage() {
                 <th className="py-3 px-3 text-left">Curso / Instrumento</th>
                 <th className="py-3 px-3 text-left">Horario & Sala</th>
                 <th className="py-3 px-3 text-center">Asistencia</th>
+                <th className="py-3 px-3 text-center">Último informe</th>
                 <th className="py-3 px-3 text-right">Saldo Deudor</th>
                 <th className="py-3 px-3 text-center">WhatsApp</th>
                 <th className="py-3 px-3 text-center">Auditoría</th>
@@ -469,7 +609,7 @@ export function AdminReportesPage() {
             <tbody className="divide-y divide-border/60">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={11} className="py-12 text-center text-muted-foreground">
                     <p className="text-sm font-bold">No se encontraron alumnos con los filtros seleccionados.</p>
                     <p className="text-xs mt-1">Prueba limpiando la búsqueda o cambiando de estado.</p>
                   </td>
@@ -478,6 +618,7 @@ export function AdminReportesPage() {
                 filteredStudents.map((st, index) => {
                   const { totalDebt } = getStudentDebt(st);
                   const scheduleText = getStudentScheduleText(st);
+                  const latestReport = latestReportByStudent.get(st.id);
                   const phone = st.phone || st.emergencyContact?.phone || "";
                   const cleanPhone = phone.replace(/\D/g, "");
                   const waNumber = cleanPhone.startsWith("51") ? cleanPhone : cleanPhone ? `51${cleanPhone}` : "";
@@ -561,6 +702,31 @@ export function AdminReportesPage() {
                             style={{ width: `${Math.min(100, st.attendanceRate || 0)}%` }}
                           />
                         </div>
+                      </td>
+
+                      {/* Último informe de progreso (Fase 6, sin datos financieros) */}
+                      <td className="py-3 px-3 text-center">
+                        {latestReport ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-black ${
+                                REPORT_STATUS_CLASS[latestReport.status] ||
+                                REPORT_STATUS_CLASS.draft
+                              }`}
+                            >
+                              {REPORT_STATUS_LABEL[latestReport.status] ||
+                                latestReport.status}
+                            </Badge>
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              {formatIsoDateShort(latestReport.period_end)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-bold text-muted-foreground">
+                            Sin informe
+                          </span>
+                        )}
                       </td>
 
                       {/* Deuda Pendiente */}

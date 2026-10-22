@@ -1,8 +1,8 @@
-# ADR-0175: Sistema de Evaluaciones, Informes de Progreso y Notas — Fases 1, 2, 3, 4 y 5
+# ADR-0175: Sistema de Evaluaciones, Informes de Progreso y Notas — Fases 1, 2, 3, 4, 5 y 6
 
 ## Estado
 
-Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Jeremy, Nathaly y Fernando. Fase 3 de 7 implementada y en piloto. Fase 4 de 7 implementada y en piloto. Fase 5 de 7 implementada (bandeja Dirección + portal familia).**
+Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Jeremy, Nathaly y Fernando. Fase 3 de 7 implementada y en piloto. Fase 4 de 7 implementada y en piloto. Fase 5 de 7 implementada (bandeja Dirección + portal familia). Fase 6 de 7 implementada (bandeja general con filtros, columna "Último informe" y exportación CSV).**
 
 ## Fecha
 
@@ -556,8 +556,45 @@ Objetivo: convertir las evaluaciones de clase y el snapshot de asistencia en un 
 - **Fase 4:** los docentes del piloto ven en `/teacher` la pestaña **“Interna” (BETA)** para dejar observaciones al equipo, y Dirección/Secretaría ve en `/admin/alumnos` la pestaña **“Notas internas” (BETA)** con el flujo nueva → leída → archivada (y reabrir). Nada de esto es visible para la familia.
 - La pestaña **“Notas a familia”** (flujo legacy) se conserva sin modificaciones y sigue operativa durante el piloto.
 - **Fase 5:** Dirección/Secretaría ve en `/admin/alumnos` la pestaña **“Informes” (BETA)**, genera el informe del periodo en borrador, lo edita, lo envía a revisión, lo publica y puede descargarlo en PDF A4 o copiar Markdown/WhatsApp. La familia ve en su portal la pestaña **“Progreso”** con los informes publicados y el botón de descarga en PDF. Nada se muestra a la familia antes de publicar.
+- **Fase 6:** la bandeja de Informes incorpora la **Bandeja general de informes** con filtros por estado, docente, instrumento y rango de periodo, contadores por estado y **Exportar CSV** (BOM UTF-8, sin datos financieros). En `/admin/reportes` aparece la columna **“Último informe”** con el estado y el fin del periodo, un filtro por estado de informe, un contador por estado y las dos columnas nuevas en el CSV existente.
 
-La siguiente funcionalidad visible será la **Fase 6** (reportes, filtros y exportación CSV en administración).
+La siguiente funcionalidad visible será la **Fase 7** (feature flag, piloto y despliegue gradual).
+
+## Fase 6 — Reportes, filtros y exportación CSV (implementada)
+
+### Alcance
+
+1. **Bandeja general de informes** (dentro de la pestaña “Informes” de `/admin/alumnos`):
+   - Lista **todos** los informes de producción de la escuela (no solo los del alumno seleccionado), ordenados por `created_at DESC`.
+   - Filtros: **estado** (borrador, en revisión, publicado, rechazado), **docente** (Jeremy, Fernando, Nathaly, Claudia), **instrumento** (catálogo `musicalInstruments`) y **rango de periodo** (`desde` / `hasta` con `type="date"`).
+   - Contadores por estado calculados sobre la vista filtrada, contador de filas visibles, botón **Limpiar filtros**, **Actualizar** y **Exportar CSV**.
+   - Cada fila muestra alumno, instrumento, tipo y rango del periodo, docente, última actualización, quién publicó, badge de estado y botón **Abrir** (reutiliza el diálogo de la Fase 5).
+   - El teléfono del apoderado del diálogo se resuelve con el alumno del informe abierto (`activeReportStudent`), no con el alumno preseleccionado, para que abrir un informe ajeno no muestre un contacto equivocado.
+   - Al guardar/publicar/rechazar desde el diálogo se recargan **ambas** listas (la del alumno y la general).
+
+2. **Servicio (`progress-reports.service.ts`)**:
+   - `getReportInstrument(report)`: lee `content.student.instrument` (jsonb) con fallback vacío.
+   - `listProgressReports(filters)`: `is_test = false` **siempre**; filtros server-side por `status`, `student_id`, `teacher_name` (`ilike`) y rango de periodo (`period_start >= from`, `period_end <= to`); instrumento filtrado en cliente porque vive dentro de `content`; `limit` acotado a 1–1000 (default 300); orden `created_at.desc`.
+
+3. **`/admin/reportes` (Fase 6)**:
+   - Nueva columna **“Último informe”**: badge de estado + fecha de fin del periodo del informe más reciente del alumno (por `period_end` y `created_at`); “Sin informe” cuando no hay ninguno.
+   - Nuevo filtro **Informe** (`Todos`, `Sin informe de progreso`, `draft`, `pending`, `published`, `rejected`), incluido en “Limpiar todos los filtros”.
+   - Franja de contadores **Informes de progreso** (Total / Borradores / En revisión / Publicados / Rechazados) calculada solo sobre alumnos activos, con la nota “Solo producción · sin datos financieros”.
+   - El CSV existente agrega **“Último informe de progreso”** y **“Periodo del último informe”**; `colSpan` del estado vacío pasa de 10 a 11.
+
+### Reglas
+
+- La bandeja general **nunca** lista filas `is_test = true`; los arneses de prueba siguen usando `is_test` + `test_run_id` y limpieza por ID.
+- **Cero datos financieros** en la bandeja, el CSV nuevo, la columna y los contadores.
+- No se modifica el flujo `draft → pending → published | rejected` ni la inmutabilidad del snapshot publicado.
+- No se tocan `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`.
+
+### Verificación
+
+- `scratch/test-fase6-reports.mjs`: **22/22** comprobaciones en runtime con datos vivos e Insforge (crea 3 informes de producción marcados + 1 `is_test`, valida listado sin pruebas, filtros por estado/docente/instrumento/periodo/combinados, `getReportInstrument`, ausencia de campos financieros y limpieza total por ID).
+- `/admin/reportes` y `/admin/alumnos` en **200**; el HTML de `/admin/reportes` incluye la franja “Informes de progreso”, la cabecera “Último informe” y el filtro de informe.
+- `npm run build` en verde antes de commitear.
+- Producción quedó sin informes tras la limpieza (el arnés borró sus 4 filas y confirmó 0 restos).
 
 ## Referencias
 
@@ -572,10 +609,12 @@ La siguiente funcionalidad visible será la **Fase 6** (reportes, filtros y expo
 - `src/components/teacher/family-note-form.tsx` y `src/components/admin/family-notes-moderation.tsx` — Fase 3.
 - `src/components/teacher/internal-note-form.tsx` y `src/components/admin/internal-notes-inbox.tsx` — Fase 4.
 - `src/components/admin/progress-reports-panel.tsx`, `src/components/admin/progress-report-dialog.tsx`, `src/components/informes/progress-report-document.tsx` y `src/routes/family.progreso.tsx` — Fase 5.
+- `src/lib/services/progress-reports.service.ts` — `getReportInstrument` y `listProgressReports` (bandeja general de Fase 6).
 - `src/lib/informes/progress-report-format.ts` — vista, Markdown, WhatsApp y CSS de impresión (fuente única).
 - `src/routes/teacher.index.tsx` — pestañas, gate de piloto y botón por tarjeta.
-- `src/routes/admin.alumnos.tsx` — pestañas “Notas v2” (Fase 3), “Notas internas” (Fase 4) e “Informes” (Fase 5).
+- `src/routes/admin.alumnos.tsx` — pestañas “Notas v2” (Fase 3), “Notas internas” (Fase 4) e “Informes” (Fase 5, ampliada en Fase 6).
+- `src/routes/admin.reportes.tsx` — columna “Último informe”, filtro por estado de informe y contadores (Fase 6).
 - `src/routes/family.tsx` — pestaña “Progreso” del portal familia (Fase 5).
-- `scratch/test-informes-phase1.mjs`, `scratch/test-fase2-class-log.mjs`, `scratch/test-fase3-family-notes.mjs`, `scratch/test-fase3-access.mjs`, `scratch/test-fase4-internal-notes.mjs` y `scratch/test-fase5-progress-reports.mjs` — arneses temporales, no commiteados.
+- `scratch/test-informes-phase1.mjs`, `scratch/test-fase2-class-log.mjs`, `scratch/test-fase3-family-notes.mjs`, `scratch/test-fase3-access.mjs`, `scratch/test-fase4-internal-notes.mjs`, `scratch/test-fase5-progress-reports.mjs` y `scratch/test-fase6-reports.mjs` — arneses temporales, no commiteados.
 - Commit `b7a0795` — implementación Fase 1.
 - Commit de Fase 2 — registro de clase y seed de criterios.

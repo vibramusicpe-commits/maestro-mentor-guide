@@ -1584,3 +1584,29 @@ inferencia.
    - La animación de entrada se acota (`delay` máximo 0.2 s) para listas largas.
 
 5. **Verificación de referencia**: `npm run build` en verde; rutas `/`, `/teacher`, `/teacher/alumnos`, `/admin/alumnos` y `/family/progreso` en 200; `grep "No corresponde"` en `src/` sin resultados. Documentación: ADR-0176 y `docs/logs/2026-10-22-ui-movil-docente.log`.
+
+---
+
+### 79. Bandeja General de Informes con Filtros, Columna "Último Informe" y Exportación CSV (ADR-0175, Fase 6)
+
+1. **Bandeja general de informes (`progress-reports-panel.tsx`)**:
+   - Además del bloque por alumno, la pestaña **“Informes” (BETA)** de `/admin/alumnos` lista **todos** los informes de la escuela (orden `created_at DESC`), con contadores por estado y contador de filas visibles.
+   - Filtros: **estado** (borrador / en revisión / publicado / rechazado), **docente** (Jeremy, Fernando, Nathaly, Claudia), **instrumento** (`musicalInstruments`) y **rango de periodo** (`desde`–`hasta`), más **Limpiar filtros** y **Actualizar**.
+   - **Exportar CSV** con BOM UTF-8 (`\uFEFF`), compatible con Excel: N°, alumno, instrumento, docente, tipo y rango de periodo, estado, publicado por, fechas de publicación y actualización, ID de alumno e ID de informe. **Cero datos financieros**.
+   - El diálogo del informe resuelve el teléfono del apoderado con el alumno **del informe abierto** (`activeReportStudent`), nunca con el alumno preseleccionado; al cambiar un informe se recargan la lista del alumno y la bandeja general.
+   - Queda **TERMINANTEMENTE PROHIBIDO** que la bandeja general liste filas `is_test = true`.
+
+2. **Servicio (`progress-reports.service.ts`)**:
+   - `listProgressReports(filters)` fuerza `is_test=eq.false`, ordena por `created_at.desc` y acota `limit` a 1–1000 (default 300). Filtros server-side: `status`, `student_id`, `teacher_name` (`ilike`) y rango de periodo (`period_start >= desde`, `period_end <= hasta`).
+   - El **instrumento** no es columna de `progress_reports`: vive en `content.student.instrument` (jsonb), por eso se filtra en cliente con `getReportInstrument(report)`. Prohibido duplicar esa lectura en los componentes.
+
+3. **`/admin/reportes`**:
+   - Nueva columna **“Último informe”** (badge de estado + fin del periodo del informe más reciente por `period_end`/`created_at`; “Sin informe” si no existe) y nuevo filtro **Informe** (`Sin informe de progreso`, `draft`, `pending`, `published`, `rejected`), incluido en “Limpiar todos los filtros”.
+   - Franja **Informes de progreso** con contadores Total / Borradores / En revisión / Publicados / Rechazados, calculada **solo sobre alumnos activos** y con la nota “Solo producción · sin datos financieros”. El CSV existente agrega “Último informe de progreso” y “Periodo del último informe”; el `colSpan` del estado vacío pasa a 11.
+
+4. **Prohibiciones y blindajes**:
+   - No se altera el flujo `draft → pending → published | rejected` ni la inmutabilidad de `published_snapshot`.
+   - No se tocan `app-store.ts`, `kardex-calculator.ts`, `student-cycle.ts`, `students.notes` ni `notification_logs`.
+   - La bandeja y los contadores de `/admin/reportes` siguen la regla de base activa (ADR-0132) y jamás mezclan datos financieros con lo pedagógico.
+
+5. **Verificación de referencia**: `scratch/test-fase6-reports.mjs` **22/22** con datos vivos (crea 3 informes de producción marcados + 1 `is_test`, valida listado sin pruebas, filtros por estado/docente/instrumento/periodo/combinados, `getReportInstrument`, ausencia de campos financieros y limpieza por ID); `/admin/reportes` y `/admin/alumnos` en 200; `npm run build` en verde antes de commitear. Documentación: ADR-0175 (sección Fase 6) y `docs/logs/2026-10-22-fase-6-reportes-csv.log`.

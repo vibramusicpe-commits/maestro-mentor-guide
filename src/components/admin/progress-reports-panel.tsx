@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CalendarDays,
+  Download,
   FileText,
   Loader2,
   Plus,
@@ -35,10 +36,13 @@ import { InformesValidationError, toIsoDate } from "@/lib/informes/utils";
 import { resolveActor } from "@/lib/services/teacher-resolver";
 import {
   createProgressReport,
+  getReportInstrument,
   getReportsForStudent,
+  listProgressReports,
 } from "@/lib/services/progress-reports.service";
 import { formatIsoDateShort } from "@/lib/informes/progress-report-format";
 import { ProgressReportDialog } from "@/components/admin/progress-report-dialog";
+import { musicalInstruments } from "@/store/admin-seeds";
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   draft: {
@@ -81,6 +85,40 @@ function resolveGuardianPhone(student: {
   );
 }
 
+const STATUS_FILTERS = [
+  { value: "todos", label: "Todos los estados" },
+  { value: "draft", label: "Borradores" },
+  { value: "pending", label: "En revisión" },
+  { value: "published", label: "Publicados" },
+  { value: "rejected", label: "Rechazados" },
+] as const;
+
+function csvCell(value: unknown): string {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+/** Descarga CSV con BOM UTF-8 (compatible con Excel), sin datos financieros. */
+function downloadCsv(
+  filename: string,
+  headers: string[],
+  rows: Array<Array<string | number>>,
+): void {
+  const csvContent =
+    "\uFEFF" +
+    [headers.map(csvCell).join(","), ...rows.map((row) => row.map(csvCell).join(","))].join(
+      "\r\n",
+    );
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export function ProgressReportsPanel() {
   const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
@@ -105,6 +143,16 @@ export function ProgressReportsPanel() {
   const [range, setRange] = useState(currentMonthRange);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeReport, setActiveReport] = useState<ProgressReportRow | null>(null);
+
+  // ── Fase 6: bandeja general de informes (todos los alumnos activos) ──
+  const [inboxReports, setInboxReports] = useState<ProgressReportRow[]>([]);
+  const [inboxLoading, setInboxLoading] = useState(false);
+  const [inboxError, setInboxError] = useState<string | null>(null);
+  const [inboxStatus, setInboxStatus] = useState("todos");
+  const [inboxTeacher, setInboxTeacher] = useState("todos");
+  const [inboxInstrument, setInboxInstrument] = useState("todos");
+  const [inboxFrom, setInboxFrom] = useState("");
+  const [inboxTo, setInboxTo] = useState("");
 
   const selectedStudent = useMemo(
     () => activeStudents.find((student) => student.id === studentId) || null,
@@ -161,6 +209,118 @@ export function ProgressReportsPanel() {
   useEffect(() => {
     void loadReports();
   }, [loadReports]);
+
+  // ── Fase 6: carga de la bandeja general (producción, sin `is_test`) ──
+  const loadInbox = useCallback(async () => {
+    try {
+      setInboxLoading(true);
+      setInboxError(null);
+      const rows = await listProgressReports({
+        status: inboxStatus === "todos" ? "" : inboxStatus,
+        teacherName: inboxTeacher === "todos" ? "" : inboxTeacher,
+        instrument: inboxInstrument === "todos" ? "" : inboxInstrument,
+        periodFrom: inboxFrom,
+        periodTo: inboxTo,
+        limit: 400,
+      });
+      setInboxReports(rows);
+    } catch (error) {
+      setInboxError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar la bandeja general de informes.",
+      );
+    } finally {
+      setInboxLoading(false);
+    }
+  }, [inboxStatus, inboxTeacher, inboxInstrument, inboxFrom, inboxTo]);
+
+  useEffect(() => {
+    void loadInbox();
+  }, [loadInbox]);
+
+  const inboxCounts = useMemo(
+    () => ({
+      draft: inboxReports.filter((report) => report.status === "draft").length,
+      pending: inboxReports.filter((report) => report.status === "pending").length,
+      published: inboxReports.filter((report) => report.status === "published").length,
+      rejected: inboxReports.filter((report) => report.status === "rejected").length,
+    }),
+    [inboxReports],
+  );
+
+  const studentById = useMemo(() => {
+    const map = new Map<string, (typeof adminStudents)[number]>();
+    for (const student of adminStudents) map.set(student.id, student);
+    return map;
+  }, [adminStudents]);
+
+  const activeReportStudent = useMemo(() => {
+    const id = activeReport?.student_id;
+    if (!id) return null;
+    return studentById.get(id) || null;
+  }, [activeReport, studentById]);
+
+  const inboxHasFilters =
+    inboxStatus !== "todos" ||
+    inboxTeacher !== "todos" ||
+    inboxInstrument !== "todos" ||
+    Boolean(inboxFrom) ||
+    Boolean(inboxTo);
+
+  const resetInboxFilters = () => {
+    setInboxStatus("todos");
+    setInboxTeacher("todos");
+    setInboxInstrument("todos");
+    setInboxFrom("");
+    setInboxTo("");
+  };
+
+  const handleExportInboxCsv = () => {
+    if (inboxReports.length === 0) {
+      toast.warning("No hay informes en la bandeja para exportar.");
+      return;
+    }
+    const headers = [
+      "N°",
+      "Alumno",
+      "Instrumento",
+      "Docente",
+      "Tipo de periodo",
+      "Inicio del periodo",
+      "Fin del periodo",
+      "Estado",
+      "Publicado por",
+      "Fecha de publicación",
+      "Última actualización",
+      "ID del alumno",
+      "ID del informe",
+    ];
+    const rows = inboxReports.map((report, index) => {
+      const student = report.student_id ? studentById.get(report.student_id) : null;
+      return [
+        index + 1,
+        report.student_name_snapshot || student?.name || "—",
+        getReportInstrument(report) || student?.instrument || "—",
+        report.teacher_name || "—",
+        report.period_type === "trimestral" ? "Trimestral" : "Mensual",
+        report.period_start,
+        report.period_end,
+        STATUS_META[report.status]?.label || report.status,
+        report.published_by_name || "—",
+        report.published_at ? report.published_at.slice(0, 10) : "—",
+        report.updated_at ? report.updated_at.slice(0, 10) : "—",
+        report.student_id || "—",
+        report.id,
+      ];
+    });
+    downloadCsv(
+      `Bandeja_Informes_Progreso_VibraMusic_${new Date().toISOString().slice(0, 10)}.csv`,
+      headers,
+      rows,
+    );
+    toast.success("Bandeja exportada en CSV (sin datos financieros).");
+  };
 
   const counts = useMemo(
     () => ({
@@ -455,15 +615,237 @@ export function ProgressReportsPanel() {
         })}
       </div>
 
+      {/* ── Bandeja general (Fase 6): estado, docente, instrumento, periodo + CSV ── */}
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-bold text-foreground">
+              <FileText className="h-4 w-4 text-primary" />
+              Bandeja general de informes
+              <Badge
+                variant="outline"
+                className="border-sky-500/40 bg-sky-500/10 text-[10px] font-black text-sky-600"
+              >
+                FASE 6
+              </Badge>
+            </h3>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Todos los informes de producción (nunca datos de prueba). Filtra por
+              estado, docente, instrumento y periodo, y exporta la vista a CSV.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                ["draft", "Borradores"],
+                ["pending", "En revisión"],
+                ["published", "Publicados"],
+                ["rejected", "Rechazados"],
+              ] as const
+            ).map(([key, label]) => (
+              <span
+                key={key}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[10px] font-bold text-muted-foreground"
+              >
+                {label}
+                <span className="rounded-full bg-muted px-1.5 text-[10px] font-black text-foreground">
+                  {inboxCounts[key]}
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-[1.1fr_1fr_1fr_auto_auto]">
+          <select
+            value={inboxStatus}
+            onChange={(event) => setInboxStatus(event.target.value)}
+            aria-label="Filtrar por estado del informe"
+            className="h-9 rounded-lg border border-border bg-background px-2 text-[11px] font-bold text-foreground"
+          >
+            {STATUS_FILTERS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={inboxTeacher}
+            onChange={(event) => setInboxTeacher(event.target.value)}
+            aria-label="Filtrar por docente"
+            className="h-9 rounded-lg border border-border bg-background px-2 text-[11px] font-bold text-foreground"
+          >
+            <option value="todos">Todos los docentes</option>
+            <option value="Jeremy">Jeremy</option>
+            <option value="Fernando">Fernando</option>
+            <option value="Nathaly">Nathaly</option>
+            <option value="Claudia">Claudia</option>
+          </select>
+
+          <select
+            value={inboxInstrument}
+            onChange={(event) => setInboxInstrument(event.target.value)}
+            aria-label="Filtrar por instrumento"
+            className="h-9 rounded-lg border border-border bg-background px-2 text-[11px] font-bold text-foreground"
+          >
+            <option value="todos">Todos los instrumentos</option>
+            {musicalInstruments.map((instrument) => (
+              <option key={instrument} value={instrument}>
+                {instrument}
+              </option>
+            ))}
+          </select>
+
+          <Input
+            type="date"
+            value={inboxFrom}
+            onChange={(event) => setInboxFrom(event.target.value)}
+            className="h-9 text-[11px]"
+            aria-label="Periodo desde"
+          />
+          <Input
+            type="date"
+            value={inboxTo}
+            onChange={(event) => setInboxTo(event.target.value)}
+            className="h-9 text-[11px]"
+            aria-label="Periodo hasta"
+          />
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground">
+          <span>
+            Mostrando{" "}
+            <strong className="text-foreground">{inboxReports.length}</strong>{" "}
+            informe(s)
+            {inboxHasFilters ? " con los filtros aplicados" : " de todos los alumnos"}
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {inboxHasFilters && (
+              <button
+                type="button"
+                onClick={resetInboxFilters}
+                className="text-[10px] font-bold text-primary hover:underline"
+              >
+                Limpiar filtros
+              </button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void loadInbox()}
+              disabled={inboxLoading}
+              className="h-7 gap-1.5 text-[10px] font-bold"
+            >
+              <RefreshCw className={`h-3 w-3 ${inboxLoading ? "animate-spin" : ""}`} />
+              Actualizar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleExportInboxCsv}
+              disabled={inboxLoading || inboxReports.length === 0}
+              className="h-7 gap-1.5 text-[10px] font-bold"
+            >
+              <Download className="h-3 w-3" />
+              Exportar CSV
+            </Button>
+          </div>
+        </div>
+
+        {inboxError && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-600">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{inboxError}</span>
+          </div>
+        )}
+
+        {!inboxError && inboxLoading && inboxReports.length === 0 && (
+          <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Cargando informes desde PostgreSQL…
+          </p>
+        )}
+
+        {!inboxError && !inboxLoading && inboxReports.length === 0 && (
+          <p className="mt-3 rounded-xl border border-dashed border-border p-4 text-center text-[11px] text-muted-foreground">
+            No hay informes que coincidan. Genera uno arriba o ajusta los filtros.
+          </p>
+        )}
+
+        <div className="mt-3 space-y-1.5">
+          {inboxReports.map((report) => {
+            const meta = STATUS_META[report.status] || STATUS_META.draft;
+            const student = report.student_id
+              ? studentById.get(report.student_id)
+              : null;
+            const instrument =
+              getReportInstrument(report) || student?.instrument || "—";
+            return (
+              <div
+                key={report.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-background p-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-foreground">
+                    {report.student_name_snapshot || student?.name || "Alumno"}
+                    <span className="ml-1.5 text-[10px] font-semibold text-muted-foreground">
+                      · {instrument}
+                    </span>
+                  </p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {report.period_type === "trimestral" ? "Trimestre" : "Mes"} ·{" "}
+                    {formatIsoDateShort(report.period_start)} –{" "}
+                    {formatIsoDateShort(report.period_end)} · Docente:{" "}
+                    {report.teacher_name || "—"}
+                  </p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    Actualizado:{" "}
+                    {report.updated_at
+                      ? formatIsoDateShort(report.updated_at.slice(0, 10))
+                      : "—"}
+                    {report.published_by_name
+                      ? ` · Publicado por ${report.published_by_name}`
+                      : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-black ${meta.className}`}
+                  >
+                    {meta.label}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setActiveReport(report);
+                      setDialogOpen(true);
+                    }}
+                    className="h-8 text-[11px] font-bold"
+                  >
+                    Abrir
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <ProgressReportDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         report={activeReport}
         guardianPhone={
-          selectedStudent ? resolveGuardianPhone(selectedStudent) : null
+          activeReportStudent ? resolveGuardianPhone(activeReportStudent) : null
         }
         onChanged={() => {
           void loadReports();
+          void loadInbox();
         }}
       />
     </div>

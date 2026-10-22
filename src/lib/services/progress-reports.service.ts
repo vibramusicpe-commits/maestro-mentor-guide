@@ -438,6 +438,84 @@ export async function getReportsForStudent(
   return rows;
 }
 
+/** Instrumento del informe, leído del snapshot de contenido (jsonb `content`). */
+export function getReportInstrument(report: ProgressReportRow | null): string {
+  if (!report) return "";
+  const content =
+    report.content && typeof report.content === "object"
+      ? (report.content as Record<string, unknown>)
+      : null;
+  const student =
+    content && content.student && typeof content.student === "object"
+      ? (content.student as Record<string, unknown>)
+      : null;
+  const value = student?.instrument;
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export interface ProgressReportListFilters {
+  studentId?: string;
+  status?: string;
+  teacherName?: string;
+  instrument?: string;
+  periodFrom?: string;
+  periodTo?: string;
+  limit?: number;
+}
+
+function asIsoDateOrNull(value: string | undefined): string | null {
+  const clean = (value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(clean) ? clean : null;
+}
+
+/**
+ * Bandeja general de informes para Dirección/Secretaría (Fase 6).
+ *
+ * - Solo producción: `is_test = false` siempre.
+ * - Filtros server-side: estado, alumno, docente y rango de periodo.
+ * - El instrumento vive dentro de `content.student.instrument` (jsonb), por
+ *   eso se filtra en cliente después de traer la página de resultados.
+ * - Cero datos financieros.
+ */
+export async function listProgressReports(
+  filters: ProgressReportListFilters = {},
+): Promise<ProgressReportRow[]> {
+  const limit = Math.min(Math.max(Number(filters.limit) || 300, 1), 1000);
+  const query: Record<string, string> = {
+    is_test: "eq.false",
+    order: "created_at.desc",
+    limit: String(limit),
+  };
+
+  const status = (filters.status || "").trim();
+  if (status) query.status = `eq.${status}`;
+
+  const studentId = (filters.studentId || "").trim();
+  if (studentId) query.student_id = `eq.${studentId}`;
+
+  const teacherName = (filters.teacherName || "").trim();
+  if (teacherName) query.teacher_name = `ilike.*${teacherName}*`;
+
+  const periodFrom = asIsoDateOrNull(filters.periodFrom);
+  if (periodFrom) query.period_start = `gte.${periodFrom}`;
+
+  const periodTo = asIsoDateOrNull(filters.periodTo);
+  if (periodTo) query.period_end = `lte.${periodTo}`;
+
+  const rows = await postgrestSelect<ProgressReportRow>(
+    "progress_reports",
+    query,
+    "*",
+  );
+
+  const wantedInstrument = (filters.instrument || "").trim().toLowerCase();
+  if (!wantedInstrument) return rows;
+
+  return rows.filter(
+    (row) => getReportInstrument(row).toLowerCase() === wantedInstrument,
+  );
+}
+
 function mergePublishedSnapshot(row: ProgressReportRow): ProgressReportRow {
   const snapshot =
     row.published_snapshot && typeof row.published_snapshot === "object"
