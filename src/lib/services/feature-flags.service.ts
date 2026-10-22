@@ -156,3 +156,53 @@ export async function getFamilyNotesAccess(
     return { teacher: false, moderation: false, source: "none" };
   }
 }
+
+export interface InternalNotesAccess {
+  /** Formulario de nota interna del docente. */
+  teacher: boolean;
+  /** Bandeja de Dirección/Secretaría. */
+  inbox: boolean;
+  /** De dónde viene el acceso: configuración explícita, piloto o ninguno. */
+  source: "flag" | "pilot" | "none";
+}
+
+/**
+ * Acceso a la Fase 4 (notas internas docente → Dirección).
+ *
+ * - Con `internal_notes_enabled = true` en `org_settings` se abre para todos.
+ * - Sin esa clave, se abre solo por piloto (`pilot_teacher_ids`): el docente
+ *   debe estar en la lista; la bandeja se muestra si hay al menos un docente
+ *   en el piloto.
+ * - Ante cualquier error, todo cerrado.
+ *
+ * Se controla por datos: abrir o cerrar no requiere desplegar.
+ */
+export async function getInternalNotesAccess(
+  teacherId?: string | null,
+): Promise<InternalNotesAccess> {
+  try {
+    const [enabled, pilots] = await Promise.all([
+      getOrgSetting<boolean>("internal_notes_enabled", false),
+      getOrgSetting<string[]>("pilot_teacher_ids", []),
+    ]);
+
+    const pilotList = Array.isArray(pilots) ? pilots.map(String) : [];
+
+    if (enabled === true) {
+      return { teacher: true, inbox: true, source: "flag" };
+    }
+
+    if (pilotList.length > 0) {
+      const clean = (teacherId || "").trim();
+      return {
+        teacher: Boolean(clean && pilotList.includes(clean)),
+        inbox: true,
+        source: "pilot",
+      };
+    }
+
+    return { teacher: false, inbox: false, source: "none" };
+  } catch {
+    return { teacher: false, inbox: false, source: "none" };
+  }
+}

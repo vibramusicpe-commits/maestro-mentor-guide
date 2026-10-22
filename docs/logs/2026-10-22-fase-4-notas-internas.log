@@ -1,0 +1,233 @@
+================================================================================
+VIBRA MUSIC STAFF — FASE 4: NOTA INTERNA DOCENTE -> DIRECCIÓN
+Fecha: 2026-10-22
+ADR: docs/adr/0175-fase-1-evaluaciones-informes-progreso-notas-sin-ui.md
+Estado: IMPLEMENTADA Y EN PILOTO (producción)
+================================================================================
+
+1. OBJETIVO
+--------------------------------------------------------------------------------
+Que el docente deje una observación operativa/pedagógica que lea el equipo
+(Dirección y, si aplica, Secretaría), SIN que la familia la vea nunca y SIN
+tocar la ficha del alumno.
+
+Flujo oficial:
+
+    Docente escribe        ->  nueva
+    Dirección la abre      ->  leida    (quién y cuándo)
+    Dirección la atiende   ->  archivada
+    Dirección se equivocó  ->  reabrir  ->  leida
+
+Nada se borra: la nota conserva contenido e historial de lectura.
+
+2. ARCHIVOS TOCADOS (solo aditivo / quirúrgico)
+--------------------------------------------------------------------------------
+NUEVOS
+  src/components/teacher/internal-note-form.tsx
+    Formulario del docente + historial "Mis notas internas".
+    Alumno OPCIONAL (nota general) y visibilidad:
+      - direction  "Solo Dirección"
+      - staff      "Dirección y Secretaría"
+    Muestra estado (nueva / leida / archivada) y quién la leyó.
+
+  src/components/admin/internal-notes-inbox.tsx
+    Bandeja de Dirección: filtros Nuevas / Leídas / Archivadas / Todas,
+    buscador, contadores y acciones Marcar leída / Archivar / Reabrir.
+
+MODIFICADOS (mínimo necesario)
+  src/lib/services/internal-notes.service.ts
+    + reopenInternalNote(id, actorId, actorName)   (archivada -> leida)
+    + notifyInternalNotesChanged()
+    + subscribeToInternalNotesChanges()
+    + INTERNAL_NOTES_SYNC_CHANNEL / INTERNAL_NOTES_UPDATED_EVENT
+    Igual que en Fase 3: solo señalizan "algo cambió". No transportan estado.
+
+  src/lib/services/feature-flags.service.ts
+    + getInternalNotesAccess(teacherId?) -> { teacher, inbox, source }
+
+  src/routes/teacher.index.tsx
+    + import InternalNoteForm + getInternalNotesAccess + icono Lock
+    + estado internalNoteAccess y valor "internal-note" en notesTab
+    + pestaña "Interna" (BETA) y su TabsContent (forceMount)
+    + la barra de pestañas ahora calcula columnas (2/3/4) según accesos
+    El gate de Fase 2 (class-log) y Fase 3 (family-note) quedó igual.
+
+  src/routes/admin.alumnos.tsx
+    + import InternalNotesInbox + getInternalNotesAccess
+    + estado internalNotesAccess y tab "notas-internas"
+    + soporte de ?tab=notas-internas
+    + pestaña "Notas internas" (BETA) y su render
+    Las pestañas legacy "Notas a Familias" y "Notas v2" quedaron intactas.
+
+NO SE TOCÓ
+  - app-store.ts, kardex-calculator.ts, student-cycle.ts
+  - agenda, Kardex, asistencia, facturación
+  - students.notes (legacy congelado)
+  - notification_logs
+  - teacher-notes-moderation.tsx, lesson-notes.tsx, family-notes-moderation.tsx
+  - ninguna migración (la tabla ya existía con todo lo necesario)
+
+3. HABILITACIÓN (sin desplegar)
+--------------------------------------------------------------------------------
+getInternalNotesAccess(teacherId?) en feature-flags.service.ts:
+
+  1. internal_notes_enabled = true   -> teacher=true, inbox=true, source="flag"
+  2. sin esa clave + pilot_teacher_ids -> teacher = (teacherId in pilot)
+                                          inbox  = true
+                                          source = "pilot"
+  3. error, piloto vacío y sin flag  -> todo false, source="none"
+
+Estado en producción al cierre:
+  org_settings.internal_notes_enabled  (no existe -> false)
+  org_settings.pilot_teacher_ids = [
+    "00000000-0000-0000-0000-000000000003",  Jeremy
+    "00000000-0000-0000-0000-000000000004",  Fernando
+    "00000000-0000-0000-0000-000000000005"   Nathaly
+  ]
+
+Resultado: los 3 docentes ven "Interna"; Dirección/Secretaría ve "Notas
+internas"; cualquier otro docente NO ve el formulario.
+
+REVERTIR SIN DESPLEGAR
+  - Cerrar el formulario a un docente: quitarlo de pilot_teacher_ids.
+  - Cerrar todo: pilot_teacher_ids = [] y sin internal_notes_enabled.
+  - Las notas ya guardadas permanecen en internal_notes (no se borra nada).
+  - Último recurso: revertir el commit único de la fase.
+
+4. BASE DE DATOS (ya existía desde Fase 1; migraciones 008 y 008b)
+--------------------------------------------------------------------------------
+Tabla internal_notes:
+  student_id              UUID (nullable -> nota general)
+  student_name_snapshot   texto legible al momento de crear
+  teacher_id / teacher_name
+  body                    contenido (mínimo 10 caracteres en el servicio)
+  visibility              staff | direction
+  status                  nueva | leida | archivada   (CHECK)
+  read_at / read_by_id / read_by_name
+  created_by_* / updated_by_*
+  is_test + test_run_id   (CHECK amarrado: test exige run)
+
+Verificado en vivo antes de escribir código:
+  grants   anon: SELECT, INSERT, UPDATE, DELETE
+  RLS      deshabilitado (sin policies)
+  triggers trg_set_updated_at_internal_notes (BEFORE UPDATE)
+           trg_audit_internal_notes (AFTER INSERT/UPDATE/DELETE)
+           -> evaluation_audit_log.entity_type = 'internal_note'
+
+Auditoría:
+  evaluation_audit_log es append-only (SELECT, INSERT). La UI NO duplica.
+
+Portal familia:
+  No lee internal_notes. No hay función que las exponga a la familia.
+
+5. VERIFICACIÓN EN RUNTIME (datos vivos)
+--------------------------------------------------------------------------------
+Arné: scratch/test-fase4-internal-notes.mjs  (NO se commitea)
+Filas creadas con is_test=true y test_run_id único; limpieza final por test_run_id.
+
+  Alumno de prueba: primer activo de la base (Bruno)
+  Docente del piloto: Jeremy (00000000-0000-0000-0000-000000000003)
+  Docente fuera del piloto: Demo (00000000-0000-0000-0000-000000000006)
+
+  OK  Hay alumno activo para la prueba
+  OK  Gate: docente del piloto abre formulario (source=pilot)
+  OK  Gate: bandeja abierta con piloto
+  OK  Gate: docente fuera del piloto NO abre formulario
+  OK  Nota creada en estado nueva
+  OK  Nota creada como is_test
+  OK  Bandeja de auditoría (includeTest) ve la nota
+  OK  Bandeja de producción NO muestra filas is_test
+  OK  Listado por defecto NO expone filas is_test
+  OK  Marcar leída -> leida (read_by=Dirección)
+  OK  Marcar leída registra fecha
+  OK  Marcar leída es idempotente
+  OK  Archivar -> archivada
+  OK  Archivar conserva lectura
+  OK  Reabrir -> leida
+  OK  Filtro 'nueva' no incluye la nota leída
+  OK  Filtro 'archivada' no incluye la nota reabierta
+  OK  Auditoría registra el ciclo (4 filas)
+  OK  Body vacío rechazado
+  OK  Limpieza de filas de prueba (0 restantes)
+
+  RESULTADO: TODO OK (20/20)
+
+Rutas SSR en dev (vite):
+  /               -> 200
+  /teacher        -> 200
+  /admin/alumnos  -> 200
+
+Bundles de producción (.output/public/assets):
+  contienen "Nota interna para Dirección", "Notas internas del equipo",
+  "Mis notas internas" y "Marcar leída".
+
+Build:
+  npm run build   -> verde (sin errores de tipos)
+
+6. CÓMO PROBARLO A MANO EN PRODUCCIÓN
+--------------------------------------------------------------------------------
+1. Docente del piloto entra a /teacher con su enlace de invitación.
+2. Pestaña "Interna" -> elige alumno (o "Nota general").
+3. Elige "Solo Dirección" o "Dirección y Secretaría" y escribe la observación.
+4. "Enviar a Dirección" -> toast + aparece en "Mis notas internas" como Nueva.
+5. Dirección entra a /admin/alumnos -> pestaña "Notas internas".
+6. En "Nuevas" pulsa "Marcar leída" -> pasa a "Leídas" con quién y cuándo.
+7. Pulsa "Archivar" -> pasa a "Archivadas". "Reabrir" la devuelve a "Leídas".
+8. Verificar que la familia NO ve nada de esto en su portal.
+9. Verificar que las pestañas "Notas a Familias" y "Notas v2" siguen igual.
+
+7. RIESGOS CONOCIDOS Y DECISIONES
+--------------------------------------------------------------------------------
+- No se agregó una clave nueva al tipo FeatureFlags: el módulo se controla con
+  la clave opcional internal_notes_enabled + pilot_teacher_ids. Cambiar de
+  estado no requiere desplegar y no altera los flags existentes.
+- La bandeja de Dirección se muestra si hay al menos un docente en el piloto.
+  Es intencional: permite atender lo que envían los pilotos. Al vaciar el
+  piloto, desaparece.
+- La bandeja de producción llama a listInternalNotes SIN includeTest, por lo
+  que las filas de prueba jamás se muestran. Solo los arneses de auditoría las
+  piden explícitamente.
+- No hay botón de eliminar: el ciclo termina en archivada y se puede reabrir.
+- Se conserva el flujo legacy de notas sin cambios hasta la Fase 7.
+
+8. HANDOFF PARA EL SIGUIENTE AGENTE
+--------------------------------------------------------------------------------
+Estado exacto al cierre:
+  internal_notes          0 filas de producción
+                          (las de prueba se borraron; la auditoría append-only
+                          conserva sus test_run_id FASE4-*)
+  family_notes            0 filas
+  lesson_evaluations      0 filas
+  progress_reports        0 filas
+  feature_flags           evaluationsV2=false, familyNotesV2=false,
+                          progressReportsV2=false, parentReports=false
+  pilot_teacher_ids       3 (Jeremy, Fernando, Nathaly)
+  internal_notes_enabled  ausente (se rige por piloto)
+
+Reglas que NO se pueden romper al continuar:
+  1. internal_notes NUNCA se expone al portal familia.
+  2. El flujo es nueva -> leida -> archivada; nada se borra.
+  3. La auditoría la escribe el trigger; la UI no la duplica.
+  4. No tocar students.notes ni notification_logs.
+  5. Cero datos financieros en notas, informes o portal familia.
+  6. Identidad por UUID; el nombre es solo snapshot legible.
+  7. No modificar app-store.ts, kardex-calculator.ts ni student-cycle.ts
+     por este tema.
+  8. Toda prueba debe usar is_test=true + test_run_id y limpiarse al final.
+
+Siguiente (Fase 5):
+  - Informe de progreso (A4/PDF/Markdown/WhatsApp) y portal familia.
+  - progress_reports ya existe con draft -> pending -> published|rejected
+    y published_snapshot congelado. Los criterios en borrador (draft=true,
+    needs_validation=true, visible_in_report=false) NO pueden salir en
+    informes hasta que el docente los valide.
+
+Pendiente de validación con el piloto (Fases 2, 3 y 4):
+  - Que Jeremy, Fernando y Nathaly registren al menos 1 clase real (Fase 2).
+  - Que envíen 1-2 notas a familia y Dirección apruebe/rechace (Fase 3).
+  - Que envíen 1-2 notas internas y Dirección marque leída + archive (Fase 4).
+  - Que Jeremy valide sus 17 criterios v0 borrador antes de usarlos en informes.
+
+================================================================================
+FIN DEL LOG
+================================================================================

@@ -14,18 +14,20 @@ import {
   RotateCw,
   ClipboardList,
   PenLine,
+  Lock,
 } from "lucide-react";
 import { IntegratedTeacherKioskHeader } from "@/components/teacher/integrated-kiosk-header";
 import { LessonNotes } from "@/components/teacher/lesson-notes";
 import { ClassLog, type ClassLogSeed } from "@/components/teacher/class-log";
 import { FamilyNoteForm } from "@/components/teacher/family-note-form";
+import { InternalNoteForm } from "@/components/teacher/internal-note-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore, type AdminStudent, type ScheduledLesson, type WeekDay, type AttendanceStatus } from "@/store/app-store";
 import { getCurrentWeekIndex, getMonthWeeks } from "@/lib/calendar-utils";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
 import { isLessonInStudentCycle } from "@/lib/student-cycle";
 import { resolveTeacherUserId } from "@/lib/services/teacher-resolver";
-import { getFeatureFlags, getFamilyNotesAccess, getOrgSetting } from "@/lib/services/feature-flags.service";
+import { getFeatureFlags, getFamilyNotesAccess, getInternalNotesAccess, getOrgSetting } from "@/lib/services/feature-flags.service";
 import { toIsoDate } from "@/lib/informes/utils";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { toast } from "sonner";
@@ -277,10 +279,11 @@ export function TeacherKiosk() {
 
   // 🧪 Fase 2 — Registro de clase (piloto Nathaly / Fernando)
   const classLogSectionRef = useRef<HTMLDivElement | null>(null);
-  const [notesTab, setNotesTab] = useState<"notes" | "class-log" | "family-note">("notes");
+  const [notesTab, setNotesTab] = useState<"notes" | "class-log" | "family-note" | "internal-note">("notes");
   const [classLogSeed, setClassLogSeed] = useState<ClassLogSeed | null>(null);
   const [classLogAccess, setClassLogAccess] = useState(false);
   const [familyNoteAccess, setFamilyNoteAccess] = useState(false);
+  const [internalNoteAccess, setInternalNoteAccess] = useState(false);
 
   const teacherIdForLog = useMemo(
     () => resolveTeacherUserId(undefined, teacherDisplayName),
@@ -293,25 +296,40 @@ export function TeacherKiosk() {
       getFeatureFlags(),
       getOrgSetting<string[]>("pilot_teacher_ids", []),
       getFamilyNotesAccess(teacherIdForLog),
+      getInternalNotesAccess(teacherIdForLog),
     ])
-      .then(([flags, pilots, familyAccess]) => {
+      .then(([flags, pilots, familyAccess, internalAccess]) => {
         if (cancelled) return;
         const pilotList = Array.isArray(pilots) ? pilots.map(String) : [];
         setClassLogAccess(
           Boolean(flags.evaluationsV2 || pilotList.includes(teacherIdForLog)),
         );
         setFamilyNoteAccess(Boolean(familyAccess.teacher));
+        setInternalNoteAccess(Boolean(internalAccess.teacher));
       })
       .catch(() => {
         if (!cancelled) {
           setClassLogAccess(false);
           setFamilyNoteAccess(false);
+          setInternalNoteAccess(false);
         }
       });
     return () => {
       cancelled = true;
     };
   }, [teacherIdForLog]);
+
+  // Cuántas pestañas hay realmente disponibles (para que la barra no se rompa).
+  const notesTabsGridClass = useMemo(() => {
+    const count =
+      1 +
+      (familyNoteAccess ? 1 : 0) +
+      (classLogAccess ? 1 : 0) +
+      (internalNoteAccess ? 1 : 0);
+    if (count >= 4) return "grid-cols-4";
+    if (count === 3) return "grid-cols-3";
+    return "grid-cols-2";
+  }, [classLogAccess, familyNoteAccess, internalNoteAccess]);
 
   const teacherStudentList = useMemo(() => {
     const activeStudents = adminStudents.filter(
@@ -712,21 +730,17 @@ export function TeacherKiosk() {
         ref={classLogSectionRef}
         className="rounded-2xl border border-border bg-card p-4 shadow-xs"
       >
-        {classLogAccess || familyNoteAccess ? (
+        {classLogAccess || familyNoteAccess || internalNoteAccess ? (
           <Tabs
             value={notesTab}
             onValueChange={(value) =>
-              setNotesTab(value as "notes" | "class-log" | "family-note")
+              setNotesTab(
+                value as "notes" | "class-log" | "family-note" | "internal-note",
+              )
             }
             className="w-full"
           >
-            <TabsList
-              className={`grid w-full ${
-                classLogAccess && familyNoteAccess
-                  ? "grid-cols-3"
-                  : "grid-cols-2"
-              }`}
-            >
+            <TabsList className={`grid w-full ${notesTabsGridClass}`}>
               <TabsTrigger
                 value="notes"
                 className="gap-1 px-1 text-[10px] font-bold sm:text-xs"
@@ -741,6 +755,18 @@ export function TeacherKiosk() {
                 >
                   <PenLine className="h-3.5 w-3.5 shrink-0" />
                   Nota nueva
+                  <span className="ml-0.5 rounded-full bg-primary/15 px-1 py-0.5 text-[8px] font-black text-primary">
+                    BETA
+                  </span>
+                </TabsTrigger>
+              )}
+              {internalNoteAccess && (
+                <TabsTrigger
+                  value="internal-note"
+                  className="gap-1 px-1 text-[10px] font-bold sm:text-xs"
+                >
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  Interna
                   <span className="ml-0.5 rounded-full bg-primary/15 px-1 py-0.5 text-[8px] font-black text-primary">
                     BETA
                   </span>
@@ -765,6 +791,15 @@ export function TeacherKiosk() {
             {familyNoteAccess && (
               <TabsContent value="family-note" className="mt-3" forceMount>
                 <FamilyNoteForm
+                  teacherName={teacherDisplayName}
+                  teacherId={teacherIdForLog}
+                  students={teacherStudentList}
+                />
+              </TabsContent>
+            )}
+            {internalNoteAccess && (
+              <TabsContent value="internal-note" className="mt-3" forceMount>
+                <InternalNoteForm
                   teacherName={teacherDisplayName}
                   teacherId={teacherIdForLog}
                   students={teacherStudentList}

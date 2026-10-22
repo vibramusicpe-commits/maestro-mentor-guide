@@ -4,6 +4,24 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.43] - 2026-10-22
+
+### Fase 4 — Nota interna a Dirección (en piloto)
+- **Nuevo formulario docente** `src/components/teacher/internal-note-form.tsx`, montado en `/teacher` como pestaña **“Interna” (BETA)**.
+  - Alumno **opcional** (nota general) y visibilidad **“Solo Dirección”** (`direction`) o **“Dirección y Secretaría”** (`staff`).
+  - Historial **“Mis notas internas”** con estado (`nueva` / `leida` / `archivada`) y quién la leyó.
+- **Nueva bandeja de Dirección** `src/components/admin/internal-notes-inbox.tsx`, montada en `/admin/alumnos` como pestaña **“Notas internas” (BETA)**.
+  - Filtros Nuevas / Leídas / Archivadas / Todas, buscador y contadores.
+  - Acciones **Marcar leída**, **Archivar** y **Reabrir**.
+- **Flujo `nueva → leida → archivada`**: `createInternalNote` nace en `nueva`; `markInternalNoteRead` registra `read_at` / `read_by_*` (idempotente); `archiveInternalNote` cierra la nota; `reopenInternalNote` la devuelve a `leida`. Nada se borra.
+- **Sin migración nueva**: la tabla `internal_notes` (migraciones `008`/`008b`) ya tenía el CHECK `nueva | leida | archivada`, los campos de lectura y `is_test` + `test_run_id`.
+- **Habilitación data-driven sin desplegar**: `getInternalNotesAccess()` en `feature-flags.service.ts`.
+  - `internal_notes_enabled = true` abre para todos; sin esa clave se rige por `pilot_teacher_ids` (piloto actual: Jeremy, Fernando y Nathaly) y la bandeja se muestra a Dirección.
+- **Blindajes**: no toca `app-store.ts`, `kardex-calculator.ts`, `student-cycle.ts`, `students.notes` ni `notification_logs`; cero datos financieros; el portal familia no lee `internal_notes`; identidad por UUID.
+- **Auditoría**: `trg_audit_internal_notes` escribe en `evaluation_audit_log` con `entity_type = 'internal_note'`; la UI no la duplica.
+- **Verificación**: 20/20 checks de runtime con datos vivos (`is_test` + `test_run_id`, limpieza final); `/`, `/teacher` y `/admin/alumnos` en 200; `npm run build` en verde.
+- **Documentación**: ADR-0175 (sección Fase 4), AGENTS.md sección 76 y log `docs/logs/2026-10-22-fase-4-notas-internas.log`.
+
 ## [2.0.42] - 2026-10-22
 
 ### Fase 3 — Nota a la familia y moderación (en piloto)

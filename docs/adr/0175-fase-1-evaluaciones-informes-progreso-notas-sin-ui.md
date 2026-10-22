@@ -1,12 +1,12 @@
-# ADR-0175: Sistema de Evaluaciones, Informes de Progreso y Notas — Fases 1, 2 y 3
+# ADR-0175: Sistema de Evaluaciones, Informes de Progreso y Notas — Fases 1, 2, 3 y 4
 
 ## Estado
 
-Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Jeremy, Nathaly y Fernando. Fase 3 de 7 implementada y en piloto.**
+Aceptado e implementado. **Fase 1 de 7 completada. Fase 2 de 7 implementada y en piloto con Jeremy, Nathaly y Fernando. Fase 3 de 7 implementada y en piloto. Fase 4 de 7 implementada y en piloto.**
 
 ## Fecha
 
-2026-10-21 (Fase 1) · 2026-10-22 (Fase 2 y Fase 3).
+2026-10-21 (Fase 1) · 2026-10-22 (Fases 2, 3 y 4).
 
 ## Contexto
 
@@ -409,6 +409,53 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 - Quedan 51 filas de auditoría de prueba (append-only). No se borran por diseño.
 - El flujo viejo de notas sigue activo y no se retira hasta que el nuevo esté probado.
 
+## Fase 4 - Nota interna a Dirección (implementada)
+
+Objetivo: que el docente deje una observación que vea solo el equipo, sin exponerla a la familia y sin tocar la ficha del alumno.
+
+### Componentes
+
+- `src/components/teacher/internal-note-form.tsx` — pestaña **“Interna” (BETA)** en `/teacher`:
+  - Alumno **opcional** (nota general) y visibilidad **“Solo Dirección”** (`direction`) o **“Dirección y Secretaría”** (`staff`).
+  - Historial “Mis notas internas” con estado (`nueva` / `leida` / `archivada`) y quién la leyó.
+- `src/components/admin/internal-notes-inbox.tsx` — pestaña **“Notas internas” (BETA)** en `/admin/alumnos`:
+  - Filtros Nuevas / Leídas / Archivadas / Todas, buscador y contadores.
+  - Acciones `Marcar leída`, `Archivar` y `Reabrir`.
+
+### Flujo y persistencia
+
+- Tabla `internal_notes` (migraciones 008 y 008b). **No requirió migración nueva**: `status` ya tiene el CHECK `nueva | leida | archivada`, `read_at` / `read_by_*`, y `is_test` + `test_run_id` amarrados.
+- `nueva` (al crear) → `leida` (`markInternalNoteRead`, idempotente) → `archivada` (`archiveInternalNote`); `reopenInternalNote` devuelve una archivada a `leida`. Nada se borra.
+- Auditoría: `trg_audit_internal_notes` escribe en `evaluation_audit_log` con `entity_type = 'internal_note'`. La UI no duplica.
+- Sincronización de UI por señal (`notifyInternalNotesChanged` / `subscribeToInternalNotesChanges`): no transporta datos ni sustituye a PostgreSQL.
+
+### Habilitación por datos (sin desplegar)
+
+- `getInternalNotesAccess()` en `feature-flags.service.ts`:
+  - `internal_notes_enabled = true` en `org_settings` → abierto para todos.
+  - Sin esa clave → piloto por `pilot_teacher_ids` (hoy Jeremy, Fernando y Nathaly); la bandeja se muestra a Dirección si hay al menos un docente en el piloto.
+  - Ante cualquier error → cerrado.
+- Estado actual: sin `internal_notes_enabled`, se rige por el piloto. Abrir o cerrar no requiere desplegar.
+
+### Blindajes
+
+- No modifica `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`.
+- No toca `students.notes` (legacy congelado) ni `notification_logs`.
+- No hay datos financieros ni lectura desde el portal familia.
+- Identidad por UUID (`student_id`, `teacher_id`, `created_by_id`, `read_by_id`).
+- `is_test` sigue aislado: la bandeja de producción llama a `listInternalNotes` sin `includeTest`, así que las filas de prueba no se muestran.
+
+### Verificación
+
+- 20/20 checks de runtime con datos vivos (`is_test` + `test_run_id`, limpieza final): gate abierto/cerrado, creación, lectura idempotente, archivo, reapertura, filtros, auditoría (4 filas) y rechazo de body vacío.
+- Rutas `/`, `/teacher` y `/admin/alumnos` en 200; `npm run build` en verde.
+- Arnés: `scratch/test-fase4-internal-notes.mjs` (temporal, no commiteado).
+
+### Reversión
+
+- `pilot_teacher_ids = []` y sin `internal_notes_enabled` → las pestañas desaparecen sin desplegar.
+- Las notas guardadas permanecen en `internal_notes`; último recurso, revertir el commit único de la fase.
+
 ## Fases restantes
 
 | Fase | Entregable | Estado |
@@ -416,7 +463,7 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 | 1 | Datos, tipos, snapshot y servicios | ✅ Implementada |
 | 2 | Registro de clase docente (`class-log.tsx`, pestaña en `/teacher`) | ✅ Implementada (piloto Jeremy/Nathaly/Fernando) |
 | 3 | Nota a familia + moderación (`family-note-form.tsx`, `family-notes-moderation.tsx`) | ✅ Implementada (piloto Jeremy/Nathaly/Fernando + bandeja Dirección) |
-| 4 | Nota interna + bandeja (`internal-note-form.tsx`, `internal-notes-inbox.tsx`) | ⏳ Pendiente |
+| 4 | Nota interna + bandeja (`internal-note-form.tsx`, `internal-notes-inbox.tsx`) | ✅ Implementada (piloto Jeremy/Nathaly/Fernando + bandeja Dirección) |
 | 5 | Informe de progreso A4, PDF/Markdown/WhatsApp y ruta `family.progreso.tsx` | ⏳ Pendiente |
 | 6 | Reportes, filtros y exportación CSV en admin | ⏳ Pendiente |
 | 7 | Flags, piloto Jeremy/Nathaly/Fernando y despliegue gradual | ⏳ Pendiente |
@@ -428,9 +475,10 @@ Tras la recarga, un POST mínimo funcionó y la prueba completa pasó. No se rel
 - La pestaña **“Notas a familia”** se conserva sin modificaciones.
 - **Jeremy** usa la pestaña con sus 17 criterios en **v0 borrador** (Guitarra 8, Batería 9) y escala Inicia / En proceso / Logrado / Destacado. Esos criterios no aparecen en informes ni en el portal familia hasta que él los valide.
 - **Fase 3:** los docentes del piloto ven en `/teacher` la pestaña **“Nota nueva” (BETA)** y Dirección/Secretaría ve en `/admin/alumnos` la pestaña **“Notas v2” (BETA)**. Nada llega a las familias sin aprobación explícita; el portal familia sigue leyendo solo `family_notes` con `status = 'publicado'` y `is_test = false`.
+- **Fase 4:** los docentes del piloto ven en `/teacher` la pestaña **“Interna” (BETA)** para dejar observaciones al equipo, y Dirección/Secretaría ve en `/admin/alumnos` la pestaña **“Notas internas” (BETA)** con el flujo nueva → leída → archivada (y reabrir). Nada de esto es visible para la familia.
 - La pestaña **“Notas a familia”** (flujo legacy) se conserva sin modificaciones y sigue operativa durante el piloto.
 
-La siguiente funcionalidad visible será la **Fase 4** (nota interna a Dirección).
+La siguiente funcionalidad visible será la **Fase 5** (informe de progreso A4/PDF/Markdown y portal familia).
 
 ## Referencias
 
@@ -443,8 +491,9 @@ La siguiente funcionalidad visible será la **Fase 4** (nota interna a Direcció
 - `src/lib/services/evaluations.service.ts`, `progress-reports.service.ts`, `family-notes.service.ts`, `internal-notes.service.ts`, `feature-flags.service.ts`, `teacher-resolver.ts`.
 - `src/components/teacher/class-log.tsx` — registro de clase de Fase 2.
 - `src/components/teacher/family-note-form.tsx` y `src/components/admin/family-notes-moderation.tsx` — Fase 3.
+- `src/components/teacher/internal-note-form.tsx` y `src/components/admin/internal-notes-inbox.tsx` — Fase 4.
 - `src/routes/teacher.index.tsx` — pestañas, gate de piloto y botón por tarjeta.
-- `src/routes/admin.alumnos.tsx` — pestaña “Notas v2” (Fase 3).
-- `scratch/test-informes-phase1.mjs`, `scratch/test-fase2-class-log.mjs`, `scratch/test-fase3-family-notes.mjs` y `scratch/test-fase3-access.mjs` — arneses temporales, no commiteados.
+- `src/routes/admin.alumnos.tsx` — pestañas “Notas v2” (Fase 3) y “Notas internas” (Fase 4).
+- `scratch/test-informes-phase1.mjs`, `scratch/test-fase2-class-log.mjs`, `scratch/test-fase3-family-notes.mjs`, `scratch/test-fase3-access.mjs` y `scratch/test-fase4-internal-notes.mjs` — arneses temporales, no commiteados.
 - Commit `b7a0795` — implementación Fase 1.
 - Commit de Fase 2 — registro de clase y seed de criterios.

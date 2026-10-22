@@ -220,3 +220,94 @@ export async function archiveInternalNote(
     },
   );
 }
+
+/**
+ * Reabre una nota archivada. La deja en `leida` (ya fue vista al abrirla) y
+ * conserva el registro original de lectura. No borra nada.
+ */
+export async function reopenInternalNote(
+  id: string,
+  actorId: string | null,
+  actorName: string | null,
+): Promise<InternalNoteRow> {
+  const cleanId = (id || "").trim();
+  if (!cleanId) throw new InformesValidationError("id es obligatorio.");
+
+  const existing = await getInternalNoteById(cleanId);
+  if (!existing) {
+    throw new InformesValidationError(`No existe la nota interna ${cleanId}.`);
+  }
+  if (existing.status !== "archivada") {
+    return existing;
+  }
+
+  const now = new Date().toISOString();
+
+  return postgrestPatch<InternalNoteRow>(
+    "internal_notes",
+    { id: `eq.${cleanId}` },
+    {
+      status: "leida",
+      read_at: existing.read_at || now,
+      read_by_id: existing.read_by_id || actorId,
+      read_by_name: existing.read_by_name || actorName,
+      updated_by_id: actorId,
+      updated_by_name: actorName,
+    },
+  );
+}
+
+/* ================================================================
+ * Sincronización de UI (Fase 4)
+ * ----------------------------------------------------------------
+ * Solo señaliza "algo cambió" para que el formulario del docente y la
+ * bandeja de Dirección se recarguen. NO transporta datos ni estado
+ * transaccional: la fuente de verdad sigue siendo PostgreSQL.
+ * ================================================================ */
+
+export const INTERNAL_NOTES_SYNC_CHANNEL = "vibra-internal-notes-sync";
+export const INTERNAL_NOTES_UPDATED_EVENT = "vibra-internal-notes-updated";
+
+let broadcastChannel: BroadcastChannel | null = null;
+
+/** Avisa a las demás pestañas/vistas que la bandeja debe recargarse. */
+export function notifyInternalNotesChanged(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new Event(INTERNAL_NOTES_UPDATED_EVENT));
+  } catch {
+    /* no-op */
+  }
+  try {
+    if ("BroadcastChannel" in window) {
+      broadcastChannel =
+        broadcastChannel || new BroadcastChannel(INTERNAL_NOTES_SYNC_CHANNEL);
+      broadcastChannel.postMessage({ at: Date.now() });
+    }
+  } catch {
+    /* no-op */
+  }
+}
+
+/** Suscribe una vista a los cambios. Devuelve la función de limpieza. */
+export function subscribeToInternalNotesChanges(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const handler = () => callback();
+  window.addEventListener(INTERNAL_NOTES_UPDATED_EVENT, handler);
+
+  let bc: BroadcastChannel | null = null;
+  try {
+    if ("BroadcastChannel" in window) {
+      bc = new BroadcastChannel(INTERNAL_NOTES_SYNC_CHANNEL);
+      bc.onmessage = () => callback();
+    }
+  } catch {
+    bc = null;
+  }
+
+  return () => {
+    window.removeEventListener(INTERNAL_NOTES_UPDATED_EVENT, handler);
+    bc?.close();
+  };
+}

@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { GraduationCap, ShieldCheck, DoorOpen, Clock, Sparkles, RotateCw, MessageSquare } from "lucide-react";
+import { GraduationCap, ShieldCheck, DoorOpen, Clock, Sparkles, RotateCw, MessageSquare, Lock } from "lucide-react";
 import { StudentsTable } from "@/components/admin/students-table";
 import { StudentRenewalsRetentionPanel } from "@/components/admin/student-renewals-retention-panel";
 import { VacancyAvailabilityPanel } from "@/components/admin/vacancy-availability-panel";
 import { TeacherNotesModeration } from "@/components/admin/teacher-notes-moderation";
 import { FamilyNotesModeration } from "@/components/admin/family-notes-moderation";
+import { InternalNotesInbox } from "@/components/admin/internal-notes-inbox";
 import { StudentCleanupPanel } from "@/components/admin/student-cleanup-panel";
 import { useAppStore } from "@/store/app-store";
 import { computeStudentCycleSessions, computeStudentRetentionStatus } from "@/lib/kardex-calculator";
-import { getFamilyNotesAccess } from "@/lib/services/feature-flags.service";
+import { getFamilyNotesAccess, getInternalNotesAccess } from "@/lib/services/feature-flags.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -33,10 +34,11 @@ export const Route = createFileRoute("/admin/alumnos")({
 });
 
 function AdminAlumnosPage() {
-  const [activeTab, setActiveTab] = useState<"directorio" | "renovaciones" | "notas" | "notas-v2" | "vacantes">("directorio");
+  const [activeTab, setActiveTab] = useState<"directorio" | "renovaciones" | "notas" | "notas-v2" | "notas-internas" | "vacantes">("directorio");
   const [mounted, setMounted] = useState(false);
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
   const [familyNotesAccess, setFamilyNotesAccess] = useState(false);
+  const [internalNotesAccess, setInternalNotesAccess] = useState(false);
   const teacherNotes = useAppStore((s) => s.teacherNotes);
   const pendingCount = teacherNotes.filter((n) => n.status === "pendiente").length;
   const students = useAppStore((s) => s.adminStudents);
@@ -68,7 +70,7 @@ function AdminAlumnosPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const tab = params.get("tab");
-        if (tab === "notas" || tab === "notas-v2" || tab === "vacantes" || tab === "directorio" || tab === "renovaciones") {
+        if (tab === "notas" || tab === "notas-v2" || tab === "notas-internas" || tab === "vacantes" || tab === "directorio" || tab === "renovaciones") {
           setActiveTab(tab);
         }
       }
@@ -84,6 +86,21 @@ function AdminAlumnosPage() {
       })
       .catch(() => {
         if (!cancelled) setFamilyNotesAccess(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Fase 4: bandeja de notas internas. Se abre por configuración o por piloto.
+  useEffect(() => {
+    let cancelled = false;
+    getInternalNotesAccess()
+      .then((access) => {
+        if (!cancelled) setInternalNotesAccess(Boolean(access.inbox));
+      })
+      .catch(() => {
+        if (!cancelled) setInternalNotesAccess(false);
       });
     return () => {
       cancelled = true;
@@ -189,6 +206,27 @@ function AdminAlumnosPage() {
               </button>
             )}
 
+            {internalNotesAccess && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("notas-internas")}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all ${
+                  activeTab === "notas-internas"
+                    ? "bg-card text-foreground shadow-xs border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Lock className="h-3.5 w-3.5 text-primary" />
+                <span>Notas internas</span>
+                <Badge
+                  variant="secondary"
+                  className="ml-1 text-[9px] px-1 py-0 h-4 font-black bg-primary/15 text-primary"
+                >
+                  BETA
+                </Badge>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setActiveTab("vacantes")}
@@ -211,6 +249,8 @@ function AdminAlumnosPage() {
       {activeTab === "notas" && <TeacherNotesModeration />}
 
       {activeTab === "notas-v2" && familyNotesAccess && <FamilyNotesModeration />}
+
+      {activeTab === "notas-internas" && internalNotesAccess && <InternalNotesInbox />}
 
       {activeTab === "vacantes" && <VacancyAvailabilityPanel />}
 

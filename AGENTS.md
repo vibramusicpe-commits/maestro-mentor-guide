@@ -1496,3 +1496,28 @@ inferencia.
    - **Verificación**: 24/24 checks de runtime con datos vivos (`is_test` + `test_run_id`, limpieza final) y 7/7 del gate; rutas `/teacher`, `/admin/alumnos` y `/` en 200; `npm run build` en verde.
    - **Revertir**: dejar `pilot_teacher_ids = []` y `familyNotesV2 = false`; las pestañas desaparecen sin desplegar. Las notas ya guardadas permanecen en `family_notes`.
 
+---
+
+### 76. Notas Internas Docente → Dirección con Bandeja y Flujo `nueva → leida → archivada` (ADR-0175, Fase 4)
+
+1. **Alcance y visibilidad**:
+   - `internal_notes` es un canal **interno**: lo escribe el docente y lo lee Dirección/Secretaría. **Nunca** se expone en el portal familia ni modifica `students.notes`.
+   - Componentes: `src/components/teacher/internal-note-form.tsx` (pestaña “Interna”, BETA, en `/teacher`) y `src/components/admin/internal-notes-inbox.tsx` (pestaña “Notas internas”, BETA, en `/admin/alumnos`).
+2. **Flujo de estado innegociable**:
+   - `nueva` al crear → `leida` con `markInternalNoteRead` (registra `read_at`, `read_by_id`, `read_by_name`; idempotente) → `archivada` con `archiveInternalNote`.
+   - `reopenInternalNote` reabre una archivada en `leida`. **Nada se borra**: la nota conserva contenido e historial de lectura.
+3. **Habilitación por datos (`getInternalNotesAccess`)**:
+   - `org_settings.internal_notes_enabled = true` abre para todos; sin esa clave se rige por `pilot_teacher_ids` (la bandeja se muestra a Dirección si hay al menos un docente en el piloto). Cualquier error ⇒ cerrado.
+   - Abrir o cerrar el módulo **no requiere desplegar**.
+4. **Reglas de datos**:
+   - Identidad por UUID (`student_id`, `teacher_id`, `created_by_id`, `read_by_id`); el nombre es solo snapshot legible.
+   - `is_test` + `test_run_id` siguen amarrados por CHECK; la bandeja de producción lista **sin** `includeTest`, así que jamás muestra filas de prueba.
+   - Cero datos financieros y cero escritura sobre `students.notes` o `notification_logs`.
+5. **Auditoría y señalización**:
+   - `trg_audit_internal_notes` registra INSERT/UPDATE/DELETE en `evaluation_audit_log` con `entity_type = 'internal_note'`; la UI no duplica auditoría.
+   - `notifyInternalNotesChanged` / `subscribeToInternalNotesChanges` solo señalizan “algo cambió” entre pestañas; la fuente de verdad sigue siendo PostgreSQL.
+6. **Prohibiciones**:
+   - No modificar `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts` para este módulo.
+   - No agregar botones de “eliminar nota”: el ciclo termina en `archivada`.
+7. **Verificación de referencia**: `scratch/test-fase4-internal-notes.mjs` (20/20 con datos vivos) y `npm run build` en verde antes de commitear.
+
