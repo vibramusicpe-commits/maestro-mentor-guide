@@ -622,16 +622,26 @@ export async function getTeacherTimeLogs(params?: {
   teacherId?: string;
   startDate?: string;
   endDate?: string;
+  /** Inicio de rango exacto (ISO). Se resuelve en el servidor, no en el navegador. */
+  rangeStart?: string;
+  /** Fin de rango exacto (ISO), EXCLUSIVO. */
+  rangeEnd?: string;
   limit?: number;
 }): Promise<DBTeacherTimeLog[]> {
   try {
     const filter: Record<string, string> = {
       order: "clock_in.desc",
-      limit: String(params?.limit || 200),
+      limit: String(params?.limit || 1000),
     };
 
     if (params?.teacherId && params.teacherId !== "todos") {
-      filter.teacher_id = `eq.${params.teacherId}`;
+      filter["teacher_id"] = `eq.${params.teacherId}`;
+    }
+
+    // Filtro de rango en el servidor: sin esto, el `limit` recorta el historial
+    // antes de filtrar por mes y los meses antiguos "desaparecen" del panel.
+    if (params?.rangeStart && params?.rangeEnd) {
+      filter["and"] = `(clock_in.gte.${params.rangeStart},clock_in.lt.${params.rangeEnd})`;
     }
 
     const remote = await postgrestSelect<DBTeacherTimeLog>("teacher_time_logs", filter);
@@ -650,6 +660,15 @@ export async function getTeacherTimeLogs(params?: {
 
     if (params?.teacherId && params.teacherId !== "todos") {
       list = list.filter((s) => s.teacher_id === params.teacherId);
+    }
+    if (params?.rangeStart && params?.rangeEnd) {
+      const rangeStartMs = new Date(params.rangeStart).getTime();
+      const rangeEndMs = new Date(params.rangeEnd).getTime();
+      // Segunda pasada local: la caché del navegador puede traer turnos fuera del rango.
+      list = list.filter((s) => {
+        const ms = new Date(s.clock_in).getTime();
+        return ms >= rangeStartMs && ms < rangeEndMs;
+      });
     }
     if (params?.startDate) {
       const startMs = new Date(params.startDate).getTime();
@@ -674,58 +693,97 @@ export function computeTeacherMonthlySummary(
   shifts: DBTeacherTimeLog[],
   activeShifts: DBTeacherTimeLog[],
 ): TeacherMonthlySummary[] {
+  // Roster completo con fichaje: docentes, secretaría, dirección y marketing.
+  // `matches` cubre los nombres históricos (una misma persona escribió su
+  // nombre de formas distintas en el kiosco).
   const teachersList = [
     {
       id: "00000000-0000-0000-0000-000000000005",
       name: "Nathaly",
-      fullName: "Nathaly (Canto y Piano)",
-      specialty: "Canto, Técnica Vocal & Piano",
+      fullName: "Nathaly (Canto y Piano Infantil)",
+      specialty: "Canto, Técnica Vocal & Piano Infantil",
+      matches: ["nathaly", "nataly"],
     },
     {
       id: "00000000-0000-0000-0000-000000000003",
       name: "Jeremy",
-      fullName: "Jeremy (Batería & Guitarra)",
-      specialty: "Batería, Percusión & Guitarra",
+      fullName: "Jeremy (Guitarra & Batería)",
+      specialty: "Guitarra, Batería & Percusión",
+      matches: ["jeremy"],
     },
     {
       id: "00000000-0000-0000-0000-000000000004",
       name: "Fernando",
-      fullName: "Fernando (Guitarra & Violín)",
-      specialty: "Guitarra Clásica/Eléctrica & Violín",
+      fullName: "Fernando (Violín & Piano)",
+      specialty: "Violín, Piano Clásico & Master",
+      matches: ["fernando"],
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000002",
+      name: "Jackeline",
+      fullName: "Jackeline / Nayeli (Secretaría)",
+      specialty: "Secretaría, Matrículas & Atención",
+      matches: ["jackeline", "jaquelin", "nayeli"],
     },
     {
       id: "00000000-0000-0000-0000-000000000008",
       name: "Karla",
       fullName: "Karla (Secretaría / Staff)",
       specialty: "Secretaría, Cobranzas & Atención",
+      matches: ["karla"],
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000001",
+      name: "Rocío",
+      fullName: "Rocío (Dirección)",
+      specialty: "Dirección General",
+      matches: ["rocío", "rocio", "dueña", "duena"],
     },
     {
       id: "00000000-0000-0000-0000-000000000007",
       name: "Sergio",
       fullName: "Sergio (Dirección)",
       specialty: "Dirección General & Supervisión",
+      matches: ["sergio"],
     },
     {
       id: "00000000-0000-0000-0000-000000000009",
       name: "Fabricio",
       fullName: "Fabricio (Marketing)",
       specialty: "Marketing, Growth & Contenidos",
+      matches: ["fabricio"],
     },
     {
       id: "00000000-0000-0000-0000-000000000006",
       name: "Profesor Demo",
-      fullName: "Profesor Demo (General)",
-      specialty: "Iniciación Musical & Suplencias",
+      fullName: "Turnos sin identidad (revisar)",
+      specialty: "Fichajes sin perfil asignado",
+      matches: ["profesor demo", "profesor/a vibra"],
     },
   ];
 
+  const normalize = (value?: string | null) =>
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/\(.*?\)/g, " ")
+      .replace(/[^a-z\s/]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   return teachersList.map((t) => {
-    const teacherShifts = shifts.filter(
-      (s) => s.teacher_id === t.id || s.teacher_name?.toLowerCase().includes(t.name.toLowerCase())
-    );
+    const matchesTeacher = (s: DBTeacherTimeLog) => {
+      if (s.teacher_id === t.id) return true;
+      const name = normalize(s.teacher_name);
+      if (!name) return false;
+      return t.matches.some((m) => name.includes(normalize(m)));
+    };
+
+    const teacherShifts = shifts.filter(matchesTeacher);
 
     const activeShift = activeShifts.find(
-      (s) => (s.teacher_id === t.id || s.teacher_name?.toLowerCase().includes(t.name.toLowerCase())) && s.status !== "finalizado"
+      (s) => matchesTeacher(s) && s.status !== "finalizado",
     );
 
     let totalMinutes = 0;

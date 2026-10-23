@@ -1,0 +1,96 @@
+2026-10-23 · Asistencia Docente: reporte mensual por perfil (ADR-0181)
+=====================================================================
+
+OBJETIVO
+--------
+Cerrar el caso del descuento de S/ 400 a la Prof. Nathaly (setiembre 2026) y
+dejar un mecanismo permanente: cada docente, secretaría y marketing descarga su
+reporte mensual de fichajes desde su propio perfil; Dirección lo hace de
+cualquier perfil. Sin montos en el reporte del docente.
+
+DIAGNÓSTICO
+-----------
+1. Los fichajes de setiembre NO se perdieron: existen 70 filas en
+   `teacher_time_logs` para setiembre y 56 para octubre.
+2. La vista no los mostraba porque `getTeacherTimeLogs` aplicaba `limit` antes
+   de filtrar por mes en el cliente, y el mes por defecto era el actual.
+3. El consolidado real de Nathaly en setiembre es 20 turnos / 18 válidos /
+   3908 min (65h 08m) / 2 incidencias (09/09 con 1488 min por falta de cierre y
+   08/09 con 0 min).
+4. Fabricio (Marketing) ya podía fichar: 6 turnos en setiembre, invitación
+   activa, rol `teacher`.
+
+DIFERENCIA DE MINUTOS (3899 vs 3908)
+------------------------------------
+`floor(diff/60)` pierde hasta 1 minuto por turno. Medido contra la base:
+10 turnos de setiembre con delta -1 = 9 minutos (09/09 estaba excluido del
+total por incidencia). El registro oficial es `total_minutes_worked`, así que
+`computeShiftMinutes` lo prioriza y deja el diff solo como respaldo.
+
+DUPLICADO: CORRECCIÓN QUIRÚRGICA
+--------------------------------
+Primera versión marcaba TODO el día como duplicado si un par se superponía.
+Efecto real: el turno válido de 4 h de Fabricio del 12/09 quedaba invalidado
+por dos micro-marcajes de prueba (11:05 y 11:06). Se reescribió para marcar
+solo el par que se superpone. Resultado: 2 duplicados + 1 turno válido de 240
+min + jornada partida válida intacta.
+
+ARCHIVOS
+--------
+Nuevos:
+  src/lib/asistencia-docente.ts
+  src/components/teacher/teacher-attendance-report.tsx
+  docs/adr/0181-asistencia-docente-reporte-mensual-fichajes.md
+  docs/logs/2026-10-23-asistencia-docente.log
+  scratch/test-asistencia-docente.mjs (no se commitea)
+
+Modificados:
+  src/routes/teacher.nomina.tsx      (monta TeacherAttendanceReport)
+  src/routes/teacher.tsx             (pestaña "Asistencia", icono Clock)
+  src/routes/admin.control-horario.tsx (pestaña "Asistencia por Perfil")
+  src/lib/services/time-tracking.service.ts
+      · getTeacherTimeLogs: rangeStart/rangeEnd server-side, limit 1000
+      · computeTeacherMonthlySummary: Jackeline/Nayeli y Rocío con nombres históricos
+  AGENTS.md                          (sección 84)
+
+NO SE TOCÓ
+---------
+  app-store.ts · kardex-calculator.ts · student-cycle.ts · attendance_logs
+  (alumnos) · facturación · esquema de base de datos · RLS
+  (`time_logs_anon_access = true` queda documentado como riesgo, sin cambios).
+
+VERIFICACIÓN
+------------
+arnés: node scratch/test-asistencia-docente.mjs  →  58/58 OK
+  · identidad: 9 casos email → perfil + negativo (desconocido no adivina)
+  · Nathaly setiembre: 20 / 18 / 3908 min / 65h 08m / 6 por regularizar
+  · Fabricio: 6 turnos, 2 válidos, 8h 00m
+  · "Sin identidad": 5 turnos, 18h 48m, ninguno atribuido a Nathaly
+  · faltantes ⊆ días con clase, sin días futuros, sin solapar con fichajes
+  · jornada partida (240 min) · solapamiento real (0 min) · micro-marcajes +
+    turno real (240 min) · turno abierto (sin_salida)
+  · CSV / Markdown / consolidado sin "S/" ni "soles"
+  · fechas Lima: turno nocturno 20:30–21:30 cae en su día real
+
+navegador (sesión local simulada, sin escrituras en producción):
+  /teacher/nomina · Setiembre 2026 → 65h 08m · 20 días · 2 incidencias ·
+      6 por regularizar · día 08/09 (0h 00m) y 09/09 (24h 48m) entre paréntesis
+  /admin/control-horario · "Asistencia por Perfil" · Setiembre 2026 →
+      Karla 3/8h 00m · Nathaly 20/65h 08m/6 · Jeremy 22/61h 06m/8 ·
+      Fernando 14/47h 14m/12 · Fabricio 6/8h 00m/4 · Sin identidad 5/18h 48m
+      (idéntico al arnés)
+
+rutas: / · /teacher · /teacher/nomina · /admin/control-horario → 200
+build: npm run build → verde
+
+PENDIENTE / DEUDA OPERATIVA
+---------------------------
+1. Los turnos con incidencia NO se limpian solos; requieren regularización de
+   Dirección. Conocidos: Jeremy 09/09 (1216 min) y 11/09 (1020 min) por falta de
+   cierre, 4 fichajes solapados el 14/09; Fabricio 4 micro-marcajes de prueba del
+   12/09; 1 turno abierto en octubre por perfil (Fernando, Jackeline, Jeremy,
+   Nathaly).
+2. Migración 011 de informes de progreso sigue sin aplicar (requiere rol SQL).
+3. Migración 012 (`generate_payroll_hours_report` corregido) queda bloqueada por
+   el mismo permiso. El cierre contable no se usa para este reporte.
+4. Entregar a Nathaly su PDF/CSV de setiembre desde la app desplegada.

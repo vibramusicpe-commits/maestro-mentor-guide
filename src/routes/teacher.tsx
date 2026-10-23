@@ -5,7 +5,7 @@ import {
   CloudOff,
   ClipboardList,
   Users2,
-  Wallet,
+  Clock,
   CalendarDays,
   LogOut,
   PenLine,
@@ -51,7 +51,7 @@ const nav = [
   { to: "/teacher/agenda" as const, label: "Agenda", icon: CalendarDays, exact: false },
   { to: "/teacher/alumnos" as const, label: "Alumnos", icon: Users2, exact: false },
   { to: "/teacher/notas" as const, label: "Notas", icon: PenLine, exact: false },
-  { to: "/teacher/nomina" as const, label: "Nómina", icon: Wallet, exact: false },
+  { to: "/teacher/nomina" as const, label: "Asistencia", icon: Clock, exact: false },
 ];
 
 function TeacherLayout() {

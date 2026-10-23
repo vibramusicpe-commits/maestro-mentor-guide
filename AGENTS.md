@@ -1770,3 +1770,46 @@ inferencia.
 9. **Estado y bloqueo operativo**: la migración `docs/migrations/011_progress_reports_tipos_plan.sql` (CHECK de 4 tipos + índice único parcial por alumno + tipo + ventana) **aún no se ejecuta** en Insforge. Mientras no corra, la base rechaza `avance` y `cierre_ciclo`; `mensual` y `trimestral` siguen operativos. Solo lectura vía MCP: la ejecuta Dirección.
 
 10. **Verificación de referencia**: Fase A `scratch/test-fase-a-informes.mjs` 40/40; Fase B `scratch/test-fase-b-panel.mjs` 57 activos → 0 habilitados / 57 bloqueados; Fase C `scratch/test-fase-c-teacher.mjs` 11/11; Fase D `scratch/test-fase-d-documento.mjs` **28/28** (bitácora 8/8, intensivo 90 min, 3 hitos en 4 escenarios, anchos 100 %, rutas 200). `npm run build` en verde. Documentación: ADR-0180, `docs/PLAN_INFORMES_POR_TIPO_DE_PLAN.md` y `docs/logs/2026-10-23-fase-d-informes-bitacora-a4.log`.
+
+---
+
+### 84. Reporte Mensual de Asistencia Docente por Perfil, Días sin Marcaje y Cero Montos (ADR-0181)
+
+1. **Origen (descuento de S/ 400 a la Prof. Nathaly en setiembre 2026)**:
+   - El descuento se sustentó en una lectura parcial del historial, no en un documento oficial. Sus fichajes estaban completos en `teacher_time_logs`: **20 turnos, 18 válidos = 3908 min (65h 08m), 2 incidencias**. Además, setiembre no estaba perdido: `getTeacherTimeLogs` recortaba con un `limit` bajo antes de filtrar por mes en el cliente.
+   - Consecuencia: **ningún descuento de asistencia puede aplicarse sin el reporte del mes descargado desde la app.**
+
+2. **Motor único (`src/lib/asistencia-docente.ts`)**:
+   - Todo el reporte —pantalla, CSV, Markdown, WhatsApp y A4— sale de este módulo. Queda **TERMINANTEMENTE PROHIBIDO** recalcular horas, incidencias o formato dentro de un componente (ADR-0119.3).
+   - Roster con ficha (`ATTENDANCE_PROFILES`): Rocío, Jackeline/Nayeli, Sergio, Karla, Nathaly, Jeremy, Fernando, Fabricio y "Turnos sin identidad" (`...0006`, se oculta si no tiene fichajes).
+   - Identidad por **alias de email/nombre** (`resolveProfileForIdentity`) y por turno histórico (`resolveProfileForShift`). **PROHIBIDO** usar `resolveTeacherUserId` aquí: devuelve DEMO a todos salvo Jeremy/Fernando/Nathaly.
+
+3. **Horas siempre en `America/Lima`** (`Intl`, `limaDateKey` / `limaTimeHM` / `limaMonthRange`). Nunca la zona del navegador ni la del servidor (PostgreSQL corre en GMT). Un fichaje de las 20:30 Lima cae en su día real.
+
+4. **Los minutos oficiales son `total_minutes_worked`**:
+   - `computeShiftMinutes` prioriza el total persistido y solo cae al diff de timestamps en registros antiguos sin total. El `floor` del diff pierde hasta 1 min por turno (9 min menos en setiembre de Nathaly: 3899 vs 3908).
+
+5. **Incidencias: se muestran entre paréntesis y NO se suman** — `sin_salida`, `duracion_inusual` (>14 h), `sin_minutos`, `duplicado`. El mensaje es explícito: *"No se ha corregido nada en silencio"*.
+   - `duplicado` se marca **solo al par que realmente se superpone**. Dos turnos separados el mismo día son **jornada partida válida** y suman; un turno real de 4 h convive sin castigo con dos micro-marcajes solapados del kiosco.
+
+6. **Prohibido el concepto "depurado"**: hay **un solo total de horas**. Las incidencias viven en su fila; jamás se descuentan por debajo de la mesa ni se crea un segundo total paralelo.
+
+7. **Días con clase sin marcaje ("Por regularizar")**:
+   - `projectScheduledDates` proyecta los días del mes con clase desde `emergency_contact.scheduleLessons` de alumnos activos y lista los que no tienen entrada, solo hasta la fecha de corte (`todayKey`), **nunca días futuros**.
+   - Se presentan como recordatorio, no como sanción.
+
+8. **Cero soles en el reporte del docente**: pantalla, CSV, Markdown, consolidado y WhatsApp no contienen `S/`, "soles", descuentos ni valorización. La valorización económica es **exclusiva de Dirección**, fuera de este módulo. El pie lo declara: *"No incluye información económica ni descuentos: es tu constancia de horario"*.
+
+9. **Dónde se usa**:
+   - **Docente** → `/teacher/nomina`, pestaña **"Asistencia"** (`teacher.tsx`, icono `Clock`): solo lectura sobre su propio perfil, selector mes/año, KPIs, fichajes, días por regularizar y descargas **PDF/A4 · Excel (.CSV) · Markdown · Copiar resumen**.
+   - **Dirección** → `/admin/control-horario`, pestaña **"Asistencia por Perfil"`: KPIs consolidados, tabla de los 9 perfiles con turnos/horas/días/incidencias/por regularizar, **CSV/PDF por perfil** y **Consolidado (.CSV)**, más el detalle de cualquier perfil. En esta pestaña se ocultan la barra de filtros y los KPIs de kiosco.
+   - **Secretaría y Marketing** ven su propio reporte desde su sesión igual que los docentes. Fabricio ya ficha con su rol `teacher`; sus turnos se resuelven por UUID.
+
+10. **El docente no corrige**: el reporte es de solo lectura. Regularizar un turno o limpiar un micro-marcaje es tarea de Dirección.
+
+11. **Fuera de alcance / pendiente**:
+    - `generate_payroll_hours_report` (cierre contable) **no se usa** para este reporte; su corrección queda como migración `012`, que depende del mismo acceso SQL que la `011`.
+    - Se mantiene `time_logs_anon_access = true` con aislamiento por perfil en el cliente. El riesgo de RLS abierta está documentado y **no se tocó**.
+    - Este módulo **no** lee ni escribe `attendance_logs` (asistencia de alumnos) ni facturación.
+
+12. **Verificación de referencia**: `scratch/test-asistencia-docente.mjs` **58/58** con datos vivos (identidad 9 casos, Nathaly 20/18/3908/65h 08m, Fabricio 6 turnos, "sin identidad" 5 turnos/18h 48m no atribuidos a Nathaly, proyección de faltantes sin días futuros, jornada partida vs. solapamiento real vs. micro-marcajes, turno abierto, CSV/MD/consolidado sin `S/`, fechas Lima con turno nocturno). `npm run build` en verde; `/`, `/teacher/nomina`, `/admin/control-horario` y `/teacher` en 200. Documentación: ADR-0181 y `docs/logs/2026-10-23-asistencia-docente.log`.

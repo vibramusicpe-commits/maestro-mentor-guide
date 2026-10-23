@@ -16,6 +16,8 @@ import {
   type TeacherMonthlySummary,
 } from "@/lib/services/time-tracking.service";
 import { formatDistance } from "@/lib/services/geolocation.service";
+import { AttendanceProfilesPanel } from "@/components/teacher/teacher-attendance-report";
+import { limaMonthKey, limaTodayKey } from "@/lib/asistencia-docente";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -79,13 +81,14 @@ export function AdminControlHorarioPage() {
   const [loadingShifts, setLoadingShifts] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
 
-  // Filtros de navegación mensual
-  const currentMonthIdx = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
+  // Filtros de navegación mensual (mes calendario de Lima, no del navegador)
+  const limaToday = limaTodayKey();
+  const currentMonthIdx = Number(limaToday.slice(5, 7)) - 1;
+  const currentYear = Number(limaToday.slice(0, 4));
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonthIdx >= 0 ? currentMonthIdx : 8); // 8 = Setiembre
   const [selectedYear, setSelectedYear] = useState<number>(currentYear || 2026);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("todos");
-  const [activeTab, setActiveTab] = useState<"kardex" | "envivo" | "cierre">("kardex");
+  const [activeTab, setActiveTab] = useState<"kardex" | "envivo" | "perfiles" | "cierre">("kardex");
 
   // Estados de Cierre de Periodo
   const [startDate, setStartDate] = useState("2026-09-01");
@@ -100,7 +103,9 @@ export function AdminControlHorarioPage() {
       setLoadingShifts(true);
       const [liveShifts, historyShifts] = await Promise.all([
         getAllActiveShifts(),
-        getTeacherTimeLogs({ limit: 300 }),
+        // Sin rango explícito se pide el historial completo: con `limit` bajo,
+        // los meses antiguos desaparecían del panel (bug de setiembre).
+        getTeacherTimeLogs({ limit: 2000 }),
       ]);
       setActiveShifts(liveShifts);
       setAllShifts(historyShifts);
@@ -143,13 +148,12 @@ export function AdminControlHorarioPage() {
     };
   }, []);
 
-  // Filtrado de turnos por el Mes y Profesor seleccionado
+  // Filtrado de turnos por el Mes y Profesor seleccionado (hora de Lima)
   const filteredMonthShifts = useMemo(() => {
     return allShifts.filter((s) => {
-      const d = new Date(s.clock_in);
-      const matchMonth = d.getMonth() === selectedMonth;
-      const matchYear = d.getFullYear() === selectedYear;
-      if (!matchMonth || !matchYear) return false;
+      const monthKey = limaMonthKey(s.clock_in);
+      const prefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
+      if (monthKey !== prefix) return false;
 
       if (selectedTeacherId !== "todos") {
         return (
@@ -158,6 +162,10 @@ export function AdminControlHorarioPage() {
           (selectedTeacherId.includes("03") && s.teacher_name?.toLowerCase().includes("jeremy")) ||
           (selectedTeacherId.includes("04") && s.teacher_name?.toLowerCase().includes("fernando")) ||
           (selectedTeacherId.includes("08") && s.teacher_name?.toLowerCase().includes("karla")) ||
+          (selectedTeacherId.includes("02") &&
+            /jackeline|nayeli/.test(s.teacher_name?.toLowerCase() || "")) ||
+          (selectedTeacherId.includes("01") &&
+            /rocío|rocio|dueña|duena/.test(s.teacher_name?.toLowerCase() || "")) ||
           (selectedTeacherId.includes("07") && s.teacher_name?.toLowerCase().includes("sergio")) ||
           (selectedTeacherId.includes("09") && s.teacher_name?.toLowerCase().includes("fabricio")) ||
           (selectedTeacherId.includes("06") && s.teacher_name?.toLowerCase().includes("demo"))
@@ -170,10 +178,8 @@ export function AdminControlHorarioPage() {
   // Consolidado mensual por docente
   const teacherSummaries = useMemo(() => {
     // Tomamos todos los turnos del mes para el desglose docente general
-    const monthAll = allShifts.filter((s) => {
-      const d = new Date(s.clock_in);
-      return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-    });
+    const prefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
+    const monthAll = allShifts.filter((s) => limaMonthKey(s.clock_in) === prefix);
     return computeTeacherMonthlySummary(monthAll, activeShifts);
   }, [allShifts, activeShifts, selectedMonth, selectedYear]);
 
@@ -359,6 +365,18 @@ export function AdminControlHorarioPage() {
         </button>
 
         <button
+          onClick={() => setActiveTab("perfiles")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
+            activeTab === "perfiles"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          <Clock className="h-4 w-4" />
+          Asistencia por Perfil
+        </button>
+
+        <button
           onClick={() => setActiveTab("cierre")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
             activeTab === "cierre"
@@ -371,6 +389,10 @@ export function AdminControlHorarioPage() {
         </button>
       </div>
 
+      {/* Barra de Filtros y KPIs: solo para las pestañas de kardex/en vivo/cierre.
+          La pestaña "Asistencia por Perfil" tiene su propio selector de mes. */}
+      {activeTab !== "perfiles" && (
+        <>
       {/* Barra de Filtros: Selector de Mes, Año y Profesor */}
       <div className="bg-card border border-border p-4 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3 flex-wrap">
@@ -480,6 +502,8 @@ export function AdminControlHorarioPage() {
           <p className="text-[11px] text-muted-foreground">Duración media de permanencia</p>
         </div>
       </div>
+        </>
+      )}
 
       {/* CONTENIDO SEGÚN LA PESTAÑA SELECCIONADA */}
       {activeTab === "kardex" && (
@@ -791,6 +815,9 @@ export function AdminControlHorarioPage() {
           </div>
         </div>
       )}
+
+      {/* PESTAÑA: Asistencia por Perfil — fichajes y días por regularizar */}
+      {activeTab === "perfiles" && <AttendanceProfilesPanel />}
 
       {/* PESTAÑA: Profesores en Sede en Vivo */}
       {activeTab === "envivo" && (
