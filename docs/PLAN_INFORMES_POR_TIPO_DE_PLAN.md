@@ -1,8 +1,9 @@
 # Plan — Informes por tipo de plan, evidencia mínima y botón del docente
 
 **Fecha:** 2026-10-23
-**Estado:** Aprobado por Dirección. **Fase A implementada** (motor, tipos,
-snapshot y servicio). Pendiente ejecutar la migración 011 en Insforge.
+**Estado:** Aprobado por Dirección. **Fases A, B, C y D implementadas**
+(motor y tipos, bandeja de Dirección, portal del docente, bitácora + A4 +
+Markdown + WhatsApp). **Pendiente ejecutar la migración 011 en Insforge.**
 **Alcance:** módulo de informes de progreso (ADR-0175). No toca Kardex, agenda,
 asistencias, ciclos, facturación ni `students.notes`.
 
@@ -546,3 +547,67 @@ archivos tocados (el panel arrastra errores previos de `index signature`).
 Rutas verificadas en vivo: `/`, `/teacher`, `/teacher/alumnos`,
 `/teacher/informes`, `/admin/alumnos` y `/family` → 200.
 `npm run build` en verde.
+
+---
+
+## 17. Estado de implementación — Fase D (Bitácora, A4, Markdown y WhatsApp, 2026-10-23)
+
+> Un informe **no** es un resumen suelto: es el consolidado de varios
+> **reportes de clase** (`lesson_evaluations`) más la asistencia del periodo.
+> La Fase D hace visible esa evidencia en los tres formatos de salida.
+
+### 17.1 Entregado
+
+| Archivo | Cambio |
+|---|---|
+| `src/components/informes/report-session-log-annex.tsx` | **Nuevo.** Anexo A4 de bitácora (páginas 3+). Lo comparten el diálogo de Dirección y el documento del portal familia: una sola implementación de la tabla. `print-page-break`, `colgroup` `5+11+12+7+11+32+22 = 100 %`, encabezado **"Inicio del proceso"** y clases documentadas vs contratadas. |
+| `src/lib/informes/progress-report-format.ts` | `ProgressReportView` expone `plan`, `evidence` y `sessionLog`. Markdown con `## Bitácora clase por clase` (`### Clase N · ISO · horario · asistencia`) + "Inicio del proceso documentado". WhatsApp reducido a **exactamente 3 hitos**. Nuevos: `PERIOD_TYPE_NOUN`, `SESSION_ATTENDANCE_LABELS`, `formatSessionAttendance`, `formatSessionSlot`, `repertoireLabel`, `repertoireStatusLabel`, `reportPageLabel`, `buildWhatsAppHighlights`. |
+| `src/components/informes/progress-report-document.tsx` | Rótulos dinámicos vía `reportPageLabel` y anexo compartido. Tabla de repertorio pasa a `repertoireStatusLabel`. |
+| `src/components/admin/progress-report-dialog.tsx` | Mismo rótulo dinámico y anexo compartido en el A4 editable de Dirección. |
+
+### 17.2 Reglas respetadas
+
+- **Rótulo honesto**: sin bitácora `PÁGINA N DE 2`; con bitácora
+  `PÁGINA N DE 2 · ANEXO`. Se elimina el "PÁGINA 2 DE 2" fijo, que mentía
+  cuando el documento crecía a 3+ hojas.
+- **Compatibilidad**: los informes creados antes de la Fase A no tienen
+  `content.sessionLog`; el anexo no se renderiza y los rótulos siguen
+  correctos.
+- **Intensivo**: los dos bloques de 45 min de una misma fecha se consolidan en
+  **una** entrada de 90 min (`09:00–10:30`), tanto en el anexo como en el
+  Markdown.
+- **WhatsApp**: 3 hitos (constancia, logro, próxima meta) con respaldo honesto
+  cuando falta información; nunca inventa un logro. El detalle completo vive en
+  el PDF y en el portal familia.
+- **Repertorio**: el tipo real es
+  `logrado | en_proceso | pendiente | no_corresponde`. Las comparaciones con
+  `"consolidada"` eran ramas muertas que dejaban todas las obras como
+  "Iniciada"; se centralizaron en `repertoireStatusLabel()`.
+- Cero datos financieros en el anexo, el Markdown y el WhatsApp.
+- No se tocó `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`.
+
+### 17.3 Verificado en runtime (`scratch/test-fase-d-documento.mjs`, 28/28)
+
+- Bitácora 8/8 entradas en orden cronológico (`2026-09-14` → `2026-10-07`) y
+  `timeEnd` calculado (`16:45–17:30`).
+- Intensivo: dos bloques de 45 min → **una** entrada `09:00–10:30 (90 min)`.
+- Markdown: 8 bloques `### Clase N`, fecha de inicio, tema/tarea/comentario,
+  sin datos financieros.
+- WhatsApp: **3 hitos** en los 4 escenarios (completo, sin asistencia, sin
+  logros ni metas, sin nada).
+- Anexo: 8 filas, anchos `5+11+12+7+11+32+22 = 100`, `print-page-break`,
+  fecha de inicio y repertorio trabajado.
+- Rutas `/admin/alumnos`, `/family/progreso` y `/teacher/informes` → 200.
+
+`npm run build` en verde.
+
+### 17.4 Bloqueo operativo
+
+La migración `docs/migrations/011_progress_reports_tipos_plan.sql` **no está
+ejecutada**. Mientras no corra en Insforge:
+
+- `avance` y `cierre_ciclo` son rechazados por el CHECK de la base.
+- `mensual` y `trimestral` siguen operativos.
+- El índice único parcial por alumno + tipo + ventana tampoco existe aún.
+
+Los agentes solo tienen lectura sobre esa base: la ejecuta Dirección.

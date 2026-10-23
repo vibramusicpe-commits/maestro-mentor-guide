@@ -1,0 +1,257 @@
+INFORME COMO CONSOLIDADO DE REPORTES DE CLASE — BITÁCORA Y ANEXO A4
+Fecha: 2026-10-23
+ADR: docs/adr/0180-informe-consolidado-reportes-clase-bitacora-a4.md
+Plan: docs/PLAN_INFORMES_POR_TIPO_DE_PLAN.md
+Rama: main
+Alcance: módulo de informes de progreso (ADR-0175), Fases A–D
+No se tocó: app-store.ts, kardex-calculator.ts, student-cycle.ts, Kardex,
+agenda, asistencias, facturación, students.notes, notification_logs
+
+=====================================================================
+1. DEFINICIÓN QUE GOBIERNA EL DISEÑO
+=====================================================================
+
+Un informe es el consolidado de varios REPORTES DE CLASE
+(`lesson_evaluations`) más la asistencia del periodo.
+
+NO se alimenta de informes anteriores.
+
+Consecuencias operativas:
+
+  - Sin reportes de clase no hay informe.
+  - El mínimo es 2 (1 en Demo / Personalizado de una sola sesión).
+  - El informe debe contener cuándo inició el proceso y qué se trabajó en
+    cada clase, no solo totales.
+
+La pieza que faltaba no era "más informes": era que el docente registrara la
+clase (botón ya existente en /teacher → Registro de clase) y que Dirección
+pudiera consolidarla por tipo de plan.
+
+=====================================================================
+2. CUATRO TIPOS DE INFORME
+=====================================================================
+
+  mensual        Ciclo mensual   Ciclo vigente: 8 regular o 4 intensivo
+  trimestral     Trimestral      Vigencia completa del trimestre
+  avance         Avance          Corte intermedio de paquete largo (ej. 24)
+  cierre_ciclo   Cierre          Paquete flexible, personalizado o retiro
+
+Reglas:
+
+  - La ventana mensual/trimestral es el CICLO CONTRACTUAL
+    (planStartDate → planEndDate), no el mes calendario.
+  - El plan real se lee de planType / packageTotalSessions, nunca de la
+    columna SQL `modality` (ADR-0151: en flexibles dice "Regular").
+  - El contrato manda sobre packageTotalSessions:
+      Intensivo = 4 (ALEXIS traía 8 heredado)
+      Demo / Personalizado de 1 sesión = 1
+      Flexible = la bolsa contratada
+      Regular = 8
+  - Fuente única de etiquetas y colores: src/lib/informes/report-kinds.ts.
+
+=====================================================================
+3. EVIDENCIA MÍNIMA Y SEMÁFORO
+=====================================================================
+
+  Mínimo de reportes de clase ............ 2
+  Excepción Demo / Personalizado ......... 1
+  Cobertura parcial (solo etiqueta) ...... >= 40 % de clases asistidas
+  Cobertura completa (solo etiqueta) ..... >= 70 %
+
+Deduplicación server-side de reportes:
+
+  - Intensivo: clave = fecha (los dos bloques de 45 min son UN reporte).
+  - Regular:   clave = fecha::hora.
+
+Sin el mínimo, createProgressReport lanza InformesValidationError y ambos
+paneles lo muestran con toast.error. Los umbrales 40/70 NO bloquean por
+encima del mínimo: un informe con 2 reportes sobre 8 clases es legítimo
+aunque se marque "parcial".
+
+No existe "constancia de asistencia" como sustituto del mínimo.
+
+=====================================================================
+4. BITÁCORA CLASE POR CLASE
+=====================================================================
+
+Fuente única: src/lib/informes/session-log.ts (buildSessionLog).
+
+Cada entrada: fecha, hora inicio/fin, duración, asistencia, tema trabajado,
+repertorio, criterios, estado general, tarea, comentario y docente.
+Orden cronológico ascendente.
+
+Intensivo: los dos bloques de 45 min de una misma fecha se consolidan en UNA
+entrada de 90 min (09:00–10:30), no en dos clases.
+
+Persistencia: content.sessionLog (jsonb). NO se agregaron columnas.
+
+=====================================================================
+5. DOCUMENTO A4
+=====================================================================
+
+Páginas 1–2: resumen ejecutivo (sin cambios de arquitectura, ADR-0136/0137).
+Páginas 3+:   Anexo de bitácora.
+
+Componente compartido: src/components/informes/report-session-log-annex.tsx
+  - Lo usan progress-report-dialog.tsx (Dirección) y
+    progress-report-document.tsx (portal familia). Una sola implementación
+    de la tabla (ADR-0119.3).
+  - print-page-break + colgroup con anchos porcentuales:
+    5 + 11 + 12 + 7 + 11 + 32 + 22 = 100 %
+  - Encabezado "Inicio del proceso", clases documentadas vs contratadas y
+    plan real.
+
+Rótulo de página:
+
+  reportPageLabel(1, false) -> "PÁGINA 1 DE 2"
+  reportPageLabel(1, true)  -> "PÁGINA 1 DE 2 · ANEXO"
+  reportPageLabel(2, true)  -> "PÁGINA 2 DE 2 · ANEXO"
+
+Se elimina el "PÁGINA 2 DE 2" fijo que mentía cuando el documento tenía 3+
+hojas.
+
+Compatibilidad: informes creados antes de la Fase A no tienen
+content.sessionLog; el anexo no se renderiza y los rótulos siguen correctos.
+
+=====================================================================
+6. MARKDOWN Y WHATSAPP
+=====================================================================
+
+Fuente única: src/lib/informes/progress-report-format.ts.
+
+Markdown (auditoría / LLM / archivo):
+  - "Inicio del proceso documentado: AAAA-MM-DD".
+  - "## Bitácora clase por clase" con un bloque por sesión:
+      ### Clase N · ISO · horario (min) · asistencia
+  - Tema, repertorio, criterios, estado general, tarea y comentario.
+  - Cero datos financieros.
+
+WhatsApp: EXACTAMENTE 3 hitos.
+  1. Constancia en sala (clases asistidas + % de asistencia, o clases
+     documentadas si no hay asistencia).
+  2. Logro observado (criterios Logrado/Destacado). Si no hay, usa el último
+     tema trabajado; nunca inventa un logro.
+  3. Próxima meta (goals, o recomendaciones, o continuidad del avance).
+
+El detalle completo vive en el PDF y en el portal familia.
+
+=====================================================================
+7. PORTAL DEL DOCENTE
+=====================================================================
+
+  Ruta:   /teacher/informes  (?student=<uuid>)
+  Gate:   flags.progressReportsV2 || isPilotTeacher
+  Alcance: teacherStudentList (solo sus alumnos activos)
+
+El componente solo importa createProgressReport, listProgressReports y
+updateProgressReport (este último limita a draft/pending).
+NO puede publicar ni rechazar: la moderación de Dirección sigue intacta.
+
+Flujo sin cambios: draft → pending → published | rejected, con
+published_snapshot inmutable.
+
+=====================================================================
+8. MIGRACIÓN PENDIENTE (BLOQUEO OPERATIVO)
+=====================================================================
+
+Archivo: docs/migrations/011_progress_reports_tipos_plan.sql
+
+  - CHECK period_type in ('mensual','trimestral','avance','cierre_ciclo')
+  - Índice único parcial (student_id, period_type, period_start, period_end)
+    where is_test = false and status <> 'rejected'
+
+Estado: NO ejecutada. Los agentes tienen solo lectura sobre Insforge.
+Mientras no se ejecute, la base rechaza 'avance' y 'cierre_ciclo'.
+'mensual' y 'trimestral' siguen funcionando.
+
+Debe ejecutarla Dirección / responsable de base de datos en Insforge, antes
+de probar los tipos nuevos en producción.
+
+=====================================================================
+9. VERIFICACIÓN
+=====================================================================
+
+Fase A — motor (scratch/test-fase-a-informes.mjs): 40/40.
+  Plan real, ventana por tipo, mínimo 2/1, cobertura 40/70, dedupe de
+  Intensivo, guard de creación server-side.
+
+Fase B — panel de Dirección (scratch/test-fase-b-panel.mjs):
+  57 activos -> 0 habilitados / 57 bloqueados con mínimo 2 (los datos vivos
+  solo tienen 1 evaluación en Hans y 1 en Fernanda Sofía).
+  Selector de 4 tipos, ventana sugerida, semáforo, filtro y CSV por tipo.
+  Cero campos financieros.
+
+Fase C — portal del docente (scratch/test-fase-c-teacher.mjs): 11/11.
+  Gate abierto para Jeremy, Nathaly y Fernando.
+  Jeremy: 24 de 57 alumnos (control negativo con los otros 33).
+  El componente no importa aprobar/publicar/rechazar.
+  /teacher/informes -> 200.
+
+Fase D — documento (scratch/test-fase-d-documento.mjs): 28/28.
+  - Bitácora 8/8, orden cronológico, timeEnd calculado (16:45–17:30).
+  - Intensivo: dos bloques de 45 min -> 09:00–10:30 (90 min).
+  - Markdown: 8 bloques "### Clase N", fecha de inicio, tema/tarea/comentario,
+    sin datos financieros.
+  - WhatsApp: 3 hitos en los 4 escenarios (completo, sin asistencia, sin
+    logros ni metas, sin nada).
+  - Anexo: 8 filas, anchos 5+11+12+7+11+32+22 = 100, print-page-break,
+    "Inicio del proceso", repertorio.
+  - /admin/alumnos, /family/progreso y /teacher/informes -> 200.
+
+npm run build en verde en las cuatro fases.
+
+Errores tsc preexistentes y ajenos (no regresiones):
+  - noPropertyAccessFromIndexSignature en progress-report-format.ts,
+    progress-reports-panel.tsx y progress-reports.service.ts.
+  - statusMeta possibly undefined en progress-report-dialog.tsx.
+
+=====================================================================
+10. DATOS VIVOS CONSULTADOS (solo lectura)
+=====================================================================
+
+  Alumnos activos ..................... 57
+  Con al menos 1 evaluación ........... 2 (Hans, Fernanda Sofía Fajardo Condo)
+  Informes existentes ................. 0
+  Asistencias últimos 30 días ......... 183
+
+  Sylvia (26d69ca0-283d-4157-95ec-ee92f2a3c1c1)
+    planType: Paquete Flexible · 8 clases · 2026-09-14 → 2026-12-31
+    8 asistencias en scheduleLessons.attendanceByDate:
+      14/09, 16/09, 21/09, 23/09, 28/09, 30/09, 05/10, 07/10
+    attendance_logs solo tiene 3 filas: la fuente usada por el snapshot es
+    scheduleLessons.attendanceByDate.
+
+  Pilotos (pilot_teacher_ids): Jeremy ...0003, Fernando ...0004,
+  Nathaly ...0005.
+
+=====================================================================
+11. ARCHIVOS
+=====================================================================
+
+Nuevos:
+  src/components/informes/report-session-log-annex.tsx
+  docs/migrations/011_progress_reports_tipos_plan.sql   (Fase A)
+  docs/adr/0180-informe-consolidado-reportes-clase-bitacora-a4.md
+
+Modificados (Fase D):
+  src/lib/informes/progress-report-format.ts
+  src/components/informes/progress-report-document.tsx
+  src/components/admin/progress-report-dialog.tsx
+
+Fases A–C (commits previos):
+  9331b7d  Fase A — motor, tipos, snapshot y servicio
+  1a2329d  Fase B — bandeja de Dirección
+  c8ea3f1  Fase C — portal del docente
+
+=====================================================================
+12. PENDIENTES
+=====================================================================
+
+  1. Ejecutar docs/migrations/011_progress_reports_tipos_plan.sql en
+     Insforge (Dirección). Sin eso, 'avance' y 'cierre_ciclo' fallan.
+  2. El docente registre clases: hoy solo 2 alumnos tienen 1 evaluación.
+     Sin 2 reportes no se habilita ningún informe.
+  3. Jeremy debe validar sus 17 criterios (draft = false) para que puedan
+     salir en informes publicados (ADR-0175, Fase 5).
+  4. Abrir el portal familia exige parentReports = true en org_settings
+     (ADR-0178), después de verificar un PDF real de 3 páginas con anexo.

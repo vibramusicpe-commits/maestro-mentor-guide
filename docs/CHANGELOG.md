@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.50] - 2026-10-23
+
+### Informe como Consolidado de Reportes de Clase, 4 Tipos y Bitácora A4 (ADR-0180)
+- **Definición rectora**: un informe es el consolidado de varios **reportes de clase** (`lesson_evaluations`) + la asistencia del periodo. **No** se alimenta de informes anteriores. Sin reportes de clase no hay informe.
+- **Cuatro tipos** (`src/lib/informes/report-kinds.ts`, fuente única): `mensual` (ciclo 8/4 clases), `trimestral`, `avance` (corte de paquete largo) y `cierre_ciclo` (paquete flexible, personalizado o retiro). La ventana mensual/trimestral es el **ciclo contractual** (`planStartDate` → `planEndDate`), no el mes calendario.
+- **Plan real desde la ficha** (`buildReportPlanContext`): `planType` / `packageTotalSessions`, nunca la columna SQL `modality` (ADR-0151). El contrato manda sobre `packageTotalSessions`: Intensivo = 4, Demo/Personalizado de 1 sesión = 1, Flexible = la bolsa, Regular = 8.
+- **Evidencia mínima y semáforo** (`report-readiness.ts`): **2** reportes de clase (1 en Demo/Personalizado), cobertura parcial ≥ 40 % y completa ≥ 70 % **solo como etiqueta**. Dedupe server-side: en Intensivo los dos bloques de 45 min de una fecha cuentan como **un** reporte. Sin mínimo, `createProgressReport` lanza `InformesValidationError`.
+- **Bitácora clase por clase** (`session-log.ts` → `content.sessionLog`, jsonb, sin columnas nuevas): fecha, horario con fin, duración, asistencia, tema, repertorio, criterios, estado, tarea y comentario, en orden cronológico. Intensivo: dos bloques de 45 min se consolidan en **una** entrada de 90 min (`09:00–10:30`).
+- **A4 con anexo desde la página 3** (`report-session-log-annex.tsx`, compartido por Dirección y portal familia): `print-page-break`, anchos `5+11+12+7+11+32+22 = 100 %`, encabezado **"Inicio del proceso"** y clases documentadas vs contratadas. Rótulo honesto vía `reportPageLabel`: `PÁGINA N DE 2 · ANEXO` cuando hay bitácora (se elimina el "PÁGINA 2 DE 2" fijo).
+- **Markdown completo**: sección `## Bitácora clase por clase` con un bloque `### Clase N · ISO · horario · asistencia` por sesión más "Inicio del proceso documentado".
+- **WhatsApp con exactamente 3 hitos**: constancia en sala, logro observado y próxima meta, con respaldo honesto cuando falta información (nunca inventa logros).
+- **Corrección de repertorio**: el tipo real es `logrado | en_proceso | pendiente | no_corresponde`; las comparaciones con `"consolidada"` eran ramas muertas y se centralizaron en `repertoireStatusLabel()`.
+- **Migración 011 pendiente de ejecutar en Insforge** (`docs/migrations/011_progress_reports_tipos_plan.sql`): habilita el CHECK de 4 tipos y el índice único parcial por alumno + tipo + ventana. Mientras no se ejecute, `avance` y `cierre_ciclo` fallan; `mensual` y `trimestral` siguen operativos.
+- **Verificación**: Fase A 40/40, Fase B 57 alumnos (0 habilitados / 57 bloqueados con mínimo 2), Fase C 11/11, Fase D **28/28** (bitácora 8/8, intensivo 90 min, 3 hitos en 4 escenarios, anexo con anchos 100 %, rutas 200). Cero datos financieros. `npm run build` en verde.
+
 ## [2.0.49] - 2026-10-23
 
 ### Criterios por Instrumento y Docente por Excepción (ADR-0179)

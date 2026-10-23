@@ -1721,3 +1721,52 @@ inferencia.
    - Prohibido duplicar un set "adaptado" a otro docente: si el especialista cambia un criterio, todos los alumnos de ese instrumento deben verlo.
 6. **Caso de calibración (2026-10-23)**: Sylvia (MASTER, Guitarra con Fernando por excepción) recibe los 8 criterios de Jeremy con `isException = true`. ALEXIS (`Guitarra clásica`, Jeremy) y Luciana (`Piano`, Fernando) resuelven por su propio set.
 7. **Verificación de referencia**: `scratch/test-criteria-exception.mjs` con datos vivos (15 escenarios, incluye cruces Jeremy+Piano, Fernando+Piano Infantil, Nathaly+Batería y el negativo Ukelele); regresión Fase 7 14/14; `npm run build` en verde. Documentación: ADR-0179 y `docs/logs/2026-10-23-criterios-instrumento-excepcion.log`.
+
+### 83. Informe como Consolidado de Reportes de Clase: 4 Tipos, Evidencia Mínima y Bitácora A4 (ADR-0180)
+
+1. **Definición rectora innegociable**:
+   - **Un informe es el consolidado de varios reportes de clase** (`lesson_evaluations`) **más la asistencia del periodo**. **NUNCA** se alimenta de informes anteriores.
+   - Sin reportes de clase **no hay informe**: no se inventa contenido pedagógico. El mínimo duro son **2 reportes** (`1` en Demo / Personalizado de una sola sesión).
+   - Está **TERMINANTEMENTE PROHIBIDO** ofrecer una "constancia de asistencia" como sustituto del mínimo.
+
+2. **Cuatro tipos de informe (`src/lib/informes/report-kinds.ts`, fuente única)**:
+   - `mensual` (Ciclo mensual): plan regular de 8 clases o intensivo de 4. Ventana = ciclo vigente.
+   - `trimestral`: vigencia completa del trimestre.
+   - `avance`: corte intermedio de un paquete largo (ej. 24 clases a demanda).
+   - `cierre_ciclo`: cierre de paquete flexible, plan personalizado o retiro del alumno.
+   - La ventana de `mensual` y `trimestral` es el **ciclo contractual** (`planStartDate` → `planEndDate`), **no** el mes calendario.
+   - Queda **PROHIBIDO** reimplementar etiquetas, pistas o colores del semáforo en un componente (ADR-0119.3): Dirección y Docente importan el mismo módulo.
+
+3. **Plan real desde la ficha (`buildReportPlanContext`)**: `planType` + `packageTotalSessions`, **nunca** la columna SQL `modality` (ADR-0151: en flexibles dice "Regular (8 clases / 45 min)").
+   - **El contrato manda sobre `packageTotalSessions`**: Intensivo = 4 (alumnos históricos traen 8 heredado), Demo = 1, Personalizado de una sesión = 1, Flexible = la bolsa contratada, Regular = 8.
+
+4. **Evidencia mínima y semáforo (`src/lib/informes/report-readiness.ts`)**:
+   - Coherencia parcial ≥ **40 %** y completa ≥ **70 %** de las clases asistidas: son **solo etiqueta**, jamás bloquean por encima del mínimo.
+   - Deduplicación del lado del servidor: en **Intensivo** los dos bloques de 45 min de una misma fecha cuentan como **un** reporte (clave = fecha); en Regular la clave es `fecha::hora`.
+   - Sin el mínimo, `createProgressReport` lanza `InformesValidationError` y la UI lo muestra con `toast.error`. El guard vive en el servicio, no solo en el botón.
+
+5. **Bitácora clase por clase (`src/lib/informes/session-log.ts` → `content.sessionLog`)**:
+   - Cada entrada: fecha, hora inicio/fin, duración, asistencia, tema trabajado, repertorio, criterios, estado general, tarea, comentario y docente. Orden **cronológico ascendente**.
+   - **Intensivo**: los dos bloques de 45 min se consolidan en **una** entrada de 90 min (`09:00–10:30`).
+   - Vive en el jsonb `content`: **PROHIBIDO** agregar columnas a `progress_reports` para esto.
+
+6. **A4 con anexo desde la página 3 (`report-session-log-annex.tsx`)**:
+   - Componente **compartido** por el diálogo de Dirección y el documento del portal familia. Prohibido duplicar la tabla (ADR-0119.3).
+   - Arranca con `print-page-break` (ADR-0137) y `colgroup` con anchos que suman 100 %: `5 + 11 + 12 + 7 + 11 + 32 + 22`.
+   - Encabezado obligatorio **"Inicio del proceso"** + clases documentadas vs contratadas + plan real.
+   - Rótulo honesto vía `reportPageLabel(page, hasAnnex)`: `PÁGINA N DE 2` sin bitácora, `PÁGINA N DE 2 · ANEXO` con bitácora. Se elimina el "PÁGINA 2 DE 2" fijo.
+   - Informes previos sin `content.sessionLog` no renderizan anexo y conservan rótulos correctos (compatibilidad hacia atrás).
+
+7. **Tres formatos, una sola fuente (`progress-report-format.ts`)**:
+   - **Markdown**: `## Bitácora clase por clase` con un bloque `### Clase N · ISO · horario · asistencia` por sesión, más "Inicio del proceso documentado".
+   - **WhatsApp**: **exactamente 3 hitos** — constancia en sala, logro observado, próxima meta — con respaldo honesto cuando falta información. **PROHIBIDO** inventar logros.
+   - Cero datos financieros en A4, anexo, Markdown, WhatsApp, bandejas y CSV.
+
+8. **Reparto de roles**:
+   - El docente **genera el borrador y lo envía a revisión** en `/teacher/informes` (gate `progressReportsV2 || isPilotTeacher`, alcance `teacherStudentList`). Solo importa `createProgressReport`, `listProgressReports` y `updateProgressReport`.
+   - **El docente NO publica**: `approveProgressReport` / `publishProgressReport` siguen siendo exclusivos de Dirección.
+   - El flujo `draft → pending → published | rejected` y la inmutabilidad de `published_snapshot` permanecen intactos.
+
+9. **Estado y bloqueo operativo**: la migración `docs/migrations/011_progress_reports_tipos_plan.sql` (CHECK de 4 tipos + índice único parcial por alumno + tipo + ventana) **aún no se ejecuta** en Insforge. Mientras no corra, la base rechaza `avance` y `cierre_ciclo`; `mensual` y `trimestral` siguen operativos. Solo lectura vía MCP: la ejecuta Dirección.
+
+10. **Verificación de referencia**: Fase A `scratch/test-fase-a-informes.mjs` 40/40; Fase B `scratch/test-fase-b-panel.mjs` 57 activos → 0 habilitados / 57 bloqueados; Fase C `scratch/test-fase-c-teacher.mjs` 11/11; Fase D `scratch/test-fase-d-documento.mjs` **28/28** (bitácora 8/8, intensivo 90 min, 3 hitos en 4 escenarios, anchos 100 %, rutas 200). `npm run build` en verde. Documentación: ADR-0180, `docs/PLAN_INFORMES_POR_TIPO_DE_PLAN.md` y `docs/logs/2026-10-23-fase-d-informes-bitacora-a4.log`.
