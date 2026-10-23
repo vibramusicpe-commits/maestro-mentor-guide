@@ -465,3 +465,41 @@ Ejecutar `docs/migrations/011_progress_reports_tipos_plan.sql` en Insforge
 PostgreSQL. Sin esa migración, el CHECK actual rechaza los dos tipos nuevos.
 La Fase A ya está desplegable: `mensual` y `trimestral` siguen funcionando
 con el guard de mínimo de 2 reportes.
+---
+
+## 15. Estado de implementación — Fase B (Bandeja de Dirección, 2026-10-23)
+
+### 15.1 Entregado (`src/components/admin/progress-reports-panel.tsx`)
+
+- **Cuatro tipos de informe** en el selector (`Ciclo mensual`, `Trimestral`,
+  `Avance`, `Cierre`) con la pista de para qué plan aplica cada uno.
+- **Ventana sugerida automática**: al elegir alumno o tipo, las fechas se
+  rellenan con `resolveReportWindow()`. Se recalcula solo cuando cambia
+  `alumno|tipo`, de modo que el ajuste manual del usuario no se pisa.
+- **Semáforo de evidencia** (rojo / naranja / ámbar / verde) con
+  `evaluated/attended` clases con reporte y el mensaje accionable.
+  Lee los reportes de clase reales con `getStudentEvaluations()`.
+- **Botón "Generar informe" bloqueado** cuando `evidence.canGenerate` es
+  false; se muestra el motivo debajo y `handleGenerate` aborta con el mismo
+  mensaje (doble defensa: UI + servicio).
+- **Filtro por tipo** en la bandeja general y en el CSV (`Tipo de periodo`
+  ahora usa `PERIOD_TYPE_LABELS`: ya no etiqueta todo como "Mensual").
+- **Etiqueta de tipo correcta** en cada fila de la bandeja.
+
+### 15.2 Verificado en runtime con datos vivos (solo lectura)
+
+`scratch/test-fase-b-panel.mjs`: filtros `mensual`/`trimestral`/`avance`/
+`cierre_ciclo` responden sin romper PostgREST; `""` equivale a sin filtro;
+cero campos financieros en la bandeja.
+
+Barrido de los **57 alumnos activos**: **0 habilitados, 57 bloqueados**, todos
+con mensaje accionable. Casos reales:
+- **Hans** (Mensual, 8 clases): 1 reporte, falta 1.
+- **Fernanda Sofía** (Mensual): 1 reporte, 3 asistencias, falta 1.
+- **Sylvia** (Paquete Flexible): 0 reportes, faltan 2.
+
+Es el comportamiento esperado: todavía no hay reportes de clase suficientes en
+producción. El botón se habilita en cuanto el docente registre el segundo.
+
+`npm run build` en verde; `npx tsc --noEmit` sin errores nuevos en los
+archivos tocados (el panel arrastra errores previos de `index signature`).

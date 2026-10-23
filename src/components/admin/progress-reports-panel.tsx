@@ -32,8 +32,19 @@ import { Input } from "@/components/ui/input";
 import { InformesRolloutCard } from "@/components/admin/informes-rollout-card";
 import { toast } from "sonner";
 import { useAppStore } from "@/store/app-store";
-import type { ProgressReportPeriodType, ProgressReportRow } from "@/lib/informes/types";
+import type {
+  LessonEvaluationRow,
+  ProgressReportPeriodType,
+  ProgressReportRow,
+} from "@/lib/informes/types";
 import { InformesValidationError, toIsoDate } from "@/lib/informes/utils";
+import {
+  buildReportPlanContext,
+  computeReportReadiness,
+  resolveReportWindow,
+} from "@/lib/informes/report-readiness";
+import { computeStudentCycleSessions } from "@/lib/kardex-calculator";
+import { getStudentEvaluations } from "@/lib/services/evaluations.service";
 import { resolveActor } from "@/lib/services/teacher-resolver";
 import {
   createProgressReport,
@@ -85,6 +96,52 @@ function resolveGuardianPhone(student: {
     ""
   );
 }
+
+/**
+ * Tipos de informe. La etiqueta corta es para los botones; la descripción
+ * explica para qué plan aplica (ver `report-readiness.ts`).
+ */
+const KIND_OPTIONS: Array<{
+  value: ProgressReportPeriodType;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: "mensual",
+    label: "Ciclo mensual",
+    hint: "Ciclo vigente: 8 clases regular o 4 intensivo.",
+  },
+  {
+    value: "trimestral",
+    label: "Trimestral",
+    hint: "Vigencia completa del plan trimestral.",
+  },
+  {
+    value: "avance",
+    label: "Avance",
+    hint: "Corte intermedio de un paquete largo (ej. 24 clases).",
+  },
+  {
+    value: "cierre_ciclo",
+    label: "Cierre",
+    hint: "Cierre de paquete flexible, personalizado o retiro del alumno.",
+  },
+];
+
+/** Etiqueta corta por tipo de informe, para listados y bandejas. */
+const PERIOD_TYPE_LABELS: Record<string, string> = {
+  mensual: "Ciclo mensual",
+  trimestral: "Trimestral",
+  avance: "Avance",
+  cierre_ciclo: "Cierre de ciclo",
+};
+
+const EVIDENCE_TONE: Record<string, string> = {
+  insuficiente: "border-red-500/40 bg-red-500/5 text-red-600",
+  basico: "border-orange-500/40 bg-orange-500/5 text-orange-600",
+  parcial: "border-amber-500/40 bg-amber-500/5 text-amber-600",
+  completo: "border-emerald-500/40 bg-emerald-500/5 text-emerald-600",
+};
 
 const STATUS_FILTERS = [
   { value: "todos", label: "Todos los estados" },
@@ -145,6 +202,11 @@ export function ProgressReportsPanel() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeReport, setActiveReport] = useState<ProgressReportRow | null>(null);
 
+  // Evidencia del alumno seleccionado: sin reportes de clase no hay informe.
+  const [studentEvaluations, setStudentEvaluations] = useState<LessonEvaluationRow[]>([]);
+  const [evaluationsLoading, setEvaluationsLoading] = useState(false);
+  const [rangeKey, setRangeKey] = useState("");
+
   // ── Fase 6: bandeja general de informes (todos los alumnos activos) ──
   const [inboxReports, setInboxReports] = useState<ProgressReportRow[]>([]);
   const [inboxLoading, setInboxLoading] = useState(false);
@@ -152,6 +214,7 @@ export function ProgressReportsPanel() {
   const [inboxStatus, setInboxStatus] = useState("todos");
   const [inboxTeacher, setInboxTeacher] = useState("todos");
   const [inboxInstrument, setInboxInstrument] = useState("todos");
+  const [inboxType, setInboxType] = useState("todos");
   const [inboxFrom, setInboxFrom] = useState("");
   const [inboxTo, setInboxTo] = useState("");
 
@@ -185,6 +248,67 @@ export function ProgressReportsPanel() {
         String(student.instrument || "").toLowerCase().includes(query),
     );
   }, [activeStudents, search]);
+
+  // ── Evidencia real: reportes de clase del alumno seleccionado ──
+  useEffect(() => {
+    let cancelled = false;
+    if (!studentId) {
+      setStudentEvaluations([]);
+      return;
+    }
+    setEvaluationsLoading(true);
+    getStudentEvaluations(studentId)
+      .then((rows) => {
+        if (!cancelled) setStudentEvaluations(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setStudentEvaluations([]);
+      })
+      .finally(() => {
+        if (!cancelled) setEvaluationsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId]);
+
+  /**
+   * Plan real, ventana sugerida y evidencia del alumno. Un informe es el
+   * consolidado de varios reportes de clase: sin el mínimo no se habilita.
+   */
+  const readiness = useMemo(() => {
+    if (!selectedStudent) return null;
+    const sessions = computeStudentCycleSessions({
+      student: selectedStudent,
+      allSchedule: selectedStudent.scheduleLessons || [],
+    });
+    const plan = buildReportPlanContext(selectedStudent, sessions, []);
+    const window = resolveReportWindow({
+      plan,
+      sessions,
+      evaluations: studentEvaluations,
+      kind: periodType,
+    });
+    const evidence = computeReportReadiness({
+      plan,
+      sessions,
+      evaluations: studentEvaluations,
+      periodStart: window.start,
+      periodEnd: window.end,
+      kind: periodType,
+    });
+    return { plan, window, evidence };
+  }, [periodType, selectedStudent, studentEvaluations]);
+
+  // La ventana sugerida se aplica al cambiar de alumno o de tipo de informe;
+  // después el usuario puede ajustar las fechas a mano.
+  useEffect(() => {
+    if (!readiness) return;
+    const key = `${studentId}|${periodType}`;
+    if (rangeKey === key) return;
+    setRange(readiness.window);
+    setRangeKey(key);
+  }, [periodType, rangeKey, readiness, studentId]);
 
   const loadReports = useCallback(async () => {
     if (!studentId) {
@@ -220,6 +344,8 @@ export function ProgressReportsPanel() {
         status: inboxStatus === "todos" ? "" : inboxStatus,
         teacherName: inboxTeacher === "todos" ? "" : inboxTeacher,
         instrument: inboxInstrument === "todos" ? "" : inboxInstrument,
+        periodType:
+          inboxType === "todos" ? "" : (inboxType as ProgressReportPeriodType),
         periodFrom: inboxFrom,
         periodTo: inboxTo,
         limit: 400,
@@ -234,7 +360,14 @@ export function ProgressReportsPanel() {
     } finally {
       setInboxLoading(false);
     }
-  }, [inboxStatus, inboxTeacher, inboxInstrument, inboxFrom, inboxTo]);
+  }, [
+    inboxStatus,
+    inboxTeacher,
+    inboxInstrument,
+    inboxType,
+    inboxFrom,
+    inboxTo,
+  ]);
 
   useEffect(() => {
     void loadInbox();
@@ -266,6 +399,7 @@ export function ProgressReportsPanel() {
     inboxStatus !== "todos" ||
     inboxTeacher !== "todos" ||
     inboxInstrument !== "todos" ||
+    inboxType !== "todos" ||
     Boolean(inboxFrom) ||
     Boolean(inboxTo);
 
@@ -273,6 +407,7 @@ export function ProgressReportsPanel() {
     setInboxStatus("todos");
     setInboxTeacher("todos");
     setInboxInstrument("todos");
+    setInboxType("todos");
     setInboxFrom("");
     setInboxTo("");
   };
@@ -304,7 +439,7 @@ export function ProgressReportsPanel() {
         report.student_name_snapshot || student?.name || "—",
         getReportInstrument(report) || student?.instrument || "—",
         report.teacher_name || "—",
-        report.period_type === "trimestral" ? "Trimestral" : "Mensual",
+        PERIOD_TYPE_LABELS[report.period_type] || report.period_type,
         report.period_start,
         report.period_end,
         STATUS_META[report.status]?.label || report.status,
@@ -344,6 +479,12 @@ export function ProgressReportsPanel() {
     }
     if (range.start > range.end) {
       toast.error("La fecha de inicio no puede ser posterior al fin.");
+      return;
+    }
+    // Un informe es el consolidado de varios reportes de clase: sin el
+    // mínimo no hay nada que consolidar.
+    if (readiness && !readiness.evidence.canGenerate) {
+      toast.error(readiness.evidence.message);
       return;
     }
 
@@ -467,29 +608,25 @@ export function ProgressReportsPanel() {
               Periodo del informe
             </span>
             <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => setPeriodType("mensual")}
-                className={`rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-all ${
-                  periodType === "mensual"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Mensual
-              </button>
-              <button
-                type="button"
-                onClick={() => setPeriodType("trimestral")}
-                className={`rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-all ${
-                  periodType === "trimestral"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Trimestral
-              </button>
+              {KIND_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setPeriodType(option.value)}
+                  title={option.hint}
+                  className={`rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-all ${
+                    periodType === option.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
+            <p className="text-[10px] leading-snug text-muted-foreground">
+              {KIND_OPTIONS.find((option) => option.value === periodType)?.hint}
+            </p>
             <div className="grid grid-cols-2 gap-1.5">
               <Input
                 type="date"
@@ -510,6 +647,25 @@ export function ProgressReportsPanel() {
                 aria-label="Fin del periodo"
               />
             </div>
+            {readiness && (
+              <div
+                className={`flex items-start gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] leading-snug ${
+                  EVIDENCE_TONE[readiness.evidence.level] ||
+                  EVIDENCE_TONE["insuficiente"]
+                }`}
+              >
+                <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-current" />
+                <span>
+                  <strong>{readiness.evidence.label}</strong>
+                  {readiness.plan.planType ? ` · ${readiness.plan.planType}` : ""}
+                  {` · ${readiness.evidence.evaluated}/${readiness.evidence.attended} clases con reporte`}
+                  <br />
+                  {evaluationsLoading
+                    ? "Leyendo reportes de clase…"
+                    : readiness.evidence.message}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -535,7 +691,12 @@ export function ProgressReportsPanel() {
               type="button"
               size="sm"
               onClick={() => void handleGenerate()}
-              disabled={creating || !studentId}
+              disabled={creating || !studentId || readiness?.evidence.canGenerate === false}
+              title={
+                readiness && !readiness.evidence.canGenerate
+                  ? readiness.evidence.message
+                  : undefined
+              }
               className="h-8 gap-1.5 text-[11px] font-bold"
             >
               {creating ? (
@@ -547,6 +708,12 @@ export function ProgressReportsPanel() {
             </Button>
           </div>
         </div>
+        {readiness && !readiness.evidence.canGenerate && (
+          <p className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/5 px-2 py-1.5 text-[10px] font-semibold leading-snug text-amber-700">
+            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+            <span>{readiness.evidence.message}</span>
+          </p>
+        )}
       </div>
 
       {loadError && (
@@ -660,7 +827,7 @@ export function ProgressReportsPanel() {
           </div>
         </div>
 
-        <div className="mt-3 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-[1.1fr_1fr_1fr_auto_auto]">
+        <div className="mt-3 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-[1.1fr_1fr_1fr_1fr_auto_auto]">
           <select
             value={inboxStatus}
             onChange={(event) => setInboxStatus(event.target.value)}
@@ -668,6 +835,20 @@ export function ProgressReportsPanel() {
             className="h-9 rounded-lg border border-border bg-background px-2 text-[11px] font-bold text-foreground"
           >
             {STATUS_FILTERS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={inboxType}
+            onChange={(event) => setInboxType(event.target.value)}
+            aria-label="Filtrar por tipo de informe"
+            className="h-9 rounded-lg border border-border bg-background px-2 text-[11px] font-bold text-foreground"
+          >
+            <option value="todos">Todos los tipos</option>
+            {KIND_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -799,7 +980,7 @@ export function ProgressReportsPanel() {
                     </span>
                   </p>
                   <p className="truncate text-[10px] text-muted-foreground">
-                    {report.period_type === "trimestral" ? "Trimestre" : "Mes"} ·{" "}
+                    {PERIOD_TYPE_LABELS[report.period_type] || report.period_type} ·{" "}
                     {formatIsoDateShort(report.period_start)} –{" "}
                     {formatIsoDateShort(report.period_end)} · Docente:{" "}
                     {report.teacher_name || "—"}

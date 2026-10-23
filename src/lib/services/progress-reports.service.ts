@@ -495,7 +495,7 @@ export interface ProgressReportListFilters {
   status?: string;
   teacherName?: string;
   instrument?: string;
-  periodType?: ProgressReportPeriodType;
+  periodType?: ProgressReportPeriodType | "";
   periodFrom?: string;
   periodTo?: string;
   limit?: number;
