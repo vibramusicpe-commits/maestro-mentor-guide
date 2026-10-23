@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.48] - 2026-10-23
+
+### Fase 7: Kill Switch, Portal Familia Cerrado por Defecto y Tablero de Despliegue (ADR-0178)
+- **Kill switch de build** (`src/lib/features.ts`): `VITE_FEATURE_INFORMES=false` apaga bandeja, pestaña de Informes y portal familia aunque PostgreSQL tenga los flags encendidos. `true`/ausente no fuerza nada.
+- **Resolución pura** `resolveProgressReportsAccess(envEnabled, flags, pilotList)` en `feature-flags.service.ts`; `getProgressReportsAccess()` solo consulta PostgreSQL y delega. Ante error, todo cerrado.
+- **Portal familia cerrado por defecto**: `useInformesAccess()` nuevo; `family.tsx` no monta la pestaña «Progreso» sin `parentReports = true`; `/family/progreso` muestra «Aún no disponible» y no consulta informes.
+- **Tablero de despliegue** (`InformesRolloutCard`, solo lectura) al inicio de la pestaña «Informes» en `/admin/alumnos`: flags reales, docentes en piloto, criterios en borrador por instrumento y checklist de apertura.
+- **`getDraftCriteriaFields()`** en `evaluations.service.ts` para listar los criterios activos con `ui_config.draft = true` (hoy 17: Guitarra 8, Batería 9).
+- **El flujo legacy de notas a familia NO se retira**: `lesson-notes.tsx` y `teacher-notes-moderation.tsx` siguen intactos; `students.notes` queda legacy de solo lectura y `notification_logs` no se toca.
+- **Verificación**: `scratch/test-fase7-rollout.mjs` 14/14 sin escribir en la base; `npm run build` en verde; rutas `/`, `/admin/alumnos`, `/family`, `/family/progreso` y `/teacher` en 200.
+
 ## [2.0.47] - 2026-10-22
 
 ### Rediseño UI/UX Portal Docente Móvil — 9 puntos (ADR-0177)

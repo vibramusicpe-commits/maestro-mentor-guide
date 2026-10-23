@@ -1661,3 +1661,36 @@ inferencia.
     - `npm run build` en verde (✓ 2.24 s). Rutas `/teacher*` → 200.
     - Criterio de aceptación 390×844: primera pantalla con cabecera, tira de días y próxima clase + botón registrar, sin scroll.
     - Documentación: ADR-0177, CHANGELOG 2.0.47, `docs/logs/2026-10-22-ui-portal-docente.log`.
+
+### 81. Fase 7: Kill Switch de Build, Portal Familia Cerrado por Defecto y Tablero de Despliegue (ADR-0178)
+
+1. **Kill switch de build (`src/lib/features.ts`)**:
+   - `VITE_FEATURE_INFORMES=false` apaga **todo** el módulo de Informes en ese build: bandeja de Dirección, pestaña «Informes» y portal familia de progreso, aunque PostgreSQL tenga los flags encendidos.
+   - `true` o ausente **no fuerza nada**: la decisión real vive en `org_settings` (`feature_flags` + `pilot_teacher_ids`).
+   - Queda **TERMINANTEMENTE PROHIBIDO** agregar un «forzar encendido» por variable de entorno: abrir el portal familia exige `parentReports = true` en PostgreSQL.
+2. **Resolución pura y testeable (`feature-flags.service.ts`)**:
+   - `resolveProgressReportsAccess(envEnabled, flags, pilotList)` concentra la matriz de decisión sin red.
+   - `getProgressReportsAccess()` solo consulta PostgreSQL y delega en la función pura. Ante cualquier error, todo cerrado.
+3. **Portal familia cerrado por defecto**:
+   - `useInformesAccess()` (`src/hooks/use-informes-access.ts`) resuelve `panel` y `family` por montaje, con el kill switch por encima.
+   - `family.tsx` **no monta** la pestaña «Progreso» si `family = false`.
+   - `/family/progreso` muestra «Informes de progreso aún no disponibles» y **no consulta** informes publicados cuando está apagado.
+   - `family = true` solo con `parentReports = true`.
+4. **Tablero de despliegue de solo lectura (`InformesRolloutCard`)**:
+   - Se muestra al inicio de la pestaña «Informes» en `/admin/alumnos`.
+   - Expone: bandeja de Dirección (flag/piloto/apagada), portal familia, docentes en piloto por nombre, criterios en borrador agrupados por instrumento y checklist dinámico de apertura.
+   - **No escribe flags ni publica nada**. Cero datos financieros.
+5. **El flujo legacy de notas a familia NO se retira (decisión de Dirección, 2026-10-23)**:
+   - `lesson-notes.tsx` y `teacher-notes-moderation.tsx` permanecen intactos y accesibles en la pestaña «Notas a Familias».
+   - `students.notes` sigue siendo legacy de **solo lectura** y `notification_logs` no se toca.
+   - La Fase 7 no borra ni migra notas existentes.
+6. **Fuera de alcance**: el «Comunicado General» (`publicNote` global en Zustand/localStorage) no se modifica. Queda pendiente decidir si se retira o se migra a `family_notes` con moderación.
+7. **Procedimiento oficial de apertura a familias**:
+   1. Jeremy valida sus 17 criterios (Guitarra 8, Batería 9) → `draft = false`, `visible_in_report = true`.
+   2. Dirección publica el primer informe de un alumno del piloto.
+   3. Se verifica el PDF A4 (2 páginas, sin cortes).
+   4. Se activa `parentReports = true` en `org_settings.feature_flags`.
+   5. La familia confirma que ve la pestaña «Progreso» y el PDF.
+   6. Recién entonces se abre a todas las familias.
+   - Abrir o cerrar **no requiere desplegar** (efecto en ≤ 30 s). El kill switch sí exige un build con `VITE_FEATURE_INFORMES=false`.
+8. **Verificación de referencia**: `scratch/test-fase7-rollout.mjs` **14/14** en runtime sin escribir en la base (acceso por piloto, familia cerrada, 17 borradores, sin `is_test`, sin campos financieros, kill switch y matriz de 4 escenarios); `npm run build` en verde; rutas `/`, `/admin/alumnos`, `/family`, `/family/progreso` y `/teacher` en 200.

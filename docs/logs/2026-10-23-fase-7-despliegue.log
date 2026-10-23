@@ -1,0 +1,142 @@
+FASE 7 — KILL SWITCH, PORTAL FAMILIA CERRADO POR DEFECTO Y TABLERO DE DESPLIEGUE
+Fecha: 2026-10-23
+ADR: docs/adr/0178-fase-7-kill-switch-portal-familia-y-tablero-despliegue.md
+Rama: main
+
+=====================================================================
+1. CONTEXTO DE PARTIDA
+=====================================================================
+
+Fases 1 a 6 ya implementadas y desplegadas (Fase 6 en commit af469c4).
+El usuario indicó expresamente que las NOTAS A FAMILIA funcionan bien y
+NO deben retirarse. Ese punto del plan original de Fase 7 queda anulado.
+
+Estado real auditado en PostgreSQL Insforge (solo lectura):
+
+  feature_flags ............ los 4 flags en false
+  pilot_teacher_ids ........ Jeremy, Fernando, Nathaly
+  evaluation_fields ........ 49 validados + 17 en borrador
+                             (Guitarra 8, Batería 9)
+  progress_reports ......... 0 filas
+  parentReports ............ false
+
+Huecos detectados:
+  a) La pestaña «Progreso» del portal familia se renderizaba siempre,
+     aunque parentReports = false, y /family/progreso era accesible por
+     URL directa.
+  b) No existía kill switch de build.
+  c) No había un lugar único donde Dirección viera qué falta para abrir
+     el portal familia.
+
+=====================================================================
+2. CAMBIOS
+=====================================================================
+
+NUEVOS
+  src/lib/features.ts
+    - FEATURES.informes = lectura de VITE_FEATURE_INFORMES.
+    - isInformesEnabledByEnv(): false SOLO con el valor explícito "false".
+    - No existe forzar encendido por entorno.
+
+  src/hooks/use-informes-access.ts
+    - Hook que resuelve { panel, family, source, loading }.
+    - Ante error o kill switch: todo cerrado.
+
+  src/components/admin/informes-rollout-card.tsx
+    - Tablero de despliegue de solo lectura.
+    - Muestra flags reales, docentes en piloto, criterios en borrador
+      agrupados por instrumento y checklist de apertura.
+    - Cero datos financieros. No escribe nada.
+
+  docs/adr/0178-fase-7-kill-switch-portal-familia-y-tablero-despliegue.md
+
+MODIFICADOS
+  src/lib/services/feature-flags.service.ts
+    - Nueva función pura resolveProgressReportsAccess(envEnabled, flags,
+      pilotList).
+    - getProgressReportsAccess() consulta PostgreSQL y delega.
+    - Kill switch aplicado en la resolución.
+
+  src/lib/services/evaluations.service.ts
+    - getDraftCriteriaFields(): criterios activos con ui_config.draft = true.
+
+  src/routes/family.tsx
+    - Pestaña «Progreso» construida condicionalmente con familyTabs.
+
+  src/routes/family.progreso.tsx
+    - Gate con useInformesAccess.
+    - Estado «Informes de progreso aún no disponibles» + enlace al inicio.
+    - El efecto no consulta informes cuando está apagado.
+
+  src/components/admin/progress-reports-panel.tsx
+    - Monta <InformesRolloutCard /> antes de la bandeja general.
+
+  AGENTS.md ...................................... sección 81
+  docs/CHANGELOG.md .............................. versión 2.0.48
+  docs/logs/2026-10-23-fase-7-despliegue.log ..... este archivo
+
+NO TOCADO (por decisión expresa)
+  src/components/teacher/lesson-notes.tsx
+  src/components/admin/teacher-notes-moderation.tsx
+  students.notes (legacy de solo lectura)
+  notification_logs
+  app-store.ts, kardex-calculator.ts, student-cycle.ts
+
+=====================================================================
+3. VERIFICACIÓN EN RUNTIME
+=====================================================================
+
+scratch/test-fase7-rollout.mjs (no se commitea) — 14/14 OK, sin escrituras:
+
+  OK  Sin variable de entorno, informes habilitado
+  OK  Bandeja Dirección abierta por piloto | source=pilot
+  OK  Portal familia APAGADO (parentReports=false)
+  OK  Origen del acceso = piloto | source=pilot
+  OK  Criterios en borrador = 17 | total=17
+  OK  Guitarra en borrador = 8 | n=8
+  OK  Batería en borrador = 9 | n=9
+  OK  Listado de publicados sin errores | n=0
+  OK  Ningún informe de prueba (is_test) en el listado
+  OK  Cero campos financieros en el listado
+  OK  Kill switch cierra bandeja y portal familia
+  OK  Con flag global, bandeja y familia abiertas | source=flag
+  OK  Piloto abre bandeja y mantiene familia cerrada
+  OK  Sin flags ni pilotos, todo cerrado
+
+npm run build ................ en verde
+Rutas en dev (200):
+  / .................. 200
+  /admin/alumnos ..... 200
+  /family ............ 200
+  /family/progreso ... 200
+  /teacher ........... 200
+
+=====================================================================
+4. PENDIENTES PARA ABRIR A FAMILIAS
+=====================================================================
+
+  1. Jeremy valida sus 17 criterios (Guitarra 8, Batería 9).
+     Mientras ui_config.draft = true, la Fase 5 bloquea publicar
+     cualquier informe que los incluya.
+  2. Publicar el primer informe de un alumno del piloto.
+  3. Revisar el PDF A4 (2 páginas, sin cortes de tabla).
+  4. Activar parentReports = true en org_settings.feature_flags.
+  5. Confirmar con la familia que ve «Progreso» y el PDF.
+  6. Recién entonces abrir a todas las familias.
+
+Abrir o cerrar no requiere desplegar (caché de flags 30 s).
+El kill switch sí requiere build con VITE_FEATURE_INFORMES=false.
+
+Fuera de alcance: «Comunicado General» (publicNote global). Queda
+pendiente decidir si se retira del piloto o se migra a family_notes
+con moderación.
+
+=====================================================================
+5. ROLLBACK
+=====================================================================
+
+  - Cerrar el módulo sin desplegar: dejar progressReportsV2 = false,
+    parentReports = false y pilot_teacher_ids = [] en org_settings.
+  - Apagado total por build: VITE_FEATURE_INFORMES=false.
+  - El flujo legacy de notas a familia nunca se tocó, así que sigue
+    disponible en cualquier escenario.
