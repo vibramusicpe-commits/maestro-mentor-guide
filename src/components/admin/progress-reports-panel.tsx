@@ -39,6 +39,11 @@ import type {
 } from "@/lib/informes/types";
 import { InformesValidationError, toIsoDate } from "@/lib/informes/utils";
 import {
+  EVIDENCE_TONE as EVIDENCE_TONE_MAP,
+  PERIOD_TYPE_LABELS,
+  REPORT_KIND_OPTIONS,
+} from "@/lib/informes/report-kinds";
+import {
   buildReportPlanContext,
   computeReportReadiness,
   resolveReportWindow,
@@ -99,49 +104,12 @@ function resolveGuardianPhone(student: {
 
 /**
  * Tipos de informe. La etiqueta corta es para los botones; la descripción
- * explica para qué plan aplica (ver `report-readiness.ts`).
+ * explica para qué plan aplica. Viven en `report-kinds.ts` para que la
+ * bandeja de Dirección y el portal del docente nunca diverjan.
  */
-const KIND_OPTIONS: Array<{
-  value: ProgressReportPeriodType;
-  label: string;
-  hint: string;
-}> = [
-  {
-    value: "mensual",
-    label: "Ciclo mensual",
-    hint: "Ciclo vigente: 8 clases regular o 4 intensivo.",
-  },
-  {
-    value: "trimestral",
-    label: "Trimestral",
-    hint: "Vigencia completa del plan trimestral.",
-  },
-  {
-    value: "avance",
-    label: "Avance",
-    hint: "Corte intermedio de un paquete largo (ej. 24 clases).",
-  },
-  {
-    value: "cierre_ciclo",
-    label: "Cierre",
-    hint: "Cierre de paquete flexible, personalizado o retiro del alumno.",
-  },
-];
+const KIND_OPTIONS = REPORT_KIND_OPTIONS;
 
-/** Etiqueta corta por tipo de informe, para listados y bandejas. */
-const PERIOD_TYPE_LABELS: Record<string, string> = {
-  mensual: "Ciclo mensual",
-  trimestral: "Trimestral",
-  avance: "Avance",
-  cierre_ciclo: "Cierre de ciclo",
-};
-
-const EVIDENCE_TONE: Record<string, string> = {
-  insuficiente: "border-red-500/40 bg-red-500/5 text-red-600",
-  basico: "border-orange-500/40 bg-orange-500/5 text-orange-600",
-  parcial: "border-amber-500/40 bg-amber-500/5 text-amber-600",
-  completo: "border-emerald-500/40 bg-emerald-500/5 text-emerald-600",
-};
+const EVIDENCE_TONE = EVIDENCE_TONE_MAP;
 
 const STATUS_FILTERS = [
   { value: "todos", label: "Todos los estados" },

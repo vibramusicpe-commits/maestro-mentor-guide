@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, X, UserCheck, Phone, Clock, AlertCircle, Sparkles } from "lucide-react";
@@ -231,6 +231,15 @@ function TeacherStudents() {
         </span>
       </div>
 
+      {/* Acceso directo a mis informes de progreso (sin elegir alumno) */}
+      <Link
+        to="/teacher/informes"
+        className="flex min-h-[44px] items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground transition-colors hover:border-primary/50"
+      >
+        <span>📄 Mis informes de progreso</span>
+        <span className="text-xs font-black text-primary">Abrir ›</span>
+      </Link>
+
       {/* 🔎 Búsqueda primero: sin scroll para encontrar al alumno */}
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
@@ -396,6 +405,14 @@ function TeacherStudents() {
                   >
                     📖 Kardex
                   </button>
+                  <Link
+                    to="/teacher/informes"
+                    search={{ student: s.id }}
+                    className="flex min-h-[44px] items-center rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-black text-foreground transition-colors hover:border-primary/50"
+                    title="Generar borrador del informe de progreso con mis reportes de clase"
+                  >
+                    📄 Informe
+                  </Link>
                   <span
                     className={`text-xs font-bold ${
                       s.attendanceRate > 0 ? "text-success" : "text-muted-foreground"

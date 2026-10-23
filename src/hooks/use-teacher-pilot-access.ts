@@ -14,6 +14,8 @@ export interface TeacherPilotAccess {
   familyNoteAccess: boolean;
   /** Nota interna a Dirección (Fase 4). */
   internalNoteAccess: boolean;
+  /** Informes de progreso del docente (Fase C del plan por tipo de plan). */
+  progressReportsAccess: boolean;
   /** El docente está en `org_settings.pilot_teacher_ids`. */
   isPilotTeacher: boolean;
   /** Al menos un flag global de las fases 2-4 está encendido. */
@@ -25,6 +27,7 @@ const EMPTY_ACCESS: TeacherPilotAccess = {
   classLogAccess: false,
   familyNoteAccess: false,
   internalNoteAccess: false,
+  progressReportsAccess: false,
   isPilotTeacher: false,
   v2FlagsOn: false,
 };
@@ -67,6 +70,9 @@ export function useTeacherPilotAccess(teacherId?: string | null): TeacherPilotAc
           classLogAccess: Boolean(flags.evaluationsV2 || isPilotTeacher),
           familyNoteAccess: Boolean(familyAccess.teacher),
           internalNoteAccess: Boolean(internalAccess.teacher),
+          progressReportsAccess: Boolean(
+            flags.progressReportsV2 || isPilotTeacher,
+          ),
           isPilotTeacher,
           v2FlagsOn: Boolean(
             flags.evaluationsV2 || flags.familyNotesV2 || flags.progressReportsV2,

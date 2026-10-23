@@ -503,3 +503,46 @@ producción. El botón se habilita en cuanto el docente registre el segundo.
 
 `npm run build` en verde; `npx tsc --noEmit` sin errores nuevos en los
 archivos tocados (el panel arrastra errores previos de `index signature`).
+---
+
+## 16. Estado de implementación — Fase C (Portal del docente, 2026-10-23)
+
+### 16.1 Entregado
+
+| Archivo | Cambio |
+|---|---|
+| `src/lib/informes/report-kinds.ts` | Nuevo. Fuente única de los 4 tipos (etiqueta, pista), etiquetas de listado y colores del semáforo. Dirección y Docente lo importan; prohibido duplicarlo. |
+| `src/components/teacher/teacher-progress-reports.tsx` | Nuevo. El docente elige **uno de sus alumnos activos**, ve plan/ventana/semáforo, genera el borrador, escribe las 4 secciones y lo **envía a revisión**. Nunca publica. |
+| `src/routes/teacher.informes.tsx` | Nuevo. Ruta `/teacher/informes` con `?student=<uuid>` para llegar con el alumno preseleccionado. |
+| `src/routes/teacher.alumnos.tsx` | Botón **📄 Informe** por alumno (link con `?student=`) y acceso **📄 Mis informes de progreso** en la cabecera. |
+| `src/hooks/use-teacher-pilot-access.ts` | Nuevo campo `progressReportsAccess` (`progressReportsV2` o docente en `pilot_teacher_ids`). |
+| `src/components/admin/progress-reports-panel.tsx` | Pasa a consumir `report-kinds.ts` (sin listas locales). |
+
+### 16.2 Reglas respetadas
+
+- **El docente no publica**: el componente solo importa `createProgressReport`,
+  `listProgressReports` y `updateProgressReport`. Publicar sigue siendo
+  exclusivo de Dirección (`approveProgressReport`/`publishProgressReport`).
+- `updateProgressReport` ya limita el estado a `draft` o `pending`; el
+  envío a revisión exige al menos una sección escrita.
+- **Alcance**: solo `teacherStudentList` (sus alumnos activos); nunca la base
+  completa. La lista de "Mis informes" se filtra por esa misma lista de UUID.
+- **Misma evidencia que Dirección**: `buildReportPlanContext` +
+  `resolveReportWindow` + `computeReportReadiness`. Si divergieran, el
+  docente generaría un informe que Dirección no podría conciliar.
+- Mínimo 2 reportes de clase (1 en Demo/Personalizado) antes de generar.
+- Cero datos financieros; identidad por UUID; nada de `localStorage`.
+
+### 16.3 Verificado en runtime (`scratch/test-fase-c-teacher.mjs`, 11/11)
+
+- Gate abierto para **Jeremy, Nathaly y Fernando** (los 3 están en el piloto).
+- **Jeremy**: 24 alumnos activos propios de 57 totales → el alcance excluye a
+  los otros 33 (control negativo incluido).
+- El componente **no importa** aprobar, publicar ni rechazar; solo guarda
+  `draft`/`pending`.
+- La evidencia resuelve para 8/8 alumnos muestreados.
+- `/teacher/informes` en HTTP 200.
+
+Rutas verificadas en vivo: `/`, `/teacher`, `/teacher/alumnos`,
+`/teacher/informes`, `/admin/alumnos` y `/family` → 200.
+`npm run build` en verde.
