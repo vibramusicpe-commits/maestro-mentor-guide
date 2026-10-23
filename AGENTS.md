@@ -1694,3 +1694,30 @@ inferencia.
    6. Recién entonces se abre a todas las familias.
    - Abrir o cerrar **no requiere desplegar** (efecto en ≤ 30 s). El kill switch sí exige un build con `VITE_FEATURE_INFORMES=false`.
 8. **Verificación de referencia**: `scratch/test-fase7-rollout.mjs` **14/14** en runtime sin escribir en la base (acceso por piloto, familia cerrada, 17 borradores, sin `is_test`, sin campos financieros, kill switch y matriz de 4 escenarios); `npm run build` en verde; rutas `/`, `/admin/alumnos`, `/family`, `/family/progreso` y `/teacher` en 200.
+
+### 82. Criterios por Instrumento y Docente por Excepción (ADR-0179)
+
+1. **Fuente única del mapeo (`src/lib/informes/instrument-specialists.ts`)**:
+   - `instrumentFamily()` normaliza la ficha a la familia del instrumento: `guitarra` (incluye clásica y eléctrica), `bateria`, `piano`, `piano infantil`, `violin`, `canto`.
+   - `INSTRUMENT_SPECIALISTS` define el docente dueño de los criterios de cada familia: Jeremy → Guitarra/Batería; Fernando → Piano/Violín; Nathaly → Canto/Piano Infantil.
+   - Queda **TERMINANTEMENTE PROHIBIDO** reimplementar esta tabla o la normalización en otra vista o servicio.
+2. **Regla de resolución en `getCriteria()`**:
+   1. Filtros comunes: activo, familia de instrumento, programa y edad.
+   2. Se usan plantillas globales (`owner_teacher_id = null`) y las del propio docente.
+   3. Si el docente no tiene set para ese instrumento (docente por excepción), se usa el set del **especialista**, sin mezclar filas.
+   4. Si el instrumento no tiene especialista mapeado, se devuelve `[]` y la UI muestra "Aún no hay criterios configurados para {instrumento}".
+   - Está **PROHIBIDO** fusionar el set propio con el del especialista: se elige uno u otro para no duplicar etiquetas ni inflar informes.
+3. **Piano ≠ Piano Infantil**:
+   - Son familias distintas y currículos distintos (Fernando vs Nathaly). No se agrupan ni comparten `field_key`.
+   - `Guitarra clásica` y `Guitarra eléctrica` sí comparten el set de `Guitarra`.
+4. **Trazabilidad obligatoria en el registro de clase (`class-log.tsx`)**:
+   - Si `resolveCriteriaSource()` detecta `isException`, se muestra la píldora: *"Criterios de {instrumento} definidos por el especialista {nombre}. Se aplican por excepción…"*.
+   - Todo criterio con `ui_config.draft = true` lleva chip **Borrador** y un banner con el conteo: se puede registrar en clase, pero **no sale en informes** hasta la validación del especialista (ADR-0175, Fase 5).
+   - El mensaje de vacío es dinámico por instrumento. Se eliminó el texto muerto de "pendientes de levantamiento con el Prof. Jeremy".
+5. **Política para casos futuros (escuela en producción)**:
+   - Docente nuevo dictando un instrumento existente → hereda el set del especialista, marcado como excepción. Cero código nuevo.
+   - Instrumento nuevo → 0 criterios + mensaje; para habilitarlo se agrega la familia a `INSTRUMENT_SPECIALISTS` y se siembran sus filas.
+   - Docente nuevo con especialidad propia → se agrega al mapa y se siembran sus criterios.
+   - Prohibido duplicar un set "adaptado" a otro docente: si el especialista cambia un criterio, todos los alumnos de ese instrumento deben verlo.
+6. **Caso de calibración (2026-10-23)**: Sylvia (MASTER, Guitarra con Fernando por excepción) recibe los 8 criterios de Jeremy con `isException = true`. ALEXIS (`Guitarra clásica`, Jeremy) y Luciana (`Piano`, Fernando) resuelven por su propio set.
+7. **Verificación de referencia**: `scratch/test-criteria-exception.mjs` con datos vivos (15 escenarios, incluye cruces Jeremy+Piano, Fernando+Piano Infantil, Nathaly+Batería y el negativo Ukelele); regresión Fase 7 14/14; `npm run build` en verde. Documentación: ADR-0179 y `docs/logs/2026-10-23-criterios-instrumento-excepcion.log`.

@@ -4,6 +4,16 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.49] - 2026-10-23
+
+### Criterios por Instrumento y Docente por Excepción (ADR-0179)
+- **Fuente única** `src/lib/informes/instrument-specialists.ts`: familia de instrumento, mapa instrumento → especialista (Jeremy → Guitarra/Batería, Fernando → Piano/Violín, Nathaly → Canto/Piano Infantil), `resolveCriteriaSource()` e `isDraftCriterion()`.
+- **`getCriteria()` con fallback**: si el docente no tiene set del instrumento, usa el del especialista sin mezclar filas; instrumento sin especialista → lista vacía con mensaje.
+- **Piano ≠ Piano Infantil** se mantienen como familias separadas; `Guitarra clásica`/`eléctrica` comparten el set de Guitarra.
+- **Registro de clase**: píldora de excepción con instrumento y especialista, chip **Borrador** por criterio y banner con conteo; mensaje de vacío dinámico. Se eliminó el texto muerto de "pendientes de levantamiento con el Prof. Jeremy".
+- **Caso real**: Sylvia (Guitarra con Fernando por excepción) recibe los 8 criterios de Jeremy; ALEXIS y Luciana resuelven por su propio set.
+- **Verificación**: `scratch/test-criteria-exception.mjs` 15 escenarios contra PostgreSQL vivo; regresión Fase 7 14/14; `npm run build` en verde.
+
 ## [2.0.48] - 2026-10-23
 
 ### Fase 7: Kill Switch, Portal Familia Cerrado por Defecto y Tablero de Despliegue (ADR-0178)

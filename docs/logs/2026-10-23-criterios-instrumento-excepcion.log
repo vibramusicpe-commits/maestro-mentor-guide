@@ -1,0 +1,141 @@
+CRITERIOS POR INSTRUMENTO Y DOCENTE POR EXCEPCIÓN
+Fecha: 2026-10-23
+ADR: docs/adr/0179-criterios-por-instrumento-docente-excepcion.md
+Rama: main
+Alcance: registro de clase (`/teacher`), sin tocar datos de alumnos ni facturación
+
+=====================================================================
+1. MOTIVO
+=====================================================================
+
+`getCriteria()` filtraba por `owner_teacher_id` estricto. Correcto para no
+mezclar Canto con Piano, pero dejaba sin criterios a un docente dictando un
+instrumento que no es su especialidad.
+
+Caso real detectado en producción:
+
+  Sylvia (MASTER) — Guitarra — Prof. Fernando (por excepción)
+  → 0 criterios → mensaje genérico
+
+Dirección pidió una regla que cubra también casos futuros (otro alumno, otro
+docente u otro instrumento), sin duplicar listas.
+
+=====================================================================
+2. ESTADO DE PRODUCCIÓN VERIFICADO (solo lectura, MCP Insforge)
+=====================================================================
+
+Matriz de criterios (6 sets, 66 filas):
+
+  Jeremy   · Guitarra        ·  8 · borrador
+  Jeremy   · Batería         ·  9 · borrador
+  Fernando · Piano           · 12 · validado
+  Fernando · Violín          · 13 · validado
+  Nathaly  · Canto           · 12 · validado
+  Nathaly  · Piano Infantil  · 12 · validado
+
+Fichas actualizadas por Dirección (verificadas en vivo):
+
+  ALEXIS                    · Guitarra clásica · Jeremy   → 8 (familia guitarra)
+  Luciana Mendoza Gómez     · Piano            · Fernando → 12
+  Sylvia                    · Guitarra         · Fernando → antes 0 (excepción)
+
+Cobertura posterior: 55/55 alumnos activos con criterios, salvo instrumentos
+sin set (p. ej. Estimulación Musical, sin UUID de Claudia en TEACHER_IDS).
+
+=====================================================================
+3. CAMBIOS DE CÓDIGO
+=====================================================================
+
+NUEVO
+  src/lib/informes/instrument-specialists.ts
+    - instrumentFamily()            guitarra / bateria / piano / piano infantil
+                                    / violin / canto
+    - INSTRUMENT_SPECIALISTS        familia → { teacherId, teacherName }
+    - resolveSpecialistTeacherId() / resolveSpecialistTeacherName()
+    - resolveCriteriaSource()       dueño de las filas + isException
+    - isDraftCriterion()            ui_config.draft === true
+
+MODIFICADOS
+  src/lib/services/evaluations.service.ts
+    - getCriteria(): filtros comunes → set propio + globales → si está vacío,
+      set del especialista → si no hay especialista, [].
+    - No fusiona listas: elige una u otra (evita etiquetas duplicadas).
+    - Eliminada la copia local de instrumentFamily (ahora fuente única).
+
+  src/lib/services/teacher-resolver.ts
+    - NAME_BY_ID + resolveTeacherNameById() para nombrar al especialista
+      sin depender de que el nombre viaje en la fila.
+
+  src/components/teacher/class-log.tsx
+    - Píldora de excepción con instrumento y especialista.
+    - Chip "Borrador" por criterio + banner con el conteo.
+    - Mensaje vacío dinámico: "Aún no hay criterios configurados para {X}".
+    - Eliminado el mensaje muerto de Jeremy (nunca se mostraba: sus filas
+      existen desde la migración 010).
+
+NO TOCADO
+  app-store.ts, kardex-calculator.ts, student-cycle.ts, facturación,
+  asistencias, students.notes, notification_logs, flujo legacy de notas.
+
+=====================================================================
+4. REGLA PARA CASOS FUTUROS
+=====================================================================
+
+  Docente nuevo dictando instrumento existente → hereda set del especialista
+  y se marca la excepción. No requiere código nuevo.
+
+  Alumno nuevo con instrumento existente → resuelve por familia. Nada que hacer.
+
+  Instrumento nuevo → 0 criterios + mensaje. Para habilitarlo: agregar la
+  familia a INSTRUMENT_SPECIALISTS y sembrar sus filas en evaluation_fields.
+
+  Docente nuevo con especialidad propia → agregarlo al mapa y sembrar sus
+  criterios.
+
+  Prohibido duplicar un set para "adaptarlo" a otro docente: si Jeremy cambia
+  sus 8 de Guitarra, todos los alumnos de Guitarra deben ver el cambio.
+
+=====================================================================
+5. VERIFICACIÓN EN RUNTIME
+=====================================================================
+
+scratch/test-criteria-exception.mjs (no se commitea) — todas OK:
+
+  Sylvia (Guitarra · Fernando) ......... 8 · dueño Jeremy · excepción · 8 borradores
+  ALEXIS (Guitarra clásica · Jeremy) ... 8 · dueño Jeremy · sin excepción
+  Luciana (Piano · Fernando) ........... 12 · dueño Fernando
+  Fernando / Violín .................... 13 · dueño Fernando
+  Jeremy / Batería ..................... 9 · dueño Jeremy · 9 borradores
+  Nathaly / Canto ...................... 12 · dueño Nathaly
+  Ethan / Piano Infantil ............... 12 · dueño Nathaly
+  Guitarra eléctrica / Jeremy .......... 8 (misma familia)
+  Jeremy + Piano (excepción) ........... 12 · dueño Fernando · excepción
+  Fernando + Piano Infantil (excepción)  12 · dueño Nathaly · excepción
+  Nathaly + Batería (excepción) ........ 9 · dueño Jeremy · excepción
+  Ukelele (sin especialista) ........... 0
+  Piano vs Piano Infantil .............. 0 field_key en común
+  Guitarra por excepción ............... 0 filas de Fernando mezcladas
+  resolveTeacherNameById(JEREMY) ....... "Jeremy"
+
+Regresión Fase 7: 14/14 OK.
+npm run build: verde.
+
+=====================================================================
+6. PENDIENTES
+=====================================================================
+
+  - Jeremy debe validar sus 17 criterios (Guitarra 8, Batería 9): mientras
+    sigan en draft, se pueden registrar en clase pero no publicar en informes.
+  - Estimulación Musical (Claudia) no tiene set ni UUID en TEACHER_IDS. Si se
+    abre, definir su identidad y sembrar criterios.
+  - La píldora de excepción depende de `owner_teacher_id` en las filas: si en
+    el futuro se crean plantillas globales (owner null) para un instrumento,
+    `resolveCriteriaSource` las trata como sin dueño y no marca excepción.
+
+=====================================================================
+7. ROLLBACK
+=====================================================================
+
+  Revertir este commit devuelve el filtro estricto por docente: Sylvia vuelve
+  a 0 criterios y aparece el mensaje genérico. No hay migración de datos ni
+  cambios irreversibles en PostgreSQL.
