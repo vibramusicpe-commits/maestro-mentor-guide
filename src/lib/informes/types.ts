@@ -39,7 +39,19 @@ export type EvaluationFieldType =
   | "short_text"
   | "long_text";
 
-export type ProgressReportPeriodType = "mensual" | "trimestral";
+/**
+ * Tipos de informe. Cada uno define la ventana del periodo y el plan al que
+ * aplica (ver `report-readiness.ts`):
+ *   - mensual: ciclo vigente de un plan mensual (8 o 4 clases).
+ *   - trimestral: vigencia completa de un plan trimestral.
+ *   - avance: corte intermedio de un paquete largo (ej. 24 clases).
+ *   - cierre_ciclo: cierre de paquete flexible, personalizado, demo o retiro.
+ */
+export type ProgressReportPeriodType =
+  | "mensual"
+  | "trimestral"
+  | "avance"
+  | "cierre_ciclo";
 
 export type ProgressReportStatus =
   | "draft"
@@ -279,11 +291,90 @@ export interface AttendanceCycleSummary {
   isCompleted: boolean;
 }
 
+/** Contexto del plan real del alumno (sin montos). Ver `report-readiness.ts`. */
+export interface ReportPlanContext {
+  /** Plan real de la ficha (`emergency_contact.planType`). */
+  planType: string;
+  /** Texto de modalidad de la ficha (puede ser impreciso en flexibles). */
+  modality: string;
+  /** Clases contratadas: 8 regular, 4 intensivo, N paquete, 1 demo. */
+  contractedSessions: number;
+  isFlexiblePackage: boolean;
+  isPersonalized: boolean;
+  isDemo: boolean;
+  isIntensive: boolean;
+  planStartDate: string | null;
+  planEndDate: string | null;
+  /** Primera clase efectivamente evaluada o asistida. */
+  firstClassDate: string | null;
+}
+
+export type ReportEvidenceLevel =
+  | "insuficiente"
+  | "basico"
+  | "parcial"
+  | "completo";
+
+/**
+ * Evidencia que sustenta el informe: cuántos reportes de clase lo componen
+ * frente a las clases realmente asistidas. Un informe es el consolidado de
+ * varios reportes de clase, no un documento que se alimente de otros informes.
+ */
+export interface ReportEvidence {
+  level: ReportEvidenceLevel;
+  label: string;
+  /** % de clases asistidas con reporte de clase. null si no hay base. */
+  coverage: number | null;
+  /** Clases asistidas (presente + tarde) en el periodo. */
+  attended: number;
+  /** Reportes de clase distintos en el periodo. */
+  evaluated: number;
+  /** Reportes que faltan para alcanzar el mínimo. */
+  missing: number;
+  /** Mínimo exigido para este plan. */
+  minimum: number;
+  canGenerate: boolean;
+  message: string;
+}
+
+/** Criterio evaluado en una sesión, ya formateado para la bitácora. */
+export interface SessionLogCriterion {
+  label: string;
+  value: string;
+  band?: string | null;
+}
+
+/**
+ * Una fila de la bitácora del informe: qué se trabajó en una clase concreta.
+ * En Plan Intensivo, los dos bloques de 45 min se consolidan en una sola
+ * entrada de 90 min.
+ */
+export interface SessionLogEntry {
+  /** `YYYY-MM-DD` de la clase. */
+  date: string;
+  /** `HH:MM` de inicio. */
+  time: string;
+  /** Fin calculado (`HH:MM`). */
+  timeEnd: string;
+  /** 45 o 90 minutos. */
+  durationMin: number;
+  /** Estado de asistencia de esa fecha según el motor oficial. */
+  attendance: "presente" | "tarde" | "ausente" | "justificada" | "pendiente";
+  topic: string | null;
+  repertoire: RepertoireItem[];
+  criteria: SessionLogCriterion[];
+  homework: string | null;
+  comment: string | null;
+  /** Descripción del estado general de la clase, ya traducida. */
+  overallLabel: string | null;
+  teacher: string | null;
+  instrument: string | null;
+}
+
 /**
  * Snapshot pedagógico de asistencia. NO contiene montos, precios, saldos,
  * facturas ni auditoría financiera. Es la base del informe de progreso.
- */
-export interface AttendanceSnapshot {
+ */export interface AttendanceSnapshot {
   studentId: string;
   studentName: string;
   instrument: string;
@@ -294,6 +385,12 @@ export interface AttendanceSnapshot {
   cycle: AttendanceCycleSummary;
   repertoire: RepertoireItem[];
   extraScores: ExtraScoreSnapshot[];
+  /** Plan real del alumno (pedagógico, sin montos). */
+  plan: ReportPlanContext;
+  /** Cuántos reportes de clase sustentan este informe. */
+  evidence: ReportEvidence;
+  /** Bitácora clase por clase, en orden cronológico. */
+  sessionLog: SessionLogEntry[];
   generatedAt: string;
 }
 

@@ -25,6 +25,7 @@ import { buildAttendanceSnapshot } from "@/lib/informes/attendance-snapshot";
 import type {
   ActorRef,
   ProgressReportPeriod,
+  ProgressReportPeriodType,
   ProgressReportRow,
   RepertoireItem,
   UpdateProgressReportPatch,
@@ -47,14 +48,20 @@ export interface CreateProgressReportOptions {
 }
 
 function assertPeriod(period: ProgressReportPeriod): {
-  type: "mensual" | "trimestral";
+  type: ProgressReportPeriodType;
   start: string;
   end: string;
   label: string | null;
 } {
-  if (!period || (period.type !== "mensual" && period.type !== "trimestral")) {
+  const allowed: ProgressReportPeriodType[] = [
+    "mensual",
+    "trimestral",
+    "avance",
+    "cierre_ciclo",
+  ];
+  if (!period || !allowed.includes(period.type)) {
     throw new InformesValidationError(
-      'El tipo de período debe ser "mensual" o "trimestral".',
+      'El tipo de período debe ser "mensual", "trimestral", "avance" o "cierre_ciclo".',
     );
   }
   const start = toIsoDate(period.start);
@@ -118,6 +125,29 @@ export async function createProgressReport(
   const dbStudent = await findStudent(cleanStudentId);
   const student = mapDBStudentToAdminStudent(dbStudent);
 
+  const testFlags = resolveTestFlags({
+    isTest: options.isTest ?? null,
+    testRunId: options.testRunId ?? null,
+  });
+
+  // Deduplicación en servidor: un mismo alumno no puede tener dos informes
+  // vivos del mismo tipo y misma ventana. Si ya existe, se devuelve ese.
+  const existing = await postgrestSelect<ProgressReportRow>(
+    "progress_reports",
+    {
+      student_id: `eq.${cleanStudentId}`,
+      period_type: `eq.${safePeriod.type}`,
+      period_start: `eq.${safePeriod.start}`,
+      period_end: `eq.${safePeriod.end}`,
+      status: "neq.rejected",
+      is_test: `eq.${testFlags.is_test}`,
+      order: "created_at.desc",
+      limit: "1",
+    },
+    "*",
+  );
+  if (existing[0]) return existing[0];
+
   const evaluations = await getStudentEvaluations(cleanStudentId, {
     from: safePeriod.start,
     to: safePeriod.end,
@@ -129,7 +159,14 @@ export async function createProgressReport(
     periodStart: safePeriod.start,
     periodEnd: safePeriod.end,
     evaluations,
+    kind: safePeriod.type,
   });
+
+  // Regla aprobada (2026-10-23): un informe es el consolidado de varios
+  // reportes de clase. Sin el mínimo de reportes no se genera nada.
+  if (!snapshot.evidence.canGenerate) {
+    throw new InformesValidationError(snapshot.evidence.message);
+  }
 
   const actor = options.actor;
   const actorId = (actor?.id || "").trim() || null;
@@ -165,19 +202,16 @@ export async function createProgressReport(
     }
   }
 
-  const testFlags = resolveTestFlags({
-    isTest: options.isTest,
-    testRunId: options.testRunId,
-  });
-
   const content = {
-    version: 1,
+    version: 2,
     student: {
       id: student.id,
       name: student.name,
       instrument: student.instrument,
       level: student.level,
       modality: String(student.modality || ""),
+      planType: snapshot.plan.planType,
+      contractedSessions: snapshot.plan.contractedSessions,
       ageCategory: student.ageCategory ?? null,
       teacher: student.teacher,
       familyId: student.familyId ?? null,
@@ -189,6 +223,9 @@ export async function createProgressReport(
       label: safePeriod.label,
     },
     attendance: snapshot,
+    plan: snapshot.plan,
+    evidence: snapshot.evidence,
+    sessionLog: snapshot.sessionLog,
     criteria: snapshot.extraScores,
     repertoire: snapshot.repertoire,
     generatedAt: snapshot.generatedAt,
@@ -458,6 +495,7 @@ export interface ProgressReportListFilters {
   status?: string;
   teacherName?: string;
   instrument?: string;
+  periodType?: ProgressReportPeriodType;
   periodFrom?: string;
   periodTo?: string;
   limit?: number;
@@ -492,6 +530,9 @@ export async function listProgressReports(
 
   const studentId = (filters.studentId || "").trim();
   if (studentId) query.student_id = `eq.${studentId}`;
+
+  const periodType = (filters.periodType || "").trim();
+  if (periodType) query.period_type = `eq.${periodType}`;
 
   const teacherName = (filters.teacherName || "").trim();
   if (teacherName) query.teacher_name = `ilike.*${teacherName}*`;

@@ -29,8 +29,15 @@ import type {
   AttendanceSnapshot,
   ExtraScoreSnapshot,
   LessonEvaluationRow,
+  ProgressReportPeriodType,
   RepertoireItem,
+  SessionLogEntry,
 } from "./types";
+import {
+  buildReportPlanContext,
+  computeReportReadiness,
+} from "./report-readiness";
+import { buildSessionLog } from "./session-log";
 import {
   aggregateRepertoire,
   asArray,
@@ -45,6 +52,23 @@ export interface BuildAttendanceSnapshotInput {
   periodStart: string;
   periodEnd: string;
   evaluations?: LessonEvaluationRow[];
+  /** Tipo de informe; define la ventana y la consolidación de la bitácora. */
+  kind?: ProgressReportPeriodType;
+}
+
+/**
+ * Tipo por defecto cuando el llamador no lo indica: los paquetes flexibles,
+ * personalizados y demos cierran ciclo; el resto informa su ciclo mensual.
+ */
+function defaultKindForPlan(plan: {
+  isFlexiblePackage: boolean;
+  isPersonalized: boolean;
+  isDemo: boolean;
+}): ProgressReportPeriodType {
+  if (plan.isFlexiblePackage || plan.isPersonalized || plan.isDemo) {
+    return "cierre_ciclo";
+  }
+  return "mensual";
 }
 
 function summarizePeriod(
@@ -182,7 +206,34 @@ export function buildAttendanceSnapshot(
     (session) => session.dateStr >= periodStart && session.dateStr <= periodEnd,
   );
 
-  const evaluations = input.evaluations || [];
+  const evaluations = (input.evaluations || []).filter((evaluation) => {
+    const date = String(evaluation.session_date || "").slice(0, 10);
+    return isIsoDate(date) && date >= periodStart && date <= periodEnd;
+  });
+
+  const plan = buildReportPlanContext(input.student, allSessions, evaluations);
+  const evidence = computeReportReadiness({
+    plan,
+    sessions: allSessions,
+    evaluations,
+    periodStart,
+    periodEnd,
+    kind: input.kind || defaultKindForPlan(plan),
+  });
+
+  const attendanceByDate: Record<string, SessionLogEntry["attendance"]> = {};
+  for (const session of periodSessions) {
+    const current = attendanceByDate[session.dateStr];
+    if (current === "presente" || current === "tarde") continue;
+    attendanceByDate[session.dateStr] = session.status;
+  }
+
+  const sessionLog = buildSessionLog({
+    evaluations,
+    isIntensive: plan.isIntensive,
+    attendanceByDate,
+  });
+
   const repertoire: RepertoireItem[] = aggregateRepertoire(
     evaluations.map((evaluation) => ({
       session_date: evaluation.session_date,
@@ -202,6 +253,9 @@ export function buildAttendanceSnapshot(
     cycle: summarizeCycle(input.student, allSessions),
     repertoire,
     extraScores: aggregateExtraScores(evaluations),
+    plan,
+    evidence,
+    sessionLog,
     generatedAt: new Date().toISOString(),
   };
 
