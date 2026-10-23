@@ -16,8 +16,11 @@ import {
   formatAttendanceRate,
   formatIsoDateShort,
   formatProgressPeriod,
+  repertoireStatusLabel,
+  reportPageLabel,
   type ProgressReportView,
 } from "@/lib/informes/progress-report-format";
+import { ReportSessionLogAnnex } from "@/components/informes/report-session-log-annex";
 
 interface ProgressReportDocumentProps {
   view: ProgressReportView;
@@ -36,6 +39,9 @@ export function ProgressReportDocument({
   reportCode,
 }: ProgressReportDocumentProps) {
   const attendance = view.attendance;
+  // Con bitácora el documento crece a 3+ páginas: el rótulo lo anuncia en vez
+  // de seguir diciendo "PÁGINA 2 DE 2".
+  const hasAnnex = view.sessionLog.length > 0;
 
   const narratives = [
     ["Fortalezas observadas", view.strengths],
@@ -70,7 +76,7 @@ export function ProgressReportDocument({
                 Publicado: {formatIsoDateShort(view.publishedAt.slice(0, 10))}
               </p>
             )}
-            <p>PÁGINA 1 DE 2</p>
+            <p>{reportPageLabel(1, hasAnnex)}</p>
           </div>
         </div>
       </header>
@@ -200,11 +206,7 @@ export function ProgressReportDocument({
                     {item.title}
                   </td>
                   <td className="border border-slate-200 px-1.5 py-1">
-                    {item.status === "consolidada"
-                      ? "Consolidada"
-                      : item.status === "en_proceso"
-                        ? "En proceso"
-                        : "Iniciada"}
+                    {repertoireStatusLabel(item.status)}
                   </td>
                 </tr>
               ))}
@@ -230,7 +232,7 @@ export function ProgressReportDocument({
           </div>
           <div className="text-right font-mono text-[8px] text-slate-600">
             <p className="font-black text-slate-900">{reportCode}</p>
-            <p>PÁGINA 2 DE 2</p>
+            <p>{reportPageLabel(2, hasAnnex)}</p>
           </div>
         </header>
 
@@ -275,6 +277,9 @@ export function ProgressReportDocument({
           {view.publishedByName ? ` Aprobado por ${view.publishedByName}.` : ""}
         </p>
       </div>
+
+      {/* ---------- PÁGINAS 3+ : ANEXO DE BITÁCORA ---------- */}
+      {hasAnnex && <ReportSessionLogAnnex view={view} reportCode={reportCode} />}
     </div>
   );
 }

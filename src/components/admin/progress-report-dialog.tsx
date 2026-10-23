@@ -55,7 +55,10 @@ import {
   formatIsoDateShort,
   generateProgressReportMarkdown,
   generateProgressReportWhatsApp,
+  repertoireStatusLabel,
+  reportPageLabel,
 } from "@/lib/informes/progress-report-format";
+import { ReportSessionLogAnnex } from "@/components/informes/report-session-log-annex";
 import { resolveActor } from "@/lib/services/teacher-resolver";
 import {
   approveProgressReport,
@@ -357,6 +360,9 @@ export function ProgressReportDialog({
   };
 
   const attendance = view.attendance;
+  // El anexo de bitácora es la evidencia del informe: si existe, el documento
+  // ya no termina en la página 2.
+  const hasAnnex = view.sessionLog.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -534,7 +540,7 @@ export function ProgressReportDialog({
               <div className="text-right font-mono text-[9px] leading-relaxed text-slate-600">
                 <p className="font-black text-slate-900">{reportCode}</p>
                 <p>Emisión: {formatIsoDateShort(localReport.created_at?.slice(0, 10))}</p>
-                <p>PÁGINA 1 DE 2</p>
+                <p>{reportPageLabel(1, hasAnnex)}</p>
               </div>
             </div>
           </header>
@@ -667,11 +673,7 @@ export function ProgressReportDialog({
                         {item.title}
                       </td>
                       <td className="border border-slate-200 px-1.5 py-1">
-                        {item.status === "consolidada"
-                          ? "Consolidada"
-                          : item.status === "en_proceso"
-                            ? "En proceso"
-                            : "Iniciada"}
+                        {repertoireStatusLabel(item.status)}
                       </td>
                     </tr>
                   ))}
@@ -697,7 +699,7 @@ export function ProgressReportDialog({
               </div>
               <div className="text-right font-mono text-[8px] text-slate-600">
                 <p className="font-black text-slate-900">{reportCode}</p>
-                <p>PÁGINA 2 DE 2</p>
+                <p>{reportPageLabel(2, hasAnnex)}</p>
               </div>
             </header>
 
@@ -791,6 +793,11 @@ export function ProgressReportDialog({
                 : "Borrador interno: no visible para la familia."}
             </p>
           </div>
+
+          {/* ---------- PÁGINAS 3+ : ANEXO DE BITÁCORA ---------- */}
+          {hasAnnex && (
+            <ReportSessionLogAnnex view={view} reportCode={reportCode} />
+          )}
         </div>
       </DialogContent>
     </Dialog>

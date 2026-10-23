@@ -20,7 +20,10 @@ import type {
   AttendanceCycleSummary,
   AttendancePeriodSummary,
   ProgressReportRow,
+  ReportEvidence,
+  ReportPlanContext,
   RepertoireItem,
+  SessionLogEntry,
 } from "./types";
 
 const TRAFFIC_LABELS: Record<string, string> = {
@@ -63,6 +66,12 @@ export interface ProgressReportView {
   periodLabel: string;
   attendance: AttendancePeriodSummary | null;
   cycle: AttendanceCycleSummary | null;
+  /** Plan real de la ficha (regular, intensivo, flexible, demo…). */
+  plan: ReportPlanContext | null;
+  /** Cuántos reportes de clase sustentan el informe. */
+  evidence: ReportEvidence | null;
+  /** Bitácora clase por clase, en orden cronológico. */
+  sessionLog: SessionLogEntry[];
   criteria: ProgressReportCriterion[];
   repertoire: RepertoireItem[];
   strengths: string;
@@ -156,8 +165,67 @@ export function formatProgressPeriod(view: {
   if (view.periodLabel) return view.periodLabel;
   const start = formatIsoDateShort(view.periodStart);
   const end = formatIsoDateShort(view.periodEnd);
-  const type = view.periodType === "trimestral" ? "Trimestre" : "Mes";
+  const type = PERIOD_TYPE_NOUN[view.periodType || "mensual"] || "Periodo";
   return `${type} · ${start} – ${end}`;
+}
+
+/** Sustantivo del periodo por tipo de informe (mensual, avance, cierre…). */
+const PERIOD_TYPE_NOUN: Record<string, string> = {
+  mensual: "Mes",
+  trimestral: "Trimestre",
+  avance: "Avance",
+  cierre_ciclo: "Cierre de ciclo",
+};
+
+/** Etiqueta visible del estado de asistencia de una clase de la bitácora. */
+export const SESSION_ATTENDANCE_LABELS: Record<string, string> = {
+  presente: "Presente",
+  tarde: "Tardanza",
+  ausente: "Falta",
+  justificada: "Justificada",
+  pendiente: "Pendiente",
+};
+
+export function formatSessionAttendance(value: string | null | undefined): string {
+  if (!value) return "—";
+  return SESSION_ATTENDANCE_LABELS[value] || value;
+}
+
+/** `16:00` + 45 + `16:00` -> `16:00–16:45 (45 min)`. */
+export function formatSessionSlot(entry: SessionLogEntry): string {
+  const range = entry.timeEnd ? `${entry.time}–${entry.timeEnd}` : entry.time;
+  return `${range} (${entry.durationMin} min)`;
+}
+
+const REPERTOIRE_STATUS_LABELS: Record<string, string> = {
+  logrado: "Consolidada",
+  en_proceso: "En proceso",
+  pendiente: "Iniciada",
+  no_corresponde: "No aplicó",
+};
+
+/**
+ * Estado de una obra del repertorio, ya traducido. Fuente única: el tipo real
+ * en base de datos es `logrado | en_proceso | pendiente | no_corresponde`
+ * (no `consolidada`), y una comparación contra el valor equivocado dejaba
+ * todas las obras como "Iniciada".
+ */
+export function repertoireStatusLabel(status: string | null | undefined): string {
+  if (!status) return REPERTOIRE_STATUS_LABELS["pendiente"] as string;
+  return REPERTOIRE_STATUS_LABELS[status] ?? (REPERTOIRE_STATUS_LABELS["pendiente"] as string);
+}
+
+/** `Obra (consolidada)` para la bitácora de Markdown y del A4. */
+export function repertoireLabel(item: RepertoireItem): string {
+  return `${item.title} (${repertoireStatusLabel(item.status).toLowerCase()})`;
+}
+
+/**
+ * Rótulo de página del A4. Con anexo de bitácora el documento ya no es "de 2":
+ * se avisa con `· ANEXO` en lugar de mentir con un total fijo (ADR-0137).
+ */
+export function reportPageLabel(page: 1 | 2, hasAnnex: boolean): string {
+  return hasAnnex ? `PÁGINA ${page} DE 2 · ANEXO` : `PÁGINA ${page} DE 2`;
 }
 
 export function formatAttendanceRate(period?: AttendancePeriodSummary | null): string {
@@ -181,6 +249,20 @@ export function buildProgressReportView(report: ProgressReportRow): ProgressRepo
 
   const cycle =
     (attendanceSnapshot.cycle as AttendanceCycleSummary | undefined) || null;
+
+  const planRecord = asRecord(content.plan);
+  const plan = Object.keys(planRecord).length
+    ? (planRecord as unknown as ReportPlanContext)
+    : null;
+  const evidenceRecord = asRecord(content.evidence);
+  const evidence = Object.keys(evidenceRecord).length
+    ? (evidenceRecord as unknown as ReportEvidence)
+    : null;
+
+  // La bitácora es la evidencia del informe: qué se trabajó en cada clase.
+  const sessionLog = asArray<SessionLogEntry>(content.sessionLog).filter(
+    (entry) => Boolean(entry) && typeof entry.date === "string",
+  );
 
   const criteriaRaw = asArray<Record<string, unknown>>(
     content.criteria ?? attendanceSnapshot.extraScores,
@@ -222,6 +304,9 @@ export function buildProgressReportView(report: ProgressReportRow): ProgressRepo
     periodLabel: asString(period.label),
     attendance,
     cycle,
+    plan,
+    evidence,
+    sessionLog,
     criteria,
     repertoire,
     strengths: report.strengths || "",
@@ -259,6 +344,18 @@ export function generateProgressReportMarkdown(report: ProgressReportRow): strin
   lines.push(`- **Instrumento:** ${view.instrument}`);
   lines.push(`- **Nivel:** ${view.levelStart || "—"}${view.levelEnd ? ` → ${view.levelEnd}` : ""}`);
   lines.push(`- **Docente:** ${view.teacherName}`);
+  if (view.plan?.planType) lines.push(`- **Plan:** ${view.plan.planType}`);
+  if (view.plan?.contractedSessions) {
+    lines.push(`- **Clases contratadas:** ${view.plan.contractedSessions}`);
+  }
+  if (view.evidence) {
+    lines.push(`- **Evidencia:** ${view.evidence.label} · ${view.evidence.evaluated} reporte(s) de clase`);
+  }
+  if (view.sessionLog.length > 0) {
+    lines.push(
+      `- **Inicio del proceso documentado:** ${view.sessionLog[0]?.date ?? "—"} (primera clase con reporte)`,
+    );
+  }
   if (view.modality) lines.push(`- **Modalidad:** ${view.modality}`);
   if (view.ageCategory) lines.push(`- **Categoría de edad:** ${view.ageCategory}`);
   if (view.publishedAt) {
@@ -305,6 +402,46 @@ export function generateProgressReportMarkdown(report: ProgressReportRow): strin
     lines.push("");
   }
 
+  lines.push("## Bitácora clase por clase");
+  lines.push("");
+  if (view.sessionLog.length === 0) {
+    lines.push(
+      "_Sin reportes de clase en el periodo: no hay bitácora que consolidar._",
+    );
+    lines.push("");
+  } else {
+    lines.push(
+      `_${view.sessionLog.length} clase(s) documentadas por el docente. Inicio del proceso: ${view.sessionLog[0]?.date ?? "—"}._`,
+    );
+    lines.push("");
+    view.sessionLog.forEach((entry, index) => {
+      lines.push(
+        `### Clase ${index + 1} · ${entry.date} · ${formatSessionSlot(entry)} · ${formatSessionAttendance(entry.attendance)}`,
+      );
+      lines.push("");
+      if (entry.topic) lines.push(`- **Tema trabajado:** ${entry.topic}`);
+      if (entry.repertoire.length > 0) {
+        lines.push(
+          `- **Repertorio:** ${entry.repertoire.map(repertoireLabel).join(" · ")}`,
+        );
+      }
+      if (entry.criteria.length > 0) {
+        lines.push(
+          `- **Criterios:** ${entry.criteria
+            .map((criterion) => `${criterion.label}: ${criterion.value}`)
+            .join(" · ")}`,
+        );
+      }
+      if (entry.overallLabel) {
+        lines.push(`- **Estado general:** ${entry.overallLabel}`);
+      }
+      if (entry.homework) lines.push(`- **Tarea:** ${entry.homework}`);
+      if (entry.comment) lines.push(`- **Comentario del docente:** ${entry.comment}`);
+      if (entry.teacher) lines.push(`- **Docente:** ${entry.teacher}`);
+      lines.push("");
+    });
+  }
+
   lines.push("## Criterios evaluados");
   lines.push("");
   if (view.criteria.length > 0) {
@@ -324,13 +461,7 @@ export function generateProgressReportMarkdown(report: ProgressReportRow): strin
     lines.push("| Obra | Estado |");
     lines.push("|---|---|");
     for (const item of view.repertoire) {
-      const status =
-        item.status === "consolidada"
-          ? "Consolidada"
-          : item.status === "en_proceso"
-            ? "En proceso"
-            : "Iniciada";
-      lines.push(`| ${item.title}${item.last_seen_date ? ` (${item.last_seen_date})` : ""} | ${status} |`);
+      lines.push(`| ${item.title}${item.last_seen_date ? ` (${item.last_seen_date})` : ""} | ${repertoireStatusLabel(item.status)} |`);
     }
     lines.push("");
   }
@@ -362,20 +493,70 @@ export function generateProgressReportMarkdown(report: ProgressReportRow): strin
 }
 
 /**
- * Mensaje corto y cordial para WhatsApp. No incluye montos ni enlaces
- * internos: solo el periodo, el logro general y la invitación a leerlo.
- */export function generateProgressReportWhatsApp(report: ProgressReportRow): string {
+ * Los **3 hitos** del informe para WhatsApp: constancia, logro y próxima meta.
+ * Siempre devuelve exactamente 3 líneas, con respaldo honesto cuando falta
+ * información (nunca inventa logros).
+ */
+export function buildWhatsAppHighlights(view: ProgressReportView): string[] {
+  const highlights: string[] = [];
+  const attendance = view.attendance;
+
+  // Hito 1 — constancia en sala.
+  if (attendance && attendance.present > 0) {
+    highlights.push(
+      `${attendance.present} clase(s) asistida(s) · ${formatAttendanceRate(attendance)} de asistencia`,
+    );
+  } else if (view.sessionLog.length > 0) {
+    highlights.push(`${view.sessionLog.length} clase(s) documentadas en el periodo`);
+  } else {
+    highlights.push("Periodo registrado en el informe");
+  }
+
+  // Hito 2 — logros observados en los reportes de clase.
+  const achievements = view.criteria
+    .filter(
+      (criterion) =>
+        criterion.value === "Logrado" ||
+        criterion.value === "Destacado" ||
+        criterion.band === "logrado" ||
+        criterion.band === "destacado",
+    )
+    .map((criterion) => criterion.label);
+
+  if (achievements.length > 0) {
+    highlights.push(`Logros: ${achievements.slice(0, 3).join(", ")}`);
+  } else {
+    const lastTopic = [...view.sessionLog]
+      .reverse()
+      .map((entry) => entry.topic)
+      .find((topic) => Boolean(topic));
+    highlights.push(
+      lastTopic
+        ? `Último trabajo en clase: ${lastTopic}`
+        : "Proceso en curso con seguimiento del docente",
+    );
+  }
+
+  // Hito 3 — próximo paso.
+  if (view.goals) {
+    highlights.push(`Próxima meta: ${view.goals}`);
+  } else if (view.recommendations) {
+    highlights.push(`Para practicar en casa: ${view.recommendations}`);
+  } else {
+    highlights.push("Continuamos el avance en el siguiente ciclo");
+  }
+
+  return highlights;
+}
+
+/**
+ * Mensaje corto y cordial para WhatsApp: exactamente 3 hitos, sin montos ni
+ * enlaces internos. El detalle completo vive en el PDF y en el portal familia.
+ */
+export function generateProgressReportWhatsApp(report: ProgressReportRow): string {
   const view = buildProgressReportView(report);
   const periodText = formatProgressPeriod(view);
-  const rate = formatAttendanceRate(view.attendance);
-
-  const achievements = view.criteria.filter(
-    (criterion) =>
-      criterion.value === "Logrado" ||
-      criterion.value === "Destacado" ||
-      criterion.band === "logrado" ||
-      criterion.band === "destacado",
-  );
+  const highlights = buildWhatsAppHighlights(view);
 
   const lines: string[] = [];
   lines.push(`🎵 *Vibra Music · Informe de Progreso*`);
@@ -383,30 +564,13 @@ export function generateProgressReportMarkdown(report: ProgressReportRow): strin
   lines.push(`Familia de *${view.studentName}*:`);
   lines.push("");
   lines.push(
-    `Ya está disponible el informe de progreso de *${view.instrument}* correspondiente a *${periodText}*.`,
+    `Ya está disponible el informe de *${view.instrument}* correspondiente a *${periodText}*.`,
   );
-  if (view.attendance) {
-    lines.push(
-      `Asistencia del periodo: *${rate}* (${view.attendance.present} clases asistidas).`,
-    );
-  }
-  if (achievements.length > 0) {
-    lines.push("");
-    lines.push(
-      `Destacamos: ${achievements
-        .slice(0, 4)
-        .map((criterion) => criterion.label)
-        .join(", ")}.`,
-    );
-  }
-  if (view.goals) {
-    lines.push("");
-    lines.push(`Próxima meta: ${view.goals}`);
-  }
-  if (view.familyMessage) {
-    lines.push("");
-    lines.push(view.familyMessage);
-  }
+  lines.push("");
+  lines.push("*Tres hitos del periodo:*");
+  highlights.forEach((highlight, index) => {
+    lines.push(`${index + 1}. ${highlight}`);
+  });
   lines.push("");
   lines.push(
     `Puede ver el informe completo en el Portal de Familia, pestaña *Progreso*, y descargarlo en PDF.`,
