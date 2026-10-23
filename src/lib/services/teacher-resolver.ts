@@ -76,6 +76,10 @@ const KNOWN_IDENTITIES: KnownIdentity[] = [
   },
 ];
 
+const NAME_BY_ID = new Map<string, string>(
+  KNOWN_IDENTITIES.map((identity) => [identity.id, identity.name] as const),
+);
+
 function findKnownIdentity(email?: string, name?: string): KnownIdentity | null {
   const haystack = `${email || ""} ${name || ""}`
     .normalize("NFD")
@@ -110,6 +114,17 @@ export function resolveTeacherName(email?: string, name?: string): string {
   const known = findKnownIdentity(email, name);
   if (known) return known.name;
   return cleanDisplayName(name) || "Profesor Demo";
+}
+
+/**
+ * Nombre canónico a partir del UUID sintético.
+ *
+ * Se usa para explicar de quién son unos criterios (ADR-0179), sin depender
+ * de que el nombre viaje en la fila.
+ */
+export function resolveTeacherNameById(id?: string | null): string | null {
+  if (!id) return null;
+  return NAME_BY_ID.get(id) ?? null;
 }
 
 /** Actor listo para `created_by_*`, `reviewed_by_*`, etc. */

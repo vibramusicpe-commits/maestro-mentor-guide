@@ -31,6 +31,10 @@ import type {
   RepertoireStatus,
 } from "@/lib/informes/types";
 import { normalizeTitle, toIsoDate } from "@/lib/informes/utils";
+import {
+  isDraftCriterion,
+  resolveCriteriaSource,
+} from "@/lib/informes/instrument-specialists";
 import { toast } from "sonner";
 
 export interface ClassLogSeed {
@@ -205,6 +209,11 @@ function CriterionField({
         <p className="text-xs font-bold text-foreground">
           {field.label}
           {field.required && <span className="ml-1 text-red-500">*</span>}
+          {isDraftCriterion(field) && (
+            <span className="ml-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 align-middle text-xs font-black uppercase text-amber-700">
+              Borrador
+            </span>
+          )}
         </p>
         {field.help_text && (
           <p className="text-xs text-muted-foreground">{field.help_text}</p>
@@ -424,6 +433,16 @@ export function ClassLog({
     }
     return Array.from(groups.entries());
   }, [criteria]);
+
+  // ADR-0179: trazabilidad de criterios aplicados por excepción y en borrador.
+  const criteriaSource = useMemo(
+    () => resolveCriteriaSource(criteria, teacherId),
+    [criteria, teacherId],
+  );
+  const draftCriteriaCount = useMemo(
+    () => criteria.filter(isDraftCriterion).length,
+    [criteria],
+  );
 
   useEffect(() => {
     if (!selectedStudent) return;
@@ -930,13 +949,47 @@ export function ClassLog({
                 </p>
               )}
 
+              {criteriaSource.isException && (
+                <div className="flex items-start gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 p-2.5">
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+                  <p className="text-xs leading-snug text-sky-700">
+                    Criterios de{" "}
+                    <strong>
+                      {criteria[0]?.instrument ||
+                        selectedStudent?.instrument ||
+                        "este instrumento"}
+                    </strong>{" "}
+                    definidos por el especialista{" "}
+                    <strong>
+                      {criteriaSource.ownerTeacherName || "del instrumento"}
+                    </strong>
+                    . Se aplican por excepción: hoy dicta la clase otro docente y
+                    no se duplica la lista.
+                  </p>
+                </div>
+              )}
+
+              {draftCriteriaCount > 0 && (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-2.5">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <p className="text-xs leading-snug text-amber-700">
+                    {draftCriteriaCount} criterio
+                    {draftCriteriaCount === 1 ? "" : "s"} en borrador. Puedes
+                    registrar la clase con ellos, pero no saldrán en un informe
+                    hasta que el especialista los valide.
+                  </p>
+                </div>
+              )}
+
               {criteria.length === 0 && !criteriaLoading ? (
                 <div className="flex items-start gap-2 rounded-xl border border-dashed border-border bg-background/50 p-2.5">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                   <p className="text-xs text-muted-foreground">
-                    {teacherClean.includes("jeremy")
-                      ? "Los criterios de Guitarra y Batería están pendientes de levantamiento con el Prof. Jeremy. Puedes guardar la clase con los campos base."
-                      : "Aún no hay criterios configurados para este instrumento. Puedes guardar la clase con los campos base."}
+                    Aún no hay criterios configurados para{" "}
+                    <strong>
+                      {selectedStudent?.instrument || "este instrumento"}
+                    </strong>
+                    . Puedes guardar la clase con los campos base.
                   </p>
                 </div>
               ) : (

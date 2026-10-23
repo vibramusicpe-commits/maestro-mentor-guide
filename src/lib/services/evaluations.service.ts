@@ -37,6 +37,10 @@ import {
   resolveTestFlags,
   toIsoDate,
 } from "@/lib/informes/utils";
+import {
+  instrumentFamily,
+  resolveSpecialistTeacherId,
+} from "@/lib/informes/instrument-specialists";
 
 const CLASS_MODES: ClassMode[] = ["individual", "grupal", "no_aplica"];
 const OVERALL_STATUSES: OverallStatus[] = [
@@ -73,15 +77,9 @@ function ageCategoryToRange(
  * La base viva guarda variantes del mismo instrumento ("Guitarra",
  * "Guitarra clásica", "Guitarra eléctrica"). Sin esta normalización, un alumno
  * con "Guitarra clásica" no recibiría los criterios configurados como
- * "Guitarra". Solo agrupa variantes explícitas; Piano y Piano Infantil siguen
- * siendo instrumentos distintos.
+ * "Guitarra". La implementación vive en `instrument-specialists.ts` (ADR-0179)
+ * para que el mapa instrumento → especialista y la familia no se dupliquen.
  */
-function instrumentFamily(value?: string | null): string {
-  const normalized = normalizeTitle(value || "");
-  if (normalized.startsWith("guitarra")) return "guitarra";
-  if (normalized.startsWith("bateria")) return "bateria";
-  return normalized;
-}
 
 function programFromLevel(level?: string | null): string | null {
   const normalized = normalizeTitle(level || "");
@@ -148,9 +146,27 @@ export async function getDraftCriteriaFields(): Promise<EvaluationFieldRow[]> {
   );
 }
 
+/** Orden estable de los criterios: `report_order` y luego etiqueta. */
+function sortCriteria(rows: EvaluationFieldRow[]): EvaluationFieldRow[] {
+  return [...rows].sort((a, b) => {
+    if (a.report_order !== b.report_order) {
+      return a.report_order - b.report_order;
+    }
+    return a.label.localeCompare(b.label, "es", { sensitivity: "base" });
+  });
+}
+
 /**
  * Devuelve los campos EXTRA configurados para un instrumento/categoría/nivel.
  * Si `evaluation_fields` está vacío, devuelve [] y la UI usa los campos núcleo.
+ *
+ * Regla de docente por excepción (ADR-0179):
+ *   1. Se aplican las plantillas globales y las del propio docente.
+ *   2. Si el docente NO tiene set para ese instrumento (p. ej. Fernando
+ *      dictando Guitarra por excepción), se usa el set del **especialista**
+ *      del instrumento, sin duplicar filas ni mezclar listas.
+ *   3. Sin especialista mapeado (instrumento nuevo) se devuelve [] y la UI
+ *      muestra que aún no hay criterios configurados.
  */
 export async function getCriteria(
   query: EvaluationCriteriaQuery = {},
@@ -167,59 +183,56 @@ export async function getCriteria(
   );
 
   const instrument = normalizeTitle(query.instrument || "");
+  const instrumentKey = instrumentFamily(query.instrument);
   const program = programFromLevel(query.level);
   const ageRange = ageCategoryToRange(query.ageCategory);
 
-  return fields
-    .filter((field) => {
-      if (!query.includeInactive && !field.is_active) return false;
+  // Filtros pedagógicos comunes: instrumento, programa y edad.
+  const eligible = fields.filter((field) => {
+    if (!query.includeInactive && !field.is_active) return false;
 
-      // Sin docente explícito solo se muestran plantillas globales.
-      if (query.teacherId) {
-        if (
-          field.owner_teacher_id &&
-          field.owner_teacher_id !== query.teacherId
-        ) {
-          return false;
-        }
-      } else if (field.owner_teacher_id) {
+    if (instrument && field.instrument) {
+      if (instrumentFamily(field.instrument) !== instrumentKey) return false;
+    }
+
+    if (program && field.program) {
+      const fieldProgram = normalizeTitle(field.program);
+      const wanted = normalizeTitle(program);
+      if (!fieldProgram.includes(wanted) && !wanted.includes(fieldProgram)) {
         return false;
       }
+    }
 
-      if (instrument && field.instrument) {
-        const fieldInstrument = normalizeTitle(field.instrument);
-        if (
-          fieldInstrument !== instrument &&
-          instrumentFamily(fieldInstrument) !== instrumentFamily(instrument)
-        ) {
-          return false;
-        }
-      }
+    if (ageRange) {
+      if (field.age_min !== null && field.age_min > ageRange.max) return false;
+      if (field.age_max !== null && field.age_max < ageRange.min) return false;
+    }
 
-      if (program && field.program) {
-        const fieldProgram = normalizeTitle(field.program);
-        const wanted = normalizeTitle(program);
-        if (
-          !fieldProgram.includes(wanted) &&
-          !wanted.includes(fieldProgram)
-        ) {
-          return false;
-        }
-      }
+    return true;
+  });
 
-      if (ageRange) {
-        if (field.age_min !== null && field.age_min > ageRange.max) return false;
-        if (field.age_max !== null && field.age_max < ageRange.min) return false;
-      }
+  // Set propio del docente + plantillas globales. Sin docente explícito solo
+  // se muestran las globales (comportamiento previo).
+  const own = eligible.filter((field) => {
+    if (!field.owner_teacher_id) return true;
+    if (!query.teacherId) return false;
+    return field.owner_teacher_id === query.teacherId;
+  });
 
-      return true;
-    })
-    .sort((a, b) => {
-      if (a.report_order !== b.report_order) {
-        return a.report_order - b.report_order;
-      }
-      return a.label.localeCompare(b.label, "es", { sensitivity: "base" });
-    });
+  if (own.length > 0 || !query.teacherId) {
+    return sortCriteria(own);
+  }
+
+  // Excepción: el docente dicta un instrumento que no es su especialidad.
+  const specialistId = resolveSpecialistTeacherId(query.instrument);
+  if (!specialistId || specialistId === query.teacherId) {
+    return sortCriteria(own);
+  }
+
+  const borrowed = eligible.filter(
+    (field) => field.owner_teacher_id === specialistId,
+  );
+  return sortCriteria(borrowed);
 }
 
 export async function getEvaluationBySessionKey(
