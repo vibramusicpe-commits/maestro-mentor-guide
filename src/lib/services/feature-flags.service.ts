@@ -11,6 +11,7 @@
  */
 
 import { postgrestSelect } from "@/lib/insforge";
+import { isInformesEnabledByEnv } from "@/lib/features";
 import type { FeatureFlagKey, FeatureFlags } from "@/lib/informes/types";
 
 export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
@@ -167,6 +168,34 @@ export interface ProgressReportsAccess {
 }
 
 /**
+ * Resolución pura del acceso a Informes (testeable, sin red).
+ *
+ * `envEnabled === false` es el kill switch de build y cierra TODO, incluso
+ * si PostgreSQL tiene `progressReportsV2` y `parentReports` encendidos.
+ */
+export function resolveProgressReportsAccess(
+  envEnabled: boolean,
+  flags: FeatureFlags,
+  pilotList: string[],
+): ProgressReportsAccess {
+  if (!envEnabled) {
+    return { panel: false, family: false, source: "none" };
+  }
+
+  const family = Boolean(flags.parentReports);
+
+  if (flags.progressReportsV2) {
+    return { panel: true, family, source: "flag" };
+  }
+
+  if (pilotList.length > 0) {
+    return { panel: true, family, source: "pilot" };
+  }
+
+  return { panel: false, family: false, source: "none" };
+}
+
+/**
  * Acceso a la Fase 5 (informes de progreso).
  *
  * - Con `progressReportsV2 = true` se abre la bandeja para Dirección.
@@ -186,17 +215,11 @@ export async function getProgressReportsAccess(): Promise<ProgressReportsAccess>
     ]);
 
     const pilotList = Array.isArray(pilots) ? pilots.map(String) : [];
-    const family = Boolean(flags.parentReports);
-
-    if (flags.progressReportsV2) {
-      return { panel: true, family, source: "flag" };
-    }
-
-    if (pilotList.length > 0) {
-      return { panel: true, family, source: "pilot" };
-    }
-
-    return { panel: false, family: false, source: "none" };
+    return resolveProgressReportsAccess(
+      isInformesEnabledByEnv(),
+      flags,
+      pilotList,
+    );
   } catch {
     return { panel: false, family: false, source: "none" };
   }

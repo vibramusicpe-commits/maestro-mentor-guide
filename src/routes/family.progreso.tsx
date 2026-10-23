@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Loader2, Music4, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
   formatProgressPeriod,
 } from "@/lib/informes/progress-report-format";
 import { getPublishedReportsForStudent } from "@/lib/services/progress-reports.service";
+import { useInformesAccess } from "@/hooks/use-informes-access";
 import type { ProgressReportRow } from "@/lib/informes/types";
 
 export const Route = createFileRoute("/family/progreso")({
@@ -32,6 +33,9 @@ export const Route = createFileRoute("/family/progreso")({
 function FamilyProgressPage() {
   const currentUser = useAppStore((s) => s.currentUser);
   const adminStudents = useAppStore((s) => s.adminStudents);
+
+  // Fase 7 (ADR-0178): el portal familia solo se abre con `parentReports`.
+  const { family: progresoEnabled, loading: accessLoading } = useInformesAccess();
 
   const familyScope = useMemo(
     () =>
@@ -56,6 +60,10 @@ function FamilyProgressPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
+    if (!progresoEnabled) {
+      setReports([]);
+      return;
+    }
     if (!idsKey) {
       setReports([]);
       return;
@@ -87,12 +95,43 @@ function FamilyProgressPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsKey]);
+  }, [idsKey, progresoEnabled]);
 
   const activeView = useMemo(
     () => (activeReport ? buildProgressReportView(activeReport) : null),
     [activeReport],
   );
+
+  if (accessLoading) {
+    return (
+      <div className="flex items-center justify-center gap-2 rounded-2xl border border-border bg-card p-6 text-xs text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Verificando acceso…
+      </div>
+    );
+  }
+
+  if (!progresoEnabled) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
+        <FileText className="mx-auto h-6 w-6 text-muted-foreground" />
+        <p className="mt-2 text-sm font-bold text-foreground">
+          Informes de progreso aún no disponibles
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Dirección habilitará esta sección para las familias cuando el primer
+          informe esté publicado. Mientras tanto, puedes consultar el horario y
+          las asistencias de tu hijo(a).
+        </p>
+        <Link
+          to="/family"
+          className="mt-3 inline-flex min-h-[44px] items-center justify-center rounded-xl border border-border px-4 text-xs font-bold text-foreground hover:bg-muted"
+        >
+          Volver al inicio
+        </Link>
+      </div>
+    );
+  }
 
   if (!familyScope.resolved) {
     return (

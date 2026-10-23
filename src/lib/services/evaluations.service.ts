@@ -130,6 +130,25 @@ function normalizeExtraScores(value: unknown): ExtraScoreSnapshot[] {
 }
 
 /**
+ * Criterios activos que siguen en **borrador** (Fase 7, ADR-0178).
+ *
+ * Un criterio con `ui_config.draft = true` no puede salir en un informe
+ * publicado (Fase 5). Esta consulta alimenta el tablero de despliegue para
+ * que Dirección sepa exactamente qué falta validar antes de abrir el
+ * módulo a las familias.
+ */
+export async function getDraftCriteriaFields(): Promise<EvaluationFieldRow[]> {
+  const fields = await postgrestSelect<EvaluationFieldRow>(
+    "evaluation_fields",
+    { is_active: "eq.true", order: "instrument.asc,report_order.asc" },
+    "*",
+  );
+  return fields.filter(
+    (field) => (field.ui_config as Record<string, unknown> | null)?.draft === true,
+  );
+}
+
+/**
  * Devuelve los campos EXTRA configurados para un instrumento/categoría/nivel.
  * Si `evaluation_fields` está vacío, devuelve [] y la UI usa los campos núcleo.
  */

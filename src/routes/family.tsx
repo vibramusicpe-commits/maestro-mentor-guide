@@ -5,6 +5,7 @@ import { useAppStore } from "@/store/app-store";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { LayaCopilotFlow } from "@/components/admin/laya-copilot-flow";
 import { resolveFamilyScope, kidsFromScope } from "@/lib/laya/laya-family-scope";
+import { useInformesAccess } from "@/hooks/use-informes-access";
 
 export const Route = createFileRoute("/family")({
   // ──────────────────────────────────────────────
@@ -52,6 +53,24 @@ function FamilyLayout() {
   const kids = useAppStore((s) => s.kids);
   const setKids = useAppStore((s) => s.setKids);
   const [isLayaOpen, setIsLayaOpen] = useState(false);
+
+  // Fase 7 (ADR-0178): la pestaña "Progreso" solo se monta cuando Dirección
+  // habilitó el portal familia (`parentReports`). Sin eso, la familia no ve
+  // informes ni por URL directa.
+  const { family: progresoEnabled } = useInformesAccess();
+  const familyTabs = useMemo(
+    () =>
+      [
+        { to: "/family" as const, label: "Inicio", end: true },
+        { to: "/family/agenda" as const, label: "Horario" },
+        { to: "/family/asistencias" as const, label: "Asistencias" },
+        ...(progresoEnabled
+          ? [{ to: "/family/progreso" as const, label: "Progreso" }]
+          : []),
+        { to: "/family/avisos" as const, label: "Avisar" },
+      ],
+    [progresoEnabled],
+  );
 
   // Alcance del asistente: solo los hijos vinculados a la invitación (ADR-0172).
   // Sin alcance resuelto, Laya responde el mensaje de vinculación, sin datos.
@@ -129,13 +148,7 @@ function FamilyLayout() {
 
         {/* Navegación por pestañas del portal familia (móvil, ADR-0172) */}
         <nav className="flex items-center gap-1 px-3 py-2 border-b border-border bg-background overflow-x-auto">
-          {[
-            { to: "/family", label: "Inicio", end: true },
-            { to: "/family/agenda", label: "Horario" },
-            { to: "/family/asistencias", label: "Asistencias" },
-            { to: "/family/progreso", label: "Progreso" },
-            { to: "/family/avisos", label: "Avisar" },
-          ].map((tab) => (
+          {familyTabs.map((tab) => (
             <Link
               key={tab.to}
               to={tab.to}

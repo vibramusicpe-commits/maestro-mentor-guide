@@ -29,6 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InformesRolloutCard } from "@/components/admin/informes-rollout-card";
 import { toast } from "sonner";
 import { useAppStore } from "@/store/app-store";
 import type { ProgressReportPeriodType, ProgressReportRow } from "@/lib/informes/types";
@@ -614,6 +615,9 @@ export function ProgressReportsPanel() {
           );
         })}
       </div>
+
+      {/* ── Despliegue (Fase 7): flags reales, piloto y criterios pendientes ── */}
+      <InformesRolloutCard />
 
       {/* ── Bandeja general (Fase 6): estado, docente, instrumento, periodo + CSV ── */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
