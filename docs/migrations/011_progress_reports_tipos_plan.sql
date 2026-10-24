@@ -15,9 +15,14 @@
 -- Ejecutar en Insforge PostgreSQL (Dirección / responsable de base de datos).
 -- ================================================================
 
-begin;
+-- ================================================================
+-- EJECUCIÓN (Compatible con InsForge Web SQL Editor)
+-- Nota: En InsForge Web no incluir 'begin;' ni 'commit;' porque el
+-- editor ejecuta cada lote dentro de su propia transacción administrada.
+-- ================================================================
 
--- 1. Cuatro tipos de periodo
+-- 1. Ampliar el CHECK constraint a los 4 tipos de informe oficiales
+--    (mensual, trimestral, avance, cierre_ciclo)
 alter table progress_reports
   drop constraint if exists progress_reports_period_type_check;
 
@@ -25,13 +30,11 @@ alter table progress_reports
   add constraint progress_reports_period_type_check
   check (period_type in ('mensual', 'trimestral', 'avance', 'cierre_ciclo'));
 
--- 2. Un solo informe vivo por alumno + tipo + ventana.
---    Los rechazados quedan fuera del índice: se corrigen y se reenvían.
+-- 2. Deduplicación por ventana lectiva: un solo informe vivo por alumno + tipo + periodo
+--    Excluye informes de prueba (is_test = true) y rechazados (status = 'rejected')
 create unique index if not exists progress_reports_unique_period
   on progress_reports (student_id, period_type, period_start, period_end)
   where is_test = false and status <> 'rejected';
-
-commit;
 
 -- ================================================================
 -- ROLLBACK (solo si se revierte la funcionalidad)

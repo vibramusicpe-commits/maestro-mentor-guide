@@ -1767,7 +1767,7 @@ inferencia.
    - **El docente NO publica**: `approveProgressReport` / `publishProgressReport` siguen siendo exclusivos de Dirección.
    - El flujo `draft → pending → published | rejected` y la inmutabilidad de `published_snapshot` permanecen intactos.
 
-9. **Estado y bloqueo operativo**: la migración `docs/migrations/011_progress_reports_tipos_plan.sql` (CHECK de 4 tipos + índice único parcial por alumno + tipo + ventana) **aún no se ejecuta** en Insforge. Mientras no corra, la base rechaza `avance` y `cierre_ciclo`; `mensual` y `trimestral` siguen operativos. Solo lectura vía MCP: la ejecuta Dirección.
+9. **Estado y migración 011**: la migración `docs/migrations/011_progress_reports_tipos_plan.sql` fue **aplicada y verificada exitosamente** el 2026-10-23 con el rol `postgres` (dueño de la tabla). Se amplió el CHECK `progress_reports_period_type_check` a los 4 tipos (`mensual`, `trimestral`, `avance`, `cierre_ciclo`) y se creó el índice único parcial `progress_reports_unique_period` (excluyendo `is_test = true` y `status = 'rejected'`). Verificado funcionalmente en vivo con inserción de prueba y borrado inmediato (0 filas residuales). Los 4 tipos están 100 % habilitados y operativos en producción.
 
 10. **Verificación de referencia**: Fase A `scratch/test-fase-a-informes.mjs` 40/40; Fase B `scratch/test-fase-b-panel.mjs` 57 activos → 0 habilitados / 57 bloqueados; Fase C `scratch/test-fase-c-teacher.mjs` 11/11; Fase D `scratch/test-fase-d-documento.mjs` **28/28** (bitácora 8/8, intensivo 90 min, 3 hitos en 4 escenarios, anchos 100 %, rutas 200). `npm run build` en verde. Documentación: ADR-0180, `docs/PLAN_INFORMES_POR_TIPO_DE_PLAN.md` y `docs/logs/2026-10-23-fase-d-informes-bitacora-a4.log`.
 

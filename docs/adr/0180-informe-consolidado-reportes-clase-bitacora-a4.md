@@ -1,8 +1,8 @@
 # ADR-0180: Informe como Consolidado de Reportes de Clase, 4 Tipos de Plan, Bitácora y Anexo A4
 
 **Fecha:** 2026-10-23
-**Estado:** Aceptado e implementado (Fases A–D). **Migración 011 pendiente de ejecutar en Insforge.**
-**Autores:** Equipo Vibra (Open Code)
+**Estado:** Aceptado e implementado (Fases A–E). **Migración 011 aplicada y verificada en Insforge PostgreSQL.**
+**Autores:** Equipo Vibra (Open Code + Antigravity)
 
 ---
 
@@ -196,11 +196,13 @@ negativo con los otros 33); el componente no importa aprobar/publicar/rechazar;
   la moderación de Dirección sigue siendo obligatoria.
 - WhatsApp deja de ser un volcado de texto: tres hitos, siempre tres, sin
   inventar logros.
-- **Bloqueo operativo pendiente**: mientras no se ejecute la migración 011, la
-  base rechaza `avance` y `cierre_ciclo`. `mensual` y `trimestral` siguen
-  funcionando. El usuario/Dirección debe correr
-  `docs/migrations/011_progress_reports_tipos_plan.sql` en Insforge (los
-  agentes solo tienen lectura sobre esa base).
+- **Migración 011 aplicada y verificada**: ejecutada el 2026-10-23 con el rol
+  `postgres` (dueño de la tabla). Se amplió el constraint
+  `progress_reports_period_type_check` a los 4 tipos (`mensual`, `trimestral`,
+  `avance`, `cierre_ciclo`) y se creó el índice único parcial
+  `progress_reports_unique_period` (excluyendo `is_test = true` y
+  `status = 'rejected'`). Verificado funcionalmente con inserción y borrado limpio
+  (0 filas residuales).
 - Los 17 criterios de Jeremy siguen en `draft = true` y por tanto siguen
   bloqueando la publicación de informes que los incluyan (ADR-0175, Fase 5).
 

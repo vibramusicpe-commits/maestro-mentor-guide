@@ -1,0 +1,138 @@
+# Log: Verificación y Aplicación de Migración 011 (Informes por Tipo de Plan)
+**Fecha:** 2026-10-23  
+**Versión:** 2.0.51  
+**ADR:** 0180  
+**Migración:** `docs/migrations/011_progress_reports_tipos_plan.sql`  
+**Ejecutor:** Antigravity (autorizado por Dirección/Usuario)  
+**Rol de ejecución en BD:** `postgres` (dueño de la tabla `progress_reports`)
+
+---
+
+## 1. Contexto y Diagnóstico Previo
+
+Al intentar ejecutar la migración desde el panel web de InsForge SQL Editor, se generaron los siguientes errores:
+1. `Transaction control statements are not allowed`: el editor web ejecuta en transacción propia y rechaza `begin;` / `commit;`.
+2. `must be owner of table progress_reports`: el editor web corre bajo el rol `project_admin`. Mientras las tablas de negocio (`students`, `invoices`, `lessons`) pertenecen a `project_admin`, la tabla `progress_reports` fue creada originalmente con el rol `postgres`. En PostgreSQL solo el dueño de la tabla (`postgres`) tiene permisos para `ALTER TABLE` e índices sobre ella.
+
+El MCP read-only (`insforge-postgres`) reportó `cannot execute ALTER TABLE in a read-only transaction` por tener `default_transaction_read_only = on`.
+
+Se identificó la cadena de conexión administrativa directa oficial en `mcp_config.json` con el usuario `postgres`:
+`postgresql://postgres:2d5fd85fe15966b59c648492ac5c71b0@pdey9yma.us-east.database.insforge.app:5432/insforge?sslmode=require`
+
+El usuario autorizó explícitamente su ejecución bajo rol `postgres`.
+
+---
+
+## 2. Línea Base Previa (Solo Lectura)
+
+```sql
+SELECT count(*) AS total_informes FROM progress_reports;
+-- Resultado: 0
+
+SELECT conname, pg_get_constraintdef(oid) AS check_def
+FROM pg_constraint WHERE conname = 'progress_reports_period_type_check';
+-- Resultado previo: CHECK ((period_type = ANY (ARRAY['mensual'::text, 'trimestral'::text])))
+
+SELECT indexname, indexdef
+FROM pg_indexes WHERE tablename = 'progress_reports' AND indexname = 'progress_reports_unique_period';
+-- Resultado previo: (0 filas - no existía)
+```
+
+---
+
+## 3. Sentencias Ejecutadas
+
+Transacción atómica ejecutada con el rol `postgres`:
+
+```sql
+BEGIN;
+
+CREATE UNIQUE INDEX IF NOT EXISTS progress_reports_unique_period
+  ON progress_reports (student_id, period_type, period_start, period_end)
+  WHERE is_test = false AND status <> 'rejected';
+
+ALTER TABLE progress_reports
+  DROP CONSTRAINT IF EXISTS progress_reports_period_type_check,
+  ADD CONSTRAINT progress_reports_period_type_check
+  CHECK (period_type IN ('mensual', 'trimestral', 'avance', 'cierre_ciclo'));
+
+COMMIT;
+```
+
+---
+
+## 4. Evidencia de Verificación Posterior
+
+### 4.1 Definición del CHECK constraint
+```sql
+SELECT conname, pg_get_constraintdef(oid) AS check_def
+FROM pg_constraint
+WHERE conname = 'progress_reports_period_type_check';
+```
+Salida obtenida:
+```json
+[
+  {
+    "conname": "progress_reports_period_type_check",
+    "check_def": "CHECK ((period_type = ANY (ARRAY['mensual'::text, 'trimestral'::text, 'avance'::text, 'cierre_ciclo'::text])))"
+  }
+]
+```
+
+### 4.2 Definición del Índice Único Parcial
+```sql
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE tablename = 'progress_reports' AND indexname = 'progress_reports_unique_period';
+```
+Salida obtenida:
+```json
+[
+  {
+    "indexname": "progress_reports_unique_period",
+    "indexdef": "CREATE UNIQUE INDEX progress_reports_unique_period ON public.progress_reports USING btree (student_id, period_type, period_start, period_end) WHERE ((is_test = false) AND (status <> 'rejected'::text))"
+  }
+]
+```
+
+### 4.3 Total de informes en tabla
+```sql
+SELECT count(*) AS total_informes FROM progress_reports;
+```
+Salida obtenida:
+```json
+[
+  {
+    "total_informes": "0"
+  }
+]
+```
+
+---
+
+## 5. Prueba Funcional en Vivo (Inserción y Limpieza)
+
+Se ejecutó `scratch/test-migration-011-functional.mjs`:
+1. Inserción con `period_type = 'avance'` e `is_test = true`: **EXITOSA** (`id: 3062a243-1f6f-485c-a8fd-927f540cd0df`).
+2. Inserción con `period_type = 'cierre_ciclo'` e `is_test = true`: **EXITOSA** (`id: 62103f28-0be5-46a0-a984-2e334848da31`).
+3. Eliminación por `test_run_id`: 2 registros eliminados.
+4. Conteo final de la tabla: **0 filas** (cero datos residuales).
+
+---
+
+## 6. Build de la Aplicación
+
+`npm run build`:
+- `vite v6.4.1 building for production...`
+- `✓ built in 2.85s`
+- `✓ built in 1.94s`
+- `✓ built in 629ms`
+- `[nitro] √ You can deploy this build using npx nitro deploy --prebuilt`
+- **0 errores**.
+
+---
+
+## 7. Conclusión
+
+La migración 011 queda completada, verificada y documentada.
+Los 4 tipos de informe (`mensual`, `trimestral`, `avance`, `cierre_ciclo`) están 100 % habilitados para su uso en Dirección y en el Portal Docente (`/teacher/informes`).

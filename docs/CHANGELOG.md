@@ -4,6 +4,14 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.51] - 2026-10-23
+
+### Migración 011 Aplicada: Soporte Completo para 4 Tipos de Informe en PostgreSQL (ADR-0180)
+- **Constraint ampliado**: `progress_reports_period_type_check` actualizado exitosamente en Insforge PostgreSQL para permitir los 4 tipos de informe oficiales: `mensual`, `trimestral`, `avance` y `cierre_ciclo`.
+- **Deduplicación por ventana lectiva**: creado el índice único parcial `progress_reports_unique_period` sobre `(student_id, period_type, period_start, period_end)` con el predicado `WHERE is_test = false AND status <> 'rejected'`. Los informes rechazados se corrigen y reenvían sin colisionar.
+- **Ejecución administrativa directa**: ejecutado como transacción atómica bajo el rol `postgres` (dueño de `progress_reports`), resolviendo el bloqueo de permisos `must be owner of table` que ocurría al correr desde el panel web (que opera bajo `project_admin`).
+- **Prueba funcional en vivo**: inserción exitosa de informes con `avance` y `cierre_ciclo`, confirmando la aceptación por el CHECK, seguido de eliminación limpia por UUID (0 filas residuales en producción).
+- **Documentación completa**: ADR-0180 actualizado a aplicado, AGENTS.md §83.9, PLAN sección 17.4 a resuelto, y log detallado en `docs/logs/2026-10-23-migracion-011-verificacion.log`.
 ## [2.0.50] - 2026-10-23
 
 ### Informe como Consolidado de Reportes de Clase, 4 Tipos y Bitácora A4 (ADR-0180)

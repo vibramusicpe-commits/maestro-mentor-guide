@@ -601,13 +601,12 @@ Rutas verificadas en vivo: `/`, `/teacher`, `/teacher/alumnos`,
 
 `npm run build` en verde.
 
-### 17.4 Bloqueo operativo
+### 17.4 Bloqueo operativo — RESUELTO (2026-10-23)
 
-La migración `docs/migrations/011_progress_reports_tipos_plan.sql` **no está
-ejecutada**. Mientras no corra en Insforge:
+La migración `docs/migrations/011_progress_reports_tipos_plan.sql` fue **aplicada y verificada exitosamente**:
 
-- `avance` y `cierre_ciclo` son rechazados por el CHECK de la base.
-- `mensual` y `trimestral` siguen operativos.
-- El índice único parcial por alumno + tipo + ventana tampoco existe aún.
-
-Los agentes solo tienen lectura sobre esa base: la ejecuta Dirección.
+- Constraint `progress_reports_period_type_check` ampliado a los 4 tipos: `mensual`, `trimestral`, `avance` y `cierre_ciclo`.
+- Índice único parcial `progress_reports_unique_period` creado: `(student_id, period_type, period_start, period_end) WHERE is_test = false AND status <> 'rejected'`.
+- Ejecutado con el rol `postgres` (dueño de la tabla).
+- Verificado con inserción y borrado limpio (0 filas residuales).
+- Todos los 4 tipos de informe están 100 % habilitados y operativos.
