@@ -4,6 +4,14 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.52] - 2026-10-23
+
+### Evaluación Retroactiva de Clases Asistidas desde `/teacher/informes` (ADR-0180)
+- **Registro de clases pasadas asistidas**: para alumnos que completaron o están por culminar su ciclo con asistencias registradas pero sin reportes de clase (`lesson_evaluations`), `/teacher/informes` ahora proyecta la lista interactiva de clases asistidas del ciclo (`attendedSessions`).
+- **Estado por sesión**: cada clase asistida muestra un indicador claro de si ya cuenta con reporte (`✓ Evaluada`) o si está pendiente (`⚠️ Sin reporte de clase`), con botón directo `✏️ Evaluar` / `Ver / Editar`.
+- **Integración con `ClassLog`**: al presionar `✏️ Evaluar`, se despliega el componente oficial `ClassLog` en un `Sheet` inferior con los datos del alumno, fecha exacta y hora precargados. Al guardar, recarga las evaluaciones en vivo.
+- **Desbloqueo reactivo**: en cuanto se registran 2 evaluaciones, el botón "Generar borrador del informe" se habilita automáticamente sin necesidad de recargar la página.
+- **Botón libre "+ Otra fecha"**: permite al docente registrar cualquier sesión adicional de forma libre.
 ## [2.0.51] - 2026-10-23
 
 ### Migración 011 Aplicada: Soporte Completo para 4 Tipos de Informe en PostgreSQL (ADR-0180)

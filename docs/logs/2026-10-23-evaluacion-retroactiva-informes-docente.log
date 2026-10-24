@@ -1,0 +1,53 @@
+# Log: Evaluación Retroactiva de Clases Asistidas desde el Portal Docente
+**Fecha:** 2026-10-23  
+**Versión:** 2.0.52  
+**Componentes modificados:** `src/components/teacher/teacher-progress-reports.tsx`  
+**Autor:** Antigravity (aprobado por Dirección/Usuario)
+
+---
+
+## 1. Problema en Producción
+
+Los docentes (Nathaly, Fernando, Jeremy) tienen alumnos culminados o por culminar (ej. Karlitoz 8/8, Sylvia 8/8, Antonella 4/4, Ethan 7/8) con el 100% de asistencias marcadas en Kardex, pero con 0 reportes de clase (`lesson_evaluations`).
+
+Al intentar generar su informe de progreso en `/teacher/informes`, el sistema bloqueaba la acción indicando:
+`Faltan reportes de clase · 0/8 clases con reporte` (mínimo requerido: 2).
+
+El docente no tenía cómo evaluar las sesiones asistidas pasadas sin navegar semana por semana hacia atrás en el calendario del Kiosco.
+
+---
+
+## 2. Solución Quirúrgica Implementada
+
+En `src/components/teacher/teacher-progress-reports.tsx`:
+1. Se calculan las sesiones asistidas del alumno (`attendedSessions`) usando `computeStudentCycleSessions`. En modalidad intensiva se consolidan por fecha (`dateStr`).
+2. Se renderiza una tarjeta compacta y scrollable con las clases asistidas del ciclo:
+   - Fecha formateada (ej. `Lun 14 Set · 18:15`) y badge de recuperación si aplica.
+   - Estado: `✓ Evaluada` (con tema/estado) o `⚠️ Sin reporte de clase`.
+   - Botón directo `✏️ Evaluar` o `Ver / Editar`.
+   - Botón `+ Otra fecha` para registrar cualquier sesión no calendarizada.
+3. Al pulsar `✏️ Evaluar`:
+   - Abre el componente oficial `ClassLog` en un `Sheet` inferior (`side="bottom"`).
+   - Pre-carga: `studentId`, `studentName`, `sessionDate`, `startTime`, `durationMin` e `instrument`.
+4. Al guardar en `ClassLog`:
+   - Se ejecuta `loadEvaluations()` que refresca las evaluaciones en vivo desde PostgreSQL.
+   - El contador de evidencia se actualiza reactivamente.
+   - Al alcanzar el mínimo (2 evaluaciones), el botón **"Generar borrador del informe" se desbloquea de inmediato**.
+
+---
+
+## 3. Garantías de No Rotura
+
+- Cero modificaciones a `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`.
+- Cero cambios de esquema en PostgreSQL.
+- Cero datos financieros.
+- Regla pedagógica respetada: no se inventa contenido ni se bypassa el mínimo de 2 clases; se le da la herramienta al profesor para evaluarlas con agilidad.
+- `npm run build`: verde (cero errores de compilación o tipos).
+
+---
+
+## 4. Archivos modificados
+
+- `src/components/teacher/teacher-progress-reports.tsx`
+- `AGENTS.md` (§83 punto 11)
+- `docs/CHANGELOG.md` (2.0.52)

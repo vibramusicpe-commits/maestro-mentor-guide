@@ -30,6 +30,13 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { StudentPicker } from "@/components/teacher/student-picker";
+import { ClassLog, type ClassLogSeed } from "@/components/teacher/class-log";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useTeacherIdentity } from "@/hooks/use-teacher-identity";
 import { useTeacherPilotAccess } from "@/hooks/use-teacher-pilot-access";
 import { useAppStore } from "@/store/app-store";
@@ -94,8 +101,15 @@ export function TeacherProgressReports({
   /** Alumno preseleccionado cuando se llega desde el directorio docente. */
   initialStudentId?: string | undefined;
 } = {}) {
-  const { currentUser, adminStudents, teacherId, teacherDisplayName, teacherStudentList } =
-    useTeacherIdentity();
+  const {
+    currentUser,
+    adminStudents,
+    schedule,
+    teacherId,
+    teacherDisplayName,
+    teacherClean,
+    teacherStudentList,
+  } = useTeacherIdentity();
   const { loading: accessLoading, progressReportsAccess, isPilotTeacher } =
     useTeacherPilotAccess(teacherId);
   const activeRole = useAppStore((s) => s.activeRole);
@@ -107,6 +121,7 @@ export function TeacherProgressReports({
 
   const [evaluations, setEvaluations] = useState<LessonEvaluationRow[]>([]);
   const [evaluationsLoading, setEvaluationsLoading] = useState(false);
+  const [classLogSeed, setClassLogSeed] = useState<ClassLogSeed | null>(null);
 
   const [myReports, setMyReports] = useState<ProgressReportRow[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
@@ -148,27 +163,25 @@ export function TeacherProgressReports({
   );
 
   // ── Reportes de clase del alumno elegido ──
-  useEffect(() => {
-    let cancelled = false;
+  const loadEvaluations = useCallback(async () => {
     if (!studentId) {
       setEvaluations([]);
       return;
     }
     setEvaluationsLoading(true);
-    getStudentEvaluations(studentId)
-      .then((rows) => {
-        if (!cancelled) setEvaluations(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setEvaluations([]);
-      })
-      .finally(() => {
-        if (!cancelled) setEvaluationsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const rows = await getStudentEvaluations(studentId);
+      setEvaluations(rows);
+    } catch {
+      setEvaluations([]);
+    } finally {
+      setEvaluationsLoading(false);
+    }
   }, [studentId]);
+
+  useEffect(() => {
+    void loadEvaluations();
+  }, [loadEvaluations]);
 
   /**
    * Plan real, ventana sugerida y evidencia. Misma función pura que usa
@@ -198,6 +211,30 @@ export function TeacherProgressReports({
     });
     return { plan, window, evidence };
   }, [evaluations, kind, selectedStudent]);
+
+  // ── Sesiones asistidas del ciclo para registro retroactivo de clases ──
+  const attendedSessions = useMemo(() => {
+    if (!selectedStudent) return [];
+    const sessions = computeStudentCycleSessions({
+      student: selectedStudent,
+      allSchedule: selectedStudent.scheduleLessons || [],
+    });
+    // Filtrar sesiones asistidas (presente o tarde)
+    const attended = sessions.filter(
+      (s) => s.status === "presente" || s.status === "tarde",
+    );
+    // En intensivo los dos bloques de 45 min se consolidan por fecha
+    const isIntensive = readiness?.plan.isIntensive;
+    if (isIntensive) {
+      const seen = new Set<string>();
+      return attended.filter((s) => {
+        if (seen.has(s.dateStr)) return false;
+        seen.add(s.dateStr);
+        return true;
+      });
+    }
+    return attended;
+  }, [readiness?.plan.isIntensive, selectedStudent]);
 
   // La ventana sugerida se aplica al cambiar de alumno o de tipo.
   useEffect(() => {
@@ -449,6 +486,107 @@ export function TeacherProgressReports({
                 </span>
               </div>
 
+              {/* Clases asistidas del periodo para evaluar o revisar */}
+              {attendedSessions.length > 0 && (
+                <div className="space-y-2 rounded-2xl border border-border/80 bg-background/80 p-3 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-black text-foreground">
+                        Clases asistidas de este periodo ({attendedSessions.length})
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {readiness.evidence.evaluated >= 2
+                          ? "✓ Mínimo cubierto. Puedes registrar más clases si deseas."
+                          : "Evalúa al menos 2 clases para desbloquear el informe."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClassLogSeed({
+                          studentId: selectedStudent.id,
+                          studentName: selectedStudent.name,
+                          sessionDate: new Date().toISOString().slice(0, 10),
+                          startTime: "16:00",
+                          durationMin: readiness.plan.isIntensive ? 90 : 45,
+                          instrument: selectedStudent.instrument,
+                          nonce: Date.now(),
+                        });
+                      }}
+                      className="shrink-0 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/10"
+                    >
+                      + Otra fecha
+                    </button>
+                  </div>
+
+                  <div className="max-h-56 divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/60 bg-muted/20">
+                    {attendedSessions.map((session) => {
+                      const evalForSession = evaluations.find(
+                        (ev) => ev.session_date === session.dateStr,
+                      );
+                      const isEvaluated = Boolean(evalForSession);
+
+                      return (
+                        <div
+                          key={`${session.dateStr}-${session.time}`}
+                          className="flex items-center justify-between gap-2 p-2 text-xs"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-foreground">
+                                {session.dayShort} {formatIsoDateShort(session.dateStr)}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                · {session.time}
+                              </span>
+                              {session.isMakeup && (
+                                <span className="rounded bg-amber-500/10 px-1 text-[10px] font-bold text-amber-700">
+                                  Recup.
+                                </span>
+                              )}
+                            </div>
+                            {isEvaluated ? (
+                              <p className="truncate text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                ✓ Evaluada ({evalForSession?.overall_status ? evalForSession.overall_status.replace("_", " ") : "registrada"})
+                                {evalForSession?.topic ? ` · ${evalForSession.topic}` : ""}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                                ⚠️ Sin reporte de clase
+                              </p>
+                            )}
+                          </div>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={isEvaluated ? "outline" : "default"}
+                            onClick={() => {
+                              setClassLogSeed({
+                                studentId: selectedStudent.id,
+                                studentName: selectedStudent.name,
+                                sessionDate: session.dateStr,
+                                startTime: session.time,
+                                durationMin: readiness.plan.isIntensive ? 90 : 45,
+                                instrument: session.instrument || selectedStudent.instrument,
+                                nonce: Date.now(),
+                              });
+                            }}
+                            className={`h-8 shrink-0 text-xs font-bold ${
+                              isEvaluated
+                                ? "border-border text-foreground hover:bg-muted"
+                                : "bg-primary text-primary-foreground shadow-xs"
+                            }`}
+                          >
+                            {isEvaluated ? "Ver / Editar" : "✏️ Evaluar"}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <Button
                 type="button"
                 onClick={() => void handleGenerate()}
@@ -649,6 +787,39 @@ export function TeacherProgressReports({
           );
         })}
       </section>
+
+      {/* Hoja inferior para registrar o editar reporte de clase */}
+      <Sheet
+        open={Boolean(classLogSeed)}
+        onOpenChange={(open) => {
+          if (!open) setClassLogSeed(null);
+        }}
+      >
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto p-3">
+          <SheetHeader className="mb-2">
+            <SheetTitle className="text-left text-sm font-black text-foreground">
+              Registro de clase · {classLogSeed?.studentName || "Alumno"}
+              {classLogSeed?.sessionDate ? ` · ${classLogSeed.sessionDate}` : ""}
+              {classLogSeed?.startTime ? ` · ${classLogSeed.startTime}` : ""}
+            </SheetTitle>
+          </SheetHeader>
+          {classLogSeed && (
+            <ClassLog
+              key={classLogSeed.nonce}
+              teacherName={teacherDisplayName}
+              teacherClean={teacherClean}
+              students={adminStudents}
+              schedule={schedule}
+              initialSeed={classLogSeed}
+              onSaved={() => {
+                setClassLogSeed(null);
+                void loadEvaluations();
+                toast.success("✓ Reporte de clase guardado con éxito.");
+              }}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

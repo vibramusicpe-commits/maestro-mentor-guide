@@ -1771,6 +1771,12 @@ inferencia.
 
 10. **Verificación de referencia**: Fase A `scratch/test-fase-a-informes.mjs` 40/40; Fase B `scratch/test-fase-b-panel.mjs` 57 activos → 0 habilitados / 57 bloqueados; Fase C `scratch/test-fase-c-teacher.mjs` 11/11; Fase D `scratch/test-fase-d-documento.mjs` **28/28** (bitácora 8/8, intensivo 90 min, 3 hitos en 4 escenarios, anchos 100 %, rutas 200). `npm run build` en verde. Documentación: ADR-0180, `docs/PLAN_INFORMES_POR_TIPO_DE_PLAN.md` y `docs/logs/2026-10-23-fase-d-informes-bitacora-a4.log`.
 
+11. **Evaluación retroactiva desde /teacher/informes**:
+    - Para resolver el caso de alumnos activos o culminados (ej. Karlitoz 8/8, Sylvia 8/8) que tienen sus asistencias registradas en Kardex pero carecían de reportes de clase (lesson_evaluations), /teacher/informes lista todas las clases asistidas del ciclo (ttendedSessions).
+    - Cada sesión asistida muestra su estado: ✓ Evaluada o ⚠️ Sin reporte de clase, con botón directo ✏️ Evaluar / Ver / Editar.
+    - Al hacer clic, abre el componente oficial ClassLog en un Sheet inferior precargando alumno, fecha exacta y hora. Al guardar, recarga evaluations en vivo y desbloquea el botón 'Generar borrador del informe' en cuanto se alcanza el mínimo de 2 reportes.
+    - Cero modificaciones a pp-store.ts, kardex-calculator.ts ni student-cycle.ts. Cero datos financieros.
+
 ---
 
 ### 84. Reporte Mensual de Asistencia Docente por Perfil, Días sin Marcaje y Cero Montos (ADR-0181)
