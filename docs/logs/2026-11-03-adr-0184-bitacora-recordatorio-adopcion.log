@@ -1,0 +1,172 @@
+BITÁCORA DOCENTE: ESTADO "YA REGISTRADA", RECORDATORIO A 2 DÍAS Y TABLERO DE ADOPCIÓN
+Fecha: 2026-11-03
+ADR: docs/adr/0184-bitacora-docente-recordatorio-y-adopcion.md
+Rama: main
+Alcance: Kiosco `/teacher` y pestaña "Adopción Docente" en `/admin/informes`.
+         Sin tocar datos de alumnos, asistencia, kardex ni facturación.
+
+=====================================================================
+1. MOTIVO
+=====================================================================
+
+ADR-0183 dejó la UI clara pero los números siguen en cero: 3 bitácoras y
+0 informes en toda la historia de producción. Los docentes no registraban.
+
+Medición real al iniciar este ADR (Insforge, solo lectura):
+
+  lesson_evaluations (is_test=false) : 3
+    Jeremy   · 2026-10-23 · 1 bitácora
+    Fernando · 2026-10-22 · 1 bitácora
+    Nathaly  · 2026-10-21 · 1 bitácora
+
+  progress_reports : 0
+
+  Días hábiles sin registrar al 2026-11-03:
+    Jeremy 9 · Fernando 10 · Nathaly 11
+
+Dirección pidió: que el docente vea si ya registró, y que el sistema avise
+cuando lleva 2 días hábiles sin llenar, con un mensaje personalizado por
+WhatsApp. Y que Dirección pueda VERIFICAR (no perseguir).
+
+=====================================================================
+2. DECISIONES DE DIRECCIÓN (D1–D7)
+=====================================================================
+
+  D1  Contador 3/8 ................ AUTORIZADO (import lectura kardex)
+  D2  Guía para docentes .......... NO SE HACE
+  D3  Recordatorios de fichaje .... FUERA DE ALCANCE (política propia)
+  D4  Disparador .................. 2 días hábiles sin bitácora
+  D5  Canal ....................... in-app + wa.me (costo cero)
+  D6  Destinatario ................ el propio docente
+  D7  Emisor ...................... persona de Dirección hace clic
+
+=====================================================================
+3. HALLAZGO BLOQUEANTE PREVIO (teléfonos)
+=====================================================================
+
+Se verificó `users` (solo lectura):
+
+  Fernando 987654323 · Jeremy 987654322 · Nathaly 987654324 · Demo 987654325
+
+Los 4 eran FICTICIOS. Y peor: la tabla `users` NO está expuesta por
+PostgREST (GET y PATCH devuelven 404), porque es tabla de auth.
+
+Los UUID de TEACHER_IDS (00000000-...-0003/4/5) son sintéticos, no
+usuarios reales. Por tanto users.phone no era la fuente correcta.
+
+CORRECCIÓN: teléfonos reales entregados por Dirección, guardados en
+`src/lib/services/teacher-resolver.ts` (fuente única, versionada en Git):
+
+  JEREMY   · 51980308142   (de +51 980 308 142)
+  NATHALY  · 51959387858   (de +51 959 387 858)
+  FERNANDO · 51983408944   (de +51 983 408 944)
+
+Sobre "encriptar": NO se cifran. El navegador debe descifrarlos para armar
+wa.me, así que cifrar daría seguridad aparente. Son números de contacto
+PROFESIONAL ya publicados en el WhatsApp Business de la escuela.
+Prohibido poner aquí contraseñas o tokens.
+
+=====================================================================
+4. ARCHIVOS
+=====================================================================
+
+NUEVOS
+  src/lib/informes/teacher-reminders.ts
+  src/hooks/use-session-evaluations.ts
+  src/components/admin/teacher-adoption-panel.tsx
+
+MODIFICADOS
+  src/lib/services/teacher-resolver.ts   (+ TEACHER_PHONES, resolve*, toWhatsAppNumber)
+  src/routes/teacher.index.tsx           (+ hasEvaluation, + refresh en onSaved)
+  src/routes/admin.informes.tsx          (+ pestaña "Adopción Docente")
+
+NO MODIFICADOS (verificado con git diff --stat vacío)
+  src/store/app-store.ts
+  src/lib/kardex-calculator.ts
+  src/lib/student-cycle.ts
+
+=====================================================================
+5. COMPORTAMIENTO
+=====================================================================
+
+Kiosco /teacher — botón de bitácora con 3 estados:
+  Ya registrada   → "✓ Bitácora registrada · Ver / Editar"   (verde)
+  presente        → "📝 Llenar bitácora de hoy (2 min)"      (naranja)
+  otro estado     → "📝 Bitácora de clase"                   (suave)
+
+Detección: `useSessionEvaluations` consulta `getStudentEvaluations`
+(que YA filtra is_test=false) una vez por alumno y rango del día visible.
+PROHIBIDO usar `getEvaluationBySessionKey`: no filtra is_test (§86.6).
+
+Tablero /admin/informes → "Adopción Docente":
+  Docente | Bitácoras | Última | Estado 🟢/🔴 | [📲 Recordar]
+  Docentes resueltos SOLO desde TEACHER_IDS (§86.7), sin hardcodear.
+  Sin teléfono válido → "⚠ Sin teléfono", botón deshabilitado.
+
+Recordatorio:
+  wa.me/<phone>?text=<mensaje personalizado>
+  Lo abre y envía una persona de Dirección. Nunca automático.
+
+=====================================================================
+6. VERIFICACIÓN EN RUNTIME (datos vivos)
+=====================================================================
+
+Script: scratch/test-adopcion-docente.mjs (vite.ssrLoadModule)
+
+  alumnos con bitácora: 3
+   - 80216a77 | 1 | 2026-10-23 | Jeremy
+   - f700e1d8 | 1 | 2026-10-22 | Fernando
+   - 9a7a4c76 | 1 | 2026-10-21 | Nathaly
+
+  === TABLERO hoy 2026-11-03 ===
+  Jeremy    last:2026-10-23  habiles:9   recordar:true  tel:51980308142
+  Fernando  last:2026-10-22  habiles:10  recordar:true  tel:51983408944
+  Nathaly   last:2026-10-21  habiles:11  recordar:true  tel:51959387858
+
+  MENSAJE generado:
+  "Hola Jeremy, te escribimos de Vibra Music. Vemos que hace 9 días no
+   registras la bitácora de clase. Recuerda que toma 2 minutos por alumno
+   y que la necesitamos para poder emitir el informe del ciclo. Gracias."
+
+Casos de borde:
+  domingo->lunes  = 1 día hábil  (domingo NO cuenta)   OK
+  viernes->lunes  = 2 días hábiles                     OK
+  toWhatsAppNumber("+51 980 308 142") = 51980308142    OK
+  docente sin teléfono => URL = null (botón deshabilitado) OK
+
+npm run build : VERDE (exit 0)
+
+=====================================================================
+7. LIMITACIÓN CONOCIDA (no ocultada)
+=====================================================================
+
+`getEvaluationsSummaryMap` NO expone el UUID del docente; solo
+`lastTeacherName`. Por eso:
+  - el motor resuelve por nombre normalizado como fallback;
+  - el conteo por docente es una suma de bitácoras de los alumnos cuyo
+    último registro fue de ese docente (aproximación honesta).
+
+No se inventó un campo inexistente. Cuando exista un servicio que agregue
+por teacher_id, migrar a UUID estricto.
+
+La detección de "2 días sin bitácora" es correcta para el caso real
+(3 bitácoras, 3 docentes distintos).
+
+=====================================================================
+8. PENDIENTE DE ESTE ADR
+=====================================================================
+
+  - Contador "3/8" (D1): autorizado pero NO implementado aquí, para no
+    mezclar dos riesgos distintos en un commit. Requiere leer
+    computeStudentCycleSessions por alumno.
+  - notification_logs: no se escribió. Disponible (existe, 0 filas) para
+    auditar envíos en una fase posterior.
+  - Envío 100% automático desde WhatsApp Business central: fuera de
+    alcance (Cloud API + plantilla Meta + costo). Contradice ADR-0140.
+
+=====================================================================
+9. ACCIÓN OPERATIVA INMEDIATA
+=====================================================================
+
+Los 3 docentes llevan 9–11 días hábiles sin bitácora. El software ya
+expone el botón de recordatorio, pero no sustituye la conversación.

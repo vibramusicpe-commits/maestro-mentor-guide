@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.55] - 2026-11-03
+
+### Bitácora Docente: Estado "Ya Registrada", Recordatorio a 2 Días y Tablero de Adopción (ADR-0184)
+- **Kiosco docente con estado real de la bitácora** (`/teacher`): el botón ahora distingue **`✓ Bitácora registrada · Ver / Editar`** (verde) cuando esa sesión ya tiene evaluación, de **`📝 Llenar bitácora de hoy (2 min)`** (realce naranja) o **`📝 Bitácora de clase`**. Al guardar, `onSaved` refresca el estado además de cerrar la hoja.
+- **Hook `useSessionEvaluations`**: usa `getStudentEvaluations` (filtra `is_test = false` por defecto) con **una consulta por alumno y rango**, evitando N+1 en celular. Prohibido `getEvaluationBySessionKey`, que no filtra `is_test` (§86.6).
+- **Motor puro de recordatorios** (`src/lib/informes/teacher-reminders.ts`): detecta docentes con **2+ días hábiles sin bitácora** (lunes a sábado; domingo no cuenta), genera mensaje personalizado y enlace `wa.me`. Fechas construidas en local para evitar el desfase UTC (ADR-0150).
+- **Teléfonos del personal en la fuente única** (`teacher-resolver.ts`): `TEACHER_PHONES` con Jeremy `51980308142`, Nathaly `51959387858`, Fernando `51983408944`, más `resolveTeacherPhoneById`, `resolveTeacherPhone` y `toWhatsAppNumber`. Se descartó `users.phone`: los UUID de `TEACHER_IDS` son sintéticos y la tabla `users` no está expuesta por PostgREST (404).
+- **Tablero "Adopción Docente"** en `/admin/informes`: bitácoras por docente, última fecha, semáforo 🟢/🔴 y botón `📲 Recordar` que abre WhatsApp con el mensaje ya redactado. Docentes resueltos **solo** desde `TEACHER_IDS` (§86.7). Cero datos financieros, sin fichaje ni puntualidad.
+- **Verificación con datos vivos**: 3 bitácoras reales (Jeremy 23/10, Fernando 22/10, Nathaly 21/10) → tablero detecta 9, 10 y 11 días hábiles sin registro, con los 3 teléfonos correctos. `npm run build` en verde; `app-store.ts`, `kardex-calculator.ts` y `student-cycle.ts` sin cambios.
+- **Pendiente**: contador `3/8` (D1, autorizado pero no implementado para no mezclar riesgos), escritura en `notification_logs` y envío 100 % automático desde WhatsApp Business (requiere Cloud API, fuera de alcance por ADR-0140).
+
 ## [2.0.54] - 2026-11-03
 
 ### Clarificación de Vistas Auditoría vs. Informes y Activación de la Bitácora Docente (ADR-0183)

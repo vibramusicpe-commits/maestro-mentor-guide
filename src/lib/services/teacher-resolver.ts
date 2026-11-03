@@ -27,6 +27,59 @@ export const TEACHER_IDS = {
 export type TeacherKey = keyof typeof TEACHER_IDS;
 export type TeacherId = (typeof TEACHER_IDS)[TeacherKey];
 
+/**
+ * Teléfonos oficiales del personal docente (ADR-0184).
+ *
+ * Formato canónico `wa.me`: código de país + número, SOLO dígitos.
+ * (`51` + 9 dígitos peruanos, sin `+`, sin espacios ni guiones).
+ *
+ * Por qué vive aquí y no en `users.phone`:
+ *   - Los UUID de `TEACHER_IDS` son sintéticos, no usuarios de auth; la tabla
+ *     `users` no está expuesta por PostgREST (404 al hacer PATCH/GET).
+ *   - Aquí es la fuente única junto al nombre y al UUID, y cualquier vista lo
+ *     hereda (mismo criterio que `INSTRUMENT_SPECIALISTS`, ADR-0179).
+ *
+ * Privacidad: son números de contacto PROFESIONAL, ya publicados en el
+ * WhatsApp Business de la escuela y en las invitaciones. NO son credenciales.
+ * No se "cifran" porque el navegador debe descifrarlos para armar `wa.me`:
+ * cifrarlos daría seguridad aparente. Jamás poner aquí contraseñas ni tokens.
+ */
+export const TEACHER_PHONES: Partial<Record<TeacherKey, string>> = {
+  JEREMY: "51980308142",
+  NATHALY: "51959387858",
+  FERNANDO: "51983408944",
+};
+
+/** Teléfono `wa.me` de un docente por UUID sintético. `null` si no está mapeado. */
+export function resolveTeacherPhoneById(id?: string | null): string | null {
+  if (!id) return null;
+  const entry = (Object.keys(TEACHER_IDS) as TeacherKey[]).find(
+    (key) => TEACHER_IDS[key] === id,
+  );
+  if (!entry) return null;
+  return TEACHER_PHONES[entry] ?? null;
+}
+
+/** Teléfono `wa.me` de un docente por nombre/email libre. `null` si no está mapeado. */
+export function resolveTeacherPhone(email?: string, name?: string): string | null {
+  const known = findKnownIdentity(email, name);
+  if (!known) return null;
+  return resolveTeacherPhoneById(known.id);
+}
+
+/**
+ * Normaliza un teléfono a formato `wa.me` (solo dígitos, con `51`).
+ * Devuelve `null` si no alcanza para ser un celular peruano válido,
+ * evitando construir enlaces a números inexistentes.
+ */
+export function toWhatsAppNumber(raw?: string | null): string | null {
+  const digits = (raw || "").replace(/\D/g, "");
+  if (!digits) return null;
+  const national = digits.startsWith("51") ? digits.slice(2) : digits;
+  if (national.length !== 9 || !national.startsWith("9")) return null;
+  return `51${national}`;
+}
+
 interface KnownIdentity {
   id: TeacherId;
   name: string;

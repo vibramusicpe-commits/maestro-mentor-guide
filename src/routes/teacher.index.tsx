@@ -24,6 +24,7 @@ import { findStudentProfileByName } from "@/lib/student-matching";
 import { isLessonInStudentCycle } from "@/lib/student-cycle";
 import { useTeacherIdentity } from "@/hooks/use-teacher-identity";
 import { useTeacherPilotAccess } from "@/hooks/use-teacher-pilot-access";
+import { useSessionEvaluations, sessionEvaluationKey } from "@/hooks/use-session-evaluations";
 import { toIsoDate } from "@/lib/informes/utils";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { toast } from "sonner";
@@ -224,6 +225,16 @@ export function TeacherKiosk() {
 
   // 🧪 Fase 2 — Registro de clase (hoja inferior, piloto Nathaly / Fernando / Jeremy)
   const [classLogSeed, setClassLogSeed] = useState<ClassLogSeed | null>(null);
+
+  // ADR-0184 — "✓ Bitácora registrada": una sola consulta para el día visible.
+  const { evaluated: evaluatedSessions, refresh: refreshSessionEvaluations } = useSessionEvaluations(
+    useMemo(() => dayLessons.map((l) => findStudentProfileByName(adminStudents, l.student)?.id || ""), [
+      dayLessons,
+      adminStudents,
+    ]),
+    targetDateStr || "",
+    targetDateStr || "",
+  );
 
   const handleMonthChange = (newMonth: number) => {
     setSelectedMonth(newMonth);
@@ -509,6 +520,13 @@ export function TeacherKiosk() {
                           !studentProfile?.modality?.toLowerCase().includes("45 min")),
                     );
 
+                    // ADR-0184 — ¿esta sesión ya tiene bitácora registrada?
+                    const sessionKey = sessionEvaluationKey(
+                      lesson.dateStr || targetDateStr,
+                      lesson.time,
+                    );
+                    const hasEvaluation = Boolean(sessionKey && evaluatedSessions.has(sessionKey));
+
                     return (
                       <div key={lesson.id} className="space-y-2 px-3 py-2.5">
                         {/* Nombre, badges y estado */}
@@ -607,13 +625,19 @@ export function TeacherKiosk() {
                             type="button"
                             onClick={() => openClassLog(studentProfile, lesson, targetDateStr)}
                             className={`flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors shadow-xs ${
-                              status === "presente"
-                                ? "border-2 border-primary bg-primary/15 text-primary hover:bg-primary/25"
-                                : "border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+                              hasEvaluation
+                                ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
+                                : status === "presente"
+                                  ? "border-2 border-primary bg-primary/15 text-primary hover:bg-primary/25"
+                                  : "border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
                             }`}
                           >
                             <ClipboardList className="h-4 w-4" />
-                            {status === "presente" ? "📝 Llenar bitácora de hoy (2 min)" : "📝 Bitácora de clase"}
+                            {hasEvaluation
+                              ? "✓ Bitácora registrada · Ver / Editar"
+                              : status === "presente"
+                                ? "📝 Llenar bitácora de hoy (2 min)"
+                                : "📝 Bitácora de clase"}
                           </button>
                         )}
                       </div>
@@ -677,6 +701,7 @@ export function TeacherKiosk() {
               initialSeed={classLogSeed}
               onSaved={() => {
                 setClassLogSeed(null);
+                refreshSessionEvaluations();
                 toast.success("✓ Bitácora de clase guardada correctamente", {
                   description: `Se registró la evaluación de ${classLogSeed.studentName || "la sesión"}.`,
                 });

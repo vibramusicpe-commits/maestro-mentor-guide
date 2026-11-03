@@ -1875,3 +1875,33 @@ inferencia.
    - Queda **TERMINANTEMENTE PROHIBIDO** hardcodear `["Jeremy","Nathaly","Fernando"]` o filtrar adopción por `teacher_name` de texto: ya falló con la Prof. Claudia (sin UUID), que quedó excluida de los criterios de Estimulación Musical.
    - Un docente sin UUID **no se oculta ni se inventa**: se muestra en una fila explícita `⚠️ Docente sin UUID mapeado` con sus bitácoras resueltas por nombre.
 8. **Referencia**: `docs/adr/0183-clarificacion-vistas-auditoria-e-informes-kiosco-docente.md`, `docs/logs/2026-11-03-adr-0183-clarificacion-vistas.log`, `docs/PLAN_ADOPCION_BITACORA_DOCENTE_Y_CIRCULARIDAD.md` y CHANGELOG `[2.0.54]`.
+
+---
+
+### 87. Bitácora Docente Operativa: Estado "Ya Registrada", Recordatorio a 2 Días y Tablero de Adopción (ADR-0184)
+
+1. **Estado real de la bitácora en el Kiosco (`/teacher`)**:
+   - El botón tiene **3 estados**: `✓ Bitácora registrada · Ver / Editar` (verde), `📝 Llenar bitácora de hoy (2 min)` (realce naranja cuando la asistencia es `presente`) y `📝 Bitácora de clase`.
+   - `onSaved` **debe** refrescar el set de evaluaciones además de cerrar la hoja. Prohibido dejarlo sin `refresh`.
+2. **Consulta de bitácoras (`src/hooks/use-session-evaluations.ts`)**:
+   - Usa **`getStudentEvaluations`** (filtra `is_test = eq.false` por defecto). **PROHIBIDO** `getEvaluationBySessionKey`, que no filtra `is_test` (§86.6).
+   - **Una consulta por alumno y rango**; prohibido consultar por tarjeta (N+1 en celular).
+   - Clave de sesión determinista: `sessionEvaluationKey()` = `YYYY-MM-DD::HH:MM`. Prohibido reimplementarla.
+   - Cualquier error ⇒ mapa vacío; el Kiosco **nunca** se rompe por esta consulta.
+3. **Motor de recordatorios (`src/lib/informes/teacher-reminders.ts`)**:
+   - Umbral: **2 días hábiles** (`REMINDER_THRESHOLD_WORKDAYS`). Días hábiles = **lunes a sábado**; el **domingo no cuenta**.
+   - Fechas construidas **en local** (`new Date(y, m-1, d)`), nunca `new Date("YYYY-MM-DD")`, para evitar el desfase UTC (ADR-0150).
+   - Reutilizar `buildTeacherReminderMessage` / `buildTeacherReminderWhatsAppUrl`. Prohibido reimplementar el texto o el enlace en un componente (ADR-0119.3).
+   - Docente sin bitácora previa ⇒ `needsReminder = false`: **no se inventa antigüedad** ni se le reclama desde cero.
+   - **NO evalúa fichaje ni puntualidad** (decisión D3): la empresa tiene su propia política de asistencia.
+4. **Teléfonos del personal — fuente única, sin cifrado ilusorio**:
+   - `TEACHER_PHONES` vive en `src/lib/services/teacher-resolver.ts`, junto a `TEACHER_IDS`. **Prohibido** `users.phone`: los UUID son sintéticos y `users` no está expuesta por PostgREST (404).
+   - Formato canónico `wa.me`: **solo dígitos con `51`**. Normalizar siempre con `toWhatsAppNumber()`; si no cumple (9 dígitos empezando en `9`) devolver `null` y **deshabilitar el botón**.
+   - **No se cifran**: el navegador debe descifrarlos para armar `wa.me`, así que cifrar sería seguridad aparente. Son datos de contacto **profesional**. **Prohibido** guardar aquí contraseñas o tokens.
+5. **Tablero "Adopción Docente" (`/admin/informes`)**:
+   - Docentes resueltos **solo** desde `TEACHER_IDS` + `resolveTeacherNameById` (§86.7). Prohibido hardcodear la lista.
+   - Muestra bitácoras, última fecha y semáforo 🟢/🔴. Botón `📲 Recordar` con `wa.me`.
+   - **Cero datos financieros.** Sin fichaje, sin puntualidad, sin ranking público ni uso disciplinario.
+6. **El envío NUNCA es automático**: `wa.me` abre WhatsApp en el dispositivo de quien hace clic y lo envía una persona de Dirección. Envío automático desde el WhatsApp Business central exigiría Cloud API + plantilla aprobada por Meta + costo por mensaje, y **contradice ADR-0140**. Si se quiere, requiere ADR nuevo.
+7. **Limitación conocida**: `getEvaluationsSummaryMap` **no expone el UUID del docente**, solo `lastTeacherName`; el conteo por docente es una aproximación honesta. Cuando exista un servicio que agregue por `teacher_id`, migrar a UUID estricto. Prohibido inventar campos inexistentes.
+8. **Referencia**: `docs/adr/0184-bitacora-docente-recordatorio-y-adopcion.md`, `docs/logs/2026-11-03-adr-0184-bitacora-recordatorio-adopcion.log` y CHANGELOG `[2.0.55]`.

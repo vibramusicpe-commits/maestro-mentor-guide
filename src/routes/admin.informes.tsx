@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { FileBarChart2, FileText, Sparkles, Inbox } from "lucide-react";
+import { FileBarChart2, FileText, Sparkles, Inbox, Users2 } from "lucide-react";
 import { InformesTrackerPanel } from "@/components/admin/informes-tracker-panel";
 import { ProgressReportsPanel } from "@/components/admin/progress-reports-panel";
+import { TeacherAdoptionPanel } from "@/components/admin/teacher-adoption-panel";
 
 export const Route = createFileRoute("/admin/informes")({
   // Enlace cruzado desde Auditoría de Alumnos (ADR-0183): `?alumno=<nombre>`
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/admin/informes")({
 
 function AdminInformesPage() {
   const { alumno } = Route.useSearch();
-  const [activeTab, setActiveTab] = useState<"tracker" | "bandeja">("tracker");
+  const [activeTab, setActiveTab] = useState<"tracker" | "bandeja" | "adopcion">("tracker");
 
   return (
     <div className="space-y-4">
@@ -62,11 +63,26 @@ function AdminInformesPage() {
           <Inbox className="h-3.5 w-3.5" />
           <span>Bandeja General de Informes</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("adopcion")}
+          className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+            activeTab === "adopcion"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          <Users2 className="h-3.5 w-3.5" />
+          <span>Adopción Docente</span>
+        </button>
       </div>
 
       {/* Vista activa */}
       {activeTab === "tracker" ? (
         <InformesTrackerPanel initialStudentName={alumno} />
+      ) : activeTab === "adopcion" ? (
+        <TeacherAdoptionPanel />
       ) : (
         <ProgressReportsPanel />
       )}
