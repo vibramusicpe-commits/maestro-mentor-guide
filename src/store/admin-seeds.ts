@@ -214,6 +214,11 @@ export type AdminStudent = {
   reentryHistory?: Array<{ date: string; reason: string; notes?: string }>;
   // Horario persistido desde PostgreSQL (emergency_contact.scheduleLessons)
   scheduleLessons?: ScheduledLesson[];
+  // ADR-0186 — Vínculo de misma persona con varios instrumentos.
+  // Los registros de un mismo alumno con 2+ instrumentos comparten este UUID.
+  // NO fusiona las matrículas: solo indica que son la misma persona.
+  personGroupId?: string;
+  personGroupLabel?: string;
 };
 
 export type DeletionReasonCategory =

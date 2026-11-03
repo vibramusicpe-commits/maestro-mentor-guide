@@ -58,6 +58,7 @@ import {
 } from "@/components/admin/senior-accessibility-bar";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { isMatchingStudentName } from "@/lib/student-matching";
+import { buildInvoiceGroupMap, describeInstrumentBundle } from "@/lib/student-person-group";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { compressImageToWebP } from "@/lib/image-compressor";
@@ -356,6 +357,48 @@ function AdminFacturacionPage() {
     () => invoices.find((i) => i.id === selectedInvoiceId),
     [invoices, selectedInvoiceId],
   );
+
+  // ADR-0186 — Agrupación de recibos por alumno con varios instrumentos.
+  // Solo VISUAL: no suma a los totales globales ni altera montos individuales.
+  const payloadBundles = useMemo(() => {
+    const groupMap = buildInvoiceGroupMap(activeStudents);
+    const result = new Map<
+      string,
+      { instrumentLabel: string; groupTotal: number; siblingNames: string[] }
+    >();
+    if (groupMap.size === 0) return result;
+
+    groupMap.forEach((group) => {
+      const groupStudents = activeStudents.filter((st) => group.studentIds.includes(st.id));
+      if (groupStudents.length < 2) return;
+
+      const instrumentLabel = describeInstrumentBundle(groupStudents);
+      const siblingNames = groupStudents.map((st) => st.name);
+      const groupTotal = groupStudents.reduce((sum, st) => {
+        const aligned = activeInvoices.filter(
+          (inv) =>
+            st.invoices?.some((own) => own.id === inv.id) ||
+            isMatchingStudentName(st.name, inv.concept?.split("—")[1]?.trim() || ""),
+        );
+        const amount = aligned.reduce((acc, inv) => acc + (inv.amount || 0), 0);
+        return sum + amount;
+      }, 0);
+
+      groupStudents.forEach((st) => {
+        activeInvoices
+          .filter(
+            (inv) =>
+              st.invoices?.some((own) => own.id === inv.id) ||
+              isMatchingStudentName(st.name, inv.concept?.split("—")[1]?.trim() || ""),
+          )
+          .forEach((inv) => {
+            result.set(inv.id, { instrumentLabel, groupTotal, siblingNames });
+          });
+      });
+    });
+
+    return result;
+  }, [activeStudents, activeInvoices]);
 
   const viewLogsInv = useMemo(
     () => invoices.find((i) => i.id === viewLogsInvoiceId),
@@ -1753,6 +1796,9 @@ function AdminFacturacionPage() {
                       const studentName = inv.concept.split("—")[1]?.trim() || inv.family;
                       const dayNum = inv.dueDate ? inv.dueDate.split("-")[2] : "01";
 
+                      // ADR-0186 — ¿este recibo pertenece a un alumno con varios instrumentos?
+                      const bundle = payloadBundles.get(inv.id);
+
                       return (
                         <TableRow key={inv.id} data-tour="facturacion-invoice-row" className="hover:bg-muted/30 text-xs">
                           <TableCell className="font-black text-foreground">{inv.family}</TableCell>
@@ -1764,7 +1810,23 @@ function AdminFacturacionPage() {
                               {inv.dueDate || "Agosto 2026"}
                             </span>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{inv.concept}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {inv.concept}
+                            {bundle && (
+                              <span className="mt-1 flex flex-wrap items-center gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className="border-primary/40 bg-primary/10 text-[10px] font-black text-primary"
+                                  title={`Este alumno lleva ${bundle.instrumentLabel}. Total del apoderado: ${money(bundle.groupTotal)}`}
+                                >
+                                  🎼 {bundle.instrumentLabel}
+                                </Badge>
+                                <span className="font-mono text-[10px] font-bold text-foreground">
+                                  Total familia {money(bundle.groupTotal)}
+                                </span>
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right font-mono font-bold text-foreground">
                             {money(inv.amount)}
                           </TableCell>

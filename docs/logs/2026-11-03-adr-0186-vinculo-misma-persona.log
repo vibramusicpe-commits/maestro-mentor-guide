@@ -1,0 +1,175 @@
+VÍNCULO DE MISMA PERSONA CON MÚLTIPLES INSTRUMENTOS
+Fecha: 2026-11-03
+ADR: docs/adr/0186-vinculo-misma-persona-multi-instrumento.md
+Rama: main
+Alcance: librería pura de identidad + agrupación visual en facturación.
+         SIN escrituras de datos. SIN cambios de esquema. SIN fusión de registros.
+
+=====================================================================
+1. MOTIVO
+=====================================================================
+
+Alumnos que contratan 2 instrumentos se registran como 2 alumnos con
+nombres distintos (para no chocar con la política de homónimos ADR-0125).
+Correcto pedagógicamente (2 docentes, 2 salas, 2 planes), pero rompe la
+facturación: el apoderado que paga de partes por 2 instrumentos aparece
+como 2 pagadores sin relación.
+
+Dirección: "cuando tiene 2 instrumentos ya no se pone genial sino más bien
+engorroso y hasta podría haber confusiones".
+
+=====================================================================
+2. CASOS VERIFICADOS EN PRODUCCIÓN
+=====================================================================
+
+CAMILA (2 instrumentos)
+  5c44e64a-…  CAMILA VALENTINA       Violín   · Fernando · Regular     · S/261
+  064f2b68-…  kamila Valentina G.    Guitarra · Jeremy   · Intensivo   · S/261
+  Nacimiento 2016-02-24 en ambas · Tutor: Olivia Norma Conco en ambas
+
+MARIO (2 instrumentos)
+  f7a13b12-…  Mario Keffreen  Guitarra · S/261
+  9948ede5-…  Mario Kefren    Batería  · S/261
+  Nacimiento 2015-08-12 en ambos · Tutor: Janett Emiliano Solano
+  Teléfono 959463744 en ambos · Familia Martel Emiliano
+
+JAN / JAM (2 instrumentos, adulta)
+  c4acd9af-…  JAN  Piano · S/297
+  37b64949-…  JAM  Canto · S/494
+  Nacimiento 1997-03-17 en ambas · sin tutor externo
+
+FALSO POSITIVO DESCARTADO
+  Aaron (Violín) vs Sylvia (Guitarra): ambos 2016-04-09
+  pero apoderados DISTINTOS (Kely Sosa Torres vs Sylvia Jaimes).
+  => La fecha sola NO basta para inferir identidad.
+
+REGISTRO HISTÓRICO (NO borrar)
+  00000000-0000-0000-0002-000000000045 - Camila Valentina Pastor Conco
+  status='baja' · birthdate null · recibo 00000000-…0045 S/261 COBRADO
+  No se elimina: es dinero realmente percibido en el sistema anterior.
+
+=====================================================================
+3. HALLAZGO QUE CORRIGE UNA SUPOSICIÓN
+=====================================================================
+
+Se probó el motor real isMatchingStudentName:
+
+  CAMILA VALENTINA vs kamila Valentina G.  -> false
+  Mario Keffreen   vs Mario Kefren         -> false
+  JAN              vs JAM                  -> false
+  Aaron            vs Sylvia               -> false
+
+El buscador ya distingue correctamente. El problema NO es de matching:
+es la ausencia de un vínculo explícito.
+
+PROHIBIDO tocar isMatchingStudentName / normalizeStudentName:
+son la deduplicación de ADR-0107 y ya causaron el incidente ADR-0119.
+
+=====================================================================
+4. ARCHIVOS
+=====================================================================
+
+NUEVOS
+  src/lib/student-person-group.ts
+     isSamePerson() · detectSamePersonCandidates() · buildPersonGroupIndex()
+     resolvePersonSiblings() · describeInstrumentBundle() · buildInvoiceGroupMap()
+     resolveStudentPersonGroup() · normalizeIsoDate() · readPersonSignals()
+
+MODIFICADOS
+  src/store/admin-seeds.ts          (+ personGroupId/personGroupLabel opcionales)
+  src/routes/admin.facturacion.tsx   (+ indicador de paquete de instrumentos)
+
+NO MODIFICADOS (git diff --stat vacío)
+  src/store/app-store.ts
+  src/lib/kardex-calculator.ts
+  src/lib/student-cycle.ts
+
+SIN DDL: todo va en emergency_contact JSONB.
+
+=====================================================================
+5. CRITERIO ÚNICO DE IDENTIDAD
+=====================================================================
+
+isSamePerson() exige AMBAS:
+  1. Misma fecha de nacimiento (dato duro).
+  2. Mismo apoderado normalizado.
+
+Excepción ADULTO (18+): sin tutor registrado, se exige además que el
+nombre del alumno coincida EXACTAMENTE (normalizado). Por eso JAN/JAM no
+se detecta automáticamente: se vincula explícitamente, que es lo correcto
+para un adulto con alias.
+
+Toda la lógica vive en student-person-group.ts.
+Prohibido reimplementarla en otra vista (ADR-0119.3).
+
+=====================================================================
+6. FASE 1 (implementada) - Detección al matricular
+=====================================================================
+
+detectSamePersonCandidates() devuelve { activos, historicos }.
+El formulario informa; NO bloquea. Decide secretaría.
+
+=====================================================================
+7. FASE 2 (implementada) - Agrupación visual en facturación
+=====================================================================
+
+buildInvoiceGroupMap() agrupa por personGroupId; grupos de tamaño 1 se
+descartan para no alterar la vista actual.
+
+Cada recibo vinculado muestra:
+  [🎼 Violín + Guitarra]   Total familia S/ 522.00
+
+SOLO VISUAL: no suma a totales globales ni altera montos individuales.
+Sin personGroupId, todo se comporta exactamente como hoy.
+
+=====================================================================
+8. FASE 3 (PENDIENTE de confirmación explícita)
+=====================================================================
+
+Por caso, uno por uno:
+  1. Escribir personGroupId + personGroupLabel en ambos registros.
+  2. Alinear family_id a la familia real del apoderado.
+  3. Verificar leyendo de vuelta que NINGÚN monto cambió.
+  4. NO eliminar el histórico 00000000-…0045.
+
+Protocolo: backup previo -> un caso -> verificar -> siguiente.
+Nunca los tres de golpe. npm run build entre casos.
+
+=====================================================================
+9. VERIFICACIÓN EN RUNTIME
+=====================================================================
+
+scratch/test-person-group.mjs / test-person-group2.mjs
+
+  === FALSOS POSITIVOS (deben ser false) ===
+  Aaron vs Sylvia: false                                   OK
+
+  === MISMA PERSONA (deben ser true) ===
+  Camila(Kamila): true                                     OK
+  Mario: true                                              OK
+  JAN/JAM (adulta, sin tutor): false  <- deliberado        OK
+
+  === normalización de fechas ===
+  "2016-02-24"               -> 2016-02-24                 OK
+  "2016-02-24T05:00:00.000Z" -> 2016-02-24                 OK
+  "24/02/2016"               -> 2016-02-24                 OK
+  ""                         -> null                       OK
+
+  === vínculo explícito ===
+  JAN/JAM hermanos: 1                                      OK
+  bundle: Piano + Canto                                    OK
+  sin vínculo (no adivina): 0                              OK
+  candidatos al matricular: CAMILA VALENTINA, kamila V. G. OK
+
+npm run build : VERDE (exit 0)
+Archivos prohibidos: sin cambios.
+Totales de facturación: sin alteración (solo agrupación visual).
+
+=====================================================================
+10. LÍMITES HONESTOS
+=====================================================================
+
+  - La Fase 2 no agrupa nada hasta que exista personGroupId en los datos.
+    Hoy el vínculo está en CERO registros: la vista se ve igual que antes.
+  - La detección automática no cubre adultos con alias (JAN/JAM).
+  - No hay UI para editar personGroupId manualmente todavía (Fase 3).

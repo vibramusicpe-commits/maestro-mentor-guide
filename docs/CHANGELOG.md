@@ -4,6 +4,18 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.57] - 2026-11-03
+
+### Vínculo de Misma Persona con Múltiples Instrumentos (ADR-0186)
+- **Problema real identificado**: un alumno que contrata 2 instrumentos se registra como 2 alumnos (para no bloquear por homónimo, ADR-0125). Correcto pedagógicamente —2 docentes, 2 salas, 2 planes— pero **rompe la facturación**: el apoderado que paga de partes por 2 instrumentos aparece como 2 pagadores sin relación.
+- **Módulo único de identidad** (`src/lib/student-person-group.ts`): `isSamePerson()` exige **fecha de nacimiento + apoderado**; nunca solo la fecha (Aaron y Sylvia comparten `2016-04-09` con apoderados distintos). Excepción para adultos sin tutor: exige coincidencia exacta del nombre del alumno. Prohibido tocar `isMatchingStudentName`/`normalizeStudentName` (ADR-0107, incidente ADR-0119).
+- **Vínculo sin fusión**: campos opcionales `personGroupId`/`personGroupLabel` en `AdminStudent` (serializados en `emergency_contact` JSONB). **Sin `ALTER TABLE`**, sin mover horarios ni planes.
+- **Fase 1 — detección al matricular**: `detectSamePersonCandidates()` separa candidatos **activos** e **históricos**; el formulario informa, no bloquea.
+- **Fase 2 — agrupación visual en facturación**: el recibo de un alumno vinculado muestra `🎼 Violín + Guitarra` y `Total familia S/ 522.00`. **Solo visual**: no suma a totales globales ni altera montos. Sin `personGroupId`, la vista se comporta igual que antes.
+- **Fase 3 pendiente**: migración de datos (Camila, Mario, JAN/JAM) requiere confirmación explícita, caso por caso, con verificación de montos antes/después.
+- **Corrección de diagnóstico**: el registro `00000000-…0045` (Camila Valentina Pastor Conco) **no es basura**: es un alumno real en `baja` con S/ 261 cobrados del sistema anterior. No se elimina.
+- **Verificación**: `npm run build` en verde; falsos positivos rechazados; Camila y Mario detectados; JAN/JAM resueltos por vínculo explícito; `app-store.ts`, `kardex-calculator.ts` y `student-cycle.ts` sin cambios.
+
 ## [2.0.56] - 2026-11-03
 
 ### Historial de Bitácora Diaria y Contador de Avance del Ciclo (ADR-0185)

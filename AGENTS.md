@@ -1931,3 +1931,20 @@ inferencia.
 5. **Cero datos financieros** en todas estas vistas.
 6. **Limitación honesta**: con pocas bitácoras la vista muestra pocas filas. Eso refleja la adopción real, no un defecto de la vista; no se rellena con datos simulados ni de prueba (`is_test = true`).
 7. **Referencia**: `docs/adr/0185-historial-bitacora-diaria-y-contador-avance.md`, `docs/logs/2026-11-03-adr-0185-historial-bitacora-diaria.log` y CHANGELOG `[2.0.56]`.
+
+---
+
+### 89. Vínculo de Misma Persona con Múltiples Instrumentos (ADR-0186)
+
+1. **Regla de negocio**: un alumno puede contratar **2 o 3 instrumentos**. Son **matrículas distintas** (docente, sala, horario y plan propios) y **nunca se fusionan**; solo se **vinculan** mediante `personGroupId`.
+2. **Fuente única de identidad (`src/lib/student-person-group.ts`)**:
+   - `isSamePerson()` exige **fecha de nacimiento + apoderado**. Prohibido inferir identidad solo por fecha: `Aaron` y `Sylvia` comparten `2016-04-09` y son personas distintas.
+   - **Excepción adulto (18+)**: sin tutor registrado, exige además coincidencia exacta del nombre del alumno. Por eso alias como `JAN`/`JAM` se resuelven por **vínculo explícito**, nunca por adivinanza.
+   - Prohibido reimplementar este criterio en otra vista (ADR-0119.3).
+3. **Prohibido tocar `isMatchingStudentName` / `normalizeStudentName`**: son la deduplicación de ADR-0107 y ya causaron el incidente ADR-0119. El buscador actual **ya distingue** correctamente los alias; el problema era la falta de vínculo, no el matching.
+4. **Almacenamiento**: `personGroupId` y `personGroupLabel` opcionales en `AdminStudent`, serializados en `emergency_contact` JSONB. **Prohibido `ALTER TABLE`** (ADR-0119: producción).
+5. **Facturación (Fase 2)**: la agrupación es **solo visual**. Muestra `🎼 Violín + Guitarra` y `Total familia S/ 522.00` en el recibo, pero **jamás** suma a los totales globales ni altera montos individuales. Sin `personGroupId`, la vista se comporta idéntica a hoy.
+6. **Matrícula (Fase 1)**: `detectSamePersonCandidates()` informa y separa candidatos activos e históricos. **No bloquea**: la decisión es de secretaría.
+7. **Registros históricos en `baja` con dinero cobrado NO SE ELIMINAN** (ej. `Camila Valentina Pastor Conco`, S/ 261). Representan ingresos reales del sistema anterior; ya están excluidos de las vistas activas por `status = 'baja'`.
+8. **Migración de datos (Fase 3)**: requiere confirmación explícita, **caso por caso**, con backup previo y verificación de que ningún monto cambió. Nunca los casos de golpe.
+9. **Referencia**: `docs/adr/0186-vinculo-misma-persona-multi-instrumento.md`, `docs/logs/2026-11-03-adr-0186-vinculo-misma-persona.log`, `docs/PLAN_VINCULO_MISMA_PERSONA_MULTI_INSTRUMENTO.md` y CHANGELOG `[2.0.57]`.
