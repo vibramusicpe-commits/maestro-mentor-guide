@@ -4,6 +4,15 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.61] - 2026-11-03
+
+### Registro 2: Docente por UUID, Matrícula/Libro por Instrumento y Abonos Fáciles (ADR-0188)
+- **Docente por UUID, nunca por nombre**: se reemplazó la nota de texto («Entra con Nathaly») por un **selector de docente** alimentado por `TEACHER_IDS`. Al elegir instrumento se sugiere el especialista (ADR-0179) marcado `(especialista)`, pero es libremente seleccionable, con opción «Sin asignar» y aviso. **Si un docente renuncia y cambia el resolver, todas las fichas siguen coherentes**; un nombre escrito a mano quedaría mintiendo.
+- **Matrícula y libro visibles y editables por cada instrumento** (decisión de Dirección): antes estaban fijos en el código (Promo Demo S/ 30, libro S/ 67 con abono 0) y **nunca aparecían en el resumen ni se cobraban**. Ahora: matrícula Regular S/ 120 · Promo Demo S/ 30 · Exonerada · personalizada, costo y abono de libro editables, aviso de «Libro pendiente» y estado derivado (`cancelado`/`parcial`/`pendiente`).
+- **Resumen familiar completo**: suma mensualidades + matrículas + libros. Verificado con Piano y Canto: Contratado S/ 694 · Abonado S/ 310 · Pendiente S/ 384.
+- **Abonos fáciles**: el abono nace con el **saldo pendiente precargado**, atajos `+S/ 50`, `+S/ 100` y **«Pagar saldo»**, recálculo instantáneo del total del instrumento y botón **Quitar** que lo revierte. La nota tiene su propio campo.
+- **Verificación**: `npm run build` en verde y `tsc --noEmit` sin errores nuevos (regla §92). Registro 1 intacto.
+
 ## [2.0.60] - 2026-11-03
 
 ### Corrección Crítica: `multiEnrollmentOpen is not defined` en Producción (ADR-0188)

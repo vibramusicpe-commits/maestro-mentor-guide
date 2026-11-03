@@ -1,0 +1,110 @@
+REGISTRO 2: DOCENTE POR UUID, MATRÍCULA/LIBRO POR INSTRUMENTO Y ABONOS FÁCILES
+Fecha: 2026-11-03
+ADR: docs/adr/0188-registro-2-matricula-multi-instrumento-pagos-flexibles.md
+Rama: main
+Alcance: refuerzo del Registro 2 tras pruebas de Dirección en producción.
+         SIN DDL. SIN cambios en motores de cálculo.
+
+=====================================================================
+1. TRES PROBLEMAS REPORTADOS POR DIRECCIÓN (capturas reales)
+=====================================================================
+
+  a) "Canto lo hace con Nathaly pero no siempre va a estar Nathaly.
+      ¿Si renuncia, la otra profesora se llamará Nathaly también?"
+      El docente se guardaba como TEXTO LIBRE en una nota.
+
+  b) "Tampoco aparece la opción de su libro o matrícula."
+      Matrícula y libro estaban FIJOS en el código y no salían en el
+      resumen familiar. El libro nunca se cobraba.
+
+  c) "Agregar abono está bien pero no resulta fácil usarlo."
+      Creaba un monto en 0 en cuatro campos diminutos y no se reflejaba
+      hasta escribirlo a mano.
+
+=====================================================================
+2. CORRECCIÓN (a): DOCENTE POR UUID, NUNCA POR NOMBRE
+=====================================================================
+
+Antes:
+  El docente se anotaba como texto: "Entra con Fernando".
+
+Ahora:
+  - Selector "Docente a cargo" alimentado por TEACHER_IDS (fuente única).
+  - Al elegir instrumento se SUGIERE el especialista
+    (INSTRUMENT_SPECIALISTS, ADR-0179) y se marca "(especialista)".
+  - El docente es LIBREMENTE seleccionable (nadie queda atado a un nombre).
+  - Opción "Sin asignar" con aviso: "Podrás asignarlo luego desde el
+    Horario de Clases". Nunca se inventa un docente.
+  - Al guardar, el nombre se resuelve con resolveTeacherNameById(uuid).
+
+Por qué importa:
+  Si Nathaly renuncia y el UUID pasa a otra persona, se actualiza el
+  resolver y TODAS las fichas siguen coherentes. Un nombre escrito a mano
+  no tiene esa propiedad: queda mintiendo para siempre.
+
+=====================================================================
+3. CORRECCIÓN (b): MATRÍCULA Y LIBRO POR CADA INSTRUMENTO
+=====================================================================
+
+Antes (valores fijos en el código):
+  matriculaType: "Promo Demo (S/ 30)"
+  packUtilesCost: 67
+  packUtilesAmountPaid: 0     <- el libro nunca se cobraba
+  packUtilesStatus: "pendiente"
+
+Ahora (decisión de Dirección: POR CADA INSTRUMENTO):
+  - Matrícula: Regular S/ 120 · Promo Demo S/ 30 · Exonerada S/ 0 ·
+    monto personalizado. Con su propio campo de abono.
+  - Libro / Pack de útiles: costo editable + abono editable.
+  - Aviso "Libro pendiente: S/ X" cuando falta cobrar.
+  - Estado del libro DERIVADO automáticamente:
+      cancelado si abonado >= costo
+      parcial   si abonado > 0
+      pendiente si nada
+  - El resumen familiar suma mensualidades + matrículas + libros.
+
+Verificación del cálculo (Piano y Canto a S/ 250, matrícula S/ 30 x2,
+libro S/ 67 x2, piano pagado completo):
+
+  Contratado : 694   (250 + 250 + 30 + 30 + 67 + 67)
+  Abonado    : 310   (250 piano + 30 + 30 matrículas)
+  Pendiente  : 384   (250 canto + 67 + 67 libros)
+
+Antes el resumen mostraba solo S/ 500 y el libro no existía.
+
+=====================================================================
+4. CORRECCIÓN (c): ABONOS FÁCILES
+=====================================================================
+
+Antes:
+  "Agregar abono" creaba monto 0 en 4 campos apretados y el total del
+  instrumento no cambiaba hasta escribir el importe.
+
+Ahora:
+  - El abono nace con el SALDO PENDIENTE precargado.
+  - Atajos de un clic: "+S/ 50", "+S/ 100" y "Pagar saldo".
+  - El total del instrumento se recalcula al instante al cambiar el monto.
+  - Botón "Quitar" que revierte el total del instrumento.
+  - Nota libre por abono (campo propio, ya no comprimido).
+  - Diseño en 2 filas: monto/fecha/método arriba, atajos y nota abajo.
+
+=====================================================================
+5. VERIFICACIÓN TÉCNICA
+=====================================================================
+
+  npm run build ............... VERDE (exit 0)
+  npx tsc --noEmit (archivos) ... 0 errores nuevos
+                                   multi-instrument-enrollment.tsx
+                                   link-person-dialog.tsx
+
+  Regla §92 aplicada: build + TypeScript antes de commitear.
+
+=====================================================================
+6. LO QUE NO SE HIZO
+=====================================================================
+
+  - No se tocó el Registro 1 (sigue intacto).
+  - No se creó un registro de docente nuevo: se usa TEACHER_IDS.
+  - Si un docente NO existe en TEACHER_IDS, no aparece en el selector.
+    Para agregar uno nuevo se actualiza el resolver (fuente única),
+    no se escribe su nombre a mano.

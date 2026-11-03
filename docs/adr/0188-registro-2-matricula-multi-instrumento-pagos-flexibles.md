@@ -87,6 +87,39 @@ Dirección indicó que posteriormente esta información se trasladará a una bas
 
 Si la fecha de nacimiento + apoderado coinciden con un alumno existente, se muestra un aviso sugiriendo **vincular** en lugar de duplicar (reutiliza `detectSamePersonCandidates`, ADR-0186). **No bloquea**: decide secretaría.
 
+### 7. Docente por UUID, no por nombre (corrección 2026-11-03)
+
+El primer diseño guardaba al docente en una **nota de texto** ("Entra con Nathaly"). Es un error de fondo: si la profesora renuncia y entra otra, ese texto queda mintiendo para siempre, y dejarlo vacío deja el dato incompleto.
+
+**Corrección:**
+- Cada instrumento tiene un **selector de docente** alimentado por `TEACHER_IDS` (fuente única, ADR-0179).
+- Al elegir el instrumento se **sugiere el especialista** (`INSTRUMENT_SPECIALISTS`), marcado como `(especialista)`, pero **el docente es libremente seleccionable**.
+- Se ofrece la opción **«Sin asignar»** con aviso: *"Podrás asignarlo luego desde el Horario de Clases"*. Nunca se inventa un docente.
+- El nombre se resuelve con `resolveTeacherNameById(uuid)` al guardar; la identidad real es el **UUID**.
+
+**Por qué importa:** si mañana Nathaly renuncia y el UUID pasa a otra persona, se actualiza el resolver y todas las fichas siguen siendo coherentes. Escribir el nombre a mano no tiene esa propiedad.
+
+### 8. Matrícula y Libro por cada instrumento (corrección 2026-11-03)
+
+El primer diseño los tenía **fijos en el código** (`Promo Demo S/ 30` y libro `S/ 67` con abono `0`), así que nunca aparecían en el resumen familiar y el libro jamás se cobraba.
+
+**Corrección — decisión de Dirección: se cobran POR CADA INSTRUMENTO.**
+- **Matrícula**: Regular S/ 120 · Promo Demo S/ 30 · Exonerada S/ 0 · monto personalizado. Con su propio abono.
+- **Libro / Pack de útiles**: costo editable y abono editable, con aviso de saldo pendiente.
+- El **estado del libro** se deriva solo: `cancelado` si se cubrió, `parcial` si hay abono, `pendiente` si no.
+- El **resumen familiar** ahora suma mensualidades + matrículas + libros.
+
+### 9. Abonos fáciles (corrección 2026-11-03)
+
+Antes, «Agregar abono» creaba un monto en **0** en cuatro campos diminutos y no se reflejaba hasta escribirlo.
+
+**Corrección:**
+- El abono nace con el **saldo pendiente precargado**.
+- Atajos de un clic: **+S/ 50**, **+S/ 100** y **«Pagar saldo»**.
+- El total del instrumento se **recalcula automáticamente** al cambiar el monto.
+- Botón **Quitar** que revierte el total.
+- Nota libre por cada abono.
+
 ---
 
 ## Verificación
@@ -98,6 +131,18 @@ Contratado: 500 | Abonado: 600 | Excedente a favor: 150 | Pendiente: 50
 ```
 
 Corresponde exactamente a lo declarado: pagó S/ 400 (primer día) + S/ 200 (segunda clase) = **S/ 600**, con **S/ 150 a favor** y **S/ 50 pendiente** en Canto.
+
+### Con matrícula y libro por instrumento (corrección 2026-11-03)
+
+Piano y Canto a S/ 250 cada uno + matrícula Promo Demo S/ 30 (×2) + libro S/ 67 (×2):
+
+```
+Contratado : 694   (250 + 250 + 30 + 30 + 67 + 67)
+Abonado    : 310   (250 piano + 30 + 30 matrículas)
+Pendiente  : 384   (250 canto + 67 + 67 libros)
+```
+
+Antes, con los valores fijos, el resumen mostraba solo **S/ 500** y el libro nunca se cobraba.
 
 ### Caso de abonos de S/ 50 hasta la 4.ª clase
 

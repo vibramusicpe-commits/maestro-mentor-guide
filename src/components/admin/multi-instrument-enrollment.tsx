@@ -40,6 +40,8 @@ import { toast } from "sonner";
 import { useAppStore, type AdminStudent } from "@/store/app-store";
 import { detectSamePersonCandidates, describeInstrumentBundle } from "@/lib/student-person-group";
 import { toIsoDate } from "@/lib/informes/utils";
+import { TEACHER_IDS, resolveTeacherNameById } from "@/lib/services/teacher-resolver";
+import { INSTRUMENT_SPECIALISTS, instrumentFamily } from "@/lib/informes/instrument-specialists";
 
 const INSTRUMENTS = [
   "Piano",
@@ -58,15 +60,64 @@ interface InstrumentSlot {
   planPrice: number;
   amountPaid: number;
   note: string;
+  /** UUID del docente (TEACHER_IDS). Se guarda por UUID, NUNCA por nombre. */
+  teacherId: string;
+  /** Matrícula de ESTE instrumento (se cobra por cada instrumento). */
+  matriculaType: string;
+  matriculaAmountPaid: number;
+  /** Pack de útiles/libro de ESTE instrumento. */
+  packUtilesCost: number;
+  packUtilesAmountPaid: number;
 }
+
+/** Opciones de matrícula (ADR-0122). */
+const MATRICULA_OPTIONS = [
+  { value: "Regular", label: "Matrícula Regular (S/ 120)", cost: 120 },
+  { value: "Promo Demo (S/ 30)", label: "Promo Demo (S/ 30)", cost: 30 },
+  { value: "Exonerada", label: "Exonerada (S/ 0)", cost: 0 },
+  { value: "Personalizada", label: "Monto personalizado", cost: 0 },
+];
+
+const BOOK_COST = 67;
 
 interface MultiInstrumentEnrollmentProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Docentes seleccionables, resueltos desde la fuente única `TEACHER_IDS`.
+ *
+ * IMPORTANTE: se guarda el **UUID**, nunca el nombre. Si un docente renuncia
+ * y entra otro, se cambia el nombre asociado al UUID en el resolver y todas
+ * las fichas siguen apuntando correctamente. Escribir "Nathaly" a mano en una
+ * nota dejaría el dato mintiendo para siempre.
+ */
+const TEACHER_OPTIONS = (
+  ["JEREMY", "FERNANDO", "NATHALY", "ROCIO", "KARLA", "SERGIO", "FABRICIO"] as const
+).map((key) => ({
+  id: TEACHER_IDS[key] as string,
+  name: resolveTeacherNameById(TEACHER_IDS[key]) || key,
+}));
+
+/** Docente especialista sugerido para el instrumento (ADR-0179). */
+function suggestedTeacherFor(instrument: string): string {
+  const family = instrumentFamily(instrument);
+  return INSTRUMENT_SPECIALISTS[family]?.teacherId ?? "";
+}
+
 function emptySlot(instrument: string): InstrumentSlot {
-  return { instrument, planPrice: 250, amountPaid: 0, note: "" };
+  return {
+    instrument,
+    planPrice: 250,
+    amountPaid: 0,
+    note: "",
+    teacherId: suggestedTeacherFor(instrument),
+    matriculaType: "Promo Demo (S/ 30)",
+    matriculaAmountPaid: 30,
+    packUtilesCost: BOOK_COST,
+    packUtilesAmountPaid: 0,
+  };
 }
 
 /** Abono individual con fecha y nota (historial flexible). */
@@ -108,14 +159,29 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
   }, [birthdate, guardian, adminStudents]);
 
   const totals = useMemo(() => {
-    const contratado = slots.reduce((sum, slot) => sum + (slot.planPrice || 0), 0);
-    const abonado = slots.reduce((sum, slot) => sum + (slot.amountPaid || 0), 0);
+    const costOfMatricula = (slot: InstrumentSlot) =>
+      MATRICULA_OPTIONS.find((option) => option.value === slot.matriculaType)?.cost ?? 0;
+
+    const contratado =
+      slots.reduce((sum, slot) => sum + (slot.planPrice || 0), 0) +
+      slots.reduce((sum, slot) => sum + costOfMatricula(slot), 0) +
+      slots.reduce((sum, slot) => sum + (slot.packUtilesCost || 0), 0);
+
+    const abonado =
+      slots.reduce((sum, slot) => sum + (slot.amountPaid || 0), 0) +
+      slots.reduce((sum, slot) => sum + (slot.matriculaAmountPaid || 0), 0) +
+      slots.reduce((sum, slot) => sum + (slot.packUtilesAmountPaid || 0), 0);
+
     const excedente = slots.reduce(
       (sum, slot) => sum + Math.max(0, (slot.amountPaid || 0) - (slot.planPrice || 0)),
       0,
     );
     const pendiente = slots.reduce(
-      (sum, slot) => sum + Math.max(0, (slot.planPrice || 0) - (slot.amountPaid || 0)),
+      (sum, slot) =>
+        sum +
+        Math.max(0, (slot.planPrice || 0) - (slot.amountPaid || 0)) +
+        Math.max(0, costOfMatricula(slot) - (slot.matriculaAmountPaid || 0)) +
+        Math.max(0, (slot.packUtilesCost || 0) - (slot.packUtilesAmountPaid || 0)),
       0,
     );
     return { contratado, abonado, excedente, pendiente, saldoFavorFamilia: excedente };
@@ -139,17 +205,31 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
 
   const addPayment = (slotIndex: number) => {
     const fallbackMethod = PAYMENT_METHODS[0] as string;
+    const slot = slots[slotIndex];
+    // Se precarga el SALDO PENDIENTE del plan: en la mayoría de casos se paga
+    // completo y así no hay que escribir el monto cada vez.
+    const pending = slot ? Math.max(0, (slot.planPrice || 0) - (slot.amountPaid || 0)) : 0;
     setPayments((prev) => [
       ...prev,
       {
         id: `pay-${Date.now()}-${prev.length}`,
         slotIndex,
-        amount: 0,
+        amount: pending,
         date: toIsoDate(new Date()),
         method: method || fallbackMethod,
         note: "",
       },
     ]);
+  };
+
+  /** Aplica rápidamente un monto al abono y sincroniza el total del instrumento. */
+  const applyQuickPayment = (slotIndex: number, entryId: string, amount: number) => {
+    updatePayment(entryId, { amount });
+    const slotPayments = payments
+      .filter((entry) => entry.slotIndex === slotIndex)
+      .map((entry) => (entry.id === entryId ? amount : entry.amount));
+    const total = slotPayments.reduce((sum, value) => sum + (value || 0), 0);
+    updateSlot(slotIndex, { amountPaid: total });
   };
 
   const updatePayment = (id: string, patch: Partial<PaymentEntry>) => {
@@ -191,7 +271,9 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
           email: "",
           instrument: slot.instrument,
           level: "Principiante",
-          teacher: "",
+          // Docente por NOMBRE resuelto desde el UUID: si renuncia y cambia el
+          // resolver, el dato se mantiene coherente con la fuente única.
+          teacher: slot.teacherId ? (resolveTeacherNameById(slot.teacherId) || "") : "",
           age: 0,
           ageCategory: "JUNIOR" as AdminStudent["ageCategory"],
           status: "activo",
@@ -212,11 +294,16 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
           paymentMethod: method,
           enrollmentDate,
           planStartDate: enrollmentDate,
-          matriculaType: "Promo Demo (S/ 30)" as AdminStudent["matriculaType"],
-          packUtilesCost: 67,
-          packUtilesAmountPaid: 0,
-          packUtilesStatus: "pendiente",
-          packUtilesDelivered: false,
+          matriculaType: (slot.matriculaType || "Promo Demo (S/ 30)") as AdminStudent["matriculaType"],
+          packUtilesCost: slot.packUtilesCost,
+          packUtilesAmountPaid: slot.packUtilesAmountPaid,
+          packUtilesStatus:
+            slot.packUtilesAmountPaid >= slot.packUtilesCost
+              ? "cancelado"
+              : slot.packUtilesAmountPaid > 0
+                ? "parcial"
+                : "pendiente",
+          packUtilesDelivered: slot.packUtilesAmountPaid >= slot.packUtilesCost,
           personGroupId,
           personGroupLabel: label,
           teacherNote: slot.note,
@@ -326,12 +413,20 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
                   )}
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2">
                   <label className="text-[11px] font-semibold text-muted-foreground">
                     Instrumento
                     <select
                       value={slot.instrument}
-                      onChange={(e) => updateSlot(index, { instrument: e.target.value })}
+                      onChange={(e) => {
+                        const nextInstrument = e.target.value;
+                        // Al cambiar de instrumento se sugiere el especialista
+                        // correspondiente, pero el docente sigue siendo elegible.
+                        updateSlot(index, {
+                          instrument: nextInstrument,
+                          teacherId: suggestedTeacherFor(nextInstrument),
+                        });
+                      }}
                       className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
                     >
                       {INSTRUMENTS.map((option) => (
@@ -339,6 +434,25 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
                       ))}
                     </select>
                   </label>
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    Docente a cargo *
+                    <select
+                      value={slot.teacherId}
+                      onChange={(e) => updateSlot(index, { teacherId: e.target.value })}
+                      className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                    >
+                      <option value="">Sin asignar</option>
+                      {TEACHER_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}
+                          {option.id === suggestedTeacherFor(slot.instrument) ? " (especialista)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
                   <label className="text-[11px] font-semibold text-muted-foreground">
                     Costo del plan
                     <Input
@@ -361,6 +475,71 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
                   </label>
                 </div>
 
+                {!slot.teacherId && (
+                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-800 dark:text-amber-200">
+                    ⚠️ Sin docente asignado. Podrás asignarlo luego desde el Horario de Clases,
+                    pero conviene definirlo ahora.
+                  </p>
+                )}
+
+                {/* Matrícula y Libro: se cobran POR CADA INSTRUMENTO (decisión de Dirección) */}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    Matrícula
+                    <select
+                      value={slot.matriculaType}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const cost = MATRICULA_OPTIONS.find((o) => o.value === value)?.cost ?? 0;
+                        updateSlot(index, { matriculaType: value, matriculaAmountPaid: cost });
+                      }}
+                      className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                    >
+                      {MATRICULA_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    Abonado a matrícula
+                    <Input
+                      type="number"
+                      min={0}
+                      value={slot.matriculaAmountPaid}
+                      onChange={(e) => updateSlot(index, { matriculaAmountPaid: parseFloat(e.target.value) || 0 })}
+                      className="mt-1 h-8 text-xs"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    Libro / Pack de útiles
+                    <Input
+                      type="number"
+                      min={0}
+                      value={slot.packUtilesCost}
+                      onChange={(e) => updateSlot(index, { packUtilesCost: parseFloat(e.target.value) || 0 })}
+                      className="mt-1 h-8 text-xs"
+                    />
+                  </label>
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    Abonado a libro
+                    <Input
+                      type="number"
+                      min={0}
+                      value={slot.packUtilesAmountPaid}
+                      onChange={(e) => updateSlot(index, { packUtilesAmountPaid: parseFloat(e.target.value) || 0 })}
+                      className="mt-1 h-8 text-xs"
+                    />
+                  </label>
+                </div>
+
+                {(slot.packUtilesCost - slot.packUtilesAmountPaid) > 0 && (
+                  <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                    Libro pendiente: S/ {(slot.packUtilesCost - slot.packUtilesAmountPaid).toFixed(2)}
+                  </p>
+                )}
                 <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
                   {balance === 0 && excedente === 0 && (
                     <Badge className="border border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
@@ -385,7 +564,7 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
                     value={slot.note}
                     onChange={(e) => updateSlot(index, { note: e.target.value })}
                     className="mt-1 min-h-[52px] text-xs"
-                    placeholder="Ej. Entra a piano con Fernando, canto con Nathaly"
+                    placeholder="Ej. 2do instrumento, horario a coordinar"
                   />
                 </label>
 
@@ -412,25 +591,68 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
                   )}
 
                   {slotPayments.map((entry) => (
-                    <div key={entry.id} className="grid gap-1.5 rounded-lg border border-border/70 bg-muted/30 p-2 sm:grid-cols-4">
-                      <label className="text-[10px] font-semibold text-muted-foreground">
-                        Fecha
-                        <Input type="date" value={entry.date} onChange={(e) => updatePayment(entry.id, { date: e.target.value })} className="mt-0.5 h-7 text-[11px]" />
-                      </label>
-                      <label className="text-[10px] font-semibold text-muted-foreground">
-                        Monto
-                        <Input type="number" min={0} value={entry.amount} onChange={(e) => updatePayment(entry.id, { amount: parseFloat(e.target.value) || 0 })} className="mt-0.5 h-7 text-[11px]" />
-                      </label>
-                      <label className="text-[10px] font-semibold text-muted-foreground">
-                        Método
-                        <select value={entry.method} onChange={(e) => updatePayment(entry.id, { method: e.target.value })} className="mt-0.5 h-7 w-full rounded-md border border-input bg-background px-1 text-[11px]">
-                          {PAYMENT_METHODS.map((option) => (<option key={option} value={option}>{option}</option>))}
-                        </select>
-                      </label>
-                      <label className="text-[10px] font-semibold text-muted-foreground">
-                        Nota
-                        <Input value={entry.note} onChange={(e) => updatePayment(entry.id, { note: e.target.value })} className="mt-0.5 h-7 text-[11px]" placeholder="Ej. 2da clase" />
-                      </label>
+                    <div key={entry.id} className="space-y-1.5 rounded-lg border border-border/70 bg-muted/30 p-2">
+                      <div className="grid gap-1.5 sm:grid-cols-3">
+                        <label className="text-[10px] font-semibold text-muted-foreground">
+                          Monto
+                          <Input
+                            type="number"
+                            min={0}
+                            value={entry.amount}
+                            onChange={(e) => applyQuickPayment(index, entry.id, parseFloat(e.target.value) || 0)}
+                            className="mt-0.5 h-7 text-[11px] font-bold"
+                          />
+                        </label>
+                        <label className="text-[10px] font-semibold text-muted-foreground">
+                          Fecha
+                          <Input type="date" value={entry.date} onChange={(e) => updatePayment(entry.id, { date: e.target.value })} className="mt-0.5 h-7 text-[11px]" />
+                        </label>
+                        <label className="text-[10px] font-semibold text-muted-foreground">
+                          Método
+                          <select value={entry.method} onChange={(e) => updatePayment(entry.id, { method: e.target.value })} className="mt-0.5 h-7 w-full rounded-md border border-input bg-background px-1 text-[11px]">
+                            {PAYMENT_METHODS.map((option) => (<option key={option} value={option}>{option}</option>))}
+                          </select>
+                        </label>
+                      </div>
+
+                      {/* Atajos: no hay que calcular mentalmente ni escribir */}
+                      <div className="flex flex-wrap items-center gap-1">
+                        {[50, 100].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => applyQuickPayment(index, entry.id, (entry.amount || 0) + value)}
+                            className="min-h-[26px] rounded-md border border-primary/30 bg-primary/5 px-2 text-[10px] font-bold text-primary"
+                          >
+                            +S/ {value}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => applyQuickPayment(index, entry.id, Math.max(0, (slot.planPrice || 0) - (slot.amountPaid || 0) + (entry.amount || 0)))}
+                          className="min-h-[26px] rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 text-[10px] font-bold text-emerald-700 dark:text-emerald-300"
+                        >
+                          Pagar saldo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPayments((prev) => prev.filter((item) => item.id !== entry.id));
+                            const rest = payments.filter((item) => item.id !== entry.id && item.slotIndex === index);
+                            updateSlot(index, { amountPaid: rest.reduce((sum, item) => sum + (item.amount || 0), 0) });
+                          }}
+                          className="ml-auto min-h-[26px] rounded-md px-2 text-[10px] font-bold text-rose-600"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+
+                      <Input
+                        value={entry.note}
+                        onChange={(e) => updatePayment(entry.id, { note: e.target.value })}
+                        className="h-7 text-[11px]"
+                        placeholder="Nota: ej. 2da clase, abono parcial…"
+                      />
                     </div>
                   ))}
                 </div>

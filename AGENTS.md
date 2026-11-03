@@ -1977,6 +1977,9 @@ inferencia.
 5. **Notas por cada abono y por instrumento**: secretaría anota en su propio lenguaje («pagó en la 2da clase», «abono parcial 50»). Se guardan en `emergency_contact` (JSONB), sin esquema rígido, para su futura migración.
 6. **Aviso de duplicado sin bloqueo**: nacimiento + apoderado coincidentes sugieren **vincular** en lugar de duplicar (ADR-0186); decide secretaría.
 7. **Cobros formales siguen en `/admin/facturacion`**: el Registro 2 crea la matrícula y sus notas. No escribe en `payment_audit_logs` para no duplicar la compuerta anti-fraude (ADR-0106).
+7b. **Docente por UUID, PROHIBIDO escribirlo como texto**: el selector se alimenta de `TEACHER_IDS` y sugiere el especialista del instrumento (`INSTRUMENT_SPECIALISTS`), pero **jamás** se guarda el nombre a mano. Si un docente renuncia y cambia el resolver, todas las fichas deben seguir coherentes. Debe existir la opción **«Sin asignar»** con aviso; nunca se inventa un docente. Para incorporar un docente nuevo se actualiza el resolver (fuente única), no la ficha.
+7c. **Matrícula y libro se cobran POR CADA INSTRUMENTO** (decisión de Dirección): ambos son editables, se muestran en el resumen familiar y su estado se deriva (`cancelado` si se cubrió, `parcial` si hay abono, `pendiente` si no). Prohibido dejarlos fijos en el código.
+7d. **Abonos fáciles**: el abono nace con el saldo pendiente precargado y ofrece atajos `+S/ 50`, `+S/ 100` y «Pagar saldo», con recálculo instantáneo y botón Quitar. Un formulario que obliga a escribir el monto desde cero no se considera usable en producción.
 8. **Referencia**: `docs/adr/0188-registro-2-matricula-multi-instrumento-pagos-flexibles.md`, `docs/logs/2026-11-03-adr-0188-registro-2-multi-instrumento.log` y CHANGELOG `[2.0.59]`.
 
 ---
