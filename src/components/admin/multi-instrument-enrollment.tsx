@@ -90,7 +90,7 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
   const [phone, setPhone] = useState("");
   const [family, setFamily] = useState("");
   const [enrollmentDate, setEnrollmentDate] = useState(() => toIsoDate(new Date()));
-  const [method, setMethod] = useState(PAYMENT_METHODS[0]);
+  const [method, setMethod] = useState<string>(PAYMENT_METHODS[0] ?? "Yape / Plin");
   const [slots, setSlots] = useState<InstrumentSlot[]>([
     emptySlot("Piano"),
     emptySlot("Canto"),
@@ -128,7 +128,7 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
     setPhone("");
     setFamily("");
     setEnrollmentDate(toIsoDate(new Date()));
-    setMethod(PAYMENT_METHODS[0]);
+    setMethod(PAYMENT_METHODS[0] ?? "Yape / Plin");
     setSlots([emptySlot("Piano"), emptySlot("Canto")]);
     setPayments([]);
   };
@@ -138,9 +138,17 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
   };
 
   const addPayment = (slotIndex: number) => {
+    const fallbackMethod = PAYMENT_METHODS[0] as string;
     setPayments((prev) => [
       ...prev,
-      { id: `pay-${Date.now()}-${prev.length}`, slotIndex, amount: 0, date: toIsoDate(new Date()), method, note: "" },
+      {
+        id: `pay-${Date.now()}-${prev.length}`,
+        slotIndex,
+        amount: 0,
+        date: toIsoDate(new Date()),
+        method: method || fallbackMethod,
+        note: "",
+      },
     ]);
   };
 

@@ -9,9 +9,13 @@ import { BitacoraHistory } from "@/components/informes/bitacora-history";
 export const Route = createFileRoute("/admin/informes")({
   // Enlace cruzado desde Auditoría de Alumnos (ADR-0183): `?alumno=<nombre>`
   // preselecciona el filtro de búsqueda. Es solo un filtro de lectura, no altera datos.
-  validateSearch: (search: Record<string, unknown>): { alumno?: string } => ({
-    alumno: typeof search.alumno === "string" && search.alumno.trim() ? search.alumno.trim() : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { alumno?: string } => {
+    const raw = search["alumno"];
+    const alumno = typeof raw === "string" ? raw.trim() : "";
+    // Se devuelve `{}` en vez de `{ alumno: undefined }` porque con
+    // `exactOptionalPropertyTypes` un opcional no acepta `undefined` explícito.
+    return alumno ? { alumno } : {};
+  },
   head: () => ({
     meta: [
       { title: "Seguimiento de Informes — VM STAFF" },
@@ -94,7 +98,11 @@ function AdminInformesPage() {
 
       {/* Vista activa */}
       {activeTab === "tracker" ? (
-        <InformesTrackerPanel initialStudentName={alumno} />
+        alumno ? (
+          <InformesTrackerPanel initialStudentName={alumno} />
+        ) : (
+          <InformesTrackerPanel />
+        )
       ) : activeTab === "adopcion" ? (
         <TeacherAdoptionPanel />
       ) : activeTab === "bitacora" ? (

@@ -691,8 +691,15 @@ function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<
       // ADR-0186 — Vínculo de misma persona con varios instrumentos.
       // Se persiste SOLO si viene definido, para no borrar un vínculo existente
       // cuando la actualización toca otros campos (escalable a futuros campos).
-      if (mergedStudent.personGroupId !== undefined) ecData.personGroupId = mergedStudent.personGroupId;
-      if (mergedStudent.personGroupLabel !== undefined) ecData.personGroupLabel = mergedStudent.personGroupLabel;
+      // Cadena vacía = desvincular explícito (se elimina la clave del JSONB).
+      if (mergedStudent.personGroupId !== undefined) {
+        if (mergedStudent.personGroupId) ecData.personGroupId = mergedStudent.personGroupId;
+        else delete ecData.personGroupId;
+      }
+      if (mergedStudent.personGroupLabel !== undefined) {
+        if (mergedStudent.personGroupLabel) ecData.personGroupLabel = mergedStudent.personGroupLabel;
+        else delete ecData.personGroupLabel;
+      }
 
       payload.emergency_contact = ecData;
 

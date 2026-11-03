@@ -1,0 +1,141 @@
+INCIDENTE Y CORRECCIÓN: `multiEnrollmentOpen is not defined` EN PRODUCCIÓN
+Fecha: 2026-11-03
+ADR: docs/adr/0188-registro-2-matricula-multi-instrumento-pagos-flexibles.md
+Rama: main
+Gravedad: ALTA — bloqueo total de /admin/alumnos en producción
+Alcance: corrección del Registro 2 + 4 defectos de tipos detectados después.
+
+=====================================================================
+1. SÍNTOMA REPORTADO POR DIRECCIÓN (producción, navegador real)
+=====================================================================
+
+  Uncaught ReferenceError: multiEnrollmentOpen is not defined
+    at zt (admin.alumnos-BkHP3tOj.js:16:25682)
+
+La página /admin/alumnos quedaba rota: error repetido en cada render.
+
+=====================================================================
+2. CAUSA RAÍZ (mi error)
+=====================================================================
+
+`src/components/admin/students-table.tsx` contiene TRES componentes:
+  - StudentsTable          (línea 186)
+  - NewStudentDialog       (línea 3089)
+  - EditStudentSheetInner  (línea 4400)
+
+Yo declaré el estado:
+  const [multiEnrollmentOpen, setMultiEnrollmentOpen] = useState(false)
+  -> dentro de StudentsTable (línea 225)
+
+Pero inserté el botón y el diálogo:
+  onClick={() => setMultiEnrollmentOpen(true)}
+  <MultiInstrumentEnrollment open={multiEnrollmentOpen} ... />
+  -> dentro de NewStudentDialog (línea ~3410)
+
+Son scopes distintos. En tiempo de ejecución `multiEnrollmentOpen` no
+existe en NewStudentDialog -> ReferenceError.
+
+Agravante: el bloque quedó FUERA del <Sheet>, como hermano de
+<SheetContent>, rompiendo el orden del JSX.
+
+=====================================================================
+3. POR QUÉ NO LO DETECTÉ ANTES DE DESPLEGAR
+=====================================================================
+
+`npm run build` (esbuild) transpila y NO valida scopes de variables ni
+tipos. Un identificador indefinido en JSX compila igual y explota en el
+navegador. Ese es el hueco de verificación.
+
+LECCIÓN (regla nueva, ver §6):
+  Un build en verde NO es prueba de que la app arranca.
+  Ante cualquier cambio en componentes con varios subcomponentes internos,
+  se debe correr `npx tsc --noEmit` y revisar que los identificadores
+  pertenezcan al scope del componente que los usa.
+
+=====================================================================
+4. CORRECCIÓN
+=====================================================================
+
+  1. Se retiró el botón y el diálogo de NewStudentDialog.
+  2. Se colocaron en StudentsTable, junto al botón "Registrar Nuevo Alumno"
+     (línea ~832), que es donde vive el estado.
+  3. Verificado que declaración (225) y uso (840-852) están en el MISMO
+     componente.
+
+=====================================================================
+5. DEFECTOS ADICIONALES ENCONTRADOS AL CORRER `tsc --noEmit`
+=====================================================================
+
+Al validar con TypeScript aparecieron 4 errores REALES de mi código,
+que el build no veía:
+
+  a) link-person-dialog.tsx
+     `familyId: string | undefined` en un campo opcional prohibido por
+     `exactOptionalPropertyTypes`. Corregido construyendo el patch con
+     spread condicional.
+
+  b) link-person-dialog.tsx
+     Desvincular pasaba `personGroupId: undefined` explícito (prohibido).
+     Corregido a cadena vacía + `delete` explícito en la persistencia
+     (`performSyncStudentToDB`) para eliminar la clave del JSONB.
+
+  c) multi-instrument-enrollment.tsx
+     `method: string | undefined` al crear un abono. Corregido con
+     fallback `PAYMENT_METHODS[0] ?? "Yape / Plin"`.
+
+  d) admin.informes.tsx
+     `validateSearch` devolvía `{ alumno: undefined }`. Corregido a
+     devolver `{}` cuando no hay valor, y a no pasar la prop vacía a
+     InformesTrackerPanel.
+
+  e) admin.reportes.tsx
+     `REPORT_STATUS_CLASS.draft` -> acceso con corchetes + fallback.
+
+  f) student-person-group.ts / bitacora-history.tsx
+     Accesos a índice (`dmy[1]`, `STATUS_VISUAL[...]`) posiblemente
+     indefinidos. Corregidos con `?? ""` y tipo de retorno explícito.
+
+=====================================================================
+6. REGLA NUEVA OBLIGATORIA (§92)
+=====================================================================
+
+Antes de commitear CUALQUIER cambio de UI:
+
+  1. `npm run build`               -> verde
+  2. `npx tsc --noEmit -p tsconfig.json`
+     filtrando los archivos tocados -> 0 errores NUEVOS
+
+Los errores TypeScript preexistentes del repo NO bloquean, pero no debe
+aparecer ninguno nuevo en archivos modificados.
+
+Motivo: el build de esbuild no detecta variables fuera de scope ni
+violaciones de `exactOptionalPropertyTypes`. Este incidente llegó a
+producción por confiar solo en el build.
+
+=====================================================================
+7. VERIFICACIÓN POST-CORRECCIÓN
+=====================================================================
+
+  npm run build ............ VERDE (exit 0)
+  tsc archivos nuevos ...... 0 errores
+     multi-instrument-enrollment.tsx
+     link-person-dialog.tsx
+     student-person-group.ts
+     bitacora-history.tsx
+     teacher-report-viewer.tsx
+
+  Estado declaración/uso de multiEnrollmentOpen:
+     225: const [multiEnrollmentOpen, setMultiEnrollmentOpen]
+     840: onClick={() => setMultiEnrollmentOpen(true)}
+     851: open={multiEnrollmentOpen}
+     852: onOpenChange={setMultiEnrollmentOpen}
+     -> todos dentro de StudentsTable (186-~1000)
+
+=====================================================================
+8. IMPACTO
+=====================================================================
+
+  - Sin pérdida de datos: el error era de render, no de escritura.
+  - /admin/alumnos vuelve a cargar.
+  - Registro 1 intacto.
+  - Registro 2 operativo en su lugar correcto.

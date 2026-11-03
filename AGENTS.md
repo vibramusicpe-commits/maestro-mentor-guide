@@ -1978,3 +1978,22 @@ inferencia.
 6. **Aviso de duplicado sin bloqueo**: nacimiento + apoderado coincidentes sugieren **vincular** en lugar de duplicar (ADR-0186); decide secretaría.
 7. **Cobros formales siguen en `/admin/facturacion`**: el Registro 2 crea la matrícula y sus notas. No escribe en `payment_audit_logs` para no duplicar la compuerta anti-fraude (ADR-0106).
 8. **Referencia**: `docs/adr/0188-registro-2-matricula-multi-instrumento-pagos-flexibles.md`, `docs/logs/2026-11-03-adr-0188-registro-2-multi-instrumento.log` y CHANGELOG `[2.0.59]`.
+
+---
+
+### 92. Verificación Obligatoria con TypeScript Antes de Commitear UI (incidente 2026-11-03)
+
+> **Origen**: el Registro 2 (ADR-0188) llegó a producción con `ReferenceError: multiEnrollmentOpen is not defined`, dejando `/admin/alumnos` inoperativo. El estado se declaró en `StudentsTable` pero el botón se insertó en `NewStudentDialog`, un componente distinto del mismo archivo. `npm run build` (esbuild) transpiló sin error porque **no valida scopes de variables ni tipos**.
+
+1. **Un build en verde NO prueba que la app arranque.** esbuild no detecta identificadores fuera de scope ni violaciones de `exactOptionalPropertyTypes`.
+2. **Verificación obligatoria antes de commitear cualquier cambio de UI**, en este orden:
+   ```
+   npm run build
+   npx tsc --noEmit -p tsconfig.json
+   ```
+   Se filtran los archivos tocados y deben quedar en **0 errores nuevos**. Los errores TypeScript **preexistentes** del repo no bloquean el trabajo, pero **ninguno nuevo** puede entrar en un archivo modificado.
+3. **`students-table.tsx` tiene TRES componentes**: `StudentsTable` (~186), `NewStudentDialog` (~3089) y `EditStudentSheetInner` (~4400). Antes de usar un estado en JSX, confirmar que la declaración y el uso están en el **mismo** componente.
+4. **Prohibido pasar `undefined` explícito** a campos opcionales (`exactOptionalPropertyTypes`): usar spread condicional o cadena vacía. Para "desvincular" se escribe `""` y la persistencia hace `delete` explícito sobre la clave del JSONB.
+5. **Acceso a índices con corchetes**: `Record<string, T>` y los grupos de captura de regex (`dmy[1]`) devuelven `T | undefined`; usar `?? fallback`.
+6. **Prohibido afirmar que algo está desplegado sin revisar la consola real del navegador** cuando el cambio toca render de componentes grandes.
+7. **Referencia**: `docs/logs/2026-11-03-incidente-multienrollmentopen-no-definido.log`.

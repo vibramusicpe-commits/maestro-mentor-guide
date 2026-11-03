@@ -830,7 +830,27 @@ export function StudentsTable() {
         </Button>
 
         <NewStudentDialog />
+
+        {/* ADR-0188 — REGISTRO 2: matrícula multi-instrumento con pagos flexibles */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-tour="btn-multi-instrument-enrollment"
+          onClick={() => setMultiEnrollmentOpen(true)}
+          className="gap-1.5 font-bold"
+          title="Para alumnos de 2 instrumentos con pagos fraccionados"
+        >
+          <Layers className="h-4 w-4" />
+          Matrícula Multi-Instrumento
+        </Button>
       </div>
+
+      {/* ADR-0188 — Diálogo del Registro 2 */}
+      <MultiInstrumentEnrollment
+        open={multiEnrollmentOpen}
+        onOpenChange={setMultiEnrollmentOpen}
+      />
 
       {/* Tabla de Alumnos */}
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -3405,24 +3425,6 @@ function NewStudentDialog() {
       >
         <PlusCircle className="h-4 w-4" /> Registrar Nuevo Alumno
       </Button>
-
-      {/* ADR-0188 — REGISTRO 2: matrícula multi-instrumento con pagos flexibles */}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        data-tour="btn-multi-instrument-enrollment"
-        onClick={() => setMultiEnrollmentOpen(true)}
-        className="gap-2 font-bold"
-        title="Para alumnos de 2 instrumentos con pagos fraccionados"
-      >
-        <Layers className="h-4 w-4" /> Matrícula Multi-Instrumento
-      </Button>
-
-      <MultiInstrumentEnrollment
-        open={multiEnrollmentOpen}
-        onOpenChange={setMultiEnrollmentOpen}
-      />
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Matricular Nuevo Alumno</SheetTitle>

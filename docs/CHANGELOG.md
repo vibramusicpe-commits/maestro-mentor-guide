@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.60] - 2026-11-03
+
+### Corrección Crítica: `multiEnrollmentOpen is not defined` en Producción (ADR-0188)
+- **Incidente**: `/admin/alumnos` quedó inoperativo con `ReferenceError: multiEnrollmentOpen is not defined`. El estado se declaró en `StudentsTable` pero el botón y el diálogo del Registro 2 se insertaron en `NewStudentDialog`, un componente distinto del mismo archivo.
+- **Causa raíz**: `npm run build` (esbuild) transpila sin validar scopes de variables ni tipos, así que un identificador fuera de scope compila y explota en el navegador.
+- **Corrección**: botón y diálogo movidos a `StudentsTable`, junto a «Registrar Nuevo Alumno», donde vive el estado. Verificado que declaración (225) y usos (840-852) están en el mismo componente.
+- **5 defectos adicionales de tipos** detectados al correr `tsc --noEmit`: `undefined` explícito en campos opcionales (`exactOptionalPropertyTypes`) en `link-person-dialog`, `method` posiblemente `undefined` en el Registro 2, `validateSearch` devolviendo `undefined`, acceso con punto a un índice en `admin.reportes`, y accesos a `Record`/regex sin fallback.
+- **Desvincular** ahora escribe cadena vacía y la persistencia hace `delete` explícito de la clave en el JSONB (no deja residuos).
+- **Nueva regla §92**: antes de commitear cualquier cambio de UI se exige `npm run build` **y** `npx tsc --noEmit` filtrado a los archivos tocados, con 0 errores nuevos. Un build en verde no prueba que la app arranque.
+- **Verificación**: build en verde y TypeScript limpio en todos los componentes nuevos. Sin pérdida de datos: el fallo era de render, no de escritura.
+
 ## [2.0.59] - 2026-11-03
 
 ### Registro 2: Matrícula Multi-Instrumento con Pagos Flexibles (ADR-0188)

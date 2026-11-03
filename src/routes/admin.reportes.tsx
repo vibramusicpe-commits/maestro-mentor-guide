@@ -718,7 +718,8 @@ export function AdminReportesPage() {
                                 variant="outline"
                                 className={`text-[10px] font-black group-hover/report:border-primary transition-colors cursor-pointer ${
                                   REPORT_STATUS_CLASS[latestReport.status] ||
-                                  REPORT_STATUS_CLASS.draft
+                                  REPORT_STATUS_CLASS["draft"] ||
+                                  ""
                                 }`}
                               >
                                 {REPORT_STATUS_LABEL[latestReport.status] ||

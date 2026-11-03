@@ -54,8 +54,8 @@ export function normalizeIsoDate(value?: string | null): string | null {
 
   const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(raw);
   if (dmy) {
-    const day = dmy[1].padStart(2, "0");
-    const month = dmy[2].padStart(2, "0");
+    const day = (dmy[1] ?? "").padStart(2, "0");
+    const month = (dmy[2] ?? "").padStart(2, "0");
     return `${dmy[3]}-${month}-${day}`;
   }
   return null;

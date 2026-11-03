@@ -54,8 +54,11 @@ const STATUS_VISUAL: Record<string, { label: string; className: string }> = {
   no_corresponde: { label: "No aplicó", className: "bg-muted text-muted-foreground" },
 };
 
-function statusVisual(status?: string | null) {
-  return STATUS_VISUAL[status || "sin_evaluar"] || STATUS_VISUAL.sin_evaluar;
+const FALLBACK_VISUAL = { label: "Sin evaluar", className: "bg-muted text-muted-foreground" };
+
+function statusVisual(status?: string | null): { label: string; className: string } {
+  // Acceso con corchetes: el índice tiene firma, no propiedades nombradas.
+  return STATUS_VISUAL[status || "sin_evaluar"] ?? FALLBACK_VISUAL;
 }
 
 /** Lunes de la semana que contiene `date`. */

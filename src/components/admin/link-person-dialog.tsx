@@ -91,18 +91,18 @@ export function LinkPersonDialog({ open, onOpenChange, student }: LinkPersonDial
     // El grupo toma el UUID del registro más antiguo como ancla estable.
     const groupId = student.personGroupId || student.id;
     const label = describeInstrumentBundle([student, target]);
+    // Se resuelve antes para no pasar `undefined` en un campo opcional
+    // (`exactOptionalPropertyTypes`).
+    const sharedFamilyId = student.familyId || target.familyId || "";
 
-    updateStudentDetails(student.id, {
+    const patch: Partial<AdminStudent> = {
       personGroupId: groupId,
       personGroupLabel: label,
-      // Una sola cuenta para el apoderado (no mueve UUID ni montos).
-      familyId: student.familyId || target.familyId || undefined,
-    });
-    updateStudentDetails(target.id, {
-      personGroupId: groupId,
-      personGroupLabel: label,
-      familyId: student.familyId || target.familyId || undefined,
-    });
+      ...(sharedFamilyId ? { familyId: sharedFamilyId } : {}),
+    };
+
+    updateStudentDetails(student.id, patch);
+    updateStudentDetails(target.id, patch);
 
     toast.success(`🔗 Vinculado: ${student.name} + ${target.name}`, {
       description: `${label}. Cada instrumento conserva su horario y asistencias.`,
@@ -111,8 +111,11 @@ export function LinkPersonDialog({ open, onOpenChange, student }: LinkPersonDial
   };
 
   const handleUnlink = (target: AdminStudent) => {
-    updateStudentDetails(student.id, { personGroupId: undefined, personGroupLabel: undefined });
-    updateStudentDetails(target.id, { personGroupId: undefined, personGroupLabel: undefined });
+    // Se escribe cadena vacía (no `undefined`) porque con
+    // `exactOptionalPropertyTypes` un campo opcional no acepta `undefined`
+    // explícito. La persistencia trata el vacío como "sin vínculo".
+    updateStudentDetails(student.id, { personGroupId: "", personGroupLabel: "" });
+    updateStudentDetails(target.id, { personGroupId: "", personGroupLabel: "" });
     toast.success(`Desvinculado ${student.name} y ${target.name}`, {
       description: "No se modificó ningún horario, asistencia ni monto.",
     });
