@@ -38,6 +38,7 @@ export function useSessionEvaluations(
   to: string,
 ): {
   evaluated: Set<string>;
+  rows: LessonEvaluationRow[];
   isLoading: boolean;
   refresh: () => void;
 } {
@@ -104,5 +105,5 @@ export function useSessionEvaluations(
 
   const refresh = useCallback(() => setTick((value) => value + 1), []);
 
-  return { evaluated, isLoading, refresh };
+  return { evaluated, rows, isLoading, refresh };
 }

@@ -1,0 +1,138 @@
+HISTORIAL DE BITÁCORA DIARIA (DIRECCIÓN Y DOCENTE) Y CONTADOR DE AVANCE
+Fecha: 2026-11-03
+ADR: docs/adr/0185-historial-bitacora-diaria-y-contador-avance.md
+Rama: main
+Alcance: `/admin/informes` (pestaña Bitácora Diaria) y `/teacher` (Mi bitácora + contador).
+         Sin tocar datos de alumnos, asistencia, kardex ni facturación.
+
+=====================================================================
+1. MOTIVO
+=====================================================================
+
+Dirección preguntó dónde se ven los reportes diarios, porque el panel de
+administración tampoco los mostraba. Diagnóstico verificado:
+
+  /teacher (tarjeta)           -> botón para ESCRIBIR, no para RELEER
+  /admin/informes Seguimiento  -> CONTADORES por alumno ("Hans: 1")
+  /admin/informes Adopción     -> bitácoras SUMADAS por docente
+
+Ninguna vista permitía LEER el contenido. El sistema parecía vacío porque
+no dejaba ver lo que ya existía.
+
+Términos fijados (no confundir):
+  Bitácora / Reporte de clase = lesson_evaluations     -> DIARIA, la llena el docente
+  Informe de progreso         = progress_reports       -> DEL CICLO, lo publica Dirección
+
+=====================================================================
+2. ARCHIVOS
+=====================================================================
+
+NUEVOS
+  src/lib/services/bitacora.service.ts
+      listBitacoras() + groupBitacorasByDate()
+  src/components/informes/bitacora-history.tsx
+      <BitacoraHistory> compartido por Dirección y Docente
+  src/lib/informes/bitacora-progress.ts
+      computeBitacoraProgress() (contador N/M)
+
+MODIFICADOS
+  src/routes/admin.informes.tsx        (+ pestaña "Bitácora Diaria")
+  src/routes/teacher.index.tsx         (+ "Mi bitácora" + contador de avance)
+  src/hooks/use-session-evaluations.ts (+ expone `rows`)
+
+NO MODIFICADOS (git diff --stat vacío)
+  src/store/app-store.ts
+  src/lib/kardex-calculator.ts
+  src/lib/student-cycle.ts
+
+=====================================================================
+3. COMPORTAMIENTO
+=====================================================================
+
+Servicio (solo lectura, única fuente):
+  - is_test = eq.false en la consulta Y revalidado en cliente.
+  - and=(session_date.gte.from,session_date.lte.to)
+  - limit acotado 1..1000 (defecto 500); orden fecha desc, hora desc.
+  - Rechaza fechas inválidas y rangos invertidos.
+  - Prohibido reimplementar la consulta en un componente (ADR-0119.3).
+
+UI (mismo componente, dos públicos):
+  /admin/informes -> "Bitácora Diaria"   (todos los docentes)
+  /teacher        -> "Mi bitácora"       (solo el docente logueado)
+
+  Navegación semanal ‹ › + botón "Hoy" (semana inicia lunes).
+  Fechas humanas: "Hoy", "Ayer", "vie 23 oct".
+  Fila táctil >=44px: hora · alumno · píldora estado · instrumento · docente.
+  Al tocar: despliega tema, repertorio, tarea y comentario.
+  Flecha ▾ solo si hay contenido real (no se simula).
+  Estados: Logrado / En proceso / Necesita refuerzo / Sin evaluar / No aplicó
+           (nunca el valor crudo "no_corresponde", §78).
+  Vacío -> mensaje con instrucción. Error de red -> aviso, el panel no se rompe.
+
+Contador (D1, autorizado en ADR-0184):
+  Reutiliza computeStudentCycleSessions + computeStudentReportReadiness.
+  kardex-calculator.ts SOLO lectura (verificado).
+  Devuelve null si falta información (mejor nada que una meta inventada).
+  Texto:
+    "Bitácoras del ciclo: 3/8 · Informe disponible ✅"
+    "Bitácoras del ciclo: 1/8 · Faltan 7 para el informe"
+  Barra simple; verde al alcanzar el mínimo. Cero datos financieros.
+
+=====================================================================
+4. BUG DETECTADO Y CORREGIDO EN VERIFICACIÓN
+=====================================================================
+
+friendlyDateLabel() restaba 1 a getMonth(), que YA devuelve 0-11.
+Resultado: octubre se mostraba como "set".
+
+  antes:   2026-10-23 -> vie 23 set   ❌
+  después: 2026-10-23 -> vie 23 oct   ✅
+
+Sin esta corrección, toda la vista habría mentido sobre las fechas.
+Queda comentado en el código para no reintroducirlo.
+
+=====================================================================
+5. VERIFICACIÓN EN RUNTIME (datos vivos)
+=====================================================================
+
+scratch/test-bitacora-historial.mjs / test-bitacora-ui.mjs
+
+  bitácoras reales: 3
+   2026-10-23 17:30 | Jeremy   | ALEXIS | Guitarra clásica | sin_evaluar | Cariñito (libro), acordes con cejilla
+   2026-10-22 16:45 | Fernando | Hans   | Piano            | en_proceso  | —
+   2026-10-21 16:45 | Nathaly  | Fernanda Sofía Fajardo Condo | Canto | logrado | RELAJACION, RESPIRACIÓN...
+
+  agrupadas: 2026-10-23(1), 2026-10-22(1), 2026-10-21(1)
+  filas is_test devueltas: 0  ✅
+
+  fechas legibles:
+   2026-11-03 -> Hoy
+   2026-11-02 -> Ayer
+   2026-10-23 -> vie 23 oct  ✅ corregido
+   2026-10-22 -> jue 22 oct
+   2026-10-21 -> mié 21 oct
+
+  filtro docente: Jeremy -> 1 ✅ | Nathaly -> 1 ✅
+  rango invertido -> error controlado ✅
+
+scratch/test-bitacora-progress.mjs
+
+  { done: 1, required: 2, canGenerate: false,
+    label: "Bitácoras del ciclo: 1/2 · Faltan 1 para el informe", percent: 50 }
+  sin datos -> null ✅
+
+npm run build : VERDE (exit 0)
+Archivos prohibidos: sin cambios.
+
+=====================================================================
+6. LÍMITES HONESTOS
+=====================================================================
+
+  - Con 3 bitácoras en producción, la vista muestra 3 filas en la semana
+    del 21-23 de octubre. No es un defecto de la vista: es el estado real
+    de adopción docente.
+  - Sin buscador por alumno dentro del historial (sí filtro por docente y
+    semana). Añadible cuando haya volumen.
+  - Sin exportación CSV del historial (fuera de alcance).
+  - limit 500 por consulta; paginar si la escuela crece.
+  - Sin caché: cada cambio de semana consulta PostgreSQL (ADR-0119).

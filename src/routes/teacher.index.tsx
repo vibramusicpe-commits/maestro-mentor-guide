@@ -25,6 +25,8 @@ import { isLessonInStudentCycle } from "@/lib/student-cycle";
 import { useTeacherIdentity } from "@/hooks/use-teacher-identity";
 import { useTeacherPilotAccess } from "@/hooks/use-teacher-pilot-access";
 import { useSessionEvaluations, sessionEvaluationKey } from "@/hooks/use-session-evaluations";
+import { BitacoraHistory } from "@/components/informes/bitacora-history";
+import { computeBitacoraProgress } from "@/lib/informes/bitacora-progress";
 import { toIsoDate } from "@/lib/informes/utils";
 import { useInsforgeSync } from "@/hooks/use-insforge-sync";
 import { toast } from "sonner";
@@ -227,7 +229,7 @@ export function TeacherKiosk() {
   const [classLogSeed, setClassLogSeed] = useState<ClassLogSeed | null>(null);
 
   // ADR-0184 — "✓ Bitácora registrada": una sola consulta para el día visible.
-  const { evaluated: evaluatedSessions, refresh: refreshSessionEvaluations } = useSessionEvaluations(
+  const { evaluated: evaluatedSessions, rows: dayEvaluations, refresh: refreshSessionEvaluations } = useSessionEvaluations(
     useMemo(() => dayLessons.map((l) => findStudentProfileByName(adminStudents, l.student)?.id || ""), [
       dayLessons,
       adminStudents,
@@ -527,6 +529,16 @@ export function TeacherKiosk() {
                     );
                     const hasEvaluation = Boolean(sessionKey && evaluatedSessions.has(sessionKey));
 
+                    // ADR-0185 — avance de bitácoras del ciclo (contador N/M).
+                    const cycleProgress =
+                      studentProfile && dayEvaluations.length > 0
+                        ? computeBitacoraProgress({
+                            student: studentProfile,
+                            schedule: teacherScheduleLessons,
+                            evaluations: dayEvaluations,
+                          })
+                        : null;
+
                     return (
                       <div key={lesson.id} className="space-y-2 px-3 py-2.5">
                         {/* Nombre, badges y estado */}
@@ -640,6 +652,22 @@ export function TeacherKiosk() {
                                 : "📝 Bitácora de clase"}
                           </button>
                         )}
+
+                        {classLogAccess && cycleProgress && (
+                          <div className="space-y-1">
+                            <p className="text-center text-[10px] font-semibold text-muted-foreground">
+                              {cycleProgress.label}
+                            </p>
+                            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                              <div
+                                className={`h-full rounded-full transition-all ${
+                                  cycleProgress.canGenerate ? "bg-emerald-500" : "bg-primary"
+                                }`}
+                                style={{ width: `${cycleProgress.percent}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -649,6 +677,19 @@ export function TeacherKiosk() {
           </div>
         )}
       </div>
+
+      {/* Mi bitácora — historial de lo que registró este docente (ADR-0185) */}
+      {classLogAccess && teacherId && (
+        <div className="rounded-2xl border border-border bg-card px-3 py-3">
+          <BitacoraHistory
+            teacherId={teacherId}
+            showTeacher={false}
+            title="Mi bitácora"
+            subtitle="Lo que registraste esta semana. Toca una clase para ver el detalle."
+            emptyMessage="Aún no registraste bitácoras esta semana. Al terminar una clase, usa 📝 Bitácora de clase."
+          />
+        </div>
+      )}
 
       {/* Contacto con secretaría */}
       <div className="rounded-2xl border border-border bg-card px-3 py-2.5 text-center">

@@ -1905,3 +1905,29 @@ inferencia.
 6. **El envío NUNCA es automático**: `wa.me` abre WhatsApp en el dispositivo de quien hace clic y lo envía una persona de Dirección. Envío automático desde el WhatsApp Business central exigiría Cloud API + plantilla aprobada por Meta + costo por mensaje, y **contradice ADR-0140**. Si se quiere, requiere ADR nuevo.
 7. **Limitación conocida**: `getEvaluationsSummaryMap` **no expone el UUID del docente**, solo `lastTeacherName`; el conteo por docente es una aproximación honesta. Cuando exista un servicio que agregue por `teacher_id`, migrar a UUID estricto. Prohibido inventar campos inexistentes.
 8. **Referencia**: `docs/adr/0184-bitacora-docente-recordatorio-y-adopcion.md`, `docs/logs/2026-11-03-adr-0184-bitacora-recordatorio-adopcion.log` y CHANGELOG `[2.0.55]`.
+
+---
+
+### 88. Historial de Bitácora Diaria y Contador de Avance (ADR-0185)
+
+1. **Dos entidades, dos vistas (no confundir)**:
+   - **Bitácora / reporte de clase** (`lesson_evaluations`): **diaria**, la llena el docente. Su vista es **"Bitácora Diaria"** (`/admin/informes`) y **"Mi bitácora"** (`/teacher`).
+   - **Informe de progreso** (`progress_reports`): **del ciclo**, consolidado, lo publica Dirección. Su vista es la Bandeja General.
+   - Prohibido mostrar bitácoras dentro de la bandeja de informes o viceversa.
+2. **Servicio único de listado (`src/lib/services/bitacora.service.ts`)**:
+   - `listBitacoras({ from, to, teacherId?, studentId?, limit? })` es la **única** fuente. Prohibido reimplementar la consulta en un componente (ADR-0119.3).
+   - Filtra `is_test = eq.false` **en la consulta y revalidado en cliente**. `limit` acotado a 1–1000.
+   - Rechaza fechas inválidas y rangos invertidos. **Solo lectura.**
+3. **Componente compartido (`src/components/informes/bitacora-history.tsx`)**:
+   - Se usa en `/admin/informes` (todos los docentes) y en `/teacher` (solo el docente logueado, `teacherId`). Prohibido duplicarlo.
+   - Fechas siempre vía `friendlyDateLabel()`: **"Hoy"**, **"Ayer"**, **"vie 23 oct"**. **Nunca** `getMonth() - 1` (`getMonth()` ya devuelve 0–11; el error mostraba octubre como "set").
+   - Estados con etiqueta legible: `Logrado`, `En proceso`, `Necesita refuerzo`, `Sin evaluar`, **`No aplicó`** (§78). Prohibido imprimir `no_corresponde`.
+   - Solo se muestra el desplegable si hay contenido real. No se simula información pedagógica.
+4. **Contador de avance (`src/lib/informes/bitacora-progress.ts`)**:
+   - Reutiliza `computeStudentCycleSessions` y `computeStudentReportReadiness`/`minimumEvaluations`. **Prohibido reimplementar.**
+   - `kardex-calculator.ts` se importa **solo en lectura**; `git diff --stat` debe quedar vacío.
+   - Devuelve `null` si falta información para calcularlo: es preferible **no mostrar nada** que mostrar una meta inventada.
+   - Texto canónico: `Bitácoras del ciclo: N/M · Faltan X para el informe` / `· Informe disponible ✅`.
+5. **Cero datos financieros** en todas estas vistas.
+6. **Limitación honesta**: con pocas bitácoras la vista muestra pocas filas. Eso refleja la adopción real, no un defecto de la vista; no se rellena con datos simulados ni de prueba (`is_test = true`).
+7. **Referencia**: `docs/adr/0185-historial-bitacora-diaria-y-contador-avance.md`, `docs/logs/2026-11-03-adr-0185-historial-bitacora-diaria.log` y CHANGELOG `[2.0.56]`.

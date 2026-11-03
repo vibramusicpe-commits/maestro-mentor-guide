@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { FileBarChart2, FileText, Sparkles, Inbox, Users2 } from "lucide-react";
+import { FileBarChart2, FileText, Sparkles, Inbox, Users2, NotebookPen } from "lucide-react";
 import { InformesTrackerPanel } from "@/components/admin/informes-tracker-panel";
 import { ProgressReportsPanel } from "@/components/admin/progress-reports-panel";
 import { TeacherAdoptionPanel } from "@/components/admin/teacher-adoption-panel";
+import { BitacoraHistory } from "@/components/informes/bitacora-history";
 
 export const Route = createFileRoute("/admin/informes")({
   // Enlace cruzado desde Auditoría de Alumnos (ADR-0183): `?alumno=<nombre>`
@@ -32,7 +33,7 @@ export const Route = createFileRoute("/admin/informes")({
 
 function AdminInformesPage() {
   const { alumno } = Route.useSearch();
-  const [activeTab, setActiveTab] = useState<"tracker" | "bandeja" | "adopcion">("tracker");
+  const [activeTab, setActiveTab] = useState<"tracker" | "bandeja" | "adopcion" | "bitacora">("tracker");
 
   return (
     <div className="space-y-4">
@@ -76,6 +77,19 @@ function AdminInformesPage() {
           <Users2 className="h-3.5 w-3.5" />
           <span>Adopción Docente</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("bitacora")}
+          className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+            activeTab === "bitacora"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          <NotebookPen className="h-3.5 w-3.5" />
+          <span>Bitácora Diaria</span>
+        </button>
       </div>
 
       {/* Vista activa */}
@@ -83,6 +97,12 @@ function AdminInformesPage() {
         <InformesTrackerPanel initialStudentName={alumno} />
       ) : activeTab === "adopcion" ? (
         <TeacherAdoptionPanel />
+      ) : activeTab === "bitacora" ? (
+        <BitacoraHistory
+          title="Bitácora diaria de todos los docentes"
+          subtitle="Lo que se trabajó en cada clase, día por día. Solo lectura."
+          showTeacher
+        />
       ) : (
         <ProgressReportsPanel />
       )}

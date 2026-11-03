@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.56] - 2026-11-03
+
+### Historial de Bitácora Diaria y Contador de Avance del Ciclo (ADR-0185)
+- **Nueva pestaña "Bitácora Diaria"** en `/admin/informes`: por primera vez Dirección puede **leer** lo que se trabajó en cada clase (tema, repertorio, tarea y comentario), no solo contar cuántas bitácoras hay. Navegación semanal con `‹ ›` y botón "Hoy".
+- **"Mi bitácora" en el Kiosco docente** (`/teacher`): el profesor revisa lo que registró esta semana, con el mismo componente que Dirección.
+- **Servicio único `bitacora.service.ts`**: `listBitacoras()` con `is_test = eq.false` en la consulta y revalidado en cliente, rango por fecha, filtros por docente/alumno y `limit` acotado (1–1000). Solo lectura. Prohibido reimplementar la consulta en un componente (ADR-0119.3).
+- **UX amigable** (`bitacora-history.tsx`): fechas en lenguaje humano (**"Hoy"**, **"Ayer"**, **"vie 23 oct"**), filas táctiles de 44 px con hora, alumno, píldora de estado e instrumento; al tocar despliega el detalle. La flecha `▾` solo aparece si hay contenido real. Estado vacío con instrucción, error de red contenido.
+- **Contador de avance (D1)**: `computeBitacoraProgress()` reutiliza `computeStudentCycleSessions` y `computeStudentReportReadiness`; muestra `Bitácoras del ciclo: 1/8 · Faltan 7 para el informe` con barra de progreso, y devuelve `null` (no muestra nada) si falta información. `kardex-calculator.ts` se importa **solo en lectura**.
+- **Bug corregido durante la verificación**: `friendlyDateLabel()` restaba 1 a `getMonth()` (que ya devuelve 0–11), por lo que **octubre aparecía como "set"**. Sin la corrección, toda la vista habría mentido sobre las fechas.
+- **Verificación con datos vivos**: 3 bitácoras reales leídas y agrupadas (23, 22 y 21 de octubre), 0 filas `is_test`, filtro por docente correcto, rango invertido controlado y contador `1/2 · Faltan 1`. `npm run build` en verde; `app-store.ts`, `kardex-calculator.ts` y `student-cycle.ts` sin cambios.
+
 ## [2.0.55] - 2026-11-03
 
 ### Bitácora Docente: Estado "Ya Registrada", Recordatorio a 2 Días y Tablero de Adopción (ADR-0184)
