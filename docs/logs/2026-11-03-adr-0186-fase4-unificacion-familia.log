@@ -1,0 +1,133 @@
+VÍNCULO MULTI-INSTRUMENTO — FASE 4: UNIFICACIÓN DE FAMILIA
+Fecha: 2026-11-03
+ADR: docs/adr/0186-vinculo-misma-persona-multi-instrumento.md
+Rama: main
+Alcance: unificación de family_id en students e invoices para los casos vinculados.
+         CON backup previo. SIN borrados. SIN DDL.
+
+=====================================================================
+1. MOTIVO (lo que la Fase 3 NO resolvió)
+=====================================================================
+
+La Fase 3 escribió personGroupId y agrupó VISUALMENTE en facturación,
+pero cada instrumento seguía en su propia familia:
+
+  5c44e64a-… CAMILA VALENTINA   Violín   · family propia · S/261
+  064f2b68-… kamila Valentina G. Guitarra · family propia · S/261
+  f7a13b12-… Mario Keffreen     Guitarra · family propia · S/261
+  9948ede5-… Mario Kefren       Batería  · family propia · S/261
+
+Consecuencia real: al cobrar seguían apareciendo DOS deudores distintos,
+y el portal del apoderado resolvía un solo hijo por familia.
+
+=====================================================================
+2. DIAGNÓSTICO PREVIO (obligatorio antes de escribir)
+=====================================================================
+
+Se revisó cómo el portal familia busca los recibos:
+
+  laya-family-scope.ts:142  invoicesInScope()
+    -> matchea por NOMBRE del alumno en el concepto del recibo
+       (isMatchingStudentName) o por nombre de familia.
+    -> NO depende de invoices.family_id.
+
+  laya-family-scope.ts:118  expansión de hermanos
+    -> por familyId igual O por nombre de familia igual.
+
+Conclusiones:
+  - Unificar students.family_id SÍ mejora el portal (un alcance, 2 hijos).
+  - Mover invoices.family_id es coherente y no rompe el matcheo por nombre.
+
+Se verificó también:
+  - Cada familia duplicada tenía exactamente 1 alumno y 1 recibo.
+  - 4 alumnos, 4 recibos y 4 payment_audit_logs en esas familias.
+  - invoices.family_id es INDEPENDIENTE de students.family_id.
+
+=====================================================================
+3. BACKUP PREVIO
+=====================================================================
+
+  scratch/backup-fase4.json
+    - students completos (4 registros, select *)
+    - invoices completos (81)
+    - attendance_logs (315)
+
+  Totales antes:
+    recibos 81 · facturado S/ 28,185.00 · cobrado S/ 27,345.00 · saldo S/ 1,628.00
+
+=====================================================================
+4. EJECUCIÓN
+=====================================================================
+
+Ancla = registro más antiguo de cada persona.
+
+  CAMILA:  064f2b68-… (Guitarra)  ->  5c44e64a-… (Violín)
+  MARIO:   9948ede5-… (Batería)   ->  f7a13b12-… (Guitarra)
+
+Por cada caso:
+  1. UPDATE students SET family_id = <ancla> WHERE family_id = <origen>
+  2. UPDATE invoices SET family_id = <ancla> WHERE family_id = <origen>
+
+No se tocó JAN/JAM: son adultas, cada una con su propia cuenta de pago.
+Si Dirección quiere unificarlas, es un paso aparte.
+
+=====================================================================
+5. VERIFICACIÓN POSTERIOR
+=====================================================================
+
+ALUMNOS:
+  CAMILA VALENTINA        Violín   -> 5c44e64a-…
+  kamila Valentina G.     Guitarra -> 5c44e64a-…   ✅ misma familia
+  Mario Keffreen          Guitarra -> f7a13b12-…
+  Mario Kefren            Batería  -> f7a13b12-…   ✅ misma familia
+
+RECIBOS POR FAMILIA:
+  5c44e64a-…  2 recibos · S/ 522.00 facturado · S/ 522.00 cobrado
+  f7a13b12-…  2 recibos · S/ 522.00 facturado · S/ 522.00 cobrado
+
+TOTALES GLOBALES (idénticos al backup):
+  recibos 81 · facturado S/ 28,185.00 · cobrado S/ 27,345.00 · saldo S/ 1,628.00
+
+PORTAL FAMILIA (resolveFamilyScope real):
+  family 5c44e64a -> CAMILA VALENTINA + kamila Valentina G.   ✅
+  family f7a13b12 -> Mario Keffreen + Mario Kefren            ✅
+
+AGRUPACIÓN FACTURACIÓN (buildInvoiceGroupMap real):
+  Mario Keffreen + Mario Kefren          -> Guitarra + Batería
+  CAMILA VALENTINA + kamila Valentina G. -> Violín + Guitarra
+  JAM + JAN                              -> Canto + Piano
+
+=====================================================================
+6. FAMILIAS QUE QUEDARON VACÍAS
+=====================================================================
+
+  064f2b68-…  "Familia Pastor Conco"     · alumnos 0 · recibos 0
+  9948ede5-…  "Familia Martel Emiliano"  · alumnos 0 · recibos 0
+
+NO se eliminan. No participan de ninguna vista y borrarlas no aporta
+beneficio; eliminarlas sí añade riesgo innecesario. Quedan como residuo
+inocuo, documentado aquí.
+
+=====================================================================
+7. LO QUE NO SE HIZO
+=====================================================================
+
+  - NO se eliminó ningún alumno ni recibo.
+  - NO se tocó el UUID de ningún alumno (se conservan asistencias,
+    bitácoras, recibos y auditoría de pagos).
+  - NO se alteró ningún monto.
+  - NO hubo DDL (sin ALTER TABLE / DROP / TRUNCATE).
+  - NO se tocó isMatchingStudentName ni normalizeStudentName.
+
+  Sobre "borrar y recrear" (idea evaluada): recrear un alumno cambia su
+  UUID y deja huérfanos attendance_logs, lesson_evaluations, invoices y
+  payment_audit_logs. Unificar family_id logra el mismo resultado
+  conservando toda la trazabilidad. Por eso se eligió esta vía.
+
+=====================================================================
+8. RESULTADO VISIBLE
+=====================================================================
+
+  - Facturación: una sola cuenta por persona con ambos instrumentos.
+  - Portal del apoderado: ve AMBOS hijos.
+  - Cobro: un solo deudor por persona.

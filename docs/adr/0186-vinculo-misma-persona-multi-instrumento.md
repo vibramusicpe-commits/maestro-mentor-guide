@@ -142,9 +142,34 @@ recibos: 81 · facturado S/ 28,185.00 · cobrado S/ 27,345.00 · saldo S/ 1,628.
 - Docentes, fechas de inicio, montos abonados y `scheduleLessons` intactos en cada registro (Camila Violín 4 lecciones, Guitarra 6; Mario 2 y 2).
 - `buildInvoiceGroupMap` detecta los **3 grupos** y resuelve `Violín + Guitarra`, `Guitarra + Batería`, `Canto + Piano`.
 
-**No se modificó `family_id`.** Se decidió no tocarlo en esta fase para no arriesgar la vinculación de recibos existentes; la agrupación funciona por `personGroupId`. Queda como mejora opcional futura.
+**No se modificó `family_id` de JAN/JAM.** Son adultas con su propia cuenta de pago; unificarlas es decisión aparte de Dirección.
 
 **No se eliminó ningún registro.** El histórico `00000000-…0045` (Camila Valentina Pastor Conco, `baja`, S/ 261 cobrados) permanece intacto.
+
+### 6. Fase 4 — Unificación de familia (EJECUTADA 2026-11-03)
+
+La Fase 3 solo agrupaba visualmente: cada instrumento seguía en **su propia familia**, así que al cobrar aparecían **dos deudores** y el portal del apoderado resolvía **un solo hijo**.
+
+**Diagnóstico previo decisivo:** `invoicesInScope()` (`laya-family-scope.ts:142`) matchea recibos por **nombre del alumno en el concepto**, no por `invoices.family_id`. Por tanto unificar `students.family_id` es seguro y además **arregla el portal familia**.
+
+**Ejecución (con backup en `scratch/backup-fase4.json`: 4 alumnos, 81 recibos, 315 asistencias):**
+
+| Caso | Origen | Ancla |
+|---|---|---|
+| Camila | `064f2b68-…` (Guitarra) | `5c44e64a-…` (Violín) |
+| Mario | `9948ede5-…` (Batería) | `f7a13b12-…` (Guitarra) |
+
+Se movieron `students.family_id` **e** `invoices.family_id`.
+
+**Verificación:**
+- Recibos por familia: `5c44e64a-…` → 2 recibos S/ 522 · `f7a13b12-…` → 2 recibos S/ 522.
+- **Totales globales idénticos**: 81 recibos · S/ 28,185.00 · S/ 27,345.00 · S/ 1,628.00.
+- `resolveFamilyScope` real devuelve **ambos hijos** en cada familia.
+- `buildInvoiceGroupMap` real detecta los 3 grupos.
+
+**Familias que quedaron vacías** (`064f2b68-…`, `9948ede5-…`): **no se eliminan**. No participan de ninguna vista y borrarlas añadiría riesgo sin beneficio.
+
+**Descartada la vía "borrar y recrear":** recrear cambia el UUID y dejaría huérfanos `attendance_logs`, `lesson_evaluations`, `invoices` y `payment_audit_logs`. Unificar `family_id` logra el mismo objetivo conservando toda la trazabilidad.
 
 ---
 
@@ -191,6 +216,7 @@ Totales de facturación verificados en vivo: no se altera ningún importe; solo 
 
 **Límites honestos:**
 - La agrupación visual requiere que el alumno tenga `personGroupId`. **Hoy los 3 casos reales ya están vinculados**; cualquier alumno nuevo se vincula manualmente o mediante la detección de la Fase 1.
+- **Camila y Mario** ya comparten familia y recibo único; **JAN/JAM no** (adultas con cuenta propia).
 - La detección automática **no cubre** adultos con alias (JAN/JAM): requieren vínculo explícito.
 - No existe todavía una UI para vincular/desvincular manualmente desde la ficha. Se hace por datos.
-- `family_id` no se alineó: la agrupación no depende de ello.
+- Quedan 2 familias vacías (`064f2b68-…`, `9948ede5-…`) sin alumnos ni recibos; no afectan ninguna vista.
