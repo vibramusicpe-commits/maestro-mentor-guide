@@ -1,0 +1,121 @@
+DOSSIER COMPLETO DE INFORMES EN EL PORTAL DOCENTE
+Fecha: 2026-11-03
+ADR: docs/adr/0187-dossier-completo-informes-portal-docente.md
+Rama: main
+Alcance: /teacher/informes — visor de solo lectura + filtros por estado.
+         SIN cambios de datos. SIN DDL. SIN mutaciones de estado de informes.
+
+=====================================================================
+1. MOTIVO
+=====================================================================
+
+El docente podía CREAR informes, pero solo veía su lista como filas.
+Mientras el informe estaba en borrador podía "Completar/Revisar"; al
+publicarse quedaba únicamente un ✓ verde.
+
+Hueco: el profesor NO podía abrir el documento final de un informe
+publicado para revisar qué se entregó a la familia.
+
+Dirección pidió: conexión nueva en el portal del profesor para ver y
+revisar sus informes, con dossiers personalizados y visualizaciones
+quirúrgicas.
+
+=====================================================================
+2. HALLAZGO PREVIO: TODO LO NECESARIO YA EXISTÍA
+=====================================================================
+
+Se auditó antes de escribir código. Componentes reutilizables:
+
+  progress-report-format.ts        buildProgressReportView
+                                   generateProgressReportMarkdown
+                                   generateProgressReportWhatsApp
+                                   PROGRESS_REPORT_PRINT_CSS
+                                   reportPageLabel / formatProgressPeriod
+  progress-report-document.tsx     ProgressReportDocument (A4 solo lectura)
+  report-session-log-annex.tsx     ReportSessionLogAnnex (bitácora)
+
+No se reescribió NADA de eso (ADR-0119.3: prohibido duplicar lógica).
+Lo único nuevo es el visor que los conecta al portal docente.
+
+=====================================================================
+3. ARCHIVOS
+=====================================================================
+
+NUEVO
+  src/components/teacher/teacher-report-viewer.tsx
+
+MODIFICADO
+  src/components/teacher/teacher-progress-reports.tsx
+    + import del visor
+    + estados viewingReport / viewerOpen / reportFilter
+    + filteredReports (cohorte + filtro por estado)
+    + barra de filtros (Todos/Borradores/En revisión/Publicados/Devueltos)
+    + botón "👁 Ver informe" en cada fila
+    + montaje de <TeacherReportViewer>
+
+SIN CAMBIOS
+  src/store/app-store.ts
+  src/lib/kardex-calculator.ts
+  src/lib/student-cycle.ts
+  progress-report-document.tsx / report-session-log-annex.tsx / format
+
+=====================================================================
+4. COMPORTAMIENTO
+=====================================================================
+
+Visor (Dialog, SOLO LECTURA):
+  - Documento del apoderado (páginas 1-2).
+  - Anexo de bitácora clase por clase desde la página 3.
+  - Rótulo PÁGINA N DE 2 · ANEXO cuando hay bitácora.
+  - Acciones: Copiar LLM · WhatsApp · Imprimir/PDF · fuente Markdown.
+  - Chip "🔒 Solo lectura" visible.
+  - Aviso si el informe NO está publicado: "vista previa interna".
+  - Muestra código INF-XXXXXXXX y periodo.
+
+Lista del docente:
+  - Filtros por estado con contador dinámico "N de M".
+  - Botón "👁 Ver informe" en TODAS las filas, incluidos publicados.
+  - Vacío diferenciado: sin informes vs sin resultados del filtro.
+
+Seguridad (aislamiento por cohorte):
+  filteredReports descarta cualquier informe cuyo student_id NO esté en
+  myStudentIds (los alumnos del docente). Un docente no puede abrir el
+  informe de un alumno que no dicta.
+
+El docente NO publica: approve/publish siguen siendo de Dirección.
+
+=====================================================================
+5. VERIFICACIÓN
+=====================================================================
+
+Producción tiene 0 informes, así que se verificó con datos sintéticos
+usando el motor real (scratch/test-dossier-docente.mjs):
+
+  SIN bitácora:
+    sessionLog: 0 -> anexo: NO
+    etiqueta página 1: PÁGINA 1 DE 2
+
+  CON bitácora (dossier completo):
+    sessionLog: 2 -> anexo: SI (DOSSIER COMPLETO)
+    etiqueta página 1: PÁGINA 1 DE 2 · ANEXO
+    etiqueta página 2: PÁGINA 2 DE 2 · ANEXO
+    markdown: 1136 chars | sección bitácora: true
+
+  Cero datos financieros:
+    markdown contiene S/ / saldo / deuda -> false
+    whatsapp contiene S/                 -> false
+
+npm run build : VERDE (exit 0)
+
+=====================================================================
+6. LÍMITES HONESTOS
+=====================================================================
+
+  - Con 0 informes en producción la lista aparece vacía hasta que se
+    generen los primeros. La vista está lista; el dato no existe aún.
+  - El anexo solo aparece si el informe tiene content.sessionLog
+    (informes antiguos pueden no tenerlo).
+  - Sin buscador por alumno dentro de la lista (los filtros por estado
+    cubren el caso actual).
+  - El PDF se obtiene con window.print(), igual que Dirección y el
+    portal familia. No se genera PDF en servidor.

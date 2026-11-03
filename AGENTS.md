@@ -1950,3 +1950,16 @@ inferencia.
 8b. **Fase 4 — Unificación de familia (EJECUTADA 2026-11-03)**: sí se unificó `family_id` en `students` **e** `invoices` para **Camila** (`064f2b68-…` → `5c44e64a-…`) y **Mario** (`9948ede5-…` → `f7a13b12-…`), tras verificar que `invoicesInScope()` matchea por nombre del concepto y no por `family_id`. Resultado: el apoderado ve **ambos hijos** y al cobrar hay **un solo deudor** (2 recibos · S/ 522). Totales globales idénticos. Las familias vacías resultantes **no se eliminan**. **PROHIBIDO "borrar y recrear"** un alumno vinculado: cambia el UUID y deja huérfanos `attendance_logs`, `lesson_evaluations`, `invoices` y `payment_audit_logs`.
 8c. **Fase 5 — Blindaje y UI (EJECUTADA 2026-11-03)**: `deleteStudent` protege el horario **por nombre**, y los alias de un mismo alumno no coinciden (`JAN` vs `JAM` → `false`). Por eso se añadió `findLinkedSiblingsAtRisk()` y un aviso en el modal de eliminación que recomienda **"Dar de baja"** cuando hay hermanos vinculados activos. Se incorporó el botón **"🔗 Vincular con otro instrumento"** (`link-person-dialog.tsx`) con coincidencias automáticas y búsqueda manual. **Persistencia**: todo campo nuevo de persona debe añadirse en **los dos** puntos — `performSyncStudentToDB` (`app-store.ts`, solo si viene definido) y `mapDBStudentToAdminStudent` (`students.service.ts`). Omitir el segundo hace que el dato se pierda al recargar la página. `kardex-calculator.ts` y `student-cycle.ts` siguen **intocables**.
 9. **Referencia**: `docs/adr/0186-vinculo-misma-persona-multi-instrumento.md`, `docs/logs/2026-11-03-adr-0186-vinculo-misma-persona.log`, `docs/PLAN_VINCULO_MISMA_PERSONA_MULTI_INSTRUMENTO.md` y CHANGELOG `[2.0.57]`.
+
+---
+
+### 90. Dossier Completo de Informes en el Portal Docente (ADR-0187)
+
+1. **El docente VE y REVISA sus informes**, pero **nunca publica**. `approveProgressReport` / `publishProgressReport` son exclusivos de Dirección.
+2. **Dossier completo, no resumen**: documento del apoderado (páginas 1-2) **+ anexo de bitácora clase por clase** desde la página 3. Prohibido degradar la vista del docente a un resumen cuando la bitácora existe.
+3. **Sin duplicar lógica (ADR-0119.3)**: reutilizar `buildProgressReportView`, `ProgressReportDocument`, `ReportSessionLogAnnex`, `generateProgressReportMarkdown`, `generateProgressReportWhatsApp` y `PROGRESS_REPORT_PRINT_CSS`. Prohibido crear una copia del documento para el docente.
+4. **Aislamiento por cohorte (seguridad)**: el docente solo puede abrir informes cuyo `student_id` esté en su cohorte (`myStudentIds`). Un informe de un alumno que no dicta se descarta aunque llegue por datos manipulados.
+5. **Estado no publicado = vista previa interna**: si el informe está en `draft`, `pending` o `rejected`, el visor lo advierte. No se presenta como entregado a la familia.
+6. **Cero datos financieros** en el dossier, el Markdown y el WhatsApp del docente.
+7. **Verificación**: el anexo solo aparece con `content.sessionLog`; sin bitácora el documento queda en 2 páginas. Informes antiguos sin `sessionLog` siguen abriendo correctamente.
+8. **Referencia**: `docs/adr/0187-dossier-completo-informes-portal-docente.md`, `docs/logs/2026-11-03-adr-0187-dossier-informes-docente.log` y CHANGELOG `[2.0.58]`.

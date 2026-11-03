@@ -63,6 +63,7 @@ import type {
 import { InformesValidationError } from "@/lib/informes/utils";
 import { formatIsoDateShort } from "@/lib/informes/progress-report-format";
 import { getStudentEvaluations } from "@/lib/services/evaluations.service";
+import { TeacherReportViewer } from "@/components/teacher/teacher-report-viewer";
 import {
   getEvaluationsSummaryMap,
   type StudentEvaluationSummary,
@@ -136,6 +137,13 @@ export function TeacherProgressReports({
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const [draftReport, setDraftReport] = useState<ProgressReportRow | null>(null);
+  // ADR-0187 — visor del dossier completo (solo lectura) de un informe propio.
+  const [viewingReport, setViewingReport] = useState<ProgressReportRow | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  // ADR-0187 — filtro por estado del informe en la lista del docente.
+  const [reportFilter, setReportFilter] = useState<
+    "todos" | "draft" | "pending" | "published" | "rejected"
+  >("todos");
   const [narrative, setNarrative] = useState<Record<NarrativeKey, string>>({
     strengths: "",
     goals: "",
@@ -152,6 +160,21 @@ export function TeacherProgressReports({
   const myStudentIds = useMemo(
     () => new Set(myStudents.map((student) => student.id)),
     [myStudents],
+  );
+
+  // ADR-0187 — informes visibles para el docente: SOLO los de su cohorte.
+  // Un docente nunca debe abrir el informe de un alumno que no dicta.
+  const filteredReports = useMemo(
+    () =>
+      myReports
+        .filter(
+          (report) =>
+            !report.student_id || myStudentIds.has(report.student_id),
+        )
+        .filter((report) =>
+          reportFilter === "todos" ? true : report.status === reportFilter,
+        ),
+    [myReports, myStudentIds, reportFilter],
   );
 
   const selectedStudent = useMemo(
@@ -924,7 +947,8 @@ export function TeacherProgressReports({
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
-            Mis informes ({myReports.length})
+            Mis informes ({filteredReports.length}
+            {reportFilter !== "todos" && ` de ${myReports.length}`})
           </p>
           <button
             type="button"
@@ -937,14 +961,41 @@ export function TeacherProgressReports({
           </button>
         </div>
 
-        {!reportsLoading && myReports.length === 0 && (
+        {/* ADR-0187 — filtro quirúrgico por estado del informe */}
+        <div className="flex flex-wrap gap-1.5">
+          {(
+            [
+              ["todos", "Todos"],
+              ["draft", "Borradores"],
+              ["pending", "En revisión"],
+              ["published", "Publicados"],
+              ["rejected", "Devueltos"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setReportFilter(value)}
+              className={`min-h-[36px] rounded-lg border px-2.5 text-[11px] font-bold transition-colors ${
+                reportFilter === value
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {!reportsLoading && filteredReports.length === 0 && (
           <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-            Todavía no tienes informes. Genera uno cuando tengas al menos dos
-            reportes de clase del alumno.
+            {myReports.length === 0
+              ? "Todavía no tienes informes. Genera uno cuando tengas al menos dos reportes de clase del alumno."
+              : "No hay informes con este filtro."}
           </p>
         )}
 
-        {myReports.map((report) => {
+        {filteredReports.map((report) => {
           const meta = STATUS_META[report.status] || STATUS_META["draft"];
           const student = report.student_id
             ? studentById.get(report.student_id)
@@ -989,11 +1040,32 @@ export function TeacherProgressReports({
                 {report.status === "published" && (
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingReport(report);
+                    setViewerOpen(true);
+                  }}
+                  className="min-h-[44px] rounded-lg border border-border bg-background px-2.5 text-xs font-black text-foreground transition-colors hover:bg-muted"
+                  title="Abrir dossier completo: documento + bitácora clase por clase"
+                >
+                  👁 Ver informe
+                </button>
               </div>
             </div>
           );
         })}
       </section>
+
+      {/* ADR-0187 — Dossier completo (documento + bitácora) en solo lectura */}
+      <TeacherReportViewer
+        report={viewingReport}
+        open={viewerOpen}
+        onOpenChange={(next) => {
+          setViewerOpen(next);
+          if (!next) setViewingReport(null);
+        }}
+      />
 
       {/* Hoja inferior para registrar o editar reporte de clase */}
       <Sheet

@@ -4,6 +4,18 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.58] - 2026-11-03
+
+### Dossier Completo de Informes en el Portal Docente (ADR-0187)
+- **El docente ya puede abrir el informe completo de sus alumnos**: antes solo veía la lista y, al publicarse el informe, únicamente un ✓ verde. Ahora cada fila tiene **`👁 Ver informe`**, incluidos los publicados.
+- **Dossier completo**: documento del apoderado (páginas 1-2) + **anexo de bitácora clase por clase** desde la página 3, con rótulo `PÁGINA N DE 2 · ANEXO` cuando existe bitácora.
+- **Sin duplicar lógica** (ADR-0119.3): se reutilizan `buildProgressReportView`, `ProgressReportDocument`, `ReportSessionLogAnnex` y `PROGRESS_REPORT_PRINT_CSS`, que ya existían. Lo nuevo es solo el visor (`teacher-report-viewer.tsx`).
+- **Solo lectura**: chip `🔒 Solo lectura`, sin acciones de mutación. `approve`/`publish` siguen siendo exclusivos de Dirección. Si el informe no está publicado, se avisa que es una vista previa interna.
+- **Acciones**: Copiar formato LLM, copiar mensaje de WhatsApp, Imprimir / PDF y fuente Markdown desplegable.
+- **Lista quirúrgica**: filtros por estado (Todos · Borradores · En revisión · Publicados · Devueltos) con contador `N de M` y vacío diferenciado.
+- **Aislamiento por cohorte**: el docente solo puede abrir informes de sus propios alumnos (`myStudentIds`); se descarta cualquier otro aunque llegue por datos manipulados.
+- **Verificación**: dossier con anexo validado con bitácora real, cero datos financieros en Markdown y WhatsApp, `npm run build` en verde.
+
 ## [2.0.57] - 2026-11-03
 
 ### Vínculo de Misma Persona con Múltiples Instrumentos (ADR-0186)
