@@ -1869,4 +1869,9 @@ inferencia.
    - El encabezado del `Sheet` se titula **`Bitácora de Clase`**, muestra la píldora **`⏱ 2 minutos`** y aclara que **no es un informe formal para apoderados**.
    - Prohibido reintroducir la etiqueta genérica "Registrar clase" sin la señal de duración: el docente asocia "informe" con 20 minutos y no registra nada.
 6. **Blindajes técnicos**: identidad por **UUID** (`student.id`), filtro `is_test = false` en toda consulta a `lesson_evaluations` y `progress_reports`, y **cero modificaciones** a `app-store.ts`, `kardex-calculator.ts`, `student-cycle.ts` o los motores de asistencia por este motivo.
-7. **Referencia**: `docs/adr/0183-clarificacion-vistas-auditoria-e-informes-kiosco-docente.md` y CHANGELOG `[2.0.54]`.
+   - **Hallazgo abierto (`getEvaluationBySessionKey`)**: `evaluations.service.ts:238` consulta `lesson_evaluations` **sin filtrar `is_test`**. `getStudentEvaluations` sí filtra por defecto (`is_test = eq.false`). Para detectar "sesión ya registrada" en el Kiosco debe usarse **`getStudentEvaluations`**. Si se va a usar `getEvaluationBySessionKey` con datos de producción, primero hay que añadirle el filtro. Prohibido consumirla a ciegas.
+7. **Mapeo de docentes desde fuente única (para cualquier vista nueva que liste profesores)**:
+   - La lista se deriva de `TEACHER_IDS` + `resolveTeacherNameById` (`src/lib/services/teacher-resolver.ts`), la misma fuente que `INSTRUMENT_SPECIALISTS` (ADR-0179).
+   - Queda **TERMINANTEMENTE PROHIBIDO** hardcodear `["Jeremy","Nathaly","Fernando"]` o filtrar adopción por `teacher_name` de texto: ya falló con la Prof. Claudia (sin UUID), que quedó excluida de los criterios de Estimulación Musical.
+   - Un docente sin UUID **no se oculta ni se inventa**: se muestra en una fila explícita `⚠️ Docente sin UUID mapeado` con sus bitácoras resueltas por nombre.
+8. **Referencia**: `docs/adr/0183-clarificacion-vistas-auditoria-e-informes-kiosco-docente.md`, `docs/logs/2026-11-03-adr-0183-clarificacion-vistas.log`, `docs/PLAN_ADOPCION_BITACORA_DOCENTE_Y_CIRCULARIDAD.md` y CHANGELOG `[2.0.54]`.

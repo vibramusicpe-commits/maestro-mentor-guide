@@ -131,7 +131,11 @@ Estas tres entidades son distintas y así se mantienen. Cualquier cambio futuro 
 
 - Nueva pestaña **`👥 Adopción Docente`** junto a "Seguimiento de Alumnos" y "Bandeja General".
 - Componente nuevo `src/components/admin/teacher-adoption-panel.tsx` (no se modifica el tracker existente).
-- Contenido por docente (Jeremy, Fernando, Nathaly):
+- **Mapeo de docentes desde fuente única (PROHIBIDO hardcodear nombres)**:
+  - La lista de docentes **no** se escribe como `["Jeremy","Nathaly","Fernando"]`. Se deriva de `TEACHER_IDS` + `resolveTeacherNameById` (`src/lib/services/teacher-resolver.ts`), la misma fuente que usa `INSTRUMENT_SPECIALISTS` (ADR-0179).
+  - Un docente **sin UUID** en `TEACHER_IDS` (caso ya documentado: Claudia / Estimulación Musical) **no se oculta ni se inventa**: aparece en una fila explícita `⚠️ Docente sin UUID mapeado` con el número de bitácoras que tenga por `teacher_name`. Es el mismo criterio que devuelve `null` en `resolveCriteriaSource()`.
+  - Prohibido filtrar adopción cruzando solo por `teacher_name` texto: ya falló en ADR-0179 y volvería a fallar con un cuarto docente.
+- Contenido por docente:
   - Bitácoras registradas en el mes / en la semana en curso.
   - Semáforo de la meta de 2/semana: 🟢 cumplió · 🟡 fue 1 · 🔴 0.
   - Última bitácora registrada (fecha).
@@ -168,6 +172,7 @@ FASE 4 (sin código)       → B.3 seguimiento + B.4 primer informe piloto
 | El docente percibe la bitácora como "trabajo extra" | No la usa | Guía de 1 página + meta de solo 2/semana + "2 min" visible en UI |
 | El contador de avance se percibe como presión/sanción | Rechazo | Etiqueta neutra, sin ranking público, sin cruce con sueldos (ADR-0181) |
 | Se duplican cálculos de readiness | Divergencia (patrón ADR-0119.3) | Reutilizar `computeStudentReportReadiness`, prohibido reimplementar |
+| Se hardcodea la lista de docentes | Falla con el 4.º docente (ya pasó con Claudia, ADR-0179) | Derivar de `TEACHER_IDS` + `resolveTeacherNameById`; fila explícita para docentes sin UUID |
 | N+1 en `/teacher` | Kiosco lento en celular | Una consulta por alumno-semana, no por tarjeta |
 | `kardex-calculator.ts` se toca por error | Rompe kardex/asistencia/facturación | Solo import de lectura; verificar con graphify antes de editar |
 | La métrica de adopción se usa para sancionar | Desconfianza | Declarado fuera de alcance en C.2 y en §86 |

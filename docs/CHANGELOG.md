@@ -13,6 +13,9 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - **Botón contextual de bitácora**: si la asistencia es `presente`, se resalta de forma **estática** (`border-2 border-primary bg-primary/15`) con etiqueta `📝 Llenar bitácora de hoy (2 min)`; en otro caso, estilo suave con `📝 Bitácora de clase`. Se descartó `animate-pulse` porque con 5-6 tarjetas simultáneas en `presente` el parpadeo satura la pantalla y compite con la acción de asistencia. Se conserva el objetivo táctil de 44 px (ADR-0177).
 - **Encabezado pedagógico del Sheet**: título `Bitácora de Clase`, píldora `⏱ 2 minutos` y aclaración explícita de que no es un informe formal para apoderados.
 - **Sin cambios de esquema ni de datos**: no se tocaron `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`; cero datos financieros en vistas pedagógicas; `npm run build` en verde.
+- **Enlace con filtro real por alumno**: `/admin/informes` declara `validateSearch` (`?alumno=<nombre>`) y `InformesTrackerPanel` arranca con `initialStudentName`, de modo que el clic desde Auditoría abre la nómina **ya acotada** a ese alumno. Es solo filtro de lectura.
+- **Acompañamiento y plan de adopción** (`docs/PLAN_ADOPCION_BITACORA_DOCENTE_Y_CIRCULARIDAD.md`): propuesta de 3 frentes (código docente, acompañamiento de los 3 profesores del piloto con meta de 2 bitácoras/semana, y tablero de adopción para Dirección), con el mapeo de docentes **desde fuente única** (`TEACHER_IDS`) para no repetir el fallo de ADR-0179 con docentes sin UUID.
+- **Log de ejecución**: `docs/logs/2026-11-03-adr-0183-clarificacion-vistas.log` con el estado real verificado en Insforge (3 bitácoras, 0 informes, flags en `false`).
 
 ## [2.0.53] - 2026-11-02
 
