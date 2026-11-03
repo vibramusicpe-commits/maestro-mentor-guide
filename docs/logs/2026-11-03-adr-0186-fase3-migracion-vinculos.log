@@ -1,0 +1,113 @@
+VÍNCULO DE MISMA PERSONA — FASE 3: MIGRACIÓN DE DATOS
+Fecha: 2026-11-03
+ADR: docs/adr/0186-vinculo-misma-persona-multi-instrumento.md
+Rama: main
+Alcance: escritura de personGroupId/personGroupLabel en 6 registros de students.
+         SIN DDL. SIN borrados. SIN cambio de montos.
+
+=====================================================================
+1. MÉTODO
+=====================================================================
+
+Herramienta: postgrestPatch de src/lib/insforge.ts (el mismo camino que
+usa la aplicación), ejecutado vía vite.ssrLoadModule en script local.
+
+Regla de escritura: SE FUSIONA el objeto emergency_contact existente
+  { ...ec, personGroupId, personGroupLabel }
+para NO perder campos (docente, fechas, montos, scheduleLessons).
+
+Se registró el número de claves ANTES de cada escritura (29 a 35) y se
+comparó DESPUÉS para detectar pérdida de datos.
+
+=====================================================================
+2. BACKUP PREVIO (capturado antes de escribir)
+=====================================================================
+
+  invoices: 81 registros
+  facturado : S/ 28,185.00
+  cobrado   : S/ 27,345.00
+  saldo     : S/  1,628.00
+
+=====================================================================
+3. EJECUCIÓN — CASO POR CASO
+=====================================================================
+
+CASO 1 — CAMILA VALENTINA (2 instrumentos)
+  ancla personGroupId : 5c44e64a-b55d-4cf3-a668-1346b4a3cd8c
+  label              : "Camila Valentina (Violin + Guitarra)"
+
+  5c44e64a-… CAMILA VALENTINA     Violín   · Fernando · keys antes 34
+  064f2b68-… kamila Valentina G.  Guitarra · Jeremy   · keys antes 34
+
+  Verificado después:
+    - docente Fernando / Jeremy          INTACTO
+    - planStartDate 2026-09-10 / 08-26    INTACTO
+    - amountPaid 261 / 261                INTACTO
+    - scheduleLessons 4 / 6 lecciones     INTACTA
+
+CASO 2 — MARIO (2 instrumentos)
+  ancla personGroupId : f7a13b12-1ae7-433c-badb-53d0272cdc77
+  label              : "Mario Kefreen (Guitarra + Batería)"
+
+  f7a13b12-… Mario Keffreen  Guitarra · Jeremy · keys antes 35
+  9948ede5-… Mario Kefren    Batería  · Jeremy · keys antes 34
+
+  Verificado después:
+    - docente Jeremy / Jeremy            INTACTO
+    - amountPaid 261 / 261               INTACTO
+    - scheduleLessons 2 / 2 lecciones    INTACTA
+
+CASO 3 — JAN / JAM (adulta, vínculo explícito)
+  ancla personGroupId : c4acd9af-a0c6-4e25-9bb0-a68eeb8d4236
+  label              : "JAN / JAM (Piano + Canto)"
+
+  c4acd9af-… JAN  Piano · Fernando · keys antes 29
+  37b64949-… JAM  Canto · Nathaly  · keys antes 30
+
+  NOTA: este caso NO se detecta automáticamente porque es adulta sin
+  tutor y sus nombres no coinciden. Se vinculó de forma EXPLÍCITA, que
+  es lo correcto: no se adivina identidad.
+
+=====================================================================
+4. VERIFICACIÓN POSTERIOR
+=====================================================================
+
+TOTALES (idénticos al backup):
+  invoices: 81 registros
+  facturado : S/ 28,185.00
+  cobrado   : S/ 27,345.00
+  saldo     : S/  1,628.00
+
+CÓDIGO (scratch/verify-vinculos.mjs, buildInvoiceGroupMap real):
+  grupos detectados: 3
+    Mario Keffreen + Mario Kefren      -> Guitarra + Batería
+    CAMILA VALENTINA + kamila V. G.    -> Violín + Guitarra
+    JAM + JAN                          -> Canto + Piano
+
+=====================================================================
+5. LO QUE NO SE HIZO (y por qué)
+=====================================================================
+
+  - NO se modificó family_id.
+    Motivo: alinear family_id podría reasignar recibos y alterar la
+    vinculación existente. La agrupación funciona por personGroupId y no
+    lo necesita. Queda como mejora opcional futura.
+
+  - NO se eliminó ningún registro.
+    El histórico 00000000-0000-0000-0002-000000000045
+    (Camila Valentina Pastor Conco, status='baja', S/ 261 cobrados) se
+    conserva intacto. Representa dinero realmente percibido.
+
+  - NO se tocó isMatchingStudentName ni normalizeStudentName.
+
+  - NO hubo DDL (sin ALTER TABLE / DROP / TRUNCATE).
+
+=====================================================================
+6. RESULTADO VISIBLE
+=====================================================================
+
+En /admin/facturacion, el recibo de cada alumno vinculado muestra:
+  [🎼 Violín + Guitarra]   Total familia S/ 522.00
+
+Es SOLO agrupación visual: los montos individuales y los totales
+globales no cambian.

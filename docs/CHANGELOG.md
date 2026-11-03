@@ -12,7 +12,7 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - **Vínculo sin fusión**: campos opcionales `personGroupId`/`personGroupLabel` en `AdminStudent` (serializados en `emergency_contact` JSONB). **Sin `ALTER TABLE`**, sin mover horarios ni planes.
 - **Fase 1 — detección al matricular**: `detectSamePersonCandidates()` separa candidatos **activos** e **históricos**; el formulario informa, no bloquea.
 - **Fase 2 — agrupación visual en facturación**: el recibo de un alumno vinculado muestra `🎼 Violín + Guitarra` y `Total familia S/ 522.00`. **Solo visual**: no suma a totales globales ni altera montos. Sin `personGroupId`, la vista se comporta igual que antes.
-- **Fase 3 pendiente**: migración de datos (Camila, Mario, JAN/JAM) requiere confirmación explícita, caso por caso, con verificación de montos antes/después.
+- **Fase 3 ejecutada**: vínculo aplicado a los 3 casos reales — **Camila Valentina** (Violín + Guitarra), **Mario Kefreen** (Guitarra + Batería) y **JAN/JAM** (Piano + Canto), escribiendo `personGroupId`/`personGroupLabel` fusionados sobre `emergency_contact`. Totales verificados idénticos antes y después (81 recibos · S/ 28,185.00 facturado · S/ 27,345.00 cobrado · S/ 1,628.00 saldo). Docentes, fechas, montos y `scheduleLessons` intactos. Sin DDL, sin borrados, sin alinear `family_id`.
 - **Corrección de diagnóstico**: el registro `00000000-…0045` (Camila Valentina Pastor Conco) **no es basura**: es un alumno real en `baja` con S/ 261 cobrados del sistema anterior. No se elimina.
 - **Verificación**: `npm run build` en verde; falsos positivos rechazados; Camila y Mario detectados; JAN/JAM resueltos por vínculo explícito; `app-store.ts`, `kardex-calculator.ts` y `student-cycle.ts` sin cambios.
 

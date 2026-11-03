@@ -118,16 +118,33 @@ El formulario de matrícula informa; **no bloquea**. La decisión final sigue si
   - `Total familia S/ 522.00`
 - **Solo visual.** No suma a los totales globales ni modifica ningún monto individual. Sin `personGroupId`, todo se comporta exactamente como hoy.
 
-### 5. Fase 3 — Migración de datos (pendiente)
+### 5. Fase 3 — Migración de datos (EJECUTADA 2026-11-03)
 
-Requiere confirmación explícita de Dirección, caso por caso:
+Ejecutada caso por caso, con backup previo y verificación de totales.
 
-1. Escribir `personGroupId` + `personGroupLabel` en ambos registros.
-2. Alinear `family_id` a la familia real del apoderado.
-3. Verificar leyendo de vuelta que **ningún monto cambió**.
-4. **No eliminar** el histórico `00000000-…0045`.
+**Backup previo (antes de escribir):**
+```
+recibos: 81 · facturado S/ 28,185.00 · cobrado S/ 27,345.00 · saldo S/ 1,628.00
+```
 
-Protocolo: backup previo → un caso → verificar → siguiente caso. Nunca los tres de golpe.
+**Casos vinculados:**
+
+| Grupo | Registros | `personGroupId` (ancla) |
+|---|---|---|
+| Camila Valentina | `CAMILA VALENTINA` (Violín) + `kamila Valentina G.` (Guitarra) | `5c44e64a-…` |
+| Mario Kefreen | `Mario Keffreen` (Guitarra) + `Mario Kefren` (Batería) | `f7a13b12-…` |
+| JAN / JAM | `JAN` (Piano) + `JAM` (Canto) | `c4acd9af-…` |
+
+**Método:** `postgrestPatch` sobre `students`, escribiendo `emergency_contact` **fusionando** el objeto existente (`{...ec, personGroupId, personGroupLabel}`). Se verificó el número de claves antes de cada escritura (29–35) para no perder campos.
+
+**Verificación posterior:**
+- Totales idénticos: **81 recibos · S/ 28,185.00 · S/ 27,345.00 · S/ 1,628.00**.
+- Docentes, fechas de inicio, montos abonados y `scheduleLessons` intactos en cada registro (Camila Violín 4 lecciones, Guitarra 6; Mario 2 y 2).
+- `buildInvoiceGroupMap` detecta los **3 grupos** y resuelve `Violín + Guitarra`, `Guitarra + Batería`, `Canto + Piano`.
+
+**No se modificó `family_id`.** Se decidió no tocarlo en esta fase para no arriesgar la vinculación de recibos existentes; la agrupación funciona por `personGroupId`. Queda como mejora opcional futura.
+
+**No se eliminó ningún registro.** El histórico `00000000-…0045` (Camila Valentina Pastor Conco, `baja`, S/ 261 cobrados) permanece intacto.
 
 ---
 
@@ -173,6 +190,7 @@ Totales de facturación verificados en vivo: no se altera ningún importe; solo 
 | Duplicar recibos al alinear `family_id` | Verificar count y montos antes/después (Fase 3) |
 
 **Límites honestos:**
-- La Fase 2 no agrupa nada hasta que exista `personGroupId` en los datos. Hoy el vínculo está en **cero** registros: la vista se comporta igual que antes.
+- La agrupación visual requiere que el alumno tenga `personGroupId`. **Hoy los 3 casos reales ya están vinculados**; cualquier alumno nuevo se vincula manualmente o mediante la detección de la Fase 1.
 - La detección automática **no cubre** adultos con alias (JAN/JAM): requieren vínculo explícito.
-- No hay UI para editar `personGroupId` manualmente todavía. Se resuelve en la Fase 3.
+- No existe todavía una UI para vincular/desvincular manualmente desde la ficha. Se hace por datos.
+- `family_id` no se alineó: la agrupación no depende de ello.
