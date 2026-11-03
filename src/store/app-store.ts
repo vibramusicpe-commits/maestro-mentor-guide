@@ -688,6 +688,12 @@ function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<
       if (mergedStudent.recentAttendance !== undefined) ecData.recentAttendance = mergedStudent.recentAttendance;
       if (mergedStudent.scheduleLessons !== undefined) ecData.scheduleLessons = mergedStudent.scheduleLessons;
 
+      // ADR-0186 — Vínculo de misma persona con varios instrumentos.
+      // Se persiste SOLO si viene definido, para no borrar un vínculo existente
+      // cuando la actualización toca otros campos (escalable a futuros campos).
+      if (mergedStudent.personGroupId !== undefined) ecData.personGroupId = mergedStudent.personGroupId;
+      if (mergedStudent.personGroupLabel !== undefined) ecData.personGroupLabel = mergedStudent.personGroupLabel;
+
       payload.emergency_contact = ecData;
 
       const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";

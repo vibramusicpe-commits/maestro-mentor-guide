@@ -97,6 +97,8 @@ import {
 } from "@/components/ui/table";
 import { money } from "@/lib/format";
 import { isSameStudentId, isMatchingStudentName } from "@/lib/student-matching";
+import { findLinkedSiblingsAtRisk, describeInstrumentBundle } from "@/lib/student-person-group";
+import { LinkPersonDialog } from "@/components/admin/link-person-dialog";
 import {
   ensureParentInviteForStudent,
   type ParentInviteResult,
@@ -217,6 +219,13 @@ export function StudentsTable() {
   const [deletionReasonCategory, setDeletionReasonCategory] = useState<DeletionReasonCategory>("falta_pago");
   const [deletionReasonText, setDeletionReasonText] = useState("");
   const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
+  const [linkPersonOpen, setLinkPersonOpen] = useState(false);
+
+  // ADR-0186 Fase 5 — hermanos vinculados que se protegerían / afectarían.
+  const linkedSiblingsAtRisk = useMemo(
+    () => findLinkedSiblingsAtRisk(studentsToDelete.map((s) => s.id), adminStudents),
+    [studentsToDelete, adminStudents],
+  );
 
   // Estados de Importador CSV de Alumnos
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
@@ -1196,6 +1205,20 @@ export function StudentsTable() {
                         placeholder="Nombre completo del alumno"
                         className="text-xs h-8 bg-background font-bold"
                       />
+                      {/* ADR-0186 — Misma persona con varios instrumentos */}
+                      <button
+                        type="button"
+                        onClick={() => setLinkPersonOpen(true)}
+                        className="inline-flex min-h-[32px] w-full items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2 text-[11px] font-bold text-primary transition-colors hover:bg-primary/15"
+                      >
+                        <Link2 className="h-3 w-3" />
+                        Vincular con otro instrumento
+                        {selectedStudent.personGroupId && (
+                          <span className="ml-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                            vinculado
+                          </span>
+                        )}
+                      </button>
                     </div>
 
                     {/* Apellidos / Familia / Titular */}
@@ -2582,6 +2605,13 @@ export function StudentsTable() {
       </Dialog>
 
       {/* Modal Obligatorio de Confirmación de Eliminación con Motivo y Auditoría */}
+      {/* ADR-0186 Fase 5 — Vincular / desvincular misma persona con otro instrumento */}
+      <LinkPersonDialog
+        open={linkPersonOpen}
+        onOpenChange={setLinkPersonOpen}
+        student={selectedStudent}
+      />
+
       <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
         <DialogContent className="sm:max-w-md p-6 rounded-3xl border-destructive/30 bg-card">
           <DialogHeader>
@@ -2690,6 +2720,26 @@ export function StudentsTable() {
               <span>Registrado por: <strong>{activeRole === "staff" ? "Nayeli (Secretaría)" : "Dirección (Dueña)"}</strong></span>
               <span>Destino: <strong>Papelera Histórica</strong></span>
             </div>
+
+            {linkedSiblingsAtRisk.length > 0 && (
+              <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/10 p-3 text-xs">
+                <p className="font-black text-amber-800 dark:text-amber-200">
+                  ⚠️ Este alumno tiene otro instrumento vinculado
+                </p>
+                <p className="mt-1 text-amber-900/90 dark:text-amber-100/90">
+                  También cursa{" "}
+                  <strong>
+                    {describeInstrumentBundle(linkedSiblingsAtRisk)} (
+                    {linkedSiblingsAtRisk.map((s) => s.name.trim()).join(", ")})
+                  </strong>
+                  . Ese registro <strong>no se elimina</strong> y conserva su horario y asistencias.
+                </p>
+                <p className="mt-1 text-amber-900/90 dark:text-amber-100/90">
+                  Si la alumna dejó de venir, usa <strong>“Dar de baja”</strong> en lugar de eliminar:
+                  conserva el historial y evita confusiones al cobrar.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-3 border-t border-border">
               <Button

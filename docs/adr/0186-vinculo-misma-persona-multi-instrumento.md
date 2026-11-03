@@ -171,6 +171,31 @@ Se movieron `students.family_id` **e** `invoices.family_id`.
 
 **Descartada la vía "borrar y recrear":** recrear cambia el UUID y dejaría huérfanos `attendance_logs`, `lesson_evaluations`, `invoices` y `payment_audit_logs`. Unificar `family_id` logra el mismo objetivo conservando toda la trazabilidad.
 
+### 7. Fase 5 — Blindaje de borrado y botón Vincular (EJECUTADA 2026-11-03)
+
+**Hallazgo crítico previo:** `deleteStudent` (`app-store.ts:2283`) protege el horario comparando **por nombre**, y los alias de un mismo alumno no coinciden (`JAN` vs `JAM` → `false`). Sin blindaje, borrar JAN dejaba huérfano el vínculo de JAM.
+
+**Persistencia (archivos tocados, mínimo y aditivo):**
+- `app-store.ts`: +4 líneas en `performSyncStudentToDB` que escriben `personGroupId`/`personGroupLabel` **solo si vienen definidos** (nunca borra un vínculo existente al actualizar otro campo).
+- `students.service.ts`: lectura del campo en `mapDBStudentToAdminStudent`. **Sin esto el vínculo se perdía al recargar.**
+- `kardex-calculator.ts` y `student-cycle.ts`: **sin cambios**.
+
+**Blindaje de borrado** (`findLinkedSiblingsAtRisk` + aviso en el modal): cuando el alumno tiene hermanos vinculados activos, el modal muestra *"⚠️ Este alumno tiene otro instrumento vinculado… usa «Dar de baja» en lugar de eliminar"*. **No se alteró la lógica interna de `deleteStudent`** (código sensible con protección por nombre); se previene el error humano en la UI.
+
+**Botón "🔗 Vincular con otro instrumento"** (`link-person-dialog.tsx`): muestra hermanos actuales con **Desvincular**, coincidencias automáticas (nacimiento + apoderado) y **búsqueda manual** —necesaria porque los alias de un adulto solo los conoce Dirección y la detección automática no los encuentra.
+
+**Pruebas con datos vivos:**
+```
+borrar JAN                 → 1 en riesgo (JAM)   ✅
+borrar JAM                 → 1 en riesgo (JAN)   ✅
+borrar JAN + JAM a la vez  → 0 en riesgo         ✅
+borrar Mario Keffreen      → 1 en riesgo         ✅
+borrar Aaron (sin vínculo) → 0 en riesgo         ✅
+hidratación                → 6/6 vinculados      ✅
+```
+
+**Escalabilidad:** un 3.er instrumento no requiere código nuevo. Todo campo nuevo de persona debe añadirse en **los dos** puntos (`app-store.ts` y `students.service.ts`); omitir el segundo hace que el dato se pierda al recargar.
+
 ---
 
 ## Verificación

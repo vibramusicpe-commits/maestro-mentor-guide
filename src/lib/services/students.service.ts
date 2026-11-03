@@ -180,6 +180,10 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
           month: l.weekIndex === undefined ? undefined : l.month,
         }))
       : undefined,
+    // ADR-0186 — Vínculo de misma persona con varios instrumentos.
+    // Sin esta lectura el vínculo se perdería al recargar la página.
+    ...(ec.personGroupId ? { personGroupId: String(ec.personGroupId) } : {}),
+    ...(ec.personGroupLabel ? { personGroupLabel: String(ec.personGroupLabel) } : {}),
   };
 }
 

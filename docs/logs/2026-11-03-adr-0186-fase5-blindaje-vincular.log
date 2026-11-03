@@ -1,0 +1,154 @@
+VÍNCULO MULTI-INSTRUMENTO — FASE 5: BLINDAJE DE BORRADO Y BOTÓN VINCULAR
+Fecha: 2026-11-03
+ADR: docs/adr/0186-vinculo-misma-persona-multi-instrumento.md
+Rama: main
+Alcance: UI de vinculación + protección de borrado + persistencia del campo.
+         SIN borrados de datos. SIN DDL.
+
+=====================================================================
+1. HALLAZGO CRÍTICO QUE MOTIVÓ EL BLINDAJE
+=====================================================================
+
+El borrado del store (app-store.ts:2283) protege el horario comparando
+por NOMBRE:
+
+  hasOtherActive = remainingStudents.some(st =>
+    st.status === "activo" && isMatchingStudentName(st.name, studentName));
+
+Pero los alias de un mismo alumno con 2 instrumentos NO coinciden:
+
+  isMatchingStudentName("JAN", "JAM")                    -> false
+  isMatchingStudentName("Mario Keffreen", "Mario Kefren") -> false
+
+Riesgo real: al eliminar JAN, el sistema NO reconocía a JAM como la misma
+persona y borraba el horario de JAN sin proteger a JAM. Además el
+personGroupId de JAM quedaba huérfano.
+
+Por eso NO se construyó el botón de vincular sin antes blindar el borrado.
+
+=====================================================================
+2. PERSISTENCIA (por qué se tocó app-store.ts)
+=====================================================================
+
+Se revisó la documentación: app-store.ts NO es intocable. Está modificado
+en ADR-0113, ADR-0167, ADR-0126 y otros, siempre para agregar campos.
+Lo intocable son los MOTORES: kardex-calculator.ts y student-cycle.ts.
+
+Cambios mínimos y aditivos:
+
+  src/store/app-store.ts (performSyncStudentToDB)
+    + if (mergedStudent.personGroupId !== undefined) ecData.personGroupId = ...
+    + if (mergedStudent.personGroupLabel !== undefined) ecData.personGroupLabel = ...
+
+  Regla aplicada: SOLO se escribe si viene definido. Así una actualización
+  de otro campo NUNCA borra un vínculo existente (lista blanca de campos,
+  patrón del archivo).
+
+  src/lib/services/students.service.ts (mapDBStudentToAdminStudent)
+    + ...(ec.personGroupId ? { personGroupId: String(ec.personGroupId) } : {})
+    + ...(ec.personGroupLabel ? { personGroupLabel: String(ec.personGroupLabel) } : {})
+
+  Sin esta lectura el vínculo se perdía al recargar la página. Verificado.
+
+  Kardex y ciclos NO se tocaron.
+
+=====================================================================
+3. BLINDAJE DE BORRADO
+=====================================================================
+
+  src/lib/student-person-group.ts
+    + findLinkedSiblingsAtRisk(studentIds, students)
+      Devuelve SOLO hermanos ACTIVOS del mismo personGroupId que NO están
+      en la selección a borrar.
+
+  src/components/admin/students-table.tsx
+    + Aviso ámbar en el modal de eliminación cuando hay hermanos vinculados:
+      "⚠️ Este alumno tiene otro instrumento vinculado"
+      "Ese registro NO se elimina y conserva su horario y asistencias."
+      "Si dejó de venir, usa 'Dar de baja' en lugar de eliminar."
+
+  Nota: NO se cambió la lógica de borrado del store (app-store.ts:2283).
+  Se evita tocar el flujo de eliminación; el aviso previene el error humano.
+
+Pruebas con datos reales (scratch/test-fase5.shield.mjs):
+
+  borrar JAN                    -> hermanos en riesgo: 1 (JAM)     OK
+  borrar JAM                    -> hermanos en riesgo: 1 (JAN)     OK
+  borrar JAN + JAM (ambos)      -> hermanos en riesgo: 0           OK
+  borrar Mario Keffreen         -> hermanos en riesgo: 1 (Mario Kefren) OK
+  borrar Aaron (sin vínculo)    -> hermanos en riesgo: 0           OK
+
+=====================================================================
+4. BOTÓN VINCULAR / DESVINCULAR
+=====================================================================
+
+  NUEVO: src/components/admin/link-person-dialog.tsx
+
+  Se abre desde la ficha del alumno con el botón
+  "🔗 Vincular con otro instrumento" (muestra chip "vinculado" si aplica).
+
+  Contenido:
+    - Alumno actual (nombre, instrumento, docente).
+    - "Vinculado con": hermanos actuales con botón Desvincular.
+    - "Coincidencias detectadas": candidatos por nacimiento + apoderado,
+      con badge "Misma fecha y apoderado".
+    - "Buscar otro registro": selección MANUAL con badge "Selección manual".
+      Necesario porque los alias de un adulto (JAN/JAM) solo los conoce
+      Dirección y la detección automática NO los encuentra.
+    - Aviso de borrado si aplica.
+
+  Reglas:
+    - Vincular escribe personGroupId + label en AMBOS registros.
+    - El grupo toma el UUID del registro actual como ancla estable.
+    - Al vincular se alinea familyId para que el apoderado vea una sola
+      cuenta (ADR-0186 Fase 4), SIN mover UUID ni montos.
+    - Desvincular solo limpia personGroupId/personGroupLabel.
+      NO toca horarios, asistencias, recibos ni montos.
+
+=====================================================================
+5. VERIFICACIÓN
+=====================================================================
+
+  HIDRATACIÓN (mapDBStudentToAdminStudent con datos vivos):
+
+    CAMILA VALENTINA    Violín   grupo:5c44e64a
+    kamila Valentina G. Guitarra grupo:5c44e64a
+    Mario Keffreen      Guitarra grupo:f7a13b12
+    Mario Kefren        Batería  grupo:f7a13b12
+    JAN                 Piano    grupo:c4acd9af
+    JAM                 Canto    grupo:c4acd9af
+
+    total vinculados: 6 (esperado 6)   OK
+
+  npm run build : VERDE (exit 0)
+
+  Archivos prohibidos:
+    src/lib/kardex-calculator.ts  -> SIN CAMBIOS
+    src/lib/student-cycle.ts      -> SIN CAMBIOS
+    src/store/app-store.ts        -> +4 líneas aditivas (persistencia)
+
+=====================================================================
+6. ESCALABILIDAD PARA FUTUROS CASOS
+=====================================================================
+
+  - 3er instrumento: mismo mecanismo, sin cambios de código. El grupo ya
+    admite N registros (buildInvoiceGroupMap, resolvePersonSiblings).
+  - Docente/alumno nuevo: la detección automática funciona si comparte
+    nacimiento + apoderado.
+  - Adulto con alias: se vincula manualmente desde el diálogo.
+  - La persistencia es por lista blanca: cualquier campo NUEVO de persona
+    debe añadirse en los DOS puntos (app-store.ts y students.service.ts).
+    Queda documentado para no repetir el fallo detectado en esta fase.
+
+=====================================================================
+7. LO QUE NO SE HIZO (y por qué)
+=====================================================================
+
+  - NO se cambió la lógica interna de deleteStudent.
+    Motivo: es código sensible con protección por nombre (ADR-0125) y
+    efectos en horario. Se prefirió el aviso previo en la UI, que no altera
+    el comportamiento existente.
+
+  - NO se eliminó ninguna familia vacía ni registro histórico.
+
+  - NO se tocaron montos, UUID, asistencias ni bitácoras.

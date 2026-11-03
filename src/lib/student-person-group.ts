@@ -198,3 +198,33 @@ export function resolveStudentPersonGroup(
   const found = students.find((student) => student.id === studentId);
   return found?.personGroupId ?? null;
 }
+
+/**
+ * ADR-0186 Fase 5 — ¿Este alumno tiene hermanos vinculados que se perderían
+ * al eliminarlo?
+ *
+ * El borrado del store protege el horario comparando por NOMBRE
+ * (`isMatchingStudentName`), pero los alias de un mismo alumno con 2
+ * instrumentos NO coinciden entre sí (`JAN` vs `JAM`, `Mario Keffreen` vs
+ * `Mario Kefren`). Esta función cubre ese hueco usando `personGroupId`.
+ *
+ * Devuelve SOLO hermanos activos (los que realmente hay que proteger).
+ */
+export function findLinkedSiblingsAtRisk(
+  studentIds: string[],
+  students: AdminStudent[],
+): AdminStudent[] {
+  const targets = students.filter((student) => studentIds.includes(student.id));
+  if (targets.length === 0) return [];
+
+  const groups = new Set(targets.map((student) => student.personGroupId).filter(Boolean) as string[]);
+  if (groups.size === 0) return [];
+
+  return students.filter(
+    (student) =>
+      student.status === "activo" &&
+      Boolean(student.personGroupId) &&
+      groups.has(student.personGroupId as string) &&
+      !studentIds.includes(student.id),
+  );
+}
