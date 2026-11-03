@@ -4,6 +4,18 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.59] - 2026-11-03
+
+### Registro 2: Matrícula Multi-Instrumento con Pagos Flexibles (ADR-0188)
+- **Nuevo botón `Matrícula Multi-Instrumento`** en el panel de alumnos, junto a «Registrar Nuevo Alumno». El **Registro 1 queda intacto**: sigue siendo la vía para 1 instrumento y planes establecidos.
+- **Problema que resuelve**: con costo S/ 250 y abono S/ 400, el Registro 1 recortaba el saldo a S/ 0 y **los S/ 150 sobrantes desaparecían**. Ahora se registran como **saldo a favor de la familia** y cada instrumento lleva su propio abono.
+- **Un bloque por instrumento**: instrumento, costo del plan, abonado, **nota libre** y **abonos detallados** (fecha + monto + método + **nota por cada abono**), para casos como «pagó S/ 50 en la 4.ª clase».
+- **Tercer instrumento opcional** y **resumen familiar** con Contratado · Abonado · Pendiente · A favor.
+- **Crea 2 registros vinculados** por `personGroupId` y con el mismo `familyId`: una sola cuenta para el apoderado, sin fusionar matrículas (ADR-0186).
+- **Excedente a favor de la familia**, nunca aplicado en automático al otro instrumento (decisión de Dirección).
+- **Aviso de duplicado** por nacimiento + apoderado sugiriendo vincular en lugar de duplicar; informa, no bloquea.
+- **Verificación del caso real**: Piano S/ 250 + Canto S/ 250 con abonos 400 + 200 → Contratado S/ 500 · Abonado S/ 600 · **A favor S/ 150** · Pendiente S/ 50. `npm run build` en verde; motores de cálculo sin cambios.
+
 ## [2.0.58] - 2026-11-03
 
 ### Dossier Completo de Informes en el Portal Docente (ADR-0187)

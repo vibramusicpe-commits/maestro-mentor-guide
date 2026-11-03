@@ -1963,3 +1963,18 @@ inferencia.
 6. **Cero datos financieros** en el dossier, el Markdown y el WhatsApp del docente.
 7. **Verificación**: el anexo solo aparece con `content.sessionLog`; sin bitácora el documento queda en 2 páginas. Informes antiguos sin `sessionLog` siguen abriendo correctamente.
 8. **Referencia**: `docs/adr/0187-dossier-completo-informes-portal-docente.md`, `docs/logs/2026-11-03-adr-0187-dossier-informes-docente.log` y CHANGELOG `[2.0.58]`.
+
+---
+
+### 91. Registro 2: Matrícula Multi-Instrumento con Pagos Flexibles (ADR-0188)
+
+1. **Dos registros coexistentes, dos propósitos**:
+   - **Registro 1** («Registrar Nuevo Alumno»): 1 instrumento, planes establecidos. **Está intacto y no se modifica.**
+   - **Registro 2** («Matrícula Multi-Instrumento»): 2 o más instrumentos con pagos fraccionados.
+2. **Prohibido recortar el excedente**: `Math.max(0, planPrice - amountPaid)` oculta el dinero cobrado de más. El excedente se registra como **saldo a favor de la familia**.
+3. **El excedente NO se aplica automáticamente** al otro instrumento: es decisión de secretaría. Si el alumno no cursa el segundo instrumento, no hay que deshacer nada.
+4. **Cada instrumento es una matrícula real**: crea registros separados vinculados por `personGroupId` y con el mismo `familyId` (una sola cuenta familiar). Nunca se fusionan.
+5. **Notas por cada abono y por instrumento**: secretaría anota en su propio lenguaje («pagó en la 2da clase», «abono parcial 50»). Se guardan en `emergency_contact` (JSONB), sin esquema rígido, para su futura migración.
+6. **Aviso de duplicado sin bloqueo**: nacimiento + apoderado coincidentes sugieren **vincular** en lugar de duplicar (ADR-0186); decide secretaría.
+7. **Cobros formales siguen en `/admin/facturacion`**: el Registro 2 crea la matrícula y sus notas. No escribe en `payment_audit_logs` para no duplicar la compuerta anti-fraude (ADR-0106).
+8. **Referencia**: `docs/adr/0188-registro-2-matricula-multi-instrumento-pagos-flexibles.md`, `docs/logs/2026-11-03-adr-0188-registro-2-multi-instrumento.log` y CHANGELOG `[2.0.59]`.

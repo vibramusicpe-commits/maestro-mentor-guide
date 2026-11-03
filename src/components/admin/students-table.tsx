@@ -33,6 +33,7 @@ import {
   Music,
   FileText,
   X,
+  Layers,
 } from "lucide-react";
 import {
   useAppStore,
@@ -99,6 +100,7 @@ import { money } from "@/lib/format";
 import { isSameStudentId, isMatchingStudentName } from "@/lib/student-matching";
 import { findLinkedSiblingsAtRisk, describeInstrumentBundle } from "@/lib/student-person-group";
 import { LinkPersonDialog } from "@/components/admin/link-person-dialog";
+import { MultiInstrumentEnrollment } from "@/components/admin/multi-instrument-enrollment";
 import {
   ensureParentInviteForStudent,
   type ParentInviteResult,
@@ -220,6 +222,7 @@ export function StudentsTable() {
   const [deletionReasonText, setDeletionReasonText] = useState("");
   const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
   const [linkPersonOpen, setLinkPersonOpen] = useState(false);
+  const [multiEnrollmentOpen, setMultiEnrollmentOpen] = useState(false);
 
   // ADR-0186 Fase 5 — hermanos vinculados que se protegerían / afectarían.
   const linkedSiblingsAtRisk = useMemo(
@@ -3402,6 +3405,24 @@ function NewStudentDialog() {
       >
         <PlusCircle className="h-4 w-4" /> Registrar Nuevo Alumno
       </Button>
+
+      {/* ADR-0188 — REGISTRO 2: matrícula multi-instrumento con pagos flexibles */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        data-tour="btn-multi-instrument-enrollment"
+        onClick={() => setMultiEnrollmentOpen(true)}
+        className="gap-2 font-bold"
+        title="Para alumnos de 2 instrumentos con pagos fraccionados"
+      >
+        <Layers className="h-4 w-4" /> Matrícula Multi-Instrumento
+      </Button>
+
+      <MultiInstrumentEnrollment
+        open={multiEnrollmentOpen}
+        onOpenChange={setMultiEnrollmentOpen}
+      />
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Matricular Nuevo Alumno</SheetTitle>

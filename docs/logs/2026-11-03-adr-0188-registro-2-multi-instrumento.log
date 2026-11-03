@@ -1,0 +1,130 @@
+REGISTRO 2: MATRÍCULA MULTI-INSTRUMENTO CON PAGOS FLEXIBLES
+Fecha: 2026-11-03
+ADR: docs/adr/0188-registro-2-matricula-multi-instrumento-pagos-flexibles.md
+Rama: main
+Alcance: nuevo formulario en el panel de alumnos. Registro 1 INTACTO.
+         SIN DDL. SIN cambios en motores de cálculo.
+
+=====================================================================
+1. MOTIVO
+=====================================================================
+
+El Registro 1 está diseñado para 1 instrumento y planes establecidos.
+Funciona bien ahí y NO se modificó.
+
+Caso real que no encaja (Luciana, Piano + Canto):
+  Pagó S/ 400 el primer día y S/ 200 en la segunda clase = S/ 600.
+
+Problema del Registro 1:
+  livePlanBalance = Math.max(0, planPrice - amountPaid)
+  Con costo S/250 y abonado S/400 -> saldo se recorta a 0 y muestra
+  "✓ Cancelado (S/250.00)". Los S/150 SOBRANTES DESAPARECEN.
+  No hay historial de abonos por clase ni asignación al 2do instrumento.
+
+Patrón frecuente adicional (Dirección):
+  Alumnos con 2 instrumentos que abonan S/50 en S/50 hasta la 4ta o
+  5ta clase.
+
+=====================================================================
+2. DECISIÓN: DOS REGISTROS COEXISTENTES
+=====================================================================
+
+  REGISTRO 1 (existente)      Sheet "Registrar Nuevo Alumno"
+                              1 instrumento · planes establecidos
+                              SIN CAMBIOS
+
+  REGISTRO 2 (nuevo)          Botón "Matrícula Multi-Instrumento"
+                              2+ instrumentos · pagos fraccionados
+                              docs adr-0188
+
+Ambos conviven en el panel de alumnos.
+
+=====================================================================
+3. ARCHIVOS
+=====================================================================
+
+NUEVO
+  src/components/admin/multi-instrument-enrollment.tsx
+
+MODIFICADO
+  src/components/admin/students-table.tsx
+    + import Layers + MultiInstrumentEnrollment
+    + estado multiEnrollmentOpen
+    + botón "Matrícula Multi-Instrumento" junto a "Registrar Nuevo Alumno"
+
+SIN CAMBIOS
+  src/store/app-store.ts
+  src/lib/kardex-calculator.ts
+  src/lib/student-cycle.ts
+  Formulario del Registro 1
+
+=====================================================================
+4. FUNCIONALIDAD
+=====================================================================
+
+Datos del alumno y apoderado:
+  nombre, nacimiento, tutor, teléfono, familia, fecha de matrícula.
+
+Bloque por instrumento:
+  - Instrumento (Piano, Piano Infantil, Violín, Guitarra, Batería,
+    Canto, Estimulación Musical)
+  - Costo del plan
+  - Abonado
+  - NOTA libre por instrumento
+  - Abonos detallados: fecha + monto + método + NOTA por cada abono
+
+Botón para agregar un TERCER instrumento.
+
+Resumen familiar: Contratado · Abonado · Pendiente · A FAVOR.
+
+Al guardar se crean 2 registros vinculados:
+  - mismo personGroupId (ADR-0186)
+  - mismo familyId -> una sola cuenta para el apoderado
+  - cada uno con su instrumento, plan y abono
+  - NUNCA se fusionan
+
+Excedente: va como SALDO A FAVOR DE LA FAMILIA (decisión de Dirección).
+No se aplica automáticamente al otro instrumento.
+
+Aviso de duplicado: si nacimiento + apoderado coinciden con un alumno
+existente, se sugiere vincular. NO bloquea (decide secretaría).
+
+=====================================================================
+5. VERIFICACIÓN
+=====================================================================
+
+Caso Luciana (Piano S/250 + Canto S/250, abonado 400 + 200):
+
+  Contratado: 500 | Abonado: 600 | Excedente a favor: 150 | Pendiente: 50
+
+Coincide con lo declarado: S/600 pagados, S/150 a favor, S/50 pendiente.
+
+Caso abonos de S/50 hasta la 4ta clase: el historial acumula filas
+independientes por instrumento y el total se recalcula.
+
+npm run build : VERDE (exit 0)
+kardex-calculator.ts / student-cycle.ts : SIN CAMBIOS
+Sin DDL.
+
+=====================================================================
+6. LÍMITES HONESTOS
+=====================================================================
+
+  - El Registro 2 no importa datos de un alumno existente; se capturan
+    en el formulario. Para vincular con uno previo se usa el botón
+    "🔗 Vincular con otro instrumento" (ADR-0186 Fase 5).
+  - El saldo a favor es informativo: NO genera recibo por sí solo.
+  - Las notas por abono se ven en el toast y en la ficha; NO crean filas
+    en payment_audit_logs (eso ocurre al cobrar desde /admin/facturacion).
+  - No valida aforo por sala: la asignación de horario sigue siendo tarea
+    de la Agenda (ADR-0121).
+
+=====================================================================
+7. POR QUÉ NO SE ESCRIBIÓ EN payment_audit_logs
+=====================================================================
+
+Registrar cada abono allí exige un invoice_id existente y pasa por la
+compuerta anti-fraude (ADR-0106). El Registro 2 crea la matrícula y sus
+notas; los cobros formales se consolidan en /admin/facturacion al emitir
+el recibo. Así se evita duplicar lógica contable y se respeta el flujo
+vigente que ya funciona.
