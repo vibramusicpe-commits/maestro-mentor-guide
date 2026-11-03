@@ -5,6 +5,11 @@ import { InformesTrackerPanel } from "@/components/admin/informes-tracker-panel"
 import { ProgressReportsPanel } from "@/components/admin/progress-reports-panel";
 
 export const Route = createFileRoute("/admin/informes")({
+  // Enlace cruzado desde Auditoría de Alumnos (ADR-0183): `?alumno=<nombre>`
+  // preselecciona el filtro de búsqueda. Es solo un filtro de lectura, no altera datos.
+  validateSearch: (search: Record<string, unknown>): { alumno?: string } => ({
+    alumno: typeof search.alumno === "string" && search.alumno.trim() ? search.alumno.trim() : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Seguimiento de Informes — VM STAFF" },
@@ -25,6 +30,7 @@ export const Route = createFileRoute("/admin/informes")({
 });
 
 function AdminInformesPage() {
+  const { alumno } = Route.useSearch();
   const [activeTab, setActiveTab] = useState<"tracker" | "bandeja">("tracker");
 
   return (
@@ -59,7 +65,12 @@ function AdminInformesPage() {
       </div>
 
       {/* Vista activa */}
-      {activeTab === "tracker" ? <InformesTrackerPanel /> : <ProgressReportsPanel />}
+      {activeTab === "tracker" ? (
+        <InformesTrackerPanel initialStudentName={alumno} />
+      ) : (
+        <ProgressReportsPanel />
+      )}
     </div>
   );
 }
+

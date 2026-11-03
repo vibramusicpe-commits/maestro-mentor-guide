@@ -135,7 +135,12 @@ function downloadCsv(
   URL.revokeObjectURL(url);
 }
 
-export function InformesTrackerPanel() {
+export function InformesTrackerPanel({
+  initialStudentName,
+}: {
+  /** Nombre preseleccionado desde Auditoría de Alumnos (ADR-0183). Solo filtro de lectura. */
+  initialStudentName?: string;
+} = {}) {
   const adminStudents = useAppStore((s) => s.adminStudents);
   const currentUser = useAppStore((s) => s.currentUser);
   const activeRole = useAppStore((s) => s.activeRole);
@@ -149,7 +154,7 @@ export function InformesTrackerPanel() {
   const [draftFields, setDraftFields] = useState<EvaluationFieldRow[]>([]);
 
   // Filtros
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialStudentName ?? "");
   const [teacherFilter, setTeacherFilter] = useState("todos");
   const [instrumentFilter, setInstrumentFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState<"todos" | ReadinessStatus>("todos");
@@ -976,3 +981,4 @@ export function InformesTrackerPanel() {
     </div>
   );
 }
+

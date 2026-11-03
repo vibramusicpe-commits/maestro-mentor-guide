@@ -708,6 +708,7 @@ export function AdminReportesPage() {
                       <td className="py-3 px-3 text-center">
                         <Link
                           to="/admin/informes"
+                          search={{ alumno: st.name }}
                           className="inline-flex flex-col items-center gap-0.5 group/report hover:opacity-85 transition-opacity"
                           title={`Ver seguimiento pedagógico de ${st.name}`}
                         >

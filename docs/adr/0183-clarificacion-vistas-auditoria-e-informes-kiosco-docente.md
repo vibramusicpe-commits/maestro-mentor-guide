@@ -43,18 +43,20 @@ Estado real comprobado en Insforge PostgreSQL:
 - El resto del `nav` (Dashboard, Campañas, WhatsApp Bot, Horario, Alumnos, Clases Demo, Cobros y Abonos, Invitaciones, Asistencia Docente) no se altera.
 
 ### 2. Enlace cruzado desde Auditoría hacia Informes (`src/routes/admin.reportes.tsx`)
-- La celda **"Último informe"** de la tabla de `/admin/reportes` queda envuelta en un `<Link to="/admin/informes">`.
+- La celda **"Último informe"** de la tabla de `/admin/reportes` queda envuelta en un `<Link to="/admin/informes" search={{ alumno: st.name }}>`.
 - Con informe: el `Badge` de estado muestra el sufijo `↗` y subraya el borde al hacer hover (`group-hover/report:border-primary`); debajo se mantiene la fecha fin de periodo.
 - Sin informe: se muestra `Sin informe ↗` en color primario al hover.
 - Se añade `title={`Ver seguimiento pedagógico de ${st.name}`}` para accesibilidad.
-- **Nota:** el enlace navega a la ruta oficial de seguimiento; no se inventa un parámetro de búsqueda que las rutas de TanStack no tipen. El filtro por alumno se hace dentro de `/admin/informes`.
+- **Filtro real por alumno:** la ruta `/admin/informes` declara `validateSearch` para `?alumno=<nombre>` (`alumno?: string`, vacío ⇒ `undefined`). `AdminInformesPage` lo lee con `Route.useSearch()` y lo entrega a `<InformesTrackerPanel initialStudentName>` como **valor inicial del filtro de búsqueda** (`useState(initialStudentName ?? "")`). El usuario aterriza con la nómina ya acotada a ese alumno y puede ampliarla con "Limpiar filtros".
+- Es un **filtro de lectura**: no crea, modifica ni pre-selecciona ningún informe. No altera la lógica del consolidado (`progress_reports` se sigue generando desde `lesson_evaluations`, nunca desde la vista de Auditoría).
 
 ### 3. Fricción cero en el Kiosco Docente (`src/routes/teacher.index.tsx`)
 - **`onSaved` conectado:** al guardar la bitácora se llama `setClassLogSeed(null)` (cierra la hoja) y se emite `toast.success("✓ Bitácora de clase guardada correctamente")` con el nombre del alumno en la descripción.
 - **Botón con jerarquía contextual:**
-  - Con asistencia `presente`: `border-2 border-primary bg-primary/15 animate-pulse` y etiqueta **`📝 Llenar bitácora de hoy (2 min)`**.
+  - Con asistencia `presente`: `border-2 border-primary bg-primary/15` (realce estático, sin `animate-pulse`) y etiqueta **`📝 Llenar bitácora de hoy (2 min)`**.
   - En cualquier otro estado: estilo suave y etiqueta **`📝 Bitácora de clase`**.
   - Se conserva `min-h-[44px]` (ADR-0177) y la acción principal sigue siendo la de asistencia.
+  - **Se descartó `animate-pulse`**: en el Kiosco conviven hasta 5-6 tarjetas por franja; si todas están en `presente`, el parpadeo simultáneo satura y resta jerarquía a la asistencia. El realce estático comunica lo mismo sin ruido visual.
 - **Encabezado pedagógico del Sheet:** título **"Bitácora de Clase"**, píldora `⏱ 2 minutos`, identidad de la sesión (alumno · fecha · hora) y una línea aclaratoria: *"Selecciona el tema visto, marca 1-2 criterios y añade el repertorio trabajado. No es un informe formal para apoderados."*
 
 ---

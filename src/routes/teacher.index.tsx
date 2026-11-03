@@ -606,9 +606,9 @@ export function TeacherKiosk() {
                           <button
                             type="button"
                             onClick={() => openClassLog(studentProfile, lesson, targetDateStr)}
-                            className={`flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                            className={`flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors shadow-xs ${
                               status === "presente"
-                                ? "border-2 border-primary bg-primary/15 text-primary hover:bg-primary/25 animate-pulse"
+                                ? "border-2 border-primary bg-primary/15 text-primary hover:bg-primary/25"
                                 : "border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
                             }`}
                           >

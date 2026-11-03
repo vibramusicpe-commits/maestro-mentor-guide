@@ -1858,7 +1858,9 @@ inferencia.
    - `"Auditoría de Alumnos"` (`/admin/reportes`, icono `ShieldCheck`) para lo financiero.
    - Prohibido volver a rotularlas como "Informes" / "Reportes" a secas, o reutilizar `FileSpreadsheet` para la vista pedagógica.
 3. **Enlace cruzado unidireccional (`src/routes/admin.reportes.tsx`)**:
-   - La columna **"Último informe"** es un `<Link to="/admin/informes">` (sufijo `↗`, `title` descriptivo, estado `Sin informe ↗`). Permite saltar de la auditoría financiera al seguimiento pedagógico.
+   - La columna **"Último informe"** es un `<Link to="/admin/informes" search={{ alumno: st.name }}>` (sufijo `↗`, `title` descriptivo, estado `Sin informe ↗`). Permite saltar de la auditoría financiera al seguimiento pedagógico **ya filtrado por ese alumno**.
+   - El filtro viaja por `validateSearch` en `/admin/informes` (`alumno?: string`) y se inyecta como valor inicial del filtro de búsqueda del tracker (`InformesTrackerPanel initialStudentName`). "Limpiar filtros" restablece la nómina completa.
+   - Es **solo un filtro de lectura**: prohibido usarlo para pre-seleccionar, crear o mutar informes. Un informe sigue naciendo **únicamente** del consolidado de `lesson_evaluations` (ADR-0180/§83), nunca de la vista de Auditoría.
    - El vínculo va **de Auditoría hacia Informes**, nunca al revés: una vista pedagógica **no** debe enlazar a montos ni a deudas.
 4. **Cero datos financieros en vistas pedagógicas**: `/admin/informes` y `/teacher` (Kiosco, bitácora, informes) **no** renderizan `S/`, saldos, deudas ni montos. Prohibido también en el exportable CSV de seguimiento.
 5. **Kiosco docente con fricción cero (`src/routes/teacher.index.tsx`)**:
