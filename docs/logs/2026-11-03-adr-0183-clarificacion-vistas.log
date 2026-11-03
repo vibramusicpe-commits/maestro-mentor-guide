@@ -1,0 +1,140 @@
+CLARIFICACIÓN DE VISTAS (AUDITORÍA VS INFORMES) Y ACTIVACIÓN DE LA BITÁCORA DOCENTE
+Fecha: 2026-11-03
+ADR: docs/adr/0183-clarificacion-vistas-auditoria-e-informes-kiosco-docente.md
+Rama: main
+Commits: ac1ceb2, b86e601, cbf3ace
+Alcance: navegación de `/admin`, tabla de `/admin/reportes`, Kiosco `/teacher`.
+         Sin tocar datos de alumnos, facturación, kardex ni motores de ciclo.
+
+=====================================================================
+1. MOTIVO
+=====================================================================
+
+Dirección reportó que en el menú lateral convivían "Informes" y "Reportes",
+dos entradas casi idénticas. No se sabía cuál abrir para auditar deudas y
+cuál para revisar avances pedagógicos.
+
+En el portal docente, el botón "Registrar clase" era secundario, gris y
+estaba debajo de los 4 botones de asistencia. Además el componente <ClassLog>
+se montaba SIN la prop `onSaved`: al guardar, la hoja inferior no se cerraba
+ni daba confirmación. El docente no sabía si su registro se guardó.
+
+Consecuencia operativa: el módulo existía y estaba habilitado para los 3
+docentes del piloto, pero no se usaba.
+
+=====================================================================
+2. ESTADO DE PRODUCCIÓN VERIFICADO (solo lectura, MCP Insforge, 2026-11-03)
+=====================================================================
+
+  lesson_evaluations   : 3 filas totales · 3 reales (is_test = false)
+                         1 por docente:
+                           Fernando  : 1
+                           Nathaly   : 1
+                           Jeremy    : 1
+
+  progress_reports     : 0 filas  (ningún informe emitido aún)
+
+  feature_flags (clave `feature_flags` en org_settings):
+    evaluationsV2     : false
+    progressReportsV2 : false
+    familyNotesV2     : false
+    parentReports     : false
+
+  pilot_teacher_ids    : clave en org_settings (NO es columna, es
+                         setting_key). Contiene a Jeremy, Fernando y Nathaly.
+
+Lectura: el acceso al módulo NO era el bloqueo. El bloqueo era la fricción
+de UI y la falta de un motivo visible para registrar. Con 0 informes, el
+mínimo de 2 bitácoras por alumno (report-readiness.ts) nunca se alcanzó.
+
+=====================================================================
+3. CAMBIOS APLICADOS
+=====================================================================
+
+3.1 `src/routes/admin.tsx`
+    - "Informes" → "Informes Pedagógicos"  (icono FileBarChart2)
+    - "Reportes" → "Auditoría de Alumnos"  (icono ShieldCheck)
+    - Se retiró el import `FileSpreadsheet`, que quedó sin uso tras el
+      cambio (evita import muerto).
+
+3.2 `src/routes/admin.reportes.tsx`
+    - La celda "Último informe" pasó a ser un <Link to="/admin/informes"
+      search={{ alumno: st.name }}> con sufijo ↗, realce de borde al hover
+      y title descriptivo.
+    - Cubre ambos estados: con informe (badge + fecha) y "Sin informe ↗".
+
+3.3 `src/routes/admin.informes.tsx`
+    - Se declaró `validateSearch` para `?alumno=<nombre>` → `alumno?: string`
+      (vacío ⇒ undefined).
+    - `AdminInformesPage` lo lee con `Route.useSearch()` y lo entrega a
+      <InformesTrackerPanel initialStudentName>.
+
+3.4 `src/components/admin/informes-tracker-panel.tsx`
+    - Nueva prop opcional `initialStudentName`. Se usa solo como valor
+      inicial del filtro de búsqueda: `useState(initialStudentName ?? "")`.
+    - Es filtro de LECTURA: no crea, no pre-selecciona ni muta informes.
+
+3.5 `src/routes/teacher.index.tsx`
+    - <ClassLog> recibe `onSaved` → cierra la hoja (`setClassLogSeed(null)`)
+      y emite toast de éxito con el nombre del alumno.
+    - Botón contextual:
+        status === "presente" → "📝 Llenar bitácora de hoy (2 min)"
+                                con realce estático (border-2 border-primary)
+        otro estado           → "📝 Bitácora de clase"
+    - Encabezado del Sheet: "Bitácora de Clase" + píldora "⏱ 2 minutos" +
+      aclaración de que no es un informe formal para apoderados.
+    - Se conserva min-h-[44px] (ADR-0177).
+
+=====================================================================
+4. DECISIONES Y DESCARTES
+=====================================================================
+
+4.1 `animate-pulse` DESCARTADO
+    El plan original lo pedía para el estado "presente". Se implementó y se
+    retiró: en una franja conviven 5-6 tarjetas y, si todas están en
+    "presente", el parpadeo simultáneo satura la pantalla y compite con la
+    acción principal (asistencia). Se sustituyó por realce estático.
+
+4.2 Enlace con filtro real, no decorativo
+    El primer commit (ac1ceb2) dejaba el <Link> sin parámetro porque la ruta
+    no tipaba un search param. Se completó en b86e601 con `validateSearch`.
+
+=====================================================================
+5. HALLAZGO PENDIENTE (registrado para no repetir el error)
+=====================================================================
+
+`getEvaluationBySessionKey` (src/lib/services/evaluations.service.ts:238)
+consulta `lesson_evaluations` SIN filtro `is_test`.
+
+  - `getStudentEvaluations` SÍ filtra por defecto
+    (`params.is_test = "eq.false"` cuando no se pasa includeTest).
+  - `getEvaluationBySessionKey` NO filtra.
+
+Regla: para detectar "sesión ya registrada" en el Kiosco se debe usar
+`getStudentEvaluations`. Si en el futuro se usa `getEvaluationBySessionKey`
+con datos de producción, primero hay que añadirle `is_test = eq.false`.
+No se corrigió en este ADR porque no está en uso desde el Kiosco.
+
+=====================================================================
+6. VERIFICACIÓN
+=====================================================================
+
+  - `npm run build` en verde (exit code 0), ejecutado tras los cambios de
+    código y repetido tras los cambios de documentación.
+  - Archivos prohibidos NO modificados:
+      src/store/app-store.ts          → sin cambios
+      src/lib/kardex-calculator.ts    → sin cambios
+      src/lib/student-cycle.ts        → sin cambios
+  - Cero datos financieros en `/admin/informes` y `/teacher`.
+  - Cero migraciones, cero escrituras de datos en este ADR.
+  - Push verificado con `git ls-remote` en origin/main y core/main:
+      ac1ceb2 → b86e601
+
+=====================================================================
+7. RIESGO RESIDUAL
+=====================================================================
+
+La mejora es de UI. NO genera bitácoras. Mientras los docentes no registren,
+`/admin/informes` seguirá mostrando alumnos en 🔴 "Sin evaluaciones" y no se
+podrá emitir ningún informe. El plan de adopción y acompañamiento vive en
+`docs/PLAN_ADOPCION_BITACORA_DOCENTE_Y_CIRCULARIDAD.md`.
