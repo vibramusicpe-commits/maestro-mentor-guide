@@ -4,6 +4,16 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.54] - 2026-11-03
+
+### Clarificación de Vistas Auditoría vs. Informes y Activación de la Bitácora Docente (ADR-0183)
+- **Navegación administrativa sin ambigüedad** (`src/routes/admin.tsx`): `"Informes"` → **`"Informes Pedagógicos"`** (icono `FileBarChart2`) y `"Reportes"` → **`"Auditoría de Alumnos"`** (icono `ShieldCheck` de `lucide-react`, en reemplazo del `FileSpreadsheet` que quedó sin uso).
+- **Enlace bidireccional Auditoría → Informes** (`src/routes/admin.reportes.tsx`): la celda "Último informe" de la tabla de alumnos activos ahora es un `<Link to="/admin/informes">` con sufijo `↗`, realce del borde del badge al hover y `title` descriptivo, tanto cuando existe informe como en el estado "Sin informe ↗".
+- **Feedback de guardado en el Kiosco docente** (`src/routes/teacher.index.tsx`): conectada la prop `onSaved` del `<ClassLog>`, que cierra el `Sheet` inferior y emite `toast.success("✓ Bitácora de clase guardada correctamente")` con el nombre del alumno.
+- **Botón contextual de bitácora**: si la asistencia es `presente`, se resalta con `border-2 border-primary animate-pulse` y etiqueta `📝 Llenar bitácora de hoy (2 min)`; en otro caso, estilo suave con `📝 Bitácora de clase`. Se conserva el objetivo táctil de 44 px (ADR-0177).
+- **Encabezado pedagógico del Sheet**: título `Bitácora de Clase`, píldora `⏱ 2 minutos` y aclaración explícita de que no es un informe formal para apoderados.
+- **Sin cambios de esquema ni de datos**: no se tocaron `app-store.ts`, `kardex-calculator.ts` ni `student-cycle.ts`; cero datos financieros en vistas pedagógicas; `npm run build` en verde.
+
 ## [2.0.53] - 2026-11-02
 
 ### Dashboard de Seguimiento de Informes y Validación de Criterios (ADR-0182)

@@ -706,27 +706,33 @@ export function AdminReportesPage() {
 
                       {/* Último informe de progreso (Fase 6, sin datos financieros) */}
                       <td className="py-3 px-3 text-center">
-                        {latestReport ? (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] font-black ${
-                                REPORT_STATUS_CLASS[latestReport.status] ||
-                                REPORT_STATUS_CLASS.draft
-                              }`}
-                            >
-                              {REPORT_STATUS_LABEL[latestReport.status] ||
-                                latestReport.status}
-                            </Badge>
-                            <span className="font-mono text-[10px] text-muted-foreground">
-                              {formatIsoDateShort(latestReport.period_end)}
+                        <Link
+                          to="/admin/informes"
+                          className="inline-flex flex-col items-center gap-0.5 group/report hover:opacity-85 transition-opacity"
+                          title={`Ver seguimiento pedagógico de ${st.name}`}
+                        >
+                          {latestReport ? (
+                            <>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] font-black group-hover/report:border-primary transition-colors cursor-pointer ${
+                                  REPORT_STATUS_CLASS[latestReport.status] ||
+                                  REPORT_STATUS_CLASS.draft
+                                }`}
+                              >
+                                {REPORT_STATUS_LABEL[latestReport.status] ||
+                                  latestReport.status} ↗
+                              </Badge>
+                              <span className="font-mono text-[10px] text-muted-foreground">
+                                {formatIsoDateShort(latestReport.period_end)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-muted-foreground group-hover/report:text-primary transition-colors cursor-pointer">
+                              Sin informe ↗
                             </span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] font-bold text-muted-foreground">
-                            Sin informe
-                          </span>
-                        )}
+                          )}
+                        </Link>
                       </td>
 
                       {/* Deuda Pendiente */}

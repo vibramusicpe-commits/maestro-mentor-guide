@@ -606,10 +606,14 @@ export function TeacherKiosk() {
                           <button
                             type="button"
                             onClick={() => openClassLog(studentProfile, lesson, targetDateStr)}
-                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-primary/30 bg-primary/5 text-xs font-bold text-primary transition-colors hover:bg-primary/10"
+                            className={`flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                              status === "presente"
+                                ? "border-2 border-primary bg-primary/15 text-primary hover:bg-primary/25 animate-pulse"
+                                : "border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+                            }`}
                           >
                             <ClipboardList className="h-4 w-4" />
-                            Registrar clase
+                            {status === "presente" ? "📝 Llenar bitácora de hoy (2 min)" : "📝 Bitácora de clase"}
                           </button>
                         )}
                       </div>
@@ -647,12 +651,20 @@ export function TeacherKiosk() {
           className="max-h-[92vh] overflow-y-auto rounded-t-3xl px-4 pb-6 pt-5"
         >
           <SheetHeader className="mb-3 text-left">
-            <SheetTitle className="text-base font-black">Registro de clase</SheetTitle>
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-base font-black">Bitácora de Clase</SheetTitle>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                ⏱ 2 minutos
+              </span>
+            </div>
             <SheetDescription className="text-xs">
               {classLogSeed?.studentName || "Alumno"}
               {classLogSeed?.sessionDate ? ` · ${classLogSeed.sessionDate}` : ""}
               {classLogSeed?.startTime ? ` · ${classLogSeed.startTime}` : ""}
             </SheetDescription>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Selecciona el tema visto, marca 1-2 criterios y añade el repertorio trabajado. No es un informe formal para apoderados.
+            </p>
           </SheetHeader>
 
           {classLogSeed && classLogAccess && (
@@ -663,6 +675,12 @@ export function TeacherKiosk() {
               students={teacherStudentList}
               schedule={teacherScheduleLessons}
               initialSeed={classLogSeed}
+              onSaved={() => {
+                setClassLogSeed(null);
+                toast.success("✓ Bitácora de clase guardada correctamente", {
+                  description: `Se registró la evaluación de ${classLogSeed.studentName || "la sesión"}.`,
+                });
+              }}
             />
           )}
         </SheetContent>

@@ -1844,3 +1844,27 @@ inferencia.
 
 5. **Servicio Ligero sin Consultas N+1 (`src/lib/services/evaluations-summary.service.ts`)**:
    - `getEvaluationsSummaryMap` consulta `lesson_evaluations` con `is_test = false` y agrupa en memoria cliente por `student_id`. No requiere DDL ni altera el estado de Zustand (`app-store.ts`).
+
+
+### 86. Separación Conceptual Innegociable: Bitácora de Clase ≠ Informe Pedagógico ≠ Auditoría de Alumnos (ADR-0183)
+
+1. **Regla de Oro — Tres entidades, tres propósitos**:
+   - **1. Bitácora de Clase** (`lesson_evaluations`): evaluación diaria **clase a clase**, de **2 a 3 minutos**, llenada por el **docente en el aula** desde el Kiosco móvil (`/teacher`). Registra tema visto, 1-2 criterios y repertorio trabajado. **NO es un informe formal**.
+   - **2. Informe Pedagógico de Progreso** (`progress_reports`): **consolidado formal** del ciclo lectivo, exportable a A4/PDF/WhatsApp para el apoderado. Vive en `/admin/informes` y `/teacher/informes`. Requiere un mínimo de **2 bitácoras** (1 en Demo/Personalizado) según `report-readiness.ts`. El **docente redacta el borrador** y **Dirección aprueba y publica**; el docente nunca publica.
+   - **3. Auditoría de Alumnos** (`/admin/reportes`): **control institucional y financiero** sobre la base activa. Consume `students`, `invoices` y `payment_audit_logs`; muestra saldos en Soles (PEN), cuotas pendientes y exportación CSV. Uso exclusivo de **Dirección y Secretaría** para cobranzas.
+   - El flujo canónico es: **Bitácora (se acumula) ➔ Informe (se consolida y publica) ➔ Entrega al apoderado.** Está **TERMINANTEMENTE PROHIBIDO** usar "informe" y "reporte" como sinónimos en la navegación o en cualquier vista nueva.
+2. **Nomenclatura oficial en el menú administrativo (`src/routes/admin.tsx`)**:
+   - `"Informes Pedagógicos"` (`/admin/informes`, icono `FileBarChart2`) para lo pedagógico.
+   - `"Auditoría de Alumnos"` (`/admin/reportes`, icono `ShieldCheck`) para lo financiero.
+   - Prohibido volver a rotularlas como "Informes" / "Reportes" a secas, o reutilizar `FileSpreadsheet` para la vista pedagógica.
+3. **Enlace cruzado unidireccional (`src/routes/admin.reportes.tsx`)**:
+   - La columna **"Último informe"** es un `<Link to="/admin/informes">` (sufijo `↗`, `title` descriptivo, estado `Sin informe ↗`). Permite saltar de la auditoría financiera al seguimiento pedagógico.
+   - El vínculo va **de Auditoría hacia Informes**, nunca al revés: una vista pedagógica **no** debe enlazar a montos ni a deudas.
+4. **Cero datos financieros en vistas pedagógicas**: `/admin/informes` y `/teacher` (Kiosco, bitácora, informes) **no** renderizan `S/`, saldos, deudas ni montos. Prohibido también en el exportable CSV de seguimiento.
+5. **Kiosco docente con fricción cero (`src/routes/teacher.index.tsx`)**:
+   - `<ClassLog>` **debe** recibir `onSaved`, que cierra el `Sheet` (`setClassLogSeed(null)`) y emite `toast.success("✓ Bitácora de clase guardada correctamente")`. Prohibido dejarlo sin callback: el docente necesita confirmación explícita.
+   - El botón se etiqueta **`📝 Llenar bitácora de hoy (2 min)`** (con `border-2 border-primary animate-pulse`) cuando la asistencia es `presente`, y **`📝 Bitácora de clase`** en cualquier otro estado. Se conserva `min-h-[44px]` (ADR-0177) y la asistencia sigue siendo la acción principal.
+   - El encabezado del `Sheet` se titula **`Bitácora de Clase`**, muestra la píldora **`⏱ 2 minutos`** y aclara que **no es un informe formal para apoderados**.
+   - Prohibido reintroducir la etiqueta genérica "Registrar clase" sin la señal de duración: el docente asocia "informe" con 20 minutos y no registra nada.
+6. **Blindajes técnicos**: identidad por **UUID** (`student.id`), filtro `is_test = false` en toda consulta a `lesson_evaluations` y `progress_reports`, y **cero modificaciones** a `app-store.ts`, `kardex-calculator.ts`, `student-cycle.ts` o los motores de asistencia por este motivo.
+7. **Referencia**: `docs/adr/0183-clarificacion-vistas-auditoria-e-informes-kiosco-docente.md` y CHANGELOG `[2.0.54]`.
