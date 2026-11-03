@@ -21,6 +21,7 @@ import { Route as AdminCampanasRouteImport } from './routes/admin.campanas'
 import { Route as AdminControlHorarioRouteImport } from './routes/admin.control-horario'
 import { Route as AdminDemosRouteImport } from './routes/admin.demos'
 import { Route as AdminFacturacionRouteImport } from './routes/admin.facturacion'
+import { Route as AdminInformesRouteImport } from './routes/admin.informes'
 import { Route as AdminInvitacionesRouteImport } from './routes/admin.invitaciones'
 import { Route as AdminReportesRouteImport } from './routes/admin.reportes'
 import { Route as AdminWhatsappRouteImport } from './routes/admin.whatsapp'
@@ -95,6 +96,11 @@ const AdminDemosRoute = AdminDemosRouteImport.update({
 const AdminFacturacionRoute = AdminFacturacionRouteImport.update({
   id: '/facturacion',
   path: '/facturacion',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminInformesRoute = AdminInformesRouteImport.update({
+  id: '/informes',
+  path: '/informes',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminInvitacionesRoute = AdminInvitacionesRouteImport.update({
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/admin/control-horario': typeof AdminControlHorarioRoute
   '/admin/demos': typeof AdminDemosRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
+  '/admin/informes': typeof AdminInformesRoute
   '/admin/invitaciones': typeof AdminInvitacionesRoute
   '/admin/reportes': typeof AdminReportesRoute
   '/admin/whatsapp': typeof AdminWhatsappRoute
@@ -211,6 +218,7 @@ export interface FileRoutesByTo {
   '/admin/control-horario': typeof AdminControlHorarioRoute
   '/admin/demos': typeof AdminDemosRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
+  '/admin/informes': typeof AdminInformesRoute
   '/admin/invitaciones': typeof AdminInvitacionesRoute
   '/admin/reportes': typeof AdminReportesRoute
   '/admin/whatsapp': typeof AdminWhatsappRoute
@@ -241,6 +249,7 @@ export interface FileRoutesById {
   '/admin/control-horario': typeof AdminControlHorarioRoute
   '/admin/demos': typeof AdminDemosRoute
   '/admin/facturacion': typeof AdminFacturacionRoute
+  '/admin/informes': typeof AdminInformesRoute
   '/admin/invitaciones': typeof AdminInvitacionesRoute
   '/admin/reportes': typeof AdminReportesRoute
   '/admin/whatsapp': typeof AdminWhatsappRoute
@@ -272,6 +281,7 @@ export interface FileRouteTypes {
     | '/admin/control-horario'
     | '/admin/demos'
     | '/admin/facturacion'
+    | '/admin/informes'
     | '/admin/invitaciones'
     | '/admin/reportes'
     | '/admin/whatsapp'
@@ -298,6 +308,7 @@ export interface FileRouteTypes {
     | '/admin/control-horario'
     | '/admin/demos'
     | '/admin/facturacion'
+    | '/admin/informes'
     | '/admin/invitaciones'
     | '/admin/reportes'
     | '/admin/whatsapp'
@@ -327,6 +338,7 @@ export interface FileRouteTypes {
     | '/admin/control-horario'
     | '/admin/demos'
     | '/admin/facturacion'
+    | '/admin/informes'
     | '/admin/invitaciones'
     | '/admin/reportes'
     | '/admin/whatsapp'
@@ -438,6 +450,13 @@ declare module '@tanstack/react-router' {
       path: '/facturacion'
       fullPath: '/admin/facturacion'
       preLoaderRoute: typeof AdminFacturacionRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/informes': {
+      id: '/admin/informes'
+      path: '/informes'
+      fullPath: '/admin/informes'
+      preLoaderRoute: typeof AdminInformesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/invitaciones': {
@@ -555,6 +574,7 @@ interface AdminRouteChildren {
   AdminControlHorarioRoute: typeof AdminControlHorarioRoute
   AdminDemosRoute: typeof AdminDemosRoute
   AdminFacturacionRoute: typeof AdminFacturacionRoute
+  AdminInformesRoute: typeof AdminInformesRoute
   AdminInvitacionesRoute: typeof AdminInvitacionesRoute
   AdminReportesRoute: typeof AdminReportesRoute
   AdminWhatsappRoute: typeof AdminWhatsappRoute
@@ -568,6 +588,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminControlHorarioRoute: AdminControlHorarioRoute,
   AdminDemosRoute: AdminDemosRoute,
   AdminFacturacionRoute: AdminFacturacionRoute,
+  AdminInformesRoute: AdminInformesRoute,
   AdminInvitacionesRoute: AdminInvitacionesRoute,
   AdminReportesRoute: AdminReportesRoute,
   AdminWhatsappRoute: AdminWhatsappRoute,

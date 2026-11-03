@@ -26,6 +26,9 @@ import {
   RefreshCw,
   Send,
   Sparkles,
+  ArrowLeft,
+  Eye,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -60,6 +63,10 @@ import type {
 import { InformesValidationError } from "@/lib/informes/utils";
 import { formatIsoDateShort } from "@/lib/informes/progress-report-format";
 import { getStudentEvaluations } from "@/lib/services/evaluations.service";
+import {
+  getEvaluationsSummaryMap,
+  type StudentEvaluationSummary,
+} from "@/lib/services/evaluations-summary.service";
 import {
   createProgressReport,
   listProgressReports,
@@ -162,7 +169,75 @@ export function TeacherProgressReports({
     [activeRole, currentUser?.email, currentUser?.name, teacherDisplayName],
   );
 
-  // ── Reportes de clase del alumno elegido ──
+  // ── Resumen de cohorte de alumnos del docente ──
+  const [cohortSummary, setCohortSummary] = useState<Map<string, StudentEvaluationSummary>>(new Map());
+  const [cohortLoading, setCohortLoading] = useState(false);
+  const [cohortSearch, setCohortSearch] = useState("");
+
+  const loadCohortSummary = useCallback(async () => {
+    if (myStudents.length === 0) {
+      setCohortSummary(new Map());
+      return;
+    }
+    try {
+      setCohortLoading(true);
+      const summary = await getEvaluationsSummaryMap(myStudents.map((s) => s.id));
+      setCohortSummary(summary);
+    } catch {
+      setCohortSummary(new Map());
+    } finally {
+      setCohortLoading(false);
+    }
+  }, [myStudents]);
+
+  useEffect(() => {
+    if (!progressReportsAccess) return;
+    void loadCohortSummary();
+  }, [loadCohortSummary, progressReportsAccess]);
+
+  const cohortCards = useMemo(() => {
+    const q = cohortSearch.trim().toLowerCase();
+    return myStudents
+      .filter((student) => {
+        if (!q) return true;
+        return (
+          student.name.toLowerCase().includes(q) ||
+          (student.instrument || "").toLowerCase().includes(q)
+        );
+      })
+      .map((student) => {
+        const summary = cohortSummary.get(student.id);
+        const totalEval = summary?.totalEvaluations ?? 0;
+        const lastDate = summary?.lastEvaluationDate ?? null;
+        const report = myReports.find((r) => r.student_id === student.id) || null;
+
+        const planType = String(student.planType || "Mensual");
+        const isDemo = planType.toLowerCase().includes("demo");
+        const minRequired = isDemo ? 1 : 2;
+
+        let tone: "con_informe" | "listo" | "insuficiente" | "sin_evaluaciones";
+        if (report) {
+          tone = "con_informe";
+        } else if (totalEval === 0) {
+          tone = "sin_evaluaciones";
+        } else if (totalEval < minRequired) {
+          tone = "insuficiente";
+        } else {
+          tone = "listo";
+        }
+
+        return {
+          student,
+          totalEval,
+          lastDate,
+          minRequired,
+          report,
+          tone,
+        };
+      });
+  }, [cohortSearch, cohortSummary, myReports, myStudents]);
+
+    // ── Reportes de clase del alumno elegido ──
   const loadEvaluations = useCallback(async () => {
     if (!studentId) {
       setEvaluations([]);
@@ -410,9 +485,30 @@ export function TeacherProgressReports({
         </p>
       ) : (
         <section className="space-y-2 rounded-2xl border border-border bg-card p-3">
-          <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
-            Nuevo informe
-          </p>
+          {selectedStudent ? (
+            <div className="flex items-center justify-between pb-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStudentId("");
+                  setDraftReport(null);
+                }}
+                className="-ml-2 h-7 gap-1 text-xs font-bold text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>← Volver a ver todos mis alumnos</span>
+              </Button>
+              <span className="text-[11px] font-bold text-muted-foreground">
+                {selectedStudent.name}
+              </span>
+            </div>
+          ) : (
+            <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Buscar o seleccionar alumno
+            </p>
+          )}
+
           <StudentPicker
             id="teacher-report-student"
             students={myStudents}
@@ -424,6 +520,117 @@ export function TeacherProgressReports({
             placeholder="Buscar mi alumno por nombre o instrumento…"
             hint="Solo aparecen tus alumnos activos."
           />
+
+          {!studentId && (
+            <div className="space-y-2.5 pt-3">
+              <div className="flex items-center justify-between border-t border-border pt-3">
+                <div>
+                  <h2 className="text-xs font-black uppercase tracking-wide text-foreground">
+                    Mis Alumnos Asignados ({myStudents.length})
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground">
+                    Panorama de evaluaciones y acceso rápido a informes.
+                  </p>
+                </div>
+                {cohortLoading && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                )}
+              </div>
+
+              {myStudents.length > 3 && (
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={cohortSearch}
+                    onChange={(e) => setCohortSearch(e.target.value)}
+                    placeholder="Filtrar por nombre o instrumento…"
+                    className="h-8 w-full rounded-xl border border-border bg-background pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {cohortCards.map((card) => (
+                  <div
+                    key={card.student.id}
+                    className="space-y-2 rounded-xl border border-border bg-background/60 p-3 shadow-2xs transition-colors hover:border-primary/40"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-xs font-bold text-foreground">
+                          {card.student.name}
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground">
+                          {card.student.instrument || "Instrumento"} · {card.student.planType || "Plan Mensual"}
+                        </p>
+                      </div>
+
+                      {card.tone === "con_informe" ? (
+                        <span className="shrink-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                          🟢 {card.report ? (STATUS_META[card.report.status]?.label || card.report.status) : "Con informe"}
+                        </span>
+                      ) : card.tone === "listo" ? (
+                        <span className="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                          🟡 Listo ({card.totalEval})
+                        </span>
+                      ) : card.tone === "insuficiente" ? (
+                        <span className="shrink-0 rounded-md border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-700 dark:text-orange-400">
+                          🟠 Faltan ({card.totalEval}/{card.minRequired})
+                        </span>
+                      ) : (
+                        <span className="shrink-0 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:text-red-400">
+                          🔴 Sin eval.
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-border/50 pt-2 text-[11px] text-muted-foreground">
+                      <span>
+                        {card.totalEval > 0
+                          ? `${card.totalEval} evaluación${card.totalEval === 1 ? "" : "es"}${card.lastDate ? ` · Últ: ${formatIsoDateShort(card.lastDate)}` : ""}`
+                          : "Sin evaluaciones de clase registradas"}
+                      </span>
+                    </div>
+
+                    <div className="pt-1">
+                      <Button
+                        type="button"
+                        variant={card.tone === "listo" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setStudentId(card.student.id);
+                          setDraftReport(null);
+                        }}
+                        className={`h-8 w-full gap-1.5 text-xs font-bold ${
+                          card.tone === "listo"
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                            : ""
+                        }`}
+                      >
+                        {card.report ? (
+                          <>
+                            <Eye className="h-3.5 w-3.5 text-primary" />
+                            <span>Ver informe ({STATUS_META[card.report.status]?.label}) →</span>
+                          </>
+                        ) : card.tone === "listo" ? (
+                          <>
+                            <Sparkles className="h-3.5 w-3.5" />
+                            <span>Generar informe →</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>Ver alumno y registrar clases →</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {readiness && (
             <>

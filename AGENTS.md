@@ -1819,3 +1819,28 @@ inferencia.
     - Este módulo **no** lee ni escribe `attendance_logs` (asistencia de alumnos) ni facturación.
 
 12. **Verificación de referencia**: `scratch/test-asistencia-docente.mjs` **58/58** con datos vivos (identidad 9 casos, Nathaly 20/18/3908/65h 08m, Fabricio 6 turnos, "sin identidad" 5 turnos/18h 48m no atribuidos a Nathaly, proyección de faltantes sin días futuros, jornada partida vs. solapamiento real vs. micro-marcajes, turno abierto, CSV/MD/consolidado sin `S/`, fechas Lima con turno nocturno). `npm run build` en verde; `/`, `/teacher/nomina`, `/admin/control-horario` y `/teacher` en 200. Documentación: ADR-0181 y `docs/logs/2026-10-23-asistencia-docente.log`.
+
+
+---
+
+### 85. Dashboard de Seguimiento de Informes y Reportes (/admin/informes y /teacher/informes) (ADR-0182)
+
+1. **Objetivo y Separación de Roles**:
+   - Dirección y Coordinación cuentan con un dashboard operativo dedicado en `/admin/informes` para dar seguimiento a qué alumnos activos tienen informe, quiénes cumplen el mínimo para generar borrador y quiénes están bloqueados por falta de evaluaciones en sala.
+   - El docente en `/teacher/informes` visualiza una pantalla resumen con tarjetas de toda su cohorte de alumnos asignados, con semáforos de avance y acceso directo a evaluar clases pasadas o generar borrador.
+   - **El docente decide si genera o no el informe**: Dirección solo acompaña y supervisa el avance; el docente redacta y envía a revisión (`draft` ➔ `pending`), pero **NUNCA publica**. La aprobación final y publicación es exclusiva de Dirección.
+
+2. **Cero Datos Financieros (Inviolable)**:
+   - Toda la vista de seguimiento, tabla, tarjetas móviles y exportaciones a CSV carecen de datos financieros (sin `S/`, montos, cobros ni abonos). El seguimiento es estrictamente pedagógico y operativo.
+
+3. **Semáforo Operativo de 4 Estados**:
+   - 🟢 **Con informe**: Alumno con informe ya generado en el ciclo (`draft`, `pending`, `published`, `rejected`).
+   - 🟡 **Listo para informe**: Cumple el mínimo de evaluaciones (≥ 2 en Regular/Intensivo o ≥ 1 en Demo) y aún no tiene informe generado.
+   - 🟠 **Insuficiente**: Cuenta con evaluaciones registradas pero no alcanza el mínimo requerido.
+   - 🔴 **Sin evaluaciones**: Cero evaluaciones de clase registradas en `lesson_evaluations`.
+
+4. **Validación de Criterios de Jeremy**:
+   - Los 17 criterios de Guitarra y Batería creados para el Prof. Jeremy (`00000000-0000-0000-0000-000000000003`) fueron oficialmente validados y persistidos con `draft = false`, `status = "validado"` y `visible_in_report = true` en `evaluation_fields`.
+
+5. **Servicio Ligero sin Consultas N+1 (`src/lib/services/evaluations-summary.service.ts`)**:
+   - `getEvaluationsSummaryMap` consulta `lesson_evaluations` con `is_test = false` y agrupa en memoria cliente por `student_id`. No requiere DDL ni altera el estado de Zustand (`app-store.ts`).

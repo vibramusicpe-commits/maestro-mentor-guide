@@ -31,6 +31,7 @@ import {
   FileSpreadsheet,
   Sparkles,
   LogOut,
+  FileBarChart2,
 } from "lucide-react";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,7 @@ const nav = [
   { label: "WhatsApp Bot", to: "/admin/whatsapp" as const, icon: Bot },
   { label: "Horario de Clases", to: "/admin/agenda" as const, icon: CalendarDays },
   { label: "Alumnos", to: "/admin/alumnos" as const, icon: GraduationCap },
+  { label: "Informes", to: "/admin/informes" as const, icon: FileBarChart2 },
   { label: "Reportes", to: "/admin/reportes" as const, icon: FileSpreadsheet },
   { label: "Clases Demo", to: "/admin/demos" as const, icon: Sparkles },
   { label: "Cobros y Abonos", to: "/admin/facturacion" as const, icon: CreditCard },

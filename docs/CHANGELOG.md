@@ -4,6 +4,21 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.53] - 2026-11-02
+
+### Dashboard de Seguimiento de Informes y Validación de Criterios (ADR-0182)
+- **Validación oficial de criterios de Jeremy**: actualizados los 17 criterios de Guitarra y Batería del Prof. Jeremy en `evaluation_fields` a `draft = false`, `status = "validado"` y `visible_in_report = true` en Insforge PostgreSQL tras su aprobación formal.
+- **Servicio de resumen de evaluaciones**: creado `evaluations-summary.service.ts` con `getEvaluationsSummaryMap()` para consultar y agrupar en memoria las evaluaciones reales (`is_test = false`) por alumno sin consultas N+1.
+- **Dashboard de seguimiento operativo (`/admin/informes`)**:
+  - Cruza alumnos activos de Zustand con el resumen de evaluaciones e informes existentes en `progress_reports`.
+  - Semáforo de 4 estados con colores de `report-kinds.ts`: 🟢 Con informe, 🟡 Listo para generar borrador, 🟠 Insuficiente (< mínimo requerido) y 🔴 Sin evaluaciones.
+  - Acciones directas por fila: "Ver informe" (abre `ProgressReportDialog`), "Generar borrador" (crea borrador y abre diálogo) y "Faltan evaluaciones" (deshabilitado).
+  - KPIs en cabecera, filtros por docente, instrumento, semáforo y estado de informe.
+  - Exportación a CSV oficial con BOM UTF-8 y **cero datos financieros**.
+  - Layout adaptativo: tabla desktop y tarjetas touch-friendly en móviles.
+- **Ruta `/admin/informes` y menú lateral**: incorporado acceso en el navbar de `admin.tsx` y vista con pestañas entre Seguimiento Operativo y Bandeja General de Informes.
+- **Resumen de cohorte en `/teacher/informes`**: el portal docente muestra como primera pantalla una vista resumen de todos sus alumnos asignados con semáforos de avance y botones contextuales, con navegación fluida de retorno `← Volver a ver todos mis alumnos`.
+
 ## [2.0.52] - 2026-10-23
 
 ### Evaluación Retroactiva de Clases Asistidas desde `/teacher/informes` (ADR-0180)
