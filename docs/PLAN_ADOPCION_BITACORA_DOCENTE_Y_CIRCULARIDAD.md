@@ -1,201 +1,230 @@
-# PLAN OPERATIVO: ADOPCIÓN REAL DE LA BITÁCORA DOCENTE Y CIRCULARIDAD DEL FLUJO PEDAGÓGICO
+# PLAN OPERATIVO: BITÁCORA DOCENTE, RECORDATORIO ANTI-BLOQUEO Y TABLERO DE ADOPCIÓN
 
-**Fecha de emisión:** 2026-11-03
-**Versión base:** 2.0.54 (Commit `b86e601`)
-**Autor:** Open Code (ejecutor) — basado en directrices de Dirección
-**Estado:** Propuesta para aprobación. **Nada de este documento está implementado aún.**
-**Relación:** Complementa ADR-0183 (§86) y ADR-0175, ADR-0180, ADR-0182.
-
----
-
-## 0. RESUMEN EJECUTIVO
-
-ADR-0183 resolvió la **nomenclatura** (ya no confundimos Auditoría con Informes) y la **fricción de UI** (el botón de bitácora se ve y el guardado da feedback). Pero quedó demostrado que eso no mueve la aguja operativa:
-
-| Métrica real en producción (2026-11-03) | Valor |
-|---|---|
-| `lesson_evaluations` (bitácoras de clase) | **3 registros** en toda la historia |
-| `progress_reports` (informes) | **0 registros** |
-| Docentes en el piloto | 3 (Jeremy, Fernando, Nathaly) |
-| Alumnos activos | 57 |
-
-**El diagnóstico honesto:** la UI ya no es el cuello de botella. El cuello de botella es que **el docente no tiene un motivo visible para registrar la bitácora ni una meta alcanzable**, y **Dirección no tiene forma de acompañarlo día a día**. Este plan ataca eso en tres frentes:
-
-1. **Frente A — Docente (Código):** el botón sabe si la sesión ya se registró y muestra el avance hacia el informe.
-2. **Frente B — Docente (Acompañamiento):** acompañar a Jeremy, Fernando y Nathaly de la mano, con meta semanal, material de una página y seguimiento nominal.
-3. **Frente C — Dirección (Código):** tablero de adopción que muestre quién registra y quién no, por docente y por semana.
+**Fecha:** 2026-11-03
+**Versión base:** 2.0.54 (commit `7a0299e`)
+**Estado:** APROBADO por Dirección. Frente A y Fase 3 autorizados. Pendiente paso 0 (teléfonos reales).
+**Relación:** ADR-0183 (§86), ADR-0175, ADR-0180, ADR-0182, ADR-0140, ADR-0179
 
 ---
 
-## 1. MARCO CONCEPTUAL INNEGOCIABLE (no re-litigar)
+## 1. DECISIONES TOMADAS POR DIRECCIÓN (cerradas, no re-litigar)
 
-Estas tres entidades son distintas y así se mantienen. Cualquier cambio futuro debe respetar esta tabla (ADR-0183, §86):
+| # | Decisión | Valor |
+|---|---|---|
+| D1 | Contador de avance | **SÍ** — se muestra `3/8`. Se autoriza importar `computeStudentCycleSessions` **solo en lectura**. |
+| D2 | Guía para docentes | **NO SE HACE.** Nadie la pidió. El propio botón enseña. |
+| D3 | Recordatorios de fichaje | **FUERA DE ALCANCE.** La empresa ya tiene política de asistencia y puntualidad fuerte. No se duplica. |
+| D4 | Disparador del recordatorio | **2 días seguidos sin llenar bitácora.** |
+| D5 | Canal | **In-app (campanita) + `wa.me`** con mensaje personalizado. Costo cero. |
+| D6 | Destinatario del WhatsApp | **Al propio docente** (opción A). |
+| D7 | Emisor del WhatsApp | Se abre WhatsApp con el mensaje ya escrito; **una persona de Dirección hace clic** y envía. |
 
-| # | Entidad | Tabla | Quién | Duración | Para quién |
-|---|---|---|---|---|---|
-| 1 | **Bitácora / Reporte de Clase** | `lesson_evaluations` | Docente en aula | 2-3 min | Uso interno pedagógico |
-| 2 | **Informe Pedagógico** | `progress_reports` | Docente redacta, Dirección publica | Ciclo lectivo | Apoderado (A4/PDF/WhatsApp) |
-| 3 | **Auditoría de Alumnos** | `students`/`invoices`/`payment_audit_logs` | Dirección/Secretaría | Continuo | Cobranzas (S/ PEN) |
+### D7 explicado honestamente (importante)
 
-**Regla dura:** el Informe es un **consolidado de bitácoras + asistencia**. Nunca se alimenta de otro informe, nunca de la vista de Auditoría, nunca se inventa contenido pedagógico sin evidencia real (ADR-0180).
+`wa.me` es un enlace: **no puede enviar desde un número distinto al del dispositivo donde se hace clic**. Por eso el flujo real es:
+
+```
+Sistema detecta "2 días sin bitácora"
+        ↓
+Genera aviso in-app + prepara texto personalizado
+        ↓
+Dirección ve el aviso en el tablero
+        ↓
+Clic en "📲 Recordar por WhatsApp"  →  wa.me/51XXXXXXXXX?text=<mensaje>
+        ↓
+Se abre WhatsApp de Dirección con el mensaje ya redactado → envía
+```
+
+**Envío 100% automático desde el WhatsApp Business central exigiría** la Cloud API oficial de Meta (ADR-001.1) + una plantilla aprobada por Meta + un servidor que dispare envíos + costo por mensaje. Eso **contradice ADR-0140 (costo cero)** y queda **FUERA DE ALCANCE** de este plan. Si Dirección lo quiere después, es un ADR nuevo.
 
 ---
 
-## 2. FRENTE A — CÓDIGO: DOCENTE (`/teacher`)
+## 2. PASO 0 — BLOQUEANTE PREVIO (sin código)
 
-### A.1 Estado "✓ Ya registrada" en el botón de bitácora
+### 2.1 Hallazgo real verificado en `users` (2026-11-03)
 
-**Problema:** hoy el docente abre la bitácora sin saber si esa sesión ya la registró. Puede duplicar trabajo o creer que perdió lo escrito. El guardado es idempotente por `session_key`, pero eso es invisible para él.
+| Docente | UUID | `phone` actual | ¿Real? |
+|---|---|---|---|
+| Fernando | `...0004` | `987654323` | ❌ Ficticio |
+| Jeremy | `...0003` | `987654322` | ❌ Ficticio |
+| Nathaly | `...0005` | `987654324` | ❌ Ficticio |
+| Profesor Demo | `...0006` | `987654325` | ❌ Ficticio |
 
-**Solución (sin tocar motores prohibidos):**
+**Los 4 teléfonos son de relleno** (`9876543XX`). Si se construye el botón `wa.me` hoy, los recordatorios irían a números inexistentes.
 
-- Nuevo hook ligero `src/hooks/use-session-evaluations.ts`:
-  - Llama a `getStudentEvaluations(studentId, { from, to })` — **ya existe** en `src/lib/services/evaluations.service.ts:253`, no se modifica.
-  - Devuelve `Map<string, LessonEvaluationRow>` indexado por clave `${session_date}::${start_time.slice(0,5)}`.
-  - Filtra siempre `is_test = false` (contrato del servicio, ADR-0175).
-  - Se invoca **una sola vez por alumno y semana** visible en el Kiosco, no por tarjeta (evita N+1).
+### 2.2 Acción obligatoria antes de la Fase 2
 
-- En `teacher.index.tsx`, la tarjeta de clase resuelve:
-  - `evaluated = evaluationMap.has(sessionKey)`
-  - Etiqueta del botón:
-    - `evaluated` → **`✓ Bitácora registrada · Ver / Editar`** (estilo neutro con check verde).
-    - `!evaluated && status === "presente"` → **`📝 Llenar bitácora de hoy (2 min)`** (realce estático ya existente).
-    - `!evaluated && status !== "presente"` → **`📝 Bitácora de clase`**.
+Dirección/Secretaría debe actualizar el `phone` real de cada docente en `users`, con formato `51` + 9 dígitos (ej. `51987654322`).
 
-**Restricciones:** `<ClassLog>` ya soporta edición vía `getEvaluationBySessionKey` con la misma `session_key`, así que no se modifica el componente.
+- Sin este paso, el Frente B se construye pero **se muestra deshabilitado** con aviso `⚠ Sin teléfono registrado`.
+- Prohibido inventar o hardcodear números.
+- Prohibido usar el teléfono del apoderado del alumno: es dato de una familia, no del docente.
 
-> **Hallazgo de verificación (obligatorio corregir en Fase 1):** `getEvaluationBySessionKey` (`evaluations.service.ts:238`) consulta `lesson_evaluations` **sin filtro `is_test`**. `getStudentEvaluations` sí filtra por defecto (`params.is_test = "eq.false"` cuando no se pasa `includeTest`). Para la detección de "✓ Ya registrada" en el Kiosco se usará **`getStudentEvaluations`** (ya filtra), **no** `getEvaluationBySessionKey`. Si en el futuro se usa esta última, primero hay que añadirle el filtro `is_test = eq.false`, que es requisito de la regla §3.3 del plan quirúrgico previo.
+---
 
-### A.2 Contador de avance hacia el informe
+## 3. FRENTE A — CÓDIGO: KIOSCO DOCENTE (`/teacher`)
 
-**Problema:** el docente no sabe que le faltan 2 bitácoras para poder emitir el informe del ciclo. Sin meta visible, no hay hábito.
+### A.1 Estado "✓ Ya registrada"
+
+**Problema:** el docente no sabe si esa sesión ya la registró. El guardado es idempotente por `session_key`, pero eso es invisible.
 
 **Solución:**
+- Hook nuevo `src/hooks/use-session-evaluations.ts`:
+  - Llama a **`getStudentEvaluations(studentId, { from, to })`** (`evaluations.service.ts:253`).
+  - **Obligatorio usar esta función**: filtra `is_test = eq.false` por defecto.
+  - **PROHIBIDO** usar `getEvaluationBySessionKey`: **no filtra `is_test`** (ver §86.6). Si se usara, una bitácora de prueba aparecería como real.
+  - Devuelve `Map<sessionKey, LessonEvaluationRow>`, clave `${session_date}::${start_time.slice(0,5)}`.
+  - **Una consulta por alumno-semana visible**, nunca una por tarjeta (evita N+1 en celular).
 
-- Reutilizar el motor oficial `computeStudentReportReadiness()` (`src/lib/informes/report-readiness.ts:331`) — **prohibido reimplementar el cálculo**.
-- En la tarjeta (o en una franja superior del día), una línea discreta:
-  - `Bitácoras del ciclo: 3/8 · Informe disponible ✅` (si `canGenerate`).
-  - `Bitácoras del ciclo: 1/8 · Faltan 7 para el informe` (si no).
-- **Cero datos financieros** en esta franja.
+- Etiqueta del botón:
+  - `evaluated` → **`✓ Bitácora registrada · Ver / Editar`** (neutro, con check verde).
+  - `!evaluated && status === "presente"` → **`📝 Llenar bitácora de hoy (2 min)`** (realce estático ya existente).
+  - `!evaluated && status !== "presente"` → **`📝 Bitácora de clase`**.
 
-> **Decisión pendiente de aprobación:** este contador requiere las `sessions` del ciclo del alumno (`StudentSessionItem[]`), que es justo lo que consume `computeStudentCycleSessions` de `kardex-calculator.ts`. **La regla dice que no se modifica ese archivo**, pero aquí solo se **consume** (import de lectura, sin editar una línea). Confirmar que consumirlo es aceptable; si no lo es, el contador se limita a mostrar `N bitácoras registradas` sin denominador, y la meta llega por WhatsApp (Frente B).
+- `<ClassLog>` **no se modifica**: ya soporta edición con la misma `session_key`.
 
-### A.3 Jerarquía visual del Kiosco (sin ruido nuevo)
+### A.2 Contador de avance (AUTORIZADO — D1)
 
-- La bitácora sigue siendo **secundaria** frente a la asistencia: no se mueve encima de los 4 botones de estado.
-- Se **descarta** cualquier animación (`animate-pulse`) por la razón documentada en ADR-0183: varias tarjetas en `presente` parpadeando a la vez saturan la pantalla y compiten con la acción principal.
+- Reutilizar el motor oficial **`computeStudentReportReadiness()`** (`report-readiness.ts:331`). **Prohibido reimplementar** (ADR-0119.3).
+- Las `sessions` del ciclo se obtienen **importando en solo lectura** `computeStudentCycleSessions` desde `kardex-calculator.ts`.
+  - **AUTORIZADO por D1.**
+  - **Condición dura:** import de lectura. `git diff --stat src/lib/kardex-calculator.ts` debe quedar **vacío** al terminar.
+  - Antes de tocar nada: consulta de impacto en **graphify**.
+- Presentación en la tarjeta:
+  - `Bitácoras del ciclo: 3/8 · Informe disponible ✅` si `canGenerate`.
+  - `Bitácoras del ciclo: 1/8 · Faltan 7 para el informe` si no.
+- **Cero datos financieros.**
 
----
+### A.3 Lo que NO se toca
 
-## 3. FRENTE B — ACOMPAÑAMIENTO DOCENTE (sin código)
-
-> Este frente es el que realmente destraba los números. Se ejecuta **en paralelo** al Frente A.
-
-### B.1 Meta semanal única y alcanzable
-
-- **Meta:** cada docente registra **al menos 2 bitácoras por semana** (≈2 alumnos distintos).
-- Con 3 docentes → **6 bitácoras/semana** → en **2 semanas** se cumplen los mínimos para los primeros informes del ciclo.
-- La meta **no es** "llena todo": es 2. Es un arranque, no una carga.
-
-### B.2 Material de una página (entregable de este plan)
-
-- Documento `docs/GUIA_BITACORA_DOCENTE.md` (crear en esta fase):
-  - Qué es la bitácora en 2 frases: *"No es un informe. Es lo que trabajamos hoy en 3 clics."*
-  - Dónde está: `/teacher` → tarjeta del alumno → `📝 Bitácora de clase`.
-  - Las 4 cosas que se marcan: tema, 1-2 criterios, repertorio, tarea.
-  - Qué pasa después: Dirección consolida y entrega el informe al apoderado.
-  - Qué **no** hay que hacer: no escribir párrafos, no duplicar.
-- Formato: Markdown en el repo + versión imprimible/WhatsApp para enviar al grupo.
-
-### B.3 Seguimiento nominal (quién registra y quién no)
-
-- **Día 1:** se envía la guía a Jeremy, Fernando y Nathaly con la meta de 2/semana.
-- **Día 4 (miércoles):** Dirección revisa el tablero del Frente C y escribe **solo a quien tiene 0**.
-- **Día 7 (cierre semanal):** se reconoce públicamente a quien cumplió; se pregunta al que no **qué le estorbó** (no se sanciona: si no registró, el problema es del proceso, no de la persona).
-- **Día 14:** con ≥2 por docente, se emite el **primer informe piloto real** de un alumno de Jeremy y se revisa el PDF A4 con Dirección.
-
-### B.4 Criterio de éxito medible
-
-| Hito | Métrica | Fecha objetivo |
-|---|---|---|
-| Arranque | 6 bitácoras nuevas (2 × 3 docentes) | Semana 1 |
-| Sostenibilidad | ≥6 bitácoras/semana durante 2 semanas seguidas | Semana 2 |
-| Primer valor | 1 `progress_reports` en estado `published` | Semana 3 |
-| Apertura | `parentReports = true` para familias piloto | Semana 4 |
+- La bitácora sigue **debajo** de los 4 botones de asistencia. No se reordena.
+- **Sin `animate-pulse`** (descartado en ADR-0183: 5-6 tarjetas parpadeando saturan).
+- `min-h-[44px]` se conserva (ADR-0177).
 
 ---
 
-## 4. FRENTE C — CÓDIGO: DIRECCIÓN (tablero de adopción)
+## 4. FRENTE B — CÓDIGO: RECORDATORIO "2 DÍAS SIN BITÁCORA"
 
-### C.1 Panel "Adopción Docente" en `/admin/informes`
+### B.1 Motor de detección (función pura)
 
-- Nueva pestaña **`👥 Adopción Docente`** junto a "Seguimiento de Alumnos" y "Bandeja General".
-- Componente nuevo `src/components/admin/teacher-adoption-panel.tsx` (no se modifica el tracker existente).
-- **Mapeo de docentes desde fuente única (PROHIBIDO hardcodear nombres)**:
-  - La lista de docentes **no** se escribe como `["Jeremy","Nathaly","Fernando"]`. Se deriva de `TEACHER_IDS` + `resolveTeacherNameById` (`src/lib/services/teacher-resolver.ts`), la misma fuente que usa `INSTRUMENT_SPECIALISTS` (ADR-0179).
-  - Un docente **sin UUID** en `TEACHER_IDS` (caso ya documentado: Claudia / Estimulación Musical) **no se oculta ni se inventa**: aparece en una fila explícita `⚠️ Docente sin UUID mapeado` con el número de bitácoras que tenga por `teacher_name`. Es el mismo criterio que devuelve `null` en `resolveCriteriaSource()`.
-  - Prohibido filtrar adopción cruzando solo por `teacher_name` texto: ya falló en ADR-0179 y volvería a fallar con un cuarto docente.
-- Contenido por docente:
-  - Bitácoras registradas en el mes / en la semana en curso.
-  - Semáforo de la meta de 2/semana: 🟢 cumplió · 🟡 fue 1 · 🔴 0.
-  - Última bitácora registrada (fecha).
-  - Alumnos de su cohorte sin ninguna bitácora.
-- Fuente de datos: `getEvaluationsSummaryMap()` (ya existe, `is_test = false`) + conteo por `session_date`.
+`src/lib/informes/teacher-reminders.ts`:
+
+```
+computeTeachersNeedingReminder(evaluations, teachers, today)
+  → para cada docente:
+      última bitácora (max session_date)
+      días hábiles sin bitácora desde entonces
+      needsReminder = díasHábilesSinBitacora >= 2
+```
+
+- **Días hábiles**: lunes a sábado. Domingos no cuentan (la escuela no dicta).
+- Se basa en `lesson_evaluations` con `is_test = false`.
+- Función **pura y testeable**, sin red.
+- Si el docente nunca registró, cuenta desde `planStartDate` del ciclo o desde su primer alumno activo, nunca desde el epoch.
+
+### B.2 Mensaje personalizado por WhatsApp
+
+- Plantilla con nombre del docente y cifras reales:
+  > *Hola {docente}, te escribimos de Vibra Music. Vemos que hace {N} días no registras la bitácora de clase. Recuerda que toma 2 minutos por alumno y que la necesitamos para poder emitir el informe del ciclo. Gracias.*
+- Enlace: `https://wa.me/51XXXXXXXXX?text=<encodeURIComponent(mensaje)>`
+- **Sin números hardcodeados**: se lee `users.phone`. Si falta o es inválido → botón deshabilitado con `⚠ Sin teléfono registrado`.
+- **Nunca** se envía automáticamente sin clic humano.
+
+### B.3 Registro del recordatorio (in-app)
+
+- Tabla existente: **`notification_logs`** (verificada en vivo: existe, 0 filas, con `recipient_type`, `recipient_id`, `channel`, `subject`, `body`, `status`, `sent_at`).
+- Al pulsar "Recordar", se inserta una fila con:
+  - `recipient_type = 'teacher'`, `recipient_id = <uuid del docente>`
+  - `channel = 'whatsapp'`
+  - `subject = 'Recordatorio de bitácora'`
+  - `body = <mensaje generado>`
+  - `status = 'pendiente'` → `'enviado'` cuando Dirección confirma
+- **No se crea tabla nueva.** Prohibido alterar el esquema de `notification_logs`.
+- **Cumple §83/§86**: no toca `students.notes`.
+
+### B.4 Campanita in-app en `/teacher`
+
+- Aviso al docente **solo si lo tuvo**: no se le notifica lo que no hizo.
+- El docente ve: "Recuerda registrar la bitácora de tus clases de hoy."
+- Sin coste, sin API.
+
+---
+
+## 5. FRENTE C — CÓDIGO: TABLERO DE ADOPCIÓN (`/admin/informes`)
+
+### C.1 Pestaña "👥 Adopción Docente"
+
+- Componente nuevo `src/components/admin/teacher-adoption-panel.tsx`.
+- **NO se modifica** `informes-tracker-panel.tsx` salvo lo ya hecho en ADR-0183.
+
+### C.2 Mapeo de docentes desde fuente única (PROHIBIDO hardcodear)
+
+- Derivar de **`TEACHER_IDS` + `resolveTeacherNameById`** (`src/lib/services/teacher-resolver.ts`), la misma fuente que `INSTRUMENT_SPECIALISTS` (ADR-0179).
+- **Prohibido** escribir `["Jeremy","Nathaly","Fernando"]` o filtrar por `teacher_name` texto: ya falló con la Prof. Claudia.
+- Docente con bitácoras pero **sin UUID mapeado** → fila explícita `⚠️ Docente sin UUID mapeado` con sus bitácoras resueltas por nombre. **No se oculta ni se inventa.**
+
+### C.3 Contenido por docente
+
+| Columna | Fuente |
+|---|---|
+| Bitácoras del mes | `lesson_evaluations` (`is_test=false`) |
+| Última bitácora | `max(session_date)` |
+| Días sin bitácora | `computeTeachersNeedingReminder` |
+| Semáforo 2 días | 🟢 al día · 🔴 requiere recordatorio |
+| Teléfono | `users.phone` (deshabilitado si ficticio/ausente) |
+| Botón | `📲 Recordar por WhatsApp` |
+
 - **Cero datos financieros.** Solo pedagogía.
-
-### C.2 Fuera de alcance explícitamente
-
-- **No** se implementan recordatorios automáticos por WhatsApp (consume tokens/costo y hay ADR-0140 de costo cero).
-- **No** se añaden notificaciones push.
-- **No** se sanciona ni se calcula desempeño económico con esta métrica.
+- **FUERA DE ALCANCE (D3):** no se muestran fichajes, puntualidad ni asistencia del docente. Ya tienen su política.
 
 ---
 
-## 5. ORDEN DE EJECUCIÓN Y BLOQUEOS
+## 6. ORDEN DE EJECUCIÓN
 
 ```
-FASE 0 (hoy, sin código)  → Enviar guía B.2 a los 3 docentes. Arranca la meta B.1.
-FASE 1 (código ~1h)       → A.1 "✓ Ya registrada" (independiente, bajo riesgo)
-FASE 2 (código ~1h)       → C.1 Tablero de adopción (Dirección ve el avance)
-FASE 3 (decisión)         → A.2 Contador de avance (requiere OK sobre consumir kardex-calculator)
-FASE 4 (sin código)       → B.3 seguimiento + B.4 primer informe piloto
+PASO 0 (Dirección, sin código)  → Cargar teléfonos reales en users.phone.
+FASE 1 (código)                 → A.1 "✓ Ya registrada"
+FASE 2 (código)                 → A.2 Contador 3/8 (autorizado)
+FASE 3 (código)                 → B.1 motor + B.2 wa.me + tablero C
+FASE 4 (verificación real)      → Primer informe piloto publicado
 ```
 
-**Por qué la Fase 0 va antes que el código:** si los docentes no reciben la guía hoy, el código solo cambia lo que ya no usan.
+**El Paso 0 no bloquea las Fases 1 y 2** (no usan teléfono). SÍ bloquea el envío real del recordatorio en Fase 3.
 
 ---
 
-## 6. RIESGOS Y MITIGACIONES
+## 7. RIESGOS Y MITIGACIONES
 
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
-| El docente percibe la bitácora como "trabajo extra" | No la usa | Guía de 1 página + meta de solo 2/semana + "2 min" visible en UI |
-| El contador de avance se percibe como presión/sanción | Rechazo | Etiqueta neutra, sin ranking público, sin cruce con sueldos (ADR-0181) |
-| Se duplican cálculos de readiness | Divergencia (patrón ADR-0119.3) | Reutilizar `computeStudentReportReadiness`, prohibido reimplementar |
-| Se hardcodea la lista de docentes | Falla con el 4.º docente (ya pasó con Claudia, ADR-0179) | Derivar de `TEACHER_IDS` + `resolveTeacherNameById`; fila explícita para docentes sin UUID |
-| N+1 en `/teacher` | Kiosco lento en celular | Una consulta por alumno-semana, no por tarjeta |
-| `kardex-calculator.ts` se toca por error | Rompe kardex/asistencia/facturación | Solo import de lectura; verificar con graphify antes de editar |
-| La métrica de adopción se usa para sancionar | Desconfianza | Declarado fuera de alcance en C.2 y en §86 |
+| Teléfonos ficticios (`9876543XX`) | Mensajes a números inexistentes | Paso 0 obligatorio; botón deshabilitado si falta |
+| `getEvaluationBySessionKey` sin `is_test` | Bitácora de prueba marcada como real | Usar `getStudentEvaluations` (§86.6) |
+| Docentes hardcodeados | Falla con el 4.º docente (ya pasó con Claudia) | Derivar de `TEACHER_IDS` (§86.7) |
+| Cálculo de readiness duplicado | Divergencia (ADR-0119.3) | Reutilizar `computeStudentReportReadiness` |
+| N+1 en `/teacher` | Kiosco lento en celular | Una consulta por alumno-semana |
+| `kardex-calculator.ts` editado por error | Rompe kardex/asistencia/facturación | Solo import; `git diff --stat` vacío obligatorio |
+| Recordatorio percibido como presión | Rechazo del docente | Mensaje respetuoso, sin sanción, sin ranking |
+| `notification_logs` con esquema alterado | Rompe otros módulos | Solo INSERT, sin DDL |
 
 ---
 
-## 7. CHECKLIST DE CIERRE (sin vacíos)
+## 8. CHECKLIST DE CIERRE
 
-Antes de dar por terminada cualquier fase:
-
-- [ ] `npm run build` en verde (obligatorio; ver lección ADR-0172 §6 sobre JSX roto).
-- [ ] Consulta de impacto en **graphify** para todo archivo compartido tocado.
-- [ ] Confirmar que `app-store.ts`, `kardex-calculator.ts`, `student-cycle.ts` **no** fueron modificados (`git diff --stat`).
-- [ ] Confirmar `is_test = false` en toda consulta nueva (usar `getStudentEvaluations`, que ya filtra; **no** `getEvaluationBySessionKey`, que hoy no filtra).
-- [ ] Confirmar cero `S/` en `/teacher` y `/admin/informes`.
-- [ ] Actualizar ADR-0183 (o nuevo ADR-0184) + CHANGELOG + AGENTS §86 **en el mismo commit**.
+- [ ] `npm run build` en verde (lección ADR-0172 §6: JSX roto tumbó un deploy).
+- [ ] `git diff --stat src/store/app-store.ts src/lib/kardex-calculator.ts src/lib/student-cycle.ts` → **vacío**.
+- [ ] Consulta de impacto en **graphify** para todo archivo compartido.
+- [ ] `is_test = false` en toda consulta (usar `getStudentEvaluations`).
+- [ ] Cero `S/` en `/teacher`, `/admin/informes`, tablero de adopción.
+- [ ] Sin DDL: `notification_logs` solo INSERT.
+- [ ] ADR-0184 + CHANGELOG `[2.0.55]` + AGENTS §87 + log en `docs/logs/` en el **mismo commit**.
+- [ ] Log del `.log` con `git add -f` (`.gitignore` ignora `*.log`).
 - [ ] Push a `origin main` **y** `core main`, verificado con `git ls-remote`.
-- [ ] Guardar resumen del estado en **engram** (ADR-0120: no re-descubrir en la próxima sesión).
+- [ ] Guardar resumen en **engram**.
 
 ---
 
-## 8. LO QUE NECESITO DE TI PARA ARRANCAR
+## 9. APROBADO — LISTO PARA EJECUTAR
 
-1. **¿Apruebas Fase 0 + Fase 1 + Fase 2** (guía + "✓ Ya registrada" + tablero de adopción)? Es lo de menor riesgo y mayor efecto inmediato.
-2. **¿Autorizas que `/teacher` importe `computeStudentCycleSessions` solo en lectura** para el contador A.2? Si prefieres no tocarlo, A.2 se degrada a "N bitácoras registradas" sin denominador.
-3. **¿Quién es el contacto directo de cada docente** para el Frente B (tú, secretaría, o Dirección)? Define quién manda la guía y quién hace el seguimiento del día 4.
+Las 7 decisiones (D1–D7) están cerradas. No queda ninguna definición pendiente de Dirección.
+
+**Único requisito externo:** el Paso 0 (teléfonos reales). Las Fases 1 y 2 pueden arrancar ya; el envío real de recordatorios espera los números verdaderos.
