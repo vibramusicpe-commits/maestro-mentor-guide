@@ -2000,3 +2000,13 @@ inferencia.
 5. **Acceso a índices con corchetes**: `Record<string, T>` y los grupos de captura de regex (`dmy[1]`) devuelven `T | undefined`; usar `?? fallback`.
 6. **Prohibido afirmar que algo está desplegado sin revisar la consola real del navegador** cuando el cambio toca render de componentes grandes.
 7. **Referencia**: `docs/logs/2026-11-03-incidente-multienrollmentopen-no-definido.log`.
+
+
+---
+
+### 93. Familias Idempotentes y Tolerancia 409 (ADR-0188 §10)
+
+1. **`ensureFamilyRecord` atómico e idempotente**: nunca asumir que crear un alumno y su recibo en paralelo puede crear la familia dos veces sin conflicto. La inserción tolera código 409 (`families_pkey`) y recupera el registro existente sin abortar la operación.
+2. **Modalidad con fallback seguro**: todo alumno nuevo debe nacer con `modality` definida (`Regular (8 clases / 45 min)`). Todo selector, filtro o badge que evalúe `modality.includes(...)` debe protegerse con encadenamiento opcional `st.modality?.includes(...)` o `(st.modality || "").includes(...)` para prevenir errores de tipo `TypeError: Cannot read properties of undefined (reading 'includes')`.
+3. **Persistencia de `personGroupId` en creación**: al matricular alumnos multi-instrumento, `personGroupId` y `personGroupLabel` deben persistirse atómicamente en `emergency_contact` tanto en Zustand como en PostgreSQL desde la primera escritura.
+4. **Matrícula institucional única por familia y libro por instrumento**: la matrícula institucional se cobra una sola vez para la familia; el segundo instrumento se marca como Exonerado con nota en `emergency_contact` JSONB. El libro de texto sí se cobra por cada instrumento.

@@ -4,6 +4,15 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.62] - 2026-11-03
+
+### Matrícula Única por Familia, Familias Idempotentes y Fix de Modalidad (ADR-0188)
+- **Eliminación del error 409 families_pkey**: `ensureFamilyRecord` ahora es idempotente y tolera códigos 409 de PostgreSQL. Alumno y recibo comparten el mismo aprovisionamiento atómico de familia.
+- **Persistencia de familia compartida**: Respeta el `familyId` compartido del Registro 2 y persiste `personGroupId`/`personGroupLabel` al matricular.
+- **Matrícula institucional única por familia**: Se cobra una sola vez para el grupo familiar; el libro continúa cobrándose por instrumento. El segundo instrumento se marca como Exonerado con nota descriptiva en `emergency_contact` JSONB.
+- **Protección contra TypeError en Modalidad**: `addNewStudent` asegura modalidad por defecto y `modalityBadge`/filtros toleran valores `undefined` (resuelve el crash `reading 'includes'` en `/admin/alumnos`).
+- **Reparación de datos de Luciana**: Datos unificados en producción bajo la misma familia y recibos consolidados (registrado en ADR-0188 §10 y log de sesión).
+
 ## [2.0.61] - 2026-11-03
 
 ### Registro 2: Docente por UUID, Matrícula/Libro por Instrumento y Abonos Fáciles (ADR-0188)
