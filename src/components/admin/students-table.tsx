@@ -119,8 +119,11 @@ function statusBadge(status: StudentStatus) {
   }
 }
 
-function modalityBadge(modality: LessonModality) {
-  if (modality.includes("Nivelación") || modality.includes("nivelaci")) {
+function modalityBadge(modality?: LessonModality | string | null) {
+  // 🛡️ Algunos registros (ej. altas del Registro 2 multi-instrumento) podían
+  // llegar sin modalidad y `modality.includes(...)` lanzaba TypeError.
+  const value = modality || "";
+  if (value.includes("Nivelación") || value.includes("nivelaci")) {
     return (
       <Badge variant="outline" className="border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-semibold text-[11px]">
         <Clock className="mr-1 h-3 w-3" />
@@ -128,7 +131,7 @@ function modalityBadge(modality: LessonModality) {
       </Badge>
     );
   }
-  if (modality.includes("Flexible") || modality.includes("Irregular")) {
+  if (value.includes("Flexible") || value.includes("Irregular")) {
     return (
       <Badge variant="outline" className="border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold text-[11px]">
         <Clock className="mr-1 h-3 w-3" />
@@ -136,7 +139,7 @@ function modalityBadge(modality: LessonModality) {
       </Badge>
     );
   }
-  if (modality.startsWith("Intensivo")) {
+  if (value.startsWith("Intensivo")) {
     return (
       <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary text-[11px]">
         <Clock className="mr-1 h-3 w-3" />
@@ -144,7 +147,7 @@ function modalityBadge(modality: LessonModality) {
       </Badge>
     );
   }
-  if (modality.includes("1x/sem")) {
+  if (value.includes("1x/sem")) {
     return (
       <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[11px]">
         <Clock className="mr-1 h-3 w-3" />
@@ -515,20 +518,22 @@ export function StudentsTable() {
       // La base histórica/inactiva (baja, pausa) se consulta y reactiva exclusivamente en "Depuración & Reactivación 2026".
       if (st.status !== "activo") return false;
 
+      const term = search.toLowerCase();
       const matchSearch =
         search.trim() === "" ||
-        st.name.toLowerCase().includes(search.toLowerCase()) ||
-        st.family.toLowerCase().includes(search.toLowerCase()) ||
-        st.instrument.toLowerCase().includes(search.toLowerCase()) ||
-        st.email.toLowerCase().includes(search.toLowerCase());
+        [st.name, st.family, st.instrument, st.email].some((value) =>
+          (value || "").toLowerCase().includes(term),
+        );
 
       const matchTeacher = teacherFilter === ALL || st.teacher === teacherFilter;
+      // 🛡️ `modality` es opcional en la práctica: nunca asumir que existe.
+      const modalityStr = st.modality || "";
       const matchModality =
         modalityFilter === ALL ||
-        (modalityFilter === "regular" && st.modality.startsWith("Regular")) ||
-        (modalityFilter === "intensivo" && st.modality.startsWith("Intensivo")) ||
-        (modalityFilter === "demo_nivelacion" && st.modality.toLowerCase().includes("nivelaci")) ||
-        (modalityFilter === "flexible" && (st.modality.toLowerCase().includes("flex") || st.modality.toLowerCase().includes("demanda")));
+        (modalityFilter === "regular" && modalityStr.startsWith("Regular")) ||
+        (modalityFilter === "intensivo" && modalityStr.startsWith("Intensivo")) ||
+        (modalityFilter === "demo_nivelacion" && modalityStr.toLowerCase().includes("nivelaci")) ||
+        (modalityFilter === "flexible" && (modalityStr.toLowerCase().includes("flex") || modalityStr.toLowerCase().includes("demanda")));
 
       return matchSearch && matchTeacher && matchModality;
     });
@@ -1512,6 +1517,12 @@ export function StudentsTable() {
                           <SelectItem value="Exonerada">Exonerada — S/ 0.00</SelectItem>
                         </SelectContent>
                       </Select>
+                      {selectedStudent.personGroupId && selectedStudent.matriculaType === "Exonerada" && (
+                        <p className="text-[10px] font-semibold text-sky-700 dark:text-sky-300">
+                          ℹ️ Matrícula familiar: este instrumento queda exonerado porque la
+                          matrícula se pagó una sola vez en el otro registro vinculado.
+                        </p>
+                      )}
                     </div>
 
                     {/* Fecha de Matrícula / Registro de Pago */}

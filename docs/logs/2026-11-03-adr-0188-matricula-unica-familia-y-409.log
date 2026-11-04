@@ -1,0 +1,199 @@
+REGISTRO 2: MATRÍCULA ÚNICA POR FAMILIA, FAMILIAS IDEMPOTENTES Y FIX DEL CRASH `includes`
+Fecha: 2026-11-03
+ADR: docs/adr/0188-registro-2-matricula-multi-instrumento-pagos-flexibles.md (§8 y §10)
+Rama: main
+Alcance: cierre de la corrección iniciada en la sesión anterior (corte por tokens).
+         SIN DDL. SIN cambios en kardex-calculator.ts ni student-cycle.ts.
+
+=====================================================================
+1. SÍNTOMA REPORTADO (consola real de producción)
+=====================================================================
+
+Al registrar a Luciana (Piano + Canto) aparecieron, entre otros:
+
+  POST .../records/families  ->  409
+  [Insforge 409]: {"code":"23505", ...,
+    "message":"duplicate key value violates unique constraint \"families_pkey\""}
+  [Insforge Sync] Aviso al asegurar familia: ...
+  [Insforge Sync] Aviso al asegurar familia previa: ...
+
+  TypeError: Cannot read properties of undefined (reading 'includes')
+    at Ut (admin.alumnos-*.js)
+    at Array.map
+    at Gt (admin.alumnos-*.js)
+
+Y la aclaración de Dirección: **la matrícula se paga UNA sola vez, no es
+por instrumento**. El libro sí puede ser por instrumento (uno por curso).
+
+=====================================================================
+2. CAUSA RAÍZ 1: EL 409 ERA UNA CARRERA DEL MISMO REGISTRO
+=====================================================================
+
+`addNewStudent` dispara DOS escrituras en paralelo para el MISMO alumno:
+
+  1. backgroundCreateStudentInDB  -> asegura `families` y crea `students`
+  2. backgroundCreateInvoiceInDB  -> asegura `families` y crea `invoices`
+
+Ambas hacían SELECT (vacío) + INSERT de la MISMA familia. La segunda
+llegaba con la clave primaria ya insertada -> 409 `families_pkey`.
+No era un duplicado de alumnos ni de instrumentos.
+
+FIX (src/store/app-store.ts):
+  - Nuevo `ensureFamilyRecord(familyId, student)`:
+      * comparte la promesa en vuelo por `familyId` (Map en memoria),
+      * si ya existe la familia no inserta,
+      * absorbe `409` / `23505` / "duplicate key" como ÉXITO (otra pestaña
+        pudo ganar la carrera).
+  - Ambos background usan el helper.
+
+=====================================================================
+3. CAUSA RAÍZ 2: EL `familyId` COMPARTIDO SE IGNORABA
+=====================================================================
+
+El Registro 2 ya generaba un `familyId` común (ADR-0186/0188), pero
+`backgroundCreateStudentInDB` lo ignoraba y derivaba la familia del UUID
+de cada alumno. Resultado: una familia distinta por instrumento, aunque
+la UI dijera "una sola cuenta".
+
+FIX:
+  - Nuevo `resolveTargetFamilyId(student, uuid)`:
+      respeta `student.familyId` cuando es un UUID válido;
+      si no, deriva como antes (compatibilidad con semillas).
+  - `backgroundCreateInvoiceInDB` usa la misma resolución.
+  - Se persisten `personGroupId` / `personGroupLabel` al CREAR el alumno
+    (antes solo se guardaban en la primera edición posterior).
+
+=====================================================================
+4. CAUSA RAÍZ 3: `modality` UNDEFINED -> CRASH `includes`
+=====================================================================
+
+El Registro 2 no enviaba `modality`. `addNewStudent` la dejaba
+`undefined` y `modalityBadge(st.modality)` ejecutaba:
+    modality.includes("Nivelación")  ->  TypeError
+
+FIX:
+  - `addNewStudent` aplica default: "Regular (8 clases / 45 min)".
+  - El Registro 2 envía la modalidad explícita.
+  - `modalityBadge` acepta `undefined | null` y normaliza a "".
+  - Los filtros del directorio (búsqueda y modalidad) usan cadenas
+    seguras; ningún `.includes` sobre datos opcionales sin fallback.
+
+=====================================================================
+5. MATRÍCULA: UNA SOLA VEZ POR FAMILIA (corrección de Dirección)
+=====================================================================
+
+Antes (incorrecto):
+  Cada slot del formulario tenía su propio `matriculaType` y
+  `matriculaAmountPaid`; el resumen sumaba N matrículas.
+
+Ahora (src/components/admin/multi-instrument-enrollment.tsx):
+  - UN solo bloque "Matrícula institucional" (tipo + abono), con la
+    etiqueta "Se paga 1 sola vez por familia".
+  - Se eliminaron los campos de matrícula de cada instrumento.
+  - El libro / pack de útiles SIGUE siendo por instrumento.
+  - Totales: planes (x instrumento) + libros (x instrumento) + UNA matrícula.
+  - Al guardar:
+      * primer instrumento -> `matriculaType` elegido + abono real;
+      * siguientes        -> `"Exonerada"` con nota
+        `matriculaFamilyNote` en `emergency_contact` JSONB.
+    Así `computeStudentFinancialAudit` NO la cobra dos veces.
+  - La ficha muestra un aviso cuando un instrumento vinculado está
+    exonerado de matrícula por este motivo.
+
+Verificación del cálculo (Piano + Canto S/ 250 c/u, libro S/ 67 c/u,
+matrícula Promo S/ 30 UNA vez, piano pagado completo):
+
+  Contratado : 664   (250 + 250 + 30 + 67 + 67)
+  Abonado    : 280   (250 piano + 30 matrícula familiar)
+  Pendiente  : 384   (250 canto + 67 + 67 libros)
+
+Antes se cobraban S/ 694 (matrícula x2).
+
+=====================================================================
+6. ARCHIVOS TOCADOS
+=====================================================================
+
+  src/store/app-store.ts
+    - ensureFamilyRecord / resolveTargetFamilyId / pendingFamilyEnsures
+    - default de modality en addNewStudent
+    - personGroupId/Label al crear
+  src/store/admin-seeds.ts
+    - EmergencyContact: matriculaScope / matriculaAmountPaid /
+      matriculaFamilyNote (JSONB, opcionales)
+  src/components/admin/multi-instrument-enrollment.tsx
+    - matrícula familiar única, libro por instrumento, modality explícita
+  src/components/admin/students-table.tsx
+    - modalityBadge y filtros blindados; aviso de matrícula familiar
+  docs/adr/0188-...md
+    - §8 corregido y nueva §10 con las cuatro correcciones
+
+=====================================================================
+7. VERIFICACIÓN TÉCNICA
+=====================================================================
+
+  vite build .................... VERDE (exit 0)
+  tsc --noEmit (archivos tocados) . sin errores nuevos
+                                    (el repo arrastra ~200 errores previos
+                                     ajenos a este cambio)
+  Bundle cliente ................ contiene "una sola vez por familia",
+                                    "Matrícula institucional", "quedan
+                                    exonerados" y `matriculaFamilyNote`.
+
+  Nota: el build de Vite en Windows requiere acceso completo porque
+  lanza `net use` (child_process) y el sandbox lo bloquea con EPERM.
+
+=====================================================================
+8. CÓMO VERIFICAR EN PRODUCCIÓN
+=====================================================================
+
+  1. Registrar un alumno de 1 instrumento: la consola NO debe mostrar
+     ningún 409 de `families_pkey`.
+  2. Registrar 2 instrumentos con la misma familia:
+     - `students.family_id` de ambos registros debe ser el MISMO UUID.
+     - El primer registro lleva la matrícula; el segundo `Exonerada`.
+     - `/admin/alumnos` no debe lanzar TypeError en `modality`.
+  3. En la ficha del segundo instrumento debe verse el aviso
+     "Matrícula familiar: ... se pagó una sola vez".
+
+=====================================================================
+9. REPARACIÓN DE DATOS: LOS DOS REGISTROS YA CREADOS DE LUCIANA
+=====================================================================
+
+Antes del fix, los dos registros que sí llegaron a crearse quedaron cada
+uno con su propia familia:
+
+  Luciana (Piano)  2307efd3-...  family_id 2307efd3-...
+  Luciana (Canto)  57ee3ecc-...  family_id 57ee3ecc-...
+  (ambas familias llamadas "Campo", mismo apoderado)
+
+Comprobado en solo lectura:
+  - 0 asistencias, 0 invitaciones, sin informes ni notas ligadas a la
+    familia duplicada.
+  - 2 recibos S/ 250 pagados (uno por instrumento).
+  - Matrícula de AMBOS registros: "Exonerada" (no hubo doble cobro).
+
+Reparación puntual aplicada (SOLO PATCH, sin DELETE), script
+`scratch/fix-luciana-family.mjs`:
+
+  - family_id de Canto -> 2307efd3-... (cuenta única de la familia).
+  - personGroupId f8fc5eef-78dc-472b-bfa8-3b81720633be en ambos,
+    personGroupLabel "Piano + Canto".
+  - Recibo de Canto c37aa58d-... movido a la familia unificada.
+
+Verificado después:
+  - Ambos alumnos: family_id 2307efd3-...
+  - Ambos recibos: family_id 2307efd3-...
+  - La fila `families` 57ee3ecc-... quedó vacía (no se borra: sin
+    dependientes, inofensiva).
+
+=====================================================================
+10. LO QUE NO SE HIZO (límites honestos)
+=====================================================================
+
+  - No se tocó el Registro 1 (sigue intacto).
+  - No se agregó una columna de matrícula a `AdminStudent`: el abono
+    queda en `emergency_contact` JSONB (sin DDL).
+  - La auditoría financiera sigue mostrando la matrícula como pagada
+    según `matriculaType` (comportamiento previo). El abono parcial se
+    conserva en JSONB para una conciliación futura.
+  - No se modificaron los motores de Kardex ni de ciclo.

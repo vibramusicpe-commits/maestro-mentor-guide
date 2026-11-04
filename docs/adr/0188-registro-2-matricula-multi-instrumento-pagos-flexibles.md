@@ -99,15 +99,15 @@ El primer diseño guardaba al docente en una **nota de texto** ("Entra con Natha
 
 **Por qué importa:** si mañana Nathaly renuncia y el UUID pasa a otra persona, se actualiza el resolver y todas las fichas siguen siendo coherentes. Escribir el nombre a mano no tiene esa propiedad.
 
-### 8. Matrícula y Libro por cada instrumento (corrección 2026-11-03)
+### 8. Libro por instrumento; matrícula UNA sola vez por familia (corrección 2026-11-03)
 
 El primer diseño los tenía **fijos en el código** (`Promo Demo S/ 30` y libro `S/ 67` con abono `0`), así que nunca aparecían en el resumen familiar y el libro jamás se cobraba.
 
-**Corrección — decisión de Dirección: se cobran POR CADA INSTRUMENTO.**
-- **Matrícula**: Regular S/ 120 · Promo Demo S/ 30 · Exonerada S/ 0 · monto personalizado. Con su propio abono.
-- **Libro / Pack de útiles**: costo editable y abono editable, con aviso de saldo pendiente.
+**Corrección — decisión de Dirección:**
+- **Matrícula institucional**: se paga **UNA sola vez por familia**, no por instrumento (ver §10). Tarifas oficiales: Regular S/ 120 · Promo Demo S/ 30 · Exonerada S/ 0, con su propio abono.
+- **Libro / Pack de útiles**: costo editable y abono editable **por instrumento** (uno por curso), con aviso de saldo pendiente.
 - El **estado del libro** se deriva solo: `cancelado` si se cubrió, `parcial` si hay abono, `pendiente` si no.
-- El **resumen familiar** ahora suma mensualidades + matrículas + libros.
+- El **resumen familiar** suma mensualidades + **una** matrícula + libros de cada instrumento.
 
 ### 9. Abonos fáciles (corrección 2026-11-03)
 
@@ -122,6 +122,20 @@ Antes, «Agregar abono» creaba un monto en **0** en cuatro campos diminutos y n
 
 ---
 
+### 10. Corrección 2026-11-03 — Matrícula única por familia y familias idempotentes
+
+**a) Matrícula institucional, no por instrumento.** Luciana paga una matrícula para toda su familia, no dos. El formulario captura **un solo** bloque de matrícula (tipo + abono) y el resumen familiar la suma una vez. Al persistir, el **primer** instrumento recibe `matriculaType` real y los demás quedan en `"Exonerada"`, con la nota `matriculaFamilyNote` en `emergency_contact` JSONB. Así la ficha financiera (`computeStudentFinancialAudit`) no la cobra dos veces.
+
+**b) Un solo `familyId` real.** El formulario ya generaba un `familyId` compartido, pero `backgroundCreateStudentInDB` lo ignoraba y derivaba la familia del UUID de cada alumno, creando una familia distinta por instrumento. Ahora `resolveTargetFamilyId` respeta el `familyId` explícito cuando es un UUID válido y, si no, deriva como antes.
+
+**c) 409 `families_pkey` eliminado.** `addNewStudent` dispara **dos** escrituras en paralelo (`backgroundCreateStudentInDB` y `backgroundCreateInvoiceInDB`) que hacían `SELECT` vacío + `INSERT` de la misma familia. Se centralizó en `ensureFamilyRecord` (`app-store.ts`), que comparte la promesa en vuelo por `familyId` y absorbe el `409/23505` como éxito si otra pestaña ganó la carrera.
+
+**d) `modality` obligatoria y badge blindado.** El Registro 2 no enviaba `modality`; `addNewStudent` la dejaba `undefined` y `modalityBadge` reventaba con `TypeError: Cannot read properties of undefined (reading 'includes')`. Ahora `addNewStudent` aplica el default `"Regular (8 clases / 45 min)"`, el formulario la envía explícitamente y `modalityBadge`/los filtros del directorio toleran `undefined`.
+
+**e) Vínculo multi-instrumento persistido.** `backgroundCreateStudentInDB` ahora incluye `personGroupId`/`personGroupLabel` en `emergency_contact` al crear, en vez de esperar a la primera edición.
+
+---
+
 ## Verificación
 
 ### Cálculo del caso Luciana (Piano S/ 250 + Canto S/ 250)
@@ -132,17 +146,17 @@ Contratado: 500 | Abonado: 600 | Excedente a favor: 150 | Pendiente: 50
 
 Corresponde exactamente a lo declarado: pagó S/ 400 (primer día) + S/ 200 (segunda clase) = **S/ 600**, con **S/ 150 a favor** y **S/ 50 pendiente** en Canto.
 
-### Con matrícula y libro por instrumento (corrección 2026-11-03)
+### Con matrícula única por familia y libro por instrumento (corrección 2026-11-03)
 
-Piano y Canto a S/ 250 cada uno + matrícula Promo Demo S/ 30 (×2) + libro S/ 67 (×2):
+Piano y Canto a S/ 250 cada uno + **una** matrícula Promo Demo S/ 30 + libro S/ 67 (×2):
 
 ```
-Contratado : 694   (250 + 250 + 30 + 30 + 67 + 67)
-Abonado    : 310   (250 piano + 30 + 30 matrículas)
+Contratado : 664   (250 + 250 + 30 + 67 + 67)
+Abonado    : 280   (250 piano + 30 matrícula familiar)
 Pendiente  : 384   (250 canto + 67 + 67 libros)
 ```
 
-Antes, con los valores fijos, el resumen mostraba solo **S/ 500** y el libro nunca se cobraba.
+Antes, con los valores fijos, el resumen mostraba solo **S/ 500** y el libro nunca se cobraba. Con la corrección anterior (matrícula ×2) se cobraban S/ 30 de más.
 
 ### Caso de abonos de S/ 50 hasta la 4.ª clase
 

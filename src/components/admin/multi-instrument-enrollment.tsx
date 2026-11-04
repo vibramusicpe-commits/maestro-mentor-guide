@@ -12,8 +12,10 @@
  *   - Registro 2 (este) es la vía flexible para 2 instrumentos.
  *
  * REGLAS INNEGOCIABLES:
- *   - Cada instrumento es una MATRÍCULA REAL: su propia matrícula, plan,
- *     docente y abono. NUNCA se fusionan (ADR-0186).
+ *   - La **MATRÍCULA es institucional: se paga UNA sola vez por familia**
+ *     (corrección de Dirección, ADR-0188 §10). No se cobra por instrumento.
+ *   - Cada instrumento conserva su propio plan, docente, **libro** y abono.
+ *     NUNCA se fusionan (ADR-0186).
  *   - Ambos registros quedan VINCULADOS por `personGroupId` y comparten
  *     `familyId` (una sola cuenta para el apoderado).
  *   - El excedente de un instrumento NO se aplica solo al otro: va como
@@ -37,7 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { useAppStore, type AdminStudent } from "@/store/app-store";
+import { useAppStore, type AdminStudent, type MatriculaType } from "@/store/app-store";
 import { detectSamePersonCandidates, describeInstrumentBundle } from "@/lib/student-person-group";
 import { toIsoDate } from "@/lib/informes/utils";
 import { TEACHER_IDS, resolveTeacherNameById } from "@/lib/services/teacher-resolver";
@@ -62,20 +64,20 @@ interface InstrumentSlot {
   note: string;
   /** UUID del docente (TEACHER_IDS). Se guarda por UUID, NUNCA por nombre. */
   teacherId: string;
-  /** Matrícula de ESTE instrumento (se cobra por cada instrumento). */
-  matriculaType: string;
-  matriculaAmountPaid: number;
-  /** Pack de útiles/libro de ESTE instrumento. */
+  /** Pack de útiles/libro de ESTE instrumento (uno por curso). */
   packUtilesCost: number;
   packUtilesAmountPaid: number;
 }
 
-/** Opciones de matrícula (ADR-0122). */
-const MATRICULA_OPTIONS = [
-  { value: "Regular", label: "Matrícula Regular (S/ 120)", cost: 120 },
+/**
+ * Matrícula institucional (ADR-0122): se cobra UNA vez por familia.
+ * Se registra sobre el primer instrumento y los demás quedan exonerados
+ * para que la ficha financiera y el recibo no la dupliquen.
+ */
+const MATRICULA_OPTIONS: Array<{ value: MatriculaType; label: string; cost: number }> = [
   { value: "Promo Demo (S/ 30)", label: "Promo Demo (S/ 30)", cost: 30 },
+  { value: "Regular (S/ 120)", label: "Matrícula Regular (S/ 120)", cost: 120 },
   { value: "Exonerada", label: "Exonerada (S/ 0)", cost: 0 },
-  { value: "Personalizada", label: "Monto personalizado", cost: 0 },
 ];
 
 const BOOK_COST = 67;
@@ -113,8 +115,6 @@ function emptySlot(instrument: string): InstrumentSlot {
     amountPaid: 0,
     note: "",
     teacherId: suggestedTeacherFor(instrument),
-    matriculaType: "Promo Demo (S/ 30)",
-    matriculaAmountPaid: 30,
     packUtilesCost: BOOK_COST,
     packUtilesAmountPaid: 0,
   };
@@ -132,7 +132,6 @@ interface PaymentEntry {
 
 export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumentEnrollmentProps) {
   const addNewStudent = useAppStore((s) => s.addNewStudent);
-  const updateStudentDetails = useAppStore((s) => s.updateStudentDetails);
   const adminStudents = useAppStore((s) => s.adminStudents);
 
   const [name, setName] = useState("");
@@ -149,6 +148,14 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // 🎓 Matrícula institucional: UNA sola por familia, sin importar cuántos
+  // instrumentos contrate el alumno (corrección de Dirección, ADR-0188 §10).
+  const [matriculaType, setMatriculaType] = useState<MatriculaType>("Promo Demo (S/ 30)");
+  const [matriculaAmountPaid, setMatriculaAmountPaid] = useState(30);
+
+  const matriculaCost =
+    MATRICULA_OPTIONS.find((option) => option.value === matriculaType)?.cost ?? 0;
+
   // Aviso de alumno ya existente (misma fecha + apoderado) — informa, no bloquea.
   const duplicates = useMemo(() => {
     if (!birthdate || !guardian.trim()) return { activos: [], historicos: [] };
@@ -159,33 +166,31 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
   }, [birthdate, guardian, adminStudents]);
 
   const totals = useMemo(() => {
-    const costOfMatricula = (slot: InstrumentSlot) =>
-      MATRICULA_OPTIONS.find((option) => option.value === slot.matriculaType)?.cost ?? 0;
-
+    // La matrícula suma UNA sola vez; el plan y el libro sí son por instrumento.
     const contratado =
       slots.reduce((sum, slot) => sum + (slot.planPrice || 0), 0) +
-      slots.reduce((sum, slot) => sum + costOfMatricula(slot), 0) +
-      slots.reduce((sum, slot) => sum + (slot.packUtilesCost || 0), 0);
+      slots.reduce((sum, slot) => sum + (slot.packUtilesCost || 0), 0) +
+      matriculaCost;
 
     const abonado =
       slots.reduce((sum, slot) => sum + (slot.amountPaid || 0), 0) +
-      slots.reduce((sum, slot) => sum + (slot.matriculaAmountPaid || 0), 0) +
-      slots.reduce((sum, slot) => sum + (slot.packUtilesAmountPaid || 0), 0);
+      slots.reduce((sum, slot) => sum + (slot.packUtilesAmountPaid || 0), 0) +
+      (matriculaAmountPaid || 0);
 
     const excedente = slots.reduce(
       (sum, slot) => sum + Math.max(0, (slot.amountPaid || 0) - (slot.planPrice || 0)),
       0,
     );
-    const pendiente = slots.reduce(
-      (sum, slot) =>
-        sum +
-        Math.max(0, (slot.planPrice || 0) - (slot.amountPaid || 0)) +
-        Math.max(0, costOfMatricula(slot) - (slot.matriculaAmountPaid || 0)) +
-        Math.max(0, (slot.packUtilesCost || 0) - (slot.packUtilesAmountPaid || 0)),
-      0,
-    );
+    const pendiente =
+      slots.reduce(
+        (sum, slot) =>
+          sum +
+          Math.max(0, (slot.planPrice || 0) - (slot.amountPaid || 0)) +
+          Math.max(0, (slot.packUtilesCost || 0) - (slot.packUtilesAmountPaid || 0)),
+        0,
+      ) + Math.max(0, matriculaCost - (matriculaAmountPaid || 0));
     return { contratado, abonado, excedente, pendiente, saldoFavorFamilia: excedente };
-  }, [slots]);
+  }, [slots, matriculaCost, matriculaAmountPaid]);
 
   const resetForm = () => {
     setName("");
@@ -197,6 +202,8 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
     setMethod(PAYMENT_METHODS[0] ?? "Yape / Plin");
     setSlots([emptySlot("Piano"), emptySlot("Canto")]);
     setPayments([]);
+    setMatriculaType("Promo Demo (S/ 30)");
+    setMatriculaAmountPaid(30);
   };
 
   const updateSlot = (index: number, patch: Partial<InstrumentSlot>) => {
@@ -271,6 +278,9 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
           email: "",
           instrument: slot.instrument,
           level: "Principiante",
+          // Modalidad explícita: sin ella, el directorio y el ciclo del alumno
+          // recibían `undefined` y el badge de modalidad lanzaba TypeError.
+          modality: "Regular (8 clases / 45 min)" as AdminStudent["modality"],
           // Docente por NOMBRE resuelto desde el UUID: si renuncia y cambia el
           // resolver, el dato se mantiene coherente con la fuente única.
           teacher: slot.teacherId ? (resolveTeacherNameById(slot.teacherId) || "") : "",
@@ -290,11 +300,20 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
             name: guardian.trim() || name.trim(),
             phone: phone.trim(),
             relation: "Tutor Legal",
+            // Matrícula familiar: trazabilidad en `emergency_contact` JSONB.
+            matriculaScope: "familia",
+            matriculaAmountPaid: index === 0 ? Math.max(0, matriculaAmountPaid || 0) : 0,
+            matriculaFamilyNote:
+              index === 0
+                ? `Matrícula institucional única de la familia (${matriculaType}).`
+                : "Matrícula institucional ya cubierta por el primer instrumento de la familia.",
           },
           paymentMethod: method,
           enrollmentDate,
           planStartDate: enrollmentDate,
-          matriculaType: (slot.matriculaType || "Promo Demo (S/ 30)") as AdminStudent["matriculaType"],
+          // Solo el primer registro asume la matrícula. Los demás quedan
+          // exonerados para que la ficha financiera no la cobre dos veces.
+          matriculaType: index === 0 ? matriculaType : "Exonerada",
           packUtilesCost: slot.packUtilesCost,
           packUtilesAmountPaid: slot.packUtilesAmountPaid,
           packUtilesStatus:
@@ -341,7 +360,8 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
           </DialogTitle>
           <DialogDescription className="text-xs">
             Para alumnos que contratan <strong>2 instrumentos</strong> con pagos fraccionados.
-            Cada instrumento conserva su propia matrícula y su propio abono.
+            La <strong>matrícula se paga una sola vez por familia</strong>; cada instrumento
+            conserva su plan, su libro y su abono.
           </DialogDescription>
         </DialogHeader>
 
@@ -387,6 +407,68 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
                   Si es la misma persona, vincúlalos después desde la ficha en lugar de duplicar.
                 </span>
               </div>
+            )}
+          </div>
+
+          {/* 🎓 Matrícula institucional: UNA sola vez por familia (ADR-0188 §10).
+              No se cobra por instrumento: se registra sobre el primer registro y
+              los demás quedan exonerados para no duplicarla en la ficha. */}
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <p className="text-[11px] font-black uppercase tracking-wide text-primary">
+                🎓 Matrícula institucional
+              </p>
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
+                Se paga 1 sola vez por familia
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="text-[11px] font-semibold text-muted-foreground">
+                Tipo de matrícula
+                <select
+                  value={matriculaType}
+                  onChange={(e) => {
+                    const value = e.target.value as MatriculaType;
+                    const cost = MATRICULA_OPTIONS.find((option) => option.value === value)?.cost ?? 0;
+                    setMatriculaType(value);
+                    setMatriculaAmountPaid(cost);
+                  }}
+                  className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  {MATRICULA_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-[11px] font-semibold text-muted-foreground">
+                Costo de matrícula
+                <Input
+                  type="number"
+                  value={matriculaCost}
+                  readOnly
+                  disabled
+                  className="mt-1 h-8 text-xs font-bold"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-muted-foreground">
+                Abonado a matrícula
+                <Input
+                  type="number"
+                  min={0}
+                  value={matriculaAmountPaid}
+                  onChange={(e) => setMatriculaAmountPaid(parseFloat(e.target.value) || 0)}
+                  className="mt-1 h-8 text-xs"
+                />
+              </label>
+            </div>
+            {matriculaCost - matriculaAmountPaid > 0 ? (
+              <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                Saldo de matrícula: S/ {(matriculaCost - matriculaAmountPaid).toFixed(2)} (se registra sobre el primer instrumento)
+              </p>
+            ) : (
+              <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                ✓ Matrícula familiar cubierta. Los demás instrumentos quedan exonerados de matrícula.
+              </p>
             )}
           </div>
 
@@ -482,36 +564,8 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
                   </p>
                 )}
 
-                {/* Matrícula y Libro: se cobran POR CADA INSTRUMENTO (decisión de Dirección) */}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="text-[11px] font-semibold text-muted-foreground">
-                    Matrícula
-                    <select
-                      value={slot.matriculaType}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const cost = MATRICULA_OPTIONS.find((o) => o.value === value)?.cost ?? 0;
-                        updateSlot(index, { matriculaType: value, matriculaAmountPaid: cost });
-                      }}
-                      className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
-                    >
-                      {MATRICULA_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-[11px] font-semibold text-muted-foreground">
-                    Abonado a matrícula
-                    <Input
-                      type="number"
-                      min={0}
-                      value={slot.matriculaAmountPaid}
-                      onChange={(e) => updateSlot(index, { matriculaAmountPaid: parseFloat(e.target.value) || 0 })}
-                      className="mt-1 h-8 text-xs"
-                    />
-                  </label>
-                </div>
-
+                {/* Libro / Pack de útiles: SÍ es por instrumento (uno por curso).
+                    La matrícula, en cambio, es familiar y se captura una sola vez arriba. */}
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className="text-[11px] font-semibold text-muted-foreground">
                     Libro / Pack de útiles
@@ -692,6 +746,15 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
                 <p className="text-muted-foreground">A favor</p>
                 <p className="font-mono font-black text-sky-600 dark:text-sky-400">S/ {totals.saldoFavorFamilia.toFixed(2)}</p>
               </div>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-1 rounded-lg bg-background/70 px-2 py-1 text-[10px]">
+              <span className="font-semibold text-muted-foreground">
+                🎓 Matrícula familiar ({matriculaType}):{" "}
+                <strong className="text-foreground">S/ {matriculaCost.toFixed(2)}</strong>
+              </span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                Abonado: S/ {matriculaAmountPaid.toFixed(2)}
+              </span>
             </div>
             {totals.excedente > 0 && (
               <p className="mt-2 text-[10px] text-muted-foreground">

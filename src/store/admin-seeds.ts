@@ -148,6 +148,11 @@ export type EmergencyContact = {
   name: string;
   phone: string;
   relation: string;
+  // ADR-0188 §10 — Metadatos de la matrícula institucional (JSONB, sin DDL).
+  // La matrícula se paga UNA vez por familia; el libro sí es por instrumento.
+  matriculaScope?: "familia" | "instrumento";
+  matriculaAmountPaid?: number;
+  matriculaFamilyNote?: string;
 };
 
 export type AnnualMonthRecord = {

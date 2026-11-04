@@ -349,6 +349,84 @@ function generateUUID(): string {
   });
 }
 
+// ---------------------------------------------------------------
+// 🛡️ APROVISIONAMIENTO IDEMPOTENTE DE FAMILIAS (ADR-0188 §10)
+// ---------------------------------------------------------------
+// Al matricular, `addNewStudent` dispara DOS escrituras en paralelo:
+//   1. backgroundCreateStudentInDB  → asegura la familia y crea el alumno
+//   2. backgroundCreateInvoiceInDB  → asegura la familia y crea el recibo
+// Ambas hacían SELECT (vacío) + INSERT de la MISMA familia y la segunda
+// recibía `409 duplicate key value violates unique constraint "families_pkey"`.
+// Este candado en memoria comparte la misma promesa entre llamadas
+// simultáneas y además tolera el 409 (otra pestaña ya la creó).
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const pendingFamilyEnsures = new Map<string, Promise<void>>();
+
+/**
+ * Resuelve el `familyId` real del alumno:
+ *  - Si el registro trae `familyId` explícito (Registro 2 multi-instrumento,
+ *    ADR-0186/0188), se respeta: TODOS los instrumentos comparten una sola cuenta.
+ *  - Si no, se deriva del UUID del alumno como hasta ahora.
+ */
+function resolveTargetFamilyId(student: AdminStudent, resolvedStudentUUID: string): string {
+  const explicitFamilyId = student.familyId?.trim();
+  if (explicitFamilyId && UUID_PATTERN.test(explicitFamilyId)) {
+    return explicitFamilyId.toLowerCase();
+  }
+  return resolvedStudentUUID.startsWith("00000000-0000-0000-0002-")
+    ? resolvedStudentUUID.replace(/^00000000-0000-0000-0002-/, "00000000-0000-0000-0001-")
+    : resolvedStudentUUID;
+}
+
+/** Crea la familia si no existe. Idempotente y seguro ante llamadas concurrentes. */
+async function ensureFamilyRecord(familyId: string, student: AdminStudent): Promise<void> {
+  const inFlight = pendingFamilyEnsures.get(familyId);
+  if (inFlight) return inFlight;
+
+  const task = (async () => {
+    try {
+      const { postgrestInsert, postgrestSelect } = await import("@/lib/insforge");
+      const existing = await postgrestSelect("families", { id: `eq.${familyId}` });
+      if (existing && existing.length > 0) return;
+
+      // El email del apoderado vive en `emergency_contact` JSONB (no en el tipo base).
+      const emergencyEmail = (student.emergencyContact as { email?: string } | undefined)?.email;
+
+      await postgrestInsert("families", {
+        id: familyId,
+        family_name: student.family || `Familia ${student.name}`,
+        primary_guardian_name:
+          student.emergencyContact?.name || student.motherName || student.fatherName || student.name,
+        primary_guardian_phone:
+          student.emergencyContact?.phone || student.motherPhone || student.fatherPhone || student.phone?.trim() || "987654321",
+        email:
+          emergencyEmail ||
+          student.email?.trim() ||
+          `alumno_${familyId.slice(0, 8)}@vibramusic.pe`,
+        payment_day: 1,
+        automatic_payment: false,
+      });
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      const message = String((err as Error)?.message || err);
+      const isDuplicate =
+        status === 409 ||
+        message.includes("23505") ||
+        message.toLowerCase().includes("duplicate key");
+      if (isDuplicate) {
+        // Carrera entre pestañas/escrituras: la familia ya existe, es un éxito.
+        return;
+      }
+      console.warn("[Insforge Sync] Aviso al asegurar familia:", err);
+    } finally {
+      pendingFamilyEnsures.delete(familyId);
+    }
+  })();
+
+  pendingFamilyEnsures.set(familyId, task);
+  return task;
+}
+
 // Persiste alumnos nuevos en Insforge PostgreSQL de forma resiliente
 function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
   try {
@@ -397,6 +475,10 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
         balance: student.balance ?? 0,
         packageTotalSessions: student.packageTotalSessions || (student.modality?.includes("Intensivo") ? 4 : 8),
         matriculaType: student.matriculaType || "Promo Demo (S/ 30)",
+        // ADR-0186/0188 — vínculo de misma persona entre instrumentos.
+        // Sin esto, el vínculo solo existía en memoria hasta la primera edición.
+        ...(student.personGroupId ? { personGroupId: student.personGroupId } : {}),
+        ...(student.personGroupLabel ? { personGroupLabel: student.personGroupLabel } : {}),
         enrollmentDate: student.enrollmentDate || new Date().toISOString().slice(0, 10),
         paymentMethod: student.paymentMethod || "Yape / Plin",
         packUtilesPaid: student.packUtilesPaid !== undefined ? student.packUtilesPaid : true,
@@ -426,28 +508,10 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
           : generateUUID()
       );
 
-      const targetFamilyId = resolvedStudentUUID.startsWith("00000000-0000-0000-0002-")
-        ? resolvedStudentUUID.replace(/^00000000-0000-0000-0002-/, "00000000-0000-0000-0001-")
-        : resolvedStudentUUID;
+      const targetFamilyId = resolveTargetFamilyId(student, resolvedStudentUUID);
 
-      // 🛡️ Asegurar registro en families antes de crear el alumno
-      try {
-        const { postgrestInsert, postgrestSelect } = await import("@/lib/insforge");
-        const existingFam = await postgrestSelect("families", { id: `eq.${targetFamilyId}` });
-        if (!existingFam || existingFam.length === 0) {
-          await postgrestInsert("families", {
-            id: targetFamilyId,
-            family_name: student.family || `Familia ${student.name}`,
-            primary_guardian_name: student.emergencyContact?.name || student.motherName || student.fatherName || student.name,
-            primary_guardian_phone: student.emergencyContact?.phone || student.motherPhone || student.fatherPhone || student.phone?.trim() || "987654321",
-            email: student.emergencyContact?.email || student.email?.trim() || `alumno_${resolvedStudentUUID.slice(0, 8)}@vibramusic.pe`,
-            payment_day: 1,
-            automatic_payment: false,
-          });
-        }
-      } catch (fErr) {
-        console.warn("[Insforge Sync] Aviso al asegurar familia previa:", fErr);
-      }
+      // 🛡️ Asegurar registro en families antes de crear el alumno (idempotente)
+      await ensureFamilyRecord(targetFamilyId, student);
 
       const payload: any = {
         id: resolvedStudentUUID,
@@ -504,28 +568,11 @@ function backgroundCreateInvoiceInDB(role: Role, invoice: Invoice, student: Admi
 
     import("@/lib/services/invoices.service").then(async ({ createInvoice }) => {
       const resolvedStudentUUID = resolveStudentUUID(student.id) || student.id;
-      const familyId = resolvedStudentUUID.startsWith("00000000-0000-0000-0002-")
-        ? resolvedStudentUUID.replace(/^00000000-0000-0000-0002-/, "00000000-0000-0000-0001-")
-        : resolvedStudentUUID;
+      const familyId = resolveTargetFamilyId(student, resolvedStudentUUID);
 
-      // 1. Asegurar registro en families antes de crear la factura (FK estricta)
-      if (familyId) {
-        try {
-          const { postgrestInsert, postgrestSelect } = await import("@/lib/insforge");
-          const existingFamilies = await postgrestSelect("families", { id: `eq.${familyId}` });
-          if (!existingFamilies || existingFamilies.length === 0) {
-            await postgrestInsert("families", {
-              id: familyId,
-              family_name: student.family || `Familia ${student.name}`,
-              primary_guardian_name: student.emergencyContact?.name || student.name,
-              primary_guardian_phone: student.emergencyContact?.phone || student.phone?.trim() || "987654321",
-              email: student.emergencyContact?.email || student.email?.trim() || `alumno_${student.id.slice(0, 8)}@vibramusic.pe`,
-            });
-          }
-        } catch (fErr) {
-          console.warn("[Insforge Sync] Aviso al asegurar familia:", fErr);
-        }
-      }
+      // 1. Asegurar registro en families antes de crear la factura (FK estricta).
+      //    Idempotente: comparte la promesa con la creación del alumno y absorbe el 409.
+      await ensureFamilyRecord(familyId, student);
 
       // 2. Insertar factura en tabla invoices de PostgreSQL
       const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";
@@ -2188,6 +2235,10 @@ export const useAppStore = create<AppState>()(
           const fullStudent: AdminStudent = {
             ...newSt,
             id,
+            // 🛡️ Todo alumno matriculado debe tener modalidad: sin este default,
+            // cualquier caller que no la envíe (ej. Registro 2 multi-instrumento)
+            // dejaba `modality: undefined` y rompía los badges del directorio.
+            modality: newSt.modality || "Regular (8 clases / 45 min)",
             planPrice,
             amountPaid,
             balance: totalBalance,
