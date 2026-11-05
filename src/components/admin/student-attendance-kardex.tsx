@@ -58,6 +58,7 @@ import {
   type CalendarWeekInfo,
 } from "@/lib/calendar-utils";
 import { isMatchingStudentName, isSameStudentId } from "@/lib/student-matching";
+import { studentCode, personCode } from "@/lib/student-code";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1833,6 +1834,26 @@ export function StudentAttendanceKardex({
           <DialogDescription className="text-xs text-muted-foreground">
             Historial cronológico auditado de clases con fecha exacta, horario, profesor y regularización retroactiva en 1 clic.
           </DialogDescription>
+          {/* ADR-0189 — Código de esta matrícula, visible y dictable. */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+            <Badge
+              variant="outline"
+              className="font-mono border-primary/40 bg-primary/10 text-primary"
+              title="Código de esta matrícula (instrumento)"
+            >
+              {studentCode(student.id)}
+            </Badge>
+            <span className="font-semibold text-foreground">{student.instrument}</span>
+            {student.personGroupId && (
+              <Badge
+                variant="outline"
+                className="font-mono border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                title="Código de la persona (todas sus matrículas)"
+              >
+                {personCode(student.personGroupId)}
+              </Badge>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 pr-1 min-w-0 w-full max-w-full">{content}</div>

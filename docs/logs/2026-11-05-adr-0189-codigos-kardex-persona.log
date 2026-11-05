@@ -1,0 +1,72 @@
+# Log — ADR-0189: código por instrumento, ficha de persona y confirmación del Registro 2
+
+- Fecha: 2026-11-05
+- Base: `main` @ `07c82b6`
+- Alcance: Fases 0–3 del `docs/PLAN_QUIRURGICO_REGISTRO_2_CODIGOS_KARDEX.md` (sin dinero)
+
+## Contexto
+
+El usuario aprobó ejecutar el bloque sin dinero del plan (Fases 0–4, donde la 4 se reordenó
+después). El objetivo inmediato era resolver la queja operativa: *"registro a la alumna en dos
+instrumentos y no aparece nada"* — no había forma de saber qué matrículas se crearon ni de
+llegar a su Kardex.
+
+## Trabajo realizado
+
+### Fase 1 — Código por matrícula y por persona
+
+- Nuevo `src/lib/student-code.ts`:
+  - `formatStudentCode(id)` → `VM-XXXXXX` derivado del UUID; FNV-1a para ids heredados.
+  - `studentCode(id)` / `personCode(personGroupId)`.
+  - `normalizeCodeQuery` + `matchesStudentCode` (mínimo 2 caracteres útiles).
+- Se muestra en la cabecera del drawer de la ficha y en la cabecera del Kardex.
+- El buscador de `/admin/alumnos` filtra por código.
+
+### Fase 2 — Tarjeta «Persona · N matrículas»
+
+- `students-table.tsx`: `linkedPersonMembers` desde `personGroupId` (solo vínculos reales).
+- Tarjeta con una fila por instrumento: instrumento, código, docente, sala, horario resumido,
+  estado, y botones `[Kardex]` / `[Ficha]` que abren la matrícula correcta.
+- El botón "Vincular con otro instrumento" queda como acción secundaria, con el texto
+  *"Úsalo solo si registraste a la misma persona dos veces por separado"*, y **desaparece**
+  cuando ya hay vínculo (para no invitar a duplicar).
+
+### Fase 3 — Confirmación visible del Registro 2
+
+- `multi-instrument-enrollment.tsx`: nuevo estado `EnrollmentConfirmation`.
+- Tras `addNewStudent`, se leen del store las matrículas con el `personGroupId` recién creado
+  (UUID definitivo) y se abre un diálogo con códigos, docente y botón de Kardex por
+  instrumento, más el resumen contratado/abonado/pendiente/a favor.
+- Si no se pueden leer del directorio, se avisa y se pide recargar: no se inventan datos.
+
+### Fase 0 — contención del 409
+
+- Verificado: `ensureFamilyRecord` ya comparte la promesa en vuelo y absorbe `409`/`23505`.
+  No existe `console.warn` de aplicación para ese caso. El mensaje visible en el navegador es
+  la respuesta HTTP de PostgREST, no un log nuestro. **Sin cambios de código.**
+
+## Verificación
+
+1. `npm run build` → verde (✓ built in 776ms).
+2. `npx tsc --noEmit` filtrado a `students-table.tsx`, `multi-instrument-enrollment.tsx`,
+   `student-attendance-kardex.tsx`, `student-code.ts` → **0 errores nuevos**. Los errores
+   preexistentes del archivo (props opcionales reenviadas, `room` en `AdminStudent`, etc.)
+   no aumentaron; se corrigió el único acceso nuevo a `emergencyContact.room` con cast seguro.
+3. `scratch/test-adr-0189-codigos.mjs` con datos vivos → **15/15**:
+   - `VM-2307EF` estable para el UUID de Luciana/Piano; `VM-F8FC5E` para su grupo de persona.
+   - Id heredado (`st-001` → `VM-154952`), `null` → `VM-SIN-ID`.
+   - Búsqueda por sufijo, prefijo con espacios; término corto y nombres no matchean código.
+   - **62 alumnos activos, 62 códigos únicos** (sin colisión).
+   - Luciana: 4 matrículas con código; par A con persona `VM-F8FC5E`, par B con
+     `VM-18B657` y Canto sin vínculo (pendiente de la Fase 5, no se tocó).
+
+## Lo que NO se tocó
+
+`kardex-calculator.ts`, `student-cycle.ts`, Registro 1, recibos, `payment_audit_logs`,
+`students.notes`, `notification_logs`. Sin DDL, sin borrados, sin escrituras de datos.
+
+## Pendiente
+
+- Fases 4–5 (Cuenta Familiar / consolidación de Luciana): requieren revisión con Dirección.
+- Fase 6: corregir deduplicación de homónimos antes de quitar el sufijo `"(Canto)"`.
+- Fase 7: bug del docente en `/teacher/informes`, bloqueado hasta tener su consola (F12).

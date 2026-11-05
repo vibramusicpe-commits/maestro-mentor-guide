@@ -26,7 +26,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { AlertCircle, Layers, Plus, Wallet } from "lucide-react";
+import { AlertCircle, BookOpen, CheckCircle2, Layers, Plus, Wallet } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAppStore, type AdminStudent, type MatriculaType } from "@/store/app-store";
 import { detectSamePersonCandidates, describeInstrumentBundle } from "@/lib/student-person-group";
+import { studentCode, personCode } from "@/lib/student-code";
 import { toIsoDate } from "@/lib/informes/utils";
 import { TEACHER_IDS, resolveTeacherNameById } from "@/lib/services/teacher-resolver";
 import { INSTRUMENT_SPECIALISTS, instrumentFamily } from "@/lib/informes/instrument-specialists";
@@ -85,6 +86,30 @@ const BOOK_COST = 67;
 interface MultiInstrumentEnrollmentProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** ADR-0189 — abrir el Kardex de una matrícula recién creada. */
+  onOpenKardex?: (student: AdminStudent) => void;
+}
+
+/**
+ * ADR-0189 — Resultado visible al terminar el registro.
+ * Hoy el modal se cerraba sin dejar rastro y secretaría no sabía qué se creó.
+ */
+interface EnrollmentConfirmation {
+  label: string;
+  studentName: string;
+  personGroupId: string;
+  members: Array<{
+    id: string;
+    name: string;
+    instrument: string;
+    teacher: string;
+    code: string;
+    student: AdminStudent;
+  }>;
+  contratado: number;
+  abonado: number;
+  pendiente: number;
+  saldoFavor: number;
 }
 
 /**
@@ -130,7 +155,7 @@ interface PaymentEntry {
   note: string;
 }
 
-export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumentEnrollmentProps) {
+export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: MultiInstrumentEnrollmentProps) {
   const addNewStudent = useAppStore((s) => s.addNewStudent);
   const adminStudents = useAppStore((s) => s.adminStudents);
 
@@ -147,6 +172,8 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
   ]);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [saving, setSaving] = useState(false);
+  // ADR-0189 — confirmación visible con códigos y acceso a cada Kardex.
+  const [confirmation, setConfirmation] = useState<EnrollmentConfirmation | null>(null);
 
   // 🎓 Matrícula institucional: UNA sola por familia, sin importar cuántos
   // instrumentos contrate el alumno (corrección de Dirección, ADR-0188 §10).
@@ -337,6 +364,44 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
         }
       });
 
+      // ADR-0189 — Confirmación visible: hoy el modal se cerraba sin rastro.
+      // Se leen del store las matrículas REALES recién creadas (UUID definitivo)
+      // para mostrar su código y abrir cada Kardex en un clic.
+      const created = useAppStore
+        .getState()
+        .adminStudents.filter((st) => st.personGroupId === personGroupId);
+
+      const abonadoReal =
+        slots.reduce((sum, slot, index) => {
+          const slotPayments = payments.filter((entry) => entry.slotIndex === index && entry.amount > 0);
+          const paidTotal = slotPayments.reduce((partial, entry) => partial + entry.amount, 0);
+          const abonado = paidTotal > 0 ? paidTotal : slot.amountPaid || 0;
+          return sum + abonado + (slot.packUtilesAmountPaid || 0);
+        }, 0) + Math.max(0, matriculaAmountPaid || 0);
+
+      const saldoFavor = slots.reduce(
+        (sum, slot) => sum + Math.max(0, (slot.amountPaid || 0) - (slot.planPrice || 0)),
+        0,
+      );
+
+      setConfirmation({
+        label,
+        studentName: name.trim(),
+        personGroupId,
+        members: created.map((st) => ({
+          id: st.id,
+          name: st.name,
+          instrument: st.instrument,
+          teacher: st.teacher,
+          code: studentCode(st.id),
+          student: st,
+        })),
+        contratado: totals.contratado,
+        abonado: abonadoReal,
+        pendiente: Math.max(0, totals.contratado - abonadoReal),
+        saldoFavor,
+      });
+
       toast.success(`✅ Matrícula multi-instrumento creada: ${label}`, {
         description: `${name.trim()} · ${totals.excedente > 0 ? `Saldo a favor de la familia: S/ ${totals.excedente.toFixed(2)}` : "Sin excedente"}`,
       });
@@ -351,6 +416,7 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[96vw] max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
@@ -775,5 +841,114 @@ export function MultiInstrumentEnrollment({ open, onOpenChange }: MultiInstrumen
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* ADR-0189 — Confirmación con códigos y acceso directo a cada Kardex. */}
+    <Dialog open={Boolean(confirmation)} onOpenChange={(next) => !next && setConfirmation(null)}>
+      <DialogContent className="w-[96vw] max-w-lg max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base font-black">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            Matrícula multi-instrumento registrada
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            {confirmation?.studentName} quedó en {confirmation?.members.length ?? 0} matrículas.
+            Cada instrumento tiene su propio código y su propio Kardex.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+            <Layers className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-300" />
+            <span className="text-[11px] font-black uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
+              {confirmation?.label || "Instrumentos contratados"}
+            </span>
+            {confirmation && (
+              <Badge
+                variant="outline"
+                className="font-mono text-[10px] border-emerald-500/50 text-emerald-700 dark:text-emerald-300"
+                title="Código de la persona (compartido por sus matrículas)"
+              >
+                {personCode(confirmation.personGroupId)}
+              </Badge>
+            )}
+            <span className="text-[10px] text-muted-foreground">código de persona</span>
+          </div>
+
+          <div className="space-y-2">
+            {confirmation?.members.map((member) => (
+              <div key={member.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                      {member.instrument}
+                      <span className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
+                        {member.code}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Prof. {member.teacher || "Sin docente asignado"}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1 text-[11px] font-bold border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+                    onClick={() => {
+                      onOpenKardex?.(member.student);
+                      setConfirmation(null);
+                    }}
+                    title={`Abrir el Kardex de ${member.instrument}`}
+                  >
+                    <BookOpen className="h-3 w-3" /> Kardex
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            {confirmation && confirmation.members.length === 0 && (
+              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200">
+                Las matrículas se crearon, pero no se pudieron leer del directorio. Recarga la
+                página para verlas.
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-muted/40 p-3 text-[11px] sm:grid-cols-4">
+            <div>
+              <p className="text-muted-foreground">Contratado</p>
+              <p className="font-mono font-black">S/ {(confirmation?.contratado ?? 0).toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Abonado</p>
+              <p className="font-mono font-black text-emerald-600 dark:text-emerald-400">
+                S/ {(confirmation?.abonado ?? 0).toFixed(2)}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Pendiente</p>
+              <p className="font-mono font-black text-rose-600">S/ {(confirmation?.pendiente ?? 0).toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">A favor</p>
+              <p className="font-mono font-black text-sky-600 dark:text-sky-400">
+                S/ {(confirmation?.saldoFavor ?? 0).toFixed(2)}
+              </p>
+            </div>
+          </div>
+
+          <p className="text-[10px] leading-snug text-muted-foreground">
+            La matrícula institucional se cobró una sola vez por familia. El excedente queda como
+            saldo a favor y no se aplica automáticamente a ningún instrumento.
+          </p>
+
+          <div className="flex justify-end gap-2 border-t border-border pt-3">
+            <Button type="button" size="sm" className="text-xs font-bold" onClick={() => setConfirmation(null)}>
+              Listo
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

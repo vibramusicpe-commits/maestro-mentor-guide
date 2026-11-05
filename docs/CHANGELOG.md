@@ -4,6 +4,15 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.63] - 2026-11-05
+
+### Código por Instrumento, Ficha de Persona con Kardex y Confirmación del Registro 2 (ADR-0189)
+- **Código dictable por matrícula**: nuevo `src/lib/student-code.ts` deriva `VM-2307EF` del UUID (FNV-1a para ids heredados). **Sin columna ni DDL**: es una vista determinista del UUID. Se muestra en la ficha, en la cabecera del Kardex y se puede **buscar por código** en `/admin/alumnos` (`VM-2307EF`, `2307ef`, `2307 EF`).
+- **Tarjeta «Persona · N matrículas»** en la ficha: una fila por instrumento con su código, docente, sala y horario, y botones **[📖 Kardex] [✏️ Ficha]** que abren la matrícula correcta. El botón "Vincular con otro instrumento" pasa a acción secundaria con texto explícito y desaparece cuando ya hay vínculo.
+- **Confirmación visible al terminar el Registro 2**: antes el modal se cerraba sin rastro. Ahora muestra las matrículas creadas con su código, docente y acceso directo a cada Kardex, más el resumen contratado/abonado/pendiente/a favor (el excedente sigue sin aplicarse automáticamente).
+- **Código de persona** además del de matrícula, para poder hablar de "la alumna" sin ambigüedad entre instrumentos homónimos.
+- **Verificación**: `npm run build` en verde, `tsc --noEmit` sin errores nuevos y `scratch/test-adr-0189-codigos.mjs` **15/15** con datos vivos (62 alumnos activos → 62 códigos únicos). Sin tocar `kardex-calculator.ts`, `student-cycle.ts`, Registro 1, recibos ni auditoría.
+
 ## [2.0.62] - 2026-11-03
 
 ### Matrícula Única por Familia, Familias Idempotentes y Fix de Modalidad (ADR-0188)

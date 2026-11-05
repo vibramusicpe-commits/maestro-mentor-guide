@@ -98,7 +98,13 @@ import {
 } from "@/components/ui/table";
 import { money } from "@/lib/format";
 import { isSameStudentId, isMatchingStudentName } from "@/lib/student-matching";
-import { findLinkedSiblingsAtRisk, describeInstrumentBundle } from "@/lib/student-person-group";
+import {
+  findLinkedSiblingsAtRisk,
+  describeInstrumentBundle,
+  resolvePersonSiblings,
+  readPersonSignals,
+} from "@/lib/student-person-group";
+import { matchesStudentCode, studentCode, personCode } from "@/lib/student-code";
 import { LinkPersonDialog } from "@/components/admin/link-person-dialog";
 import { MultiInstrumentEnrollment } from "@/components/admin/multi-instrument-enrollment";
 import {
@@ -117,6 +123,17 @@ function statusBadge(status: StudentStatus) {
     case "baja":
       return <Badge className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-0">Baja</Badge>;
   }
+}
+
+/**
+ * ADR-0189 — Horario semanal resumido de una matrícula, para la tarjeta
+ * «Persona · N matrículas». Solo lecciones recurrentes (sin fecha puntual).
+ */
+function describeStudentSchedule(st: AdminStudent): string {
+  const lessons = (st.scheduleLessons || []).filter((lesson) => !lesson.dateStr && !lesson.isMakeup);
+  if (lessons.length === 0) return "Sin horario agendado";
+  const slots = Array.from(new Set(lessons.map((lesson) => `${lesson.day} ${lesson.time}`)));
+  return slots.slice(0, 2).join(" · ");
 }
 
 function modalityBadge(modality?: LessonModality | string | null) {
@@ -523,7 +540,9 @@ export function StudentsTable() {
         search.trim() === "" ||
         [st.name, st.family, st.instrument, st.email].some((value) =>
           (value || "").toLowerCase().includes(term),
-        );
+        ) ||
+        // ADR-0189 — búsqueda por código de matrícula (ej. `VM-2307EF`).
+        matchesStudentCode(st.id, search);
 
       const matchTeacher = teacherFilter === ALL || st.teacher === teacherFilter;
       // 🛡️ `modality` es opcional en la práctica: nunca asumir que existe.
@@ -543,6 +562,16 @@ export function StudentsTable() {
   const inactiveCount = students.filter((s) => s.status !== "activo").length;
 
   const selectedStudent = students.find((s) => isSameStudentId(s.id, selectedStudentId)) ?? null;
+
+  // ADR-0189 — Matrículas vinculadas de la MISMA persona (2+ instrumentos).
+  // Solo se agrupan las que comparten `personGroupId`: un candidato detectado
+  // por señales pero sin vincular no se muestra aquí (para eso está el botón).
+  const linkedPersonMembers = useMemo(() => {
+    const groupId = selectedStudent?.personGroupId;
+    if (!groupId) return [] as AdminStudent[];
+    return students.filter((st) => st.personGroupId === groupId);
+  }, [selectedStudent, students]);
+
 
   // Píldoras de asistencia reactivas para el panel "Ver Ficha" (recolectadas desde schedule.attendanceByDate)
   const selectedStudentAttendancePills = useMemo(() => {
@@ -855,6 +884,10 @@ export function StudentsTable() {
       <MultiInstrumentEnrollment
         open={multiEnrollmentOpen}
         onOpenChange={setMultiEnrollmentOpen}
+        onOpenKardex={(st) => {
+          setKardexStudent(st);
+          setIsKardexEditable(false);
+        }}
       />
 
       {/* Tabla de Alumnos */}
@@ -1208,9 +1241,116 @@ export function StudentsTable() {
                 <SheetDescription>
                   {selectedStudent.family} · {selectedStudent.instrument} ({selectedStudent.level}) · Prof. {selectedStudent.teacher}
                 </SheetDescription>
+                {/* ADR-0189 — Código de matrícula (dictable, derivado del UUID). */}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className="font-mono text-[10px] border-primary/40 bg-primary/10 text-primary"
+                    title="Código de esta matrícula (instrumento)"
+                  >
+                    {studentCode(selectedStudent.id)}
+                  </Badge>
+                  {selectedStudent.personGroupId && (
+                    <Badge
+                      variant="outline"
+                      className="font-mono text-[10px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                      title="Código de la persona (todas sus matrículas)"
+                    >
+                      {personCode(selectedStudent.personGroupId)}
+                    </Badge>
+                  )}
+                  <span className="text-[10px] text-muted-foreground">
+                    Código de matrícula{selectedStudent.personGroupId ? " · código de persona" : ""}
+                  </span>
+                </div>
               </SheetHeader>
 
               <div className="space-y-6 pt-5">
+                {/* ADR-0189 — PERSONA · N MATRÍCULAS (misma persona, varios instrumentos).
+                    Reemplaza como acción principal el botón suelto «Vincular». */}
+                {linkedPersonMembers.length > 1 && selectedStudent.personGroupId && (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                        <Layers className="h-4 w-4" />
+                        Persona · {linkedPersonMembers.length} matrículas
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[10px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                        title="Código de la persona (compartido por todas sus matrículas)"
+                      >
+                        {personCode(selectedStudent.personGroupId)}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2">
+                      {linkedPersonMembers.map((member) => {
+                        const isCurrent = isSameStudentId(member.id, selectedStudent.id);
+                        return (
+                          <div
+                            key={member.id}
+                            className={`rounded-lg border px-3 py-2 ${
+                              isCurrent
+                                ? "border-emerald-500/50 bg-background"
+                                : "border-border bg-background/60"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2 flex-wrap">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap text-xs font-bold text-foreground">
+                                  <Music className="h-3 w-3 text-muted-foreground" />
+                                  <span>{member.instrument || "Sin instrumento"}</span>
+                                  <span className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
+                                    {studentCode(member.id)}
+                                  </span>
+                                  {isCurrent && (
+                                    <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-black text-emerald-700 dark:text-emerald-300">
+                                      viendo
+                                    </span>
+                                  )}
+                                  {member.status !== "activo" && statusBadge(member.status)}
+                                </div>
+                                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                  Prof. {member.teacher || "—"} ·{" "}
+                                  {(member.emergencyContact as { room?: string } | undefined)?.room ||
+                                    "Sin sala"}{" "}
+                                  · {describeStudentSchedule(member)}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 gap-1 text-[10px] font-bold border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+                                  onClick={() => setKardexStudent(member)}
+                                  title={`Abrir Kardex de ${member.instrument} (${member.name})`}
+                                >
+                                  <BookOpen className="h-3 w-3" /> Kardex
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 gap-1 text-[10px] font-bold"
+                                  onClick={() => setSelectedStudentId(member.id)}
+                                  title={`Ver la ficha de ${member.instrument}`}
+                                >
+                                  <Pencil className="h-3 w-3" /> Ficha
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-[10px] leading-snug text-muted-foreground">
+                      Son matrículas distintas (docente, sala, horario y plan propios). No se
+                      fusionan: comparten la misma persona y la cuenta familiar.
+                    </p>
+                  </div>
+                )}
+
                 {/* 1. FICHA ACADÉMICA Y DATOS PRINCIPALES (100% EDITABLE) */}
                 <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3.5">
                   <div className="flex items-center justify-between">
@@ -1233,20 +1373,35 @@ export function StudentsTable() {
                         placeholder="Nombre completo del alumno"
                         className="text-xs h-8 bg-background font-bold"
                       />
-                      {/* ADR-0186 — Misma persona con varios instrumentos */}
-                      <button
-                        type="button"
-                        onClick={() => setLinkPersonOpen(true)}
-                        className="inline-flex min-h-[32px] w-full items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2 text-[11px] font-bold text-primary transition-colors hover:bg-primary/15"
-                      >
-                        <Link2 className="h-3 w-3" />
-                        Vincular con otro instrumento
-                        {selectedStudent.personGroupId && (
-                          <span className="ml-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
-                            vinculado
-                          </span>
-                        )}
-                      </button>
+                      {/* ADR-0186/0189 — Misma persona con varios instrumentos.
+                          Si ya está vinculada, la administración vive en la tarjeta
+                          «Persona · N matrículas» del inicio de la ficha. */}
+                      {linkedPersonMembers.length > 1 ? (
+                        <p className="text-[10px] leading-snug text-muted-foreground">
+                          Esta persona tiene {linkedPersonMembers.length} matrículas vinculadas.
+                          Administra cada una desde la tarjeta «Persona» al inicio de la ficha.
+                        </p>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setLinkPersonOpen(true)}
+                            className="inline-flex min-h-[32px] w-full items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-2 text-[11px] font-bold text-primary transition-colors hover:bg-primary/15"
+                          >
+                            <Link2 className="h-3 w-3" />
+                            Vincular con otro instrumento
+                            {selectedStudent.personGroupId && (
+                              <span className="ml-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                                vinculado
+                              </span>
+                            )}
+                          </button>
+                          <p className="text-[10px] leading-snug text-muted-foreground">
+                            Úsalo solo si registraste a la misma persona dos veces por separado
+                            (otro instrumento con ficha propia).
+                          </p>
+                        </>
+                      )}
                     </div>
 
                     {/* Apellidos / Familia / Titular */}

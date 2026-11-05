@@ -2010,3 +2010,26 @@ inferencia.
 2. **Modalidad con fallback seguro**: todo alumno nuevo debe nacer con `modality` definida (`Regular (8 clases / 45 min)`). Todo selector, filtro o badge que evalúe `modality.includes(...)` debe protegerse con encadenamiento opcional `st.modality?.includes(...)` o `(st.modality || "").includes(...)` para prevenir errores de tipo `TypeError: Cannot read properties of undefined (reading 'includes')`.
 3. **Persistencia de `personGroupId` en creación**: al matricular alumnos multi-instrumento, `personGroupId` y `personGroupLabel` deben persistirse atómicamente en `emergency_contact` tanto en Zustand como en PostgreSQL desde la primera escritura.
 4. **Matrícula institucional única por familia y libro por instrumento**: la matrícula institucional se cobra una sola vez para la familia; el segundo instrumento se marca como Exonerado con nota en `emergency_contact` JSONB. El libro de texto sí se cobra por cada instrumento.
+
+---
+
+### 94. Código por Matrícula/Persona, Tarjeta «Persona · N Matrículas» y Confirmación del Registro 2 (ADR-0189)
+
+1. **Código derivado del UUID, jamás persistido**:
+   - `src/lib/student-code.ts` es la **única fuente** de `studentCode(id)` (`VM-2307EF`) y `personCode(personGroupId)` (`VM-F8FC5E`). Para ids heredados no-UUID usa hash FNV-1a; `null`/vacío → `VM-SIN-ID`.
+   - Queda **TERMINANTEMENTE PROHIBIDO** agregar una columna `code` a `students` o guardar el código como fuente de verdad: es una vista determinista del UUID. Editar la ficha no cambia el código; una re-matrícula sí (porque cambia el UUID, y es correcto).
+   - Prohibido reimplementar el formato en otra vista (ADR-0119.3).
+2. **Búsqueda por código**:
+   - `matchesStudentCode(id, query)` acepta `VM-2307EF`, `2307ef`, `2307 EF` y exige **mínimo 2 caracteres útiles** para no secuestrar búsquedas por nombre.
+3. **Tarjeta «Persona · N matrículas» en la ficha (`students-table.tsx`)**:
+   - Solo agrupa matrículas que comparten `personGroupId` real (`linkedPersonMembers`). Un candidato detectado por nacimiento + apoderado pero **sin vincular** no se presenta como si ya lo estuviera.
+   - Cada fila muestra instrumento, código, docente, sala y horario resumido, con `[📖 Kardex]` que ejecuta `setKardexStudent(member)` y `[✏️ Ficha]` que cambia el alumno seleccionado. **Prohibido** abrir el Kardex del alumno actual cuando se pulsa la fila de otro instrumento.
+   - El botón "Vincular con otro instrumento" es acción **secundaria** con el texto *"Úsalo solo si registraste a la misma persona dos veces por separado"* y se **oculta** cuando ya hay vínculo.
+4. **Confirmación visible al terminar el Registro 2 (`multi-instrument-enrollment.tsx`)**:
+   - Tras `addNewStudent`, se leen del store las matrículas reales por `personGroupId` (`useAppStore.getState()`) para mostrar su **UUID definitivo** como código.
+   - El diálogo muestra una fila por instrumento con `[📖 Kardex]` (`onOpenKardex`) y el resumen contratado/abonado/pendiente/a favor. El formulario se limpia y se cierra.
+   - Si no se pueden leer las matrículas, se muestra un aviso honesto pidiendo recargar. **Prohibido** inventar códigos o montos.
+   - El excedente **sigue sin aplicarse automáticamente** (ADR-0188): queda como saldo a favor de la familia.
+5. **Cero riesgo de datos en estas fases**: no hay DDL, no se escriben datos nuevos, no se toca `kardex-calculator.ts`, `student-cycle.ts`, el Registro 1, los recibos ni `payment_audit_logs`.
+6. **Sufijo `"(Canto)"`**: se mantiene hasta cerrar la Fase 6 (corregir la deduplicación de homónimos de `hydrateFromBackend`, ADR-0107/0119). **Prohibido** quitarlo antes: Canto desaparecería del directorio y del horario al recargar.
+7. **Referencia**: `docs/adr/0189-codigo-por-instrumento-persona-y-confirmacion-registro-2.md`, `docs/logs/2026-11-05-adr-0189-codigos-kardex-persona.log`, `docs/PLAN_QUIRURGICO_REGISTRO_2_CODIGOS_KARDEX.md` y CHANGELOG `[2.0.63]`.
