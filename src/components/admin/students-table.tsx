@@ -107,6 +107,7 @@ import {
 import { matchesStudentCode, studentCode, personCode } from "@/lib/student-code";
 import { LinkPersonDialog } from "@/components/admin/link-person-dialog";
 import { MultiInstrumentEnrollment } from "@/components/admin/multi-instrument-enrollment";
+import { FamilyAccountCard } from "@/components/admin/family-account-card";
 import {
   ensureParentInviteForStudent,
   type ParentInviteResult,
@@ -1350,6 +1351,11 @@ export function StudentsTable() {
                     </p>
                   </div>
                 )}
+
+                {/* ADR-0190 — CUENTA FAMILIAR (solo lectura).
+                    Muestra los 3 rubros por matrícula y los totales reales.
+                    No cobra ni aplica nada: eso vive en /admin/facturacion. */}
+                <FamilyAccountCard student={selectedStudent} />
 
                 {/* 1. FICHA ACADÉMICA Y DATOS PRINCIPALES (100% EDITABLE) */}
                 <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3.5">

@@ -4,6 +4,19 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.64] - 2026-11-05
+
+### Cuenta Familiar de Solo Lectura y Atribución Inequívoca de Recibos (ADR-0190)
+- **Nuevo motor puro `src/lib/family-account.ts`**: `buildFamilyAccount()` calcula, por familia, los 3 rubros (matrícula, mensualidad, libro) con contratado / aplicado / pendiente. Sin red, sin estado y **sin una sola escritura de dinero**.
+- **La agrupación ya no se hace por `family_id` a secas**: la auditoría de la base activa mostró que **56 de 62** alumnos tienen `family_id` = su propio UUID. Se agrupa con *union-find* de `personGroupId` + `familyId` **real**; quien no tiene ninguno queda solo, igual que hoy. Verificado: Luciana par A y par B, Camila (Violín + Guitarra) y Mario (Guitarra + Batería) agrupan bien sin mezclarse.
+- **Atribución recibo → matrícula con ambigüedad explícita**: cadena vínculo → `family_id` → nombre exacto único → **ambiguo** (no se suma a ninguna cuenta y se avisa). Corrige el defecto detectado en la primera versión, donde un recibo de "Luciana" se contaba en **las dos** matrículas homónimas. `Invoice` gana `familyId` (aditivo) poblado desde `db.family_id`.
+- **Matrícula una vez por familia y libro por instrumento** quedan reflejados en el resumen, con nota de quién cubrió la matrícula.
+- **Saldo a favor separado**: se muestra en su propia tarjeta con el texto explícito de que **no se aplica automáticamente** a ningún instrumento (ADR-0188).
+- **Cero ruido**: la tarjeta `FamilyAccountCard` solo se renderiza si hay 2+ matrículas, saldo a favor, excedente o advertencias. Un alumno con una matrícula y un recibo pagado ve su ficha idéntica a antes.
+- **Verificación**: `npm run build` en verde, `tsc --noEmit` sin errores nuevos (§92) y `scratch/test-adr-0190-cuenta-familiar.mjs` **24/24** con datos vivos (0 recibos en 2 cuentas; suma de abonados S/ 25,390.00 ≤ cartera real S/ 28,345.00; los dos pares de Luciana no se contaminan entre sí). Sin tocar `kardex-calculator.ts`, `student-cycle.ts`, Registro 1 ni `payment_audit_logs`. El test verifica **invariantes**, no fotos del día: los conteos de homónimos cambian con los datos.
+
+- **Punto abierto para Dirección**: durante el cierre apareció que `Luciana Mendoza Gómez` (`90191dc0`, plan S/ 297) tiene el **mismo `personGroupId` que el par A**, por lo que el motor la suma a esa cuenta (3 matrículas · S/ 30 pendientes de matrícula Promo Demo). Si es **otra persona**, el dato a corregir es su `personGroupId` en la ficha, **no** el motor. Además se creó el registro `"Luciana "` (`f630d6df`, con espacio final) en familia propia, que queda solo.
+
 ## [2.0.63] - 2026-11-05
 
 ### Código por Instrumento, Ficha de Persona con Kardex y Confirmación del Registro 2 (ADR-0189)

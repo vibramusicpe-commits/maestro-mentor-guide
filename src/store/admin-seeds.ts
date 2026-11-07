@@ -265,6 +265,10 @@ export type PaymentLog = {
 export type Invoice = {
   id: string;
   family: string;
+  // ADR-0190 — UUID de `families` en PostgreSQL. Necesario para atribuir un
+  // recibo a UNA matrícula cuando dos alumnos comparten exactamente el mismo
+  // nombre (caso Luciana: 2 registros "Luciana"). Opcional por compatibilidad.
+  familyId?: string;
   concept: string;
   students: number;
   amount: number; // Precio total inmutable

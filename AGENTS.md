@@ -2033,3 +2033,57 @@ inferencia.
 5. **Cero riesgo de datos en estas fases**: no hay DDL, no se escriben datos nuevos, no se toca `kardex-calculator.ts`, `student-cycle.ts`, el Registro 1, los recibos ni `payment_audit_logs`.
 6. **Sufijo `"(Canto)"`**: se mantiene hasta cerrar la Fase 6 (corregir la deduplicación de homónimos de `hydrateFromBackend`, ADR-0107/0119). **Prohibido** quitarlo antes: Canto desaparecería del directorio y del horario al recargar.
 7. **Referencia**: `docs/adr/0189-codigo-por-instrumento-persona-y-confirmacion-registro-2.md`, `docs/logs/2026-11-05-adr-0189-codigos-kardex-persona.log`, `docs/PLAN_QUIRURGICO_REGISTRO_2_CODIGOS_KARDEX.md` y CHANGELOG `[2.0.63]`.
+
+---
+
+### 95. Cuenta Familiar de Solo Lectura, Agrupación sin `family_id` Circular y Atribución Inequívoca de Recibos (ADR-0190)
+
+1. **Diagnóstico que motiva la regla (2026-11-05, auditoría de solo lectura)**:
+   - La base activa real tiene **62 alumnos** y **85 recibos** (no 13): facturado S/ 29,185.00 · cobrado S/ 28,095.00 · saldo S/ 1,878.00.
+   - **56 de 62 activos tienen `family_id` = su propio UUID de alumno.** En la mayoría de los casos **no existe familia real**.
+   - **Luciana aparece 5 veces**: 4 matrículas duplicadas (dos pares de Piano + Canto) y 1 homónima que es **otra persona** (Luciana Mendoza Gómez). Dos registros se llaman **exactamente** `"Luciana"`.
+
+2. **Fuente única (`src/lib/family-account.ts`, puro)**:
+   - `buildFamilyAccount(students, invoices, focusStudentId)` es el **único** cálculo de la cuenta familiar: 3 rubros (matrícula, mensualidad, libro), contratado/aplicado/pendiente, saldo a favor y advertencias.
+   - **Sin red, sin store, sin escrituras.** Queda **PROHIBIDO** recalcular montos, rubros o agrupaciones en un componente (ADR-0119.3).
+   - Exporta además `groupStudentsByFamily`, `resolveInvoiceOwnership`, `matriculaAmountForType`, `libroAmountFor`, `resolveCreditToShow`, `formatSoles` y `classifyInvoiceRubro`.
+
+3. **Agrupación: unión de vínculos reales, nunca `family_id` solo**:
+   - *Union-find* sobre `personGroupId` (misma persona) y `familyId` **solo cuando es familia real** (distinto del UUID del alumno).
+   - Sin ninguno de los dos, el alumno queda **solo**: idéntico a hoy. Queda **TERMINANTEMENTE PROHIBIDO** agrupar familias por `family_id` sin comprobar que no es un puntero circular al propio alumno.
+   - Verificado: Luciana par A y par B, Camila (Violín + Guitarra) y Mario (Guitarra + Batería) agrupan correctamente y **sin mezclarse**.
+
+4. **Atribución recibo → matrícula (cadena obligatoria)**:
+   1. Vínculo explícito `student.invoices[].id`.
+   2. `familyId` del recibo: un solo alumno → dueño; varios → acotar por nombre exacto; si queda uno → dueño.
+   3. Nombre exacto normalizado **solo si es único** entre los activos (o único entre inactivos si no hay activos).
+   4. Si nada desambigua → **`ambiguous: true`** y el recibo **NO se suma a ninguna cuenta**, con advertencia visible.
+   - **Prohibido adivinar.** Un recibo excluido con aviso es mejor que un recibo contado dos veces. Este fue un defecto real de la primera versión: un recibo `— Luciana` entraba en **ambas** matrículas homónimas.
+   - La advertencia de ambigüedad se acota a la familia consultada (por `familyId` del recibo o por nombre de un miembro). Prohibido emitir advertencias globales en la cuenta de un alumno ajeno.
+   - `Invoice` tiene `familyId?: string` (aditivo) poblado en `mapDBInvoiceToInvoice` desde `db.family_id`. **Prohibido** eliminarlo: sin él los homónimos exactos son irresolubles en la app.
+
+5. **Reglas de negocio de los 3 rubros**:
+   - **Matrícula institucional: una sola vez por familia.** Si dos matrículas declaran tipo, solo una lleva monto; la otra queda `Exonerada` con nota de quién la cubrió.
+   - **Mensualidad**: un recibo por ciclo; sin recibo se cae a la ficha (`planPrice`/`amountPaid`) marcada **`sin-recibo`** con advertencia. **Prohibido** inventar montos.
+   - **Libro / Útiles: por instrumento.** Costo declarado o S/ 67 por defecto, salvo exoneración.
+
+6. **Saldo a favor**:
+   - Se muestra en su **propia tarjeta** con el texto explícito de que **no se aplica automáticamente a ningún instrumento** (ADR-0188 §2).
+   - `resolveCreditToShow` prioriza lo **declarado** (`creditBalance`/`saldoAFavor`/`familyCredit` en `emergency_contact`) sobre el excedente detectado.
+   - Queda **PROHIBIDO** usar `Math.max(0, planPrice - amountPaid)` para ocultar el excedente.
+
+7. **UI y cero ruido**:
+   - `src/components/admin/family-account-card.tsx` se monta en el drawer de la ficha (`students-table.tsx`), después de "Persona · N matrículas".
+   - `isRelevant` solo es verdadero con **2+ matrículas, saldo a favor, excedente o advertencias**. Prohibido mostrarla en fichas simples: un alumno con una matrícula y un recibo pagado debe ver su ficha **idéntica a antes**.
+   - La tarjeta **no tiene botones que cobren, apliquen ni muevan dinero**. Los cobros viven en `/admin/facturacion`.
+
+8. **Alcance y límites explícitos**:
+   - **No hay DDL** y no se toca `kardex-calculator.ts`, `student-cycle.ts`, `students.notes`, `notification_logs` ni `payment_audit_logs`.
+   - Crear las `families` reales para los 56 casos es trabajo de datos de la Fase 5, **no** de esta fase.
+   - La deduplicación de homónimos de `hydrateFromBackend` (ADR-0107/0119) sigue intacta: el sufijo `"(Canto)"` **no se quita** hasta la Fase 6.
+
+9. **Verificación de referencia**: `scratch/test-adr-0190-cuenta-familiar.mjs` **24/24** con datos vivos (los dos pares de Luciana no se contaminan entre sí; agrupación solo por vínculo real; **0 recibos en 2 cuentas**; suma de abonados S/ 25,390.00 ≤ S/ 28,345.00; `family_id` circular no agrupa con ajenos en 57 alumnos; matrícula cobrada ≤ 1 vez; saldo a favor no se aplica a la deuda). `npm run build` en verde y `npx tsc --noEmit` sin errores nuevos (§92). Documentación: ADR-0190 y `docs/logs/2026-11-05-adr-0190-cuenta-familiar.log`.
+   - El test verifica **invariantes**, no conteos fijos: los homónimos de Luciana cambian con los datos en producción.
+   - **Punto abierto (2026-11-07)**: `Luciana Mendoza Gómez` (`90191dc0`, plan S/ 297) comparte `personGroupId` con el par A; el motor la suma a esa cuenta. Si es otra persona, se corrige su `personGroupId` en la ficha, **nunca** el motor. Ídem el registro `"Luciana "` (`f630d6df`, con espacio final) creado en familia propia.
+
+10. **Siguiente paso (no ejecutado)**: Fase 5 — consolidación de Luciana con la decisión de Dirección ya tomada: **par A vigente**, par B archivado como baja (sin borrar), recibo pendiente del par B **anulado (no eliminado)** y los S/ 250 cobrados del Piano del par B como **saldo a favor de la familia**. Exige confirmación explícita final antes de escribir.

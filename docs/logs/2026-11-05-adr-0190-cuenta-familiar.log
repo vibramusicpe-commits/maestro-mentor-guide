@@ -1,0 +1,115 @@
+2026-11-05 — ADR-0190 — Cuenta Familiar de solo lectura
+=======================================================
+
+Objetivo de la sesión
+---------------------
+Antes de mover dinero (Fase 4 bolsa de abonos y Fase 5 consolidación de
+Luciana), construir una vista de cuenta familiar de SOLO LECTURA y auditar la
+base activa real.
+
+1. Auditoría de la base activa (solo lectura)
+---------------------------------------------
+Script: scratch/audit-base-activa-2026-11-05.mjs
+
+  - Activos: 62 (no 13). Recibos: 85.
+  - Cartera: facturado S/ 29,185.00 · cobrado S/ 28,095.00 · saldo S/ 1,878.00.
+  - 56 de 62 activos tienen family_id = su propio UUID de alumno.
+  - Familias con más de un activo: 4 (Camila, Luciana x2, Mario).
+  - 3 activos sin recibo identificable: Antonella, Eitan, kamila Valentina G.
+  - Luciana: 4 matrículas duplicadas (2 pares) + 1 homónima que es otra
+    persona (Luciana Mendoza Gómez, plan 297, familia 90191dc0).
+
+Hallazgo que cambió el diseño: agrupar "familias" por family_id a secas
+partiría familias reales en pedazos y lo haría EN SILENCIO.
+
+2. Módulo puro
+--------------
+Nuevo src/lib/family-account.ts:
+  - buildFamilyAccount(students, invoices, focusStudentId) → resumen.
+  - Agrupación por union-find de personGroupId + familyId REAL (≠ uuid propio).
+  - Atribución recibo → matrícula: vínculo explícito → family_id → nombre
+    exacto único → AMBIGUO (no se suma a nadie, se avisa).
+  - Rubros: matrícula (1 vez por familia), mensualidad, libro (por instrumento).
+  - Saldo a favor aparte, nunca aplicado automáticamente.
+  - isRelevant: la tarjeta no aparece en fichas simples.
+
+3. Primer intento y corrección (importante)
+-------------------------------------------
+La v1 atribuía recibos por nombre exacto. Con DOS matrículas llamadas
+exactamente "Luciana", el mismo recibo entraba en las dos cuentas.
+
+Síntomas detectados por el test con datos vivos:
+  - Par A mostraba S/ 1,100 contratado / 8 líneas (inflado).
+  - "ningún recibo aparece en 2 cuentas" → 4 duplicados.
+  - Advertencia de ambigüedad global contaminaba a TODAS las cuentas,
+    incluida la de Aaron (que no tiene ningún homónimo).
+
+Correcciones:
+  - Índice de atribución (byId / byNameActive / byNameInactive / byFamily /
+    byDeclaredInvoice) y función resolveInvoiceOwnership con cadena de
+    prioridad. Si no desambigua → ambiguous y NO se suma.
+  - La advertencia de ambigüedad se acota a la familia consultada (por
+    family_id del recibo o por nombre de algún miembro).
+  - Invoice gana familyId opcional y mapDBInvoiceToInvoice lo puebla desde
+    db.family_id. Sin eso, en la app los homónimos exactos son irresolubles.
+
+4. Verificación
+--------------
+  - npm run build → verde.
+  - npx tsc --noEmit -p tsconfig.json → 0 errores nuevos en
+    family-account.ts, family-account-card.tsx y students-table.tsx.
+    (Los 4 errores de invoices.service.ts / admin-seeds.ts son preexistentes;
+    el de invoices.service.ts:127 es `remindedAt: string | null` y solo se
+    desplazó de línea al añadir familyId.)
+  - scratch/test-adr-0190-cuenta-familiar.mjs → 22/22 con datos vivos.
+
+Números reales que produce el motor:
+  - Luciana par A: S/ 600 contratado / S/ 600 pagado / S/ 0 pendiente (6 líneas).
+  - Luciana par B: S/ 617 contratado / S/ 300 pagado / S/ 317 pendiente
+    (250 de cuota + 67 de libro).
+  - Par A y par B no se mezclan.
+  - 0 recibos en 2 cuentas. Suma de abonados S/ 25,140.00 ≤ S/ 28,095.00.
+
+5. UI
+----
+src/components/admin/family-account-card.tsx montado en el drawer de la ficha
+(students-table.tsx), después de la tarjeta "Persona · N matrículas":
+  - Contratado / Pagado / Pendiente de la familia.
+  - Tabla por rubro y matrícula con estado (Pagado/Parcial/Pendiente/
+    Exonerado/Sin recibo) y pie consolidado.
+  - Tarjeta separada de saldo a favor con el texto explícito de que NO se
+    aplica automáticamente.
+  - Advertencias "Revisar antes de cobrar".
+  - Sin botones que cobren: solo lectura.
+
+6. Cambios de datos detectados al cierre (2026-11-07)
+------------------------------------------------------
+Al volver a correr el test contra la base viva los conteos cambiaron:
+
+  - Nuevo registro f630d6df con nombre "Luciana " (espacio final), familia
+    propia y sin personGroupId -> queda SOLO. El motor NO agrupa por nombre
+    parecido; hace lo correcto.
+  - "Luciana Mendoza Gómez" (90191dc0) tiene personGroupId = f8fc5eef, el
+    mismo del par A. Por eso su cuenta pasa a 3 matrículas:
+    S/ 994 contratado / S/ 964 abonado / S/ 30 pendiente (matrícula Promo Demo).
+  - Cartera: S/ 28,345 cobrado (antes S/ 28,095).
+
+Conclusión: NO es un defecto del motor. Si Mendoza es otra persona, el dato
+erróneo es su personGroupId y se corrige en la ficha, no en el código.
+
+Punto abierto para Dirección: ¿Luciana Mendoza Gómez (plan 297, matrícula
+Promo Demo) es la misma persona que Luciana (plan 250) o un homónimo mal
+vinculado?
+
+Ajuste del test: pasó de verificar conteos fijos (frágiles ante datos vivos)
+a verificar INVARIANTES: los dos pares no se contaminan entre sí, la
+agrupación solo usa vínculos reales, ningún recibo entra en 2 cuentas, la
+matrícula se cobra máximo 1 vez y el saldo a favor no se aplica solo.
+Resultado: 24/24.
+
+7. Pendiente (requiere confirmación explícita antes de escribir)
+---------------------------------------------------------------
+Fase 5 — consolidación de Luciana con la decisión ya tomada por Dirección:
+par A vigente; par B archivado como baja (sin borrar); recibo pendiente del
+par B ANULADO (no eliminado); S/ 250 cobrados del Piano del par B como saldo
+a favor de la familia.

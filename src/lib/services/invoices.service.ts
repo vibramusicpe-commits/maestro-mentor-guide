@@ -113,6 +113,7 @@ export function mapDBInvoiceToInvoice(
   return {
     id: db.id,
     family: db.families?.family_name || "Familia",
+    familyId: db.family_id || undefined,
     student: studentFromConcept || db.families?.primary_guardian_name || "Alumno",
     phone: db.families?.primary_guardian_phone || "987654321",
     concept: db.concept || "Mensualidad",
