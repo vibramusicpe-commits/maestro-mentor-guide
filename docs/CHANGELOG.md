@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.65] - 2026-11-09
+
+### Consolidación de Familias Duplicadas: Saneamiento Fase 5 Luciana (ADR-0191)
+- **Desvinculación de alumna ajena**: `Luciana Mendoza Gómez` (`90191dc0`) queda limpia de `personGroupId` y `personGroupLabel`, corrigiendo la cuenta familiar del Par A que antes acumulaba indebidamente su pensión de S/ 297 y deuda de matrícula.
+- **Unificación de matrícula legítima**: Se vinculó `f630d6df` (`Luciana ` con espacio final) al grupo familiar `f8fc5eef-78dc-472b-bfa8-3b81720633be` con etiqueta `Piano + Canto`.
+- **Archivado sin eliminación**: El Par B duplicado (`50996819` y `b32540d1`) pasa a estado `baja`, retirando sus lecciones de la agenda semanal activa sin pérdida de datos históricos.
+- **Reasignación de asistencia**: El log `e9714109` (ausente del 2026-11-04) registrado en el Par B huérfano fue reasignado al registro activo correspondiente (`57ee3ecc`), preservando el historial pedagógico de la alumna.
+- **Anulación trazable de recibo huérfano**: El recibo duplicado `55ae6b2c` (S/ 250) fue anulado formalmente (`concept` prefijado con `[ANULADO 2026-11-09 ...]`, `remaining_balance = 0`, `amount_paid = 0`, `status = pagado`), saneando la cartera de deuda institucional.
+- **Saldo a favor reconocido**: Se registraron S/ 250 de saldo a favor familiar (`creditBalance = 250`) en `2307efd3` con nota y fecha de auditoría.
+- **Verificación completa**: Preflight y postflight ejecutados en vivo contra PostgreSQL Insforge; snapshots guardados en `docs/logs/2026-11-09-fase5-luciana-consolidacion.log`.
+
 ## [2.0.64] - 2026-11-05
 
 ### Cuenta Familiar de Solo Lectura y Atribución Inequívoca de Recibos (ADR-0190)

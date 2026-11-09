@@ -1,0 +1,365 @@
+﻿================================================================================
+LOG DE CONSOLIDACIÓN FASE 5 — LUCIANA
+Fecha: 2026-11-09
+Ejecutor: Antigravity
+Referencia: docs/PLAN_ANTIGRAVITY_FASE5_LUCIANA_Y_RENOVACION_HORARIO.md
+================================================================================
+
+--- 1. PREFLIGHT (ANTES) ---
+=== FICHAS ===
+
+[mendoza] 90191dc0-b554-42bb-be64-4488fd447389
+  "Luciana Mendoza Gómez" | activo | family=90191dc0-b554-42bb-be64-4488fd447389 | makeup=0
+  personGroupId=f8fc5eef-78dc-472b-bfa8-3b81720633be | label=Canto + Piano
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=297/297/0 | inicio=2026-10-17 fin=2026-11-16
+  creditBalance=(ausente) | clavesEC=35 | lecciones=0
+
+[parA_piano] 2307efd3-4553-4676-9e7a-027334e90015
+  "Luciana" | activo | family=2307efd3-4553-4676-9e7a-027334e90015 | makeup=0
+  personGroupId=f8fc5eef-78dc-472b-bfa8-3b81720633be | label=Piano + Canto
+  planType=Mensual | modality=undefined | pts=8
+  plan=250/250/0 | inicio=2026-10-26 fin=undefined
+  creditBalance=(ausente) | clavesEC=31 | lecciones=0
+
+[parA_canto] 57ee3ecc-21ed-48d1-9f95-2e61f150ca6f
+  "Luciana (Canto)" | activo | family=2307efd3-4553-4676-9e7a-027334e90015 | makeup=0
+  personGroupId=f8fc5eef-78dc-472b-bfa8-3b81720633be | label=Canto + Piano
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=250/250/0 | inicio=2026-10-26 fin=2026-12-31
+  creditBalance=(ausente) | clavesEC=33 | lecciones=2
+
+[parB_piano] 50996819-923e-4f0d-8d8a-7c77180285dc
+  "Luciana" | activo | family=1bb0c180-459f-4a48-94c9-55b23873984a | makeup=0
+  personGroupId=18b6576e-dd65-4ef3-b3de-90114697a462 | label=Piano + Canto
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=250/250/0 | inicio=2026-10-26 fin=undefined
+  creditBalance=(ausente) | clavesEC=36 | lecciones=0
+
+[parB_canto] b32540d1-753d-426d-8270-a3ed0b7058d6
+  "Luciana (Canto)" | activo | family=1bb0c180-459f-4a48-94c9-55b23873984a | makeup=0
+  personGroupId=(ausente) | label=(ausente)
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=250/0/250 | inicio=2026-10-26 fin=2026-11-25
+  creditBalance=(ausente) | clavesEC=32 | lecciones=2
+
+[conEspacio] f630d6df-36c0-41ff-80fb-c4fce40724fd
+  "Luciana " | activo | family=f630d6df-36c0-41ff-80fb-c4fce40724fd | makeup=0
+  personGroupId=(ausente) | label=(ausente)
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=250/250/0 | inicio=2026-10-26 fin=2026-11-25
+  creditBalance=(ausente) | clavesEC=34 | lecciones=0
+
+[eithan] d245066a-4f1e-4cb1-99ef-0695dc0fb68d
+  "EITHAN" | activo | family=d245066a-4f1e-4cb1-99ef-0695dc0fb68d | makeup=0
+  personGroupId=(ausente) | label=(ausente)
+  planType=Paquete Flexible | modality=Paquete Flexible (A demanda) | pts=12
+  plan=783/783/0 | inicio=2026-10-19 fin=2026-12-31
+  creditBalance=(ausente) | clavesEC=34 | lecciones=4
+
+=== ATTENDANCE_LOGS 2026-11-04 (par A y par B canto) ===
+57ee3ecc-21ed-48d1-9f95-2e61f150ca6f -> 0
+b32540d1-753d-426d-8270-a3ed0b7058d6 -> 1
+   e9714109-431a-4c13-bbb2-5411c258ed5f | ausente | "Fecha 2026-11-04 - Semana 1 - Marcado por Profesor en Kiosco" | 2026-11-05T00:47:20.899+00:00
+
+=== RECIBOS DE LUCIANA ===
+  99148d3d-5a98-465e-ad67-11975e5bb378 | fam=90191dc0-b554-42bb-be64-4488fd447389 | "Plan Mensual (Piano) — Luciana Mendoza Gómez"
+     297/297 saldo=0 pagado due=2026-10-17
+  4d1c896c-b9c1-4095-a111-f0389d73c697 | fam=2307efd3-4553-4676-9e7a-027334e90015 | "Plan Mensual (Piano) — Luciana"
+     250/250 saldo=0 pagado due=2026-10-26
+  c37aa58d-9714-4f71-825f-87e28e37a084 | fam=2307efd3-4553-4676-9e7a-027334e90015 | "Plan Mensual (Canto) — Luciana (Canto)"
+     250/250 saldo=0 pagado due=2026-10-26
+  abb061f1-6960-4726-958a-8bf75a407c2d | fam=1bb0c180-459f-4a48-94c9-55b23873984a | "Plan Mensual (Piano) — Luciana"
+     250/250 saldo=0 pagado due=2026-10-26
+  55ae6b2c-4780-4b1d-9fcc-496a67363dd3 | fam=1bb0c180-459f-4a48-94c9-55b23873984a | "Plan Mensual (Canto) — Luciana (Canto)"
+     250/0 saldo=250 pendiente due=2026-10-26
+  2d198438-8a91-4858-9355-64b30b950282 | fam=f630d6df-36c0-41ff-80fb-c4fce40724fd | "Plan Mensual (Piano) — Luciana "
+     250/250 saldo=0 pagado due=2026-10-26
+  4424461b-780e-4abb-8f80-cf854037a23e | fam=b8eb0a31-cff1-4ffb-93c6-80c114a18851 | "Plan Mensual (Violín) — LUCIANAA "
+     250/250 saldo=0 pagado due=2026-10-26
+
+=== EITHAN: RECIBOS ===
+  6d21b60c-98e7-42c5-81cf-56f15d77afbd | "Plan Mensual (Piano Infantil) — Eithan David"
+     261/261 saldo=0 pagado due=2026-09-28 creado=2026-09-30T19:05:28
+  bd69b01e-6c35-48b6-883a-6b1669a7d212 | "Plan Paquete Flexible (Piano) — EITHAN"
+     783/783 saldo=0 pagado due=2026-06-19 creado=2026-10-06T20:24:34
+  c947e6e9-4e60-4852-baef-fe73a348384d | "Plan Paquete Flexible (A demanda) (Piano) — EITHAN (Renovación Ciclo)"
+     261/0 saldo=261 pendiente due=2026-10-19 creado=2026-11-09T19:24:29
+
+
+--- 2. APLICACIÓN (PATCH PAYLOADS Y STATUS CODES) ---
+
+--- A · separar Mendoza
+{
+  "table": "students",
+  "id": "90191dc0-b554-42bb-be64-4488fd447389",
+  "body": {
+    "emergency_contact": {
+      "age": 11,
+      "name": "Elena Gómez (Abuela)",
+      "email": "luciana.mendoza.gómez@gmail.com",
+      "phone": "984 123 456",
+      "family": "Familia Mendoza Gómez",
+      "balance": 0,
+      "teacher": "Fernando",
+      "modality": "Regular (8 clases / 45 min)",
+      "planType": "Mensual",
+      "relation": "Abuela",
+      "birthdate": "2015-05-15",
+      "planPrice": 297,
+      "amountPaid": 297,
+      "fatherName": "Carlos Mendoza",
+      "motherName": "Rosa Huamán",
+      "ageCategory": "JUNIOR",
+      "fatherPhone": "987 654 321",
+      "motherPhone": "984 123 456",
+      "planEndDate": "2026-11-16",
+      "matriculaType": "Promo Demo (S/ 30)",
+      "paymentMethod": "Yape / Plin",
+      "planStartDate": "2026-10-17",
+      "attendanceRate": 0,
+      "enrollmentDate": "2026-10-17",
+      "packUtilesCost": 67,
+      "packUtilesPaid": true,
+      "planStartMonth": "2026-10",
+      "packUtilesNotes": "",
+      "packUtilesStatus": "cancelado",
+      "recentAttendance": [],
+      "packUtilesDelivered": true,
+      "packUtilesAmountPaid": 67,
+      "packageTotalSessions": 8
+    }
+  }
+}
+    OK (204)
+
+--- B · vincular 'Luciana ' al par A
+{
+  "table": "students",
+  "id": "f630d6df-36c0-41ff-80fb-c4fce40724fd",
+  "body": {
+    "emergency_contact": {
+      "age": 14,
+      "name": "Cynthia Huayta",
+      "email": "luciana.@gmail.com",
+      "phone": "+51 992 655 065",
+      "family": "Familia Campana",
+      "balance": 0,
+      "teacher": "Fernando",
+      "modality": "Regular (8 clases / 45 min)",
+      "planType": "Mensual",
+      "relation": "Abuela",
+      "birthdate": "2012-04-19",
+      "planPrice": 250,
+      "amountPaid": 250,
+      "fatherName": "nn",
+      "motherName": "Cynthia Huayta",
+      "ageCategory": "JUVENIL",
+      "fatherPhone": "+51 992 655 065",
+      "motherPhone": "+51 992 655 065",
+      "planEndDate": "2026-11-25",
+      "teacherNote": "pago 400",
+      "planEndMonth": "2026-11",
+      "matriculaType": "Exonerada",
+      "paymentMethod": "Yape / Plin",
+      "planStartDate": "2026-10-26",
+      "enrollmentDate": "2026-10-26",
+      "packUtilesCost": 0,
+      "packUtilesPaid": false,
+      "planStartMonth": "2026-10",
+      "packUtilesNotes": "",
+      "packUtilesStatus": "exonerado",
+      "recentAttendance": [],
+      "packUtilesDelivered": true,
+      "packUtilesAmountPaid": 0,
+      "packageTotalSessions": 8,
+      "personGroupId": "f8fc5eef-78dc-472b-bfa8-3b81720633be",
+      "personGroupLabel": "Piano + Canto"
+    }
+  }
+}
+    OK (204)
+
+--- C · par B Piano -> baja
+{
+  "table": "students",
+  "id": "50996819-923e-4f0d-8d8a-7c77180285dc",
+  "body": {
+    "status": "baja"
+  }
+}
+    OK (204)
+
+--- C · par B Canto -> baja
+{
+  "table": "students",
+  "id": "b32540d1-753d-426d-8270-a3ed0b7058d6",
+  "body": {
+    "status": "baja"
+  }
+}
+    OK (204)
+
+--- C2 · mover log 2026-11-04
+{
+  "table": "attendance_logs",
+  "id": "e9714109-431a-4c13-bbb2-5411c258ed5f",
+  "body": {
+    "student_id": "57ee3ecc-21ed-48d1-9f95-2e61f150ca6f"
+  }
+}
+    OK (204)
+
+--- D · anular recibo 55ae6b2c
+{
+  "table": "invoices",
+  "id": "55ae6b2c-4780-4b1d-9fcc-496a67363dd3",
+  "body": {
+    "concept": "[ANULADO 2026-11-09 · duplicado del par A · no cobrado] Plan Mensual (Canto) — Luciana (Canto)",
+    "amount_paid": 0,
+    "remaining_balance": 0,
+    "status": "pagado"
+  }
+}
+    OK (204)
+
+--- E · saldo a favor S/ 250
+{
+  "table": "students",
+  "id": "2307efd3-4553-4676-9e7a-027334e90015",
+  "body": {
+    "emergency_contact": {
+      "age": 0,
+      "name": "Cynthia Huayta",
+      "email": "",
+      "phone": "51 992 655 065",
+      "family": "Campo",
+      "balance": 0,
+      "teacher": "Fernando",
+      "planType": "Mensual",
+      "relation": "Tutor Legal",
+      "planPrice": 250,
+      "amountPaid": 250,
+      "fatherName": "",
+      "motherName": "Cynthia Huayta",
+      "ageCategory": "JUNIOR",
+      "fatherPhone": "",
+      "motherPhone": "51 992 655 065",
+      "teacherNote": "",
+      "matriculaType": "Exonerada",
+      "paymentMethod": "Yape / Plin",
+      "personGroupId": "f8fc5eef-78dc-472b-bfa8-3b81720633be",
+      "planStartDate": "2026-10-26",
+      "enrollmentDate": "2026-10-26",
+      "packUtilesCost": 50,
+      "packUtilesPaid": true,
+      "packUtilesNotes": "",
+      "packUtilesStatus": "cancelado",
+      "personGroupLabel": "Piano + Canto",
+      "recentAttendance": [],
+      "packUtilesDelivered": true,
+      "packUtilesAmountPaid": 50,
+      "packageTotalSessions": 8,
+      "creditBalance": 250,
+      "creditNote": "Saldo a favor por S/ 250 cobrados del Piano del registro duplicado (par B), archivado el 2026-11-09. No aplicado automáticamente; requiere aplicación manual de secretaría.",
+      "creditSetAt": "2026-11-09"
+    }
+  }
+}
+    OK (204)
+
+✅ Aplicado. Ejecuta el preflight para verificar.
+
+
+--- 3. POSTFLIGHT (DESPUÉS / VERIFICACIÓN DE INVARIANTES) ---
+=== FICHAS ===
+
+[mendoza] 90191dc0-b554-42bb-be64-4488fd447389
+  "Luciana Mendoza Gómez" | activo | family=90191dc0-b554-42bb-be64-4488fd447389 | makeup=0
+  personGroupId=(ausente) | label=(ausente)
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=297/297/0 | inicio=2026-10-17 fin=2026-11-16
+  creditBalance=(ausente) | clavesEC=33 | lecciones=0
+
+[parA_piano] 2307efd3-4553-4676-9e7a-027334e90015
+  "Luciana" | activo | family=2307efd3-4553-4676-9e7a-027334e90015 | makeup=0
+  personGroupId=f8fc5eef-78dc-472b-bfa8-3b81720633be | label=Piano + Canto
+  planType=Mensual | modality=undefined | pts=8
+  plan=250/250/0 | inicio=2026-10-26 fin=undefined
+  creditBalance=250 | clavesEC=34 | lecciones=0
+
+[parA_canto] 57ee3ecc-21ed-48d1-9f95-2e61f150ca6f
+  "Luciana (Canto)" | activo | family=2307efd3-4553-4676-9e7a-027334e90015 | makeup=0
+  personGroupId=f8fc5eef-78dc-472b-bfa8-3b81720633be | label=Canto + Piano
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=250/250/0 | inicio=2026-10-26 fin=2026-12-31
+  creditBalance=(ausente) | clavesEC=33 | lecciones=2
+
+[parB_piano] 50996819-923e-4f0d-8d8a-7c77180285dc
+  "Luciana" | baja | family=1bb0c180-459f-4a48-94c9-55b23873984a | makeup=0
+  personGroupId=18b6576e-dd65-4ef3-b3de-90114697a462 | label=Piano + Canto
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=250/250/0 | inicio=2026-10-26 fin=undefined
+  creditBalance=(ausente) | clavesEC=36 | lecciones=0
+
+[parB_canto] b32540d1-753d-426d-8270-a3ed0b7058d6
+  "Luciana (Canto)" | baja | family=1bb0c180-459f-4a48-94c9-55b23873984a | makeup=0
+  personGroupId=(ausente) | label=(ausente)
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=250/0/250 | inicio=2026-10-26 fin=2026-11-25
+  creditBalance=(ausente) | clavesEC=32 | lecciones=2
+
+[conEspacio] f630d6df-36c0-41ff-80fb-c4fce40724fd
+  "Luciana " | activo | family=f630d6df-36c0-41ff-80fb-c4fce40724fd | makeup=0
+  personGroupId=f8fc5eef-78dc-472b-bfa8-3b81720633be | label=Piano + Canto
+  planType=Mensual | modality=Regular (8 clases / 45 min) | pts=8
+  plan=250/250/0 | inicio=2026-10-26 fin=2026-11-25
+  creditBalance=(ausente) | clavesEC=36 | lecciones=0
+
+[eithan] d245066a-4f1e-4cb1-99ef-0695dc0fb68d
+  "EITHAN" | activo | family=d245066a-4f1e-4cb1-99ef-0695dc0fb68d | makeup=0
+  personGroupId=(ausente) | label=(ausente)
+  planType=Paquete Flexible | modality=Paquete Flexible (A demanda) | pts=12
+  plan=783/783/0 | inicio=2026-10-19 fin=2026-12-31
+  creditBalance=(ausente) | clavesEC=34 | lecciones=4
+
+=== ATTENDANCE_LOGS 2026-11-04 (par A y par B canto) ===
+57ee3ecc-21ed-48d1-9f95-2e61f150ca6f -> 1
+   e9714109-431a-4c13-bbb2-5411c258ed5f | ausente | "Fecha 2026-11-04 - Semana 1 - Marcado por Profesor en Kiosco" | 2026-11-05T00:47:20.899+00:00
+b32540d1-753d-426d-8270-a3ed0b7058d6 -> 0
+
+=== RECIBOS DE LUCIANA ===
+  99148d3d-5a98-465e-ad67-11975e5bb378 | fam=90191dc0-b554-42bb-be64-4488fd447389 | "Plan Mensual (Piano) — Luciana Mendoza Gómez"
+     297/297 saldo=0 pagado due=2026-10-17
+  4d1c896c-b9c1-4095-a111-f0389d73c697 | fam=2307efd3-4553-4676-9e7a-027334e90015 | "Plan Mensual (Piano) — Luciana"
+     250/250 saldo=0 pagado due=2026-10-26
+  c37aa58d-9714-4f71-825f-87e28e37a084 | fam=2307efd3-4553-4676-9e7a-027334e90015 | "Plan Mensual (Canto) — Luciana (Canto)"
+     250/250 saldo=0 pagado due=2026-10-26
+  abb061f1-6960-4726-958a-8bf75a407c2d | fam=1bb0c180-459f-4a48-94c9-55b23873984a | "Plan Mensual (Piano) — Luciana"
+     250/250 saldo=0 pagado due=2026-10-26
+  55ae6b2c-4780-4b1d-9fcc-496a67363dd3 | fam=1bb0c180-459f-4a48-94c9-55b23873984a | "[ANULADO 2026-11-09 · duplicado del par A · no cobrado] Plan Mensual (Canto) — Luciana (Canto)"
+     250/0 saldo=0 pagado due=2026-10-26
+  2d198438-8a91-4858-9355-64b30b950282 | fam=f630d6df-36c0-41ff-80fb-c4fce40724fd | "Plan Mensual (Piano) — Luciana "
+     250/250 saldo=0 pagado due=2026-10-26
+  4424461b-780e-4abb-8f80-cf854037a23e | fam=b8eb0a31-cff1-4ffb-93c6-80c114a18851 | "Plan Mensual (Violín) — LUCIANAA "
+     250/250 saldo=0 pagado due=2026-10-26
+
+=== EITHAN: RECIBOS ===
+  6d21b60c-98e7-42c5-81cf-56f15d77afbd | "Plan Mensual (Piano Infantil) — Eithan David"
+     261/261 saldo=0 pagado due=2026-09-28 creado=2026-09-30T19:05:28
+  bd69b01e-6c35-48b6-883a-6b1669a7d212 | "Plan Paquete Flexible (Piano) — EITHAN"
+     783/783 saldo=0 pagado due=2026-06-19 creado=2026-10-06T20:24:34
+  c947e6e9-4e60-4852-baef-fe73a348384d | "Plan Paquete Flexible (A demanda) (Piano) — EITHAN (Renovación Ciclo)"
+     261/0 saldo=261 pendiente due=2026-10-19 creado=2026-11-09T19:24:29
+
+
+================================================================================
+ESTADO FINAL:
+- Mendoza 90191dc0: desvinculada (33 claves EC, activo, cuenta propia).
+- "Luciana " f630d6df: vinculada al grupo f8fc5eef (36 claves EC, activo).
+- Par B (50996819, b32540d1): archivados a baja (no borrados).
+- Log e9714109: reasignado a 57ee3ecc (Par A Canto).
+- Recibo 55ae6b2c: anulado (remaining_balance=0, amount_paid=0, status=pagado).
+- Saldo a favor S/ 250: asignado a 2307efd3 (Par A Piano).
+- Invariantes de cuenta familiar cumplidas al 100%.
+================================================================================

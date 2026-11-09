@@ -2087,3 +2087,16 @@ inferencia.
    - **Punto abierto (2026-11-07)**: `Luciana Mendoza Gómez` (`90191dc0`, plan S/ 297) comparte `personGroupId` con el par A; el motor la suma a esa cuenta. Si es otra persona, se corrige su `personGroupId` en la ficha, **nunca** el motor. Ídem el registro `"Luciana "` (`f630d6df`, con espacio final) creado en familia propia.
 
 10. **Siguiente paso (no ejecutado)**: Fase 5 — consolidación de Luciana con la decisión de Dirección ya tomada: **par A vigente**, par B archivado como baja (sin borrar), recibo pendiente del par B **anulado (no eliminado)** y los S/ 250 cobrados del Piano del par B como **saldo a favor de la familia**. Exige confirmación explícita final antes de escribir.
+
+
+---
+
+### 96. Consolidación de Familias Duplicadas y Saneamiento de Cuentas (ADR-0191)
+
+1. **Procedimiento Quirúrgico en Producción (Fase 5 Luciana — 2026-11-09)**:
+   - **Desvinculación de homónimos ajenos**: Cuando un registro independiente comparte por error un `personGroupId`, se remueven únicamente `personGroupId` y `personGroupLabel` de su `emergency_contact` JSONB (enviando el objeto completo con sus 33 claves intactas). No se alteran sus montos, recibos ni `family_id`.
+   - **Archivado sin eliminación física**: Los duplicados de matrículas no se eliminan con `DELETE`. Se archivan marcando `status = "baja"`. Sus lecciones asociadas salen automáticamente de la agenda semanal activa sin pérdida de datos históricos.
+   - **Reasignación incondicional de asistencias**: Si un registro huérfano posee asistencias en `attendance_logs`, el log se reasigna al `student_id` activo legítimo, previa comprobación de que el destino no cuenta ya con una marca para la misma fecha.
+   - **Anulación trazable de recibos huérfanos**: No se eliminan recibos emitidos (`invoices`). La anulación se realiza actualizando `concept` con prefijo fechado `[ANULADO YYYY-MM-DD · motivo]`, forzando `remaining_balance = 0`, `amount_paid = 0` y `status = "pagado"` para garantizar impacto cero en cartera y en caja.
+   - **Reconocimiento de saldos a favor**: Todo dinero efectivamente cobrado en un registro archivado que pertenezca a la familia se preserva como saldo a favor (`creditBalance`, `creditNote`, `creditSetAt` en `emergency_contact`) en el registro principal activo.
+2. **Referencia**: `docs/adr/0191-consolidacion-familias-duplicadas-y-renovacion-con-horario.md` y `docs/logs/2026-11-09-fase5-luciana-consolidacion.log`.
