@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/sheet";
 import { useTeacherIdentity } from "@/hooks/use-teacher-identity";
 import { useTeacherPilotAccess } from "@/hooks/use-teacher-pilot-access";
+import { cleanTeacherToken } from "@/lib/teacher-portal";
 import { useAppStore } from "@/store/app-store";
 import { computeStudentCycleSessions } from "@/lib/kardex-calculator";
 import {
@@ -151,11 +152,19 @@ export function TeacherProgressReports({
     family_message: "",
   });
 
-  // ── Solo alumnos activos del propio docente ──
-  const myStudents = useMemo(
-    () => teacherStudentList.filter((student) => student.status === "activo"),
-    [teacherStudentList],
-  );
+  // ── Alumnos del propio docente (activos + culminados/baja con informe asignado) ──
+  const myStudents = useMemo(() => {
+    const active = teacherStudentList.filter((student) => student.status === "activo");
+    const reportStudentIds = new Set(
+      myReports.map((r) => r.student_id).filter(Boolean) as string[],
+    );
+    const extra = adminStudents.filter((s) => reportStudentIds.has(s.id));
+    const map = new Map<string, (typeof adminStudents)[number]>();
+    for (const student of [...active, ...extra]) {
+      map.set(student.id, student);
+    }
+    return Array.from(map.values());
+  }, [teacherStudentList, adminStudents, myReports]);
 
   const myStudentIds = useMemo(
     () => new Set(myStudents.map((student) => student.id)),
@@ -349,14 +358,19 @@ export function TeacherProgressReports({
       setReportsLoading(true);
       const rows = await listProgressReports({ limit: 300 });
       setMyReports(
-        rows.filter((row) => Boolean(row.student_id) && myStudentIds.has(row.student_id as string)),
+        rows.filter((row) => {
+          if (!row.student_id) return false;
+          if (teacherId && row.teacher_id === teacherId) return true;
+          if (row.teacher_name && cleanTeacherToken(row.teacher_name) === teacherClean) return true;
+          return myStudentIds.has(row.student_id as string);
+        }),
       );
     } catch {
       setMyReports([]);
     } finally {
       setReportsLoading(false);
     }
-  }, [myStudentIds]);
+  }, [myStudentIds, teacherId, teacherClean]);
 
   useEffect(() => {
     if (!progressReportsAccess) return;
@@ -623,7 +637,11 @@ export function TeacherProgressReports({
                         size="sm"
                         onClick={() => {
                           setStudentId(card.student.id);
-                          setDraftReport(null);
+                          if (card.report && card.report.status === "draft") {
+                            openEditor(card.report);
+                          } else {
+                            setDraftReport(null);
+                          }
                         }}
                         className={`h-8 w-full gap-1.5 text-xs font-bold ${
                           card.tone === "listo"

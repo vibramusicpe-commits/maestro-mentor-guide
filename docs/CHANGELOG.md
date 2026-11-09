@@ -13,6 +13,9 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - **Reasignación de asistencia**: El log `e9714109` (ausente del 2026-11-04) registrado en el Par B huérfano fue reasignado al registro activo correspondiente (`57ee3ecc`), preservando el historial pedagógico de la alumna.
 - **Anulación trazable de recibo huérfano**: El recibo duplicado `55ae6b2c` (S/ 250) fue anulado formalmente (`concept` prefijado con `[ANULADO 2026-11-09 ...]`, `remaining_balance = 0`, `amount_paid = 0`, `status = pagado`), saneando la cartera de deuda institucional.
 - **Saldo a favor reconocido**: Se registraron S/ 250 de saldo a favor familiar (`creditBalance = 250`) en `2307efd3` con nota y fecha de auditoría.
+- **Caso EITHAN (Camino 1 regularizado)**: Se corrigió la cuota contractual a 8 clases (`packageTotalSessions = 8`, `planType = "Mensual"`, `modality = "Regular (8 clases / 45 min)"`, precio S/ 261). Se reconocieron S/ 522 de saldo a favor por las dos mensualidades prepagadas de los S/ 783 abonados, y se anuló el recibo de renovación errónea `c947e6e9` (S/ 261) dejando la cartera limpia.
+- **Caso Andrea Fernanda Meza (Informe Trimestral)**: Se inyectó en PostgreSQL el borrador de informe trimestral (`e20fafea-0d49-4809-919f-3696bae11267`) para Batería con Jeremy (02/07 al 09/10/2026, 93% de asistencia) sin exigir bitácoras diarias retrospectivas.
+- **Soporte para alumnos culminados en Portal Docente**: `TeacherProgressReports` ahora incluye en la cohorte del profesor a alumnos con informes asignados aunque su estado sea `baja` (ciclo culminado), permitiendo abrir y editar el borrador directamente.
 - **Verificación completa**: Preflight y postflight ejecutados en vivo contra PostgreSQL Insforge; snapshots guardados en `docs/logs/2026-11-09-fase5-luciana-consolidacion.log`.
 
 ## [2.0.64] - 2026-11-05

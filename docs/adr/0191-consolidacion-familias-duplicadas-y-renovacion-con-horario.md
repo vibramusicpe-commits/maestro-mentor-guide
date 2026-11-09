@@ -41,3 +41,22 @@ Adicionalmente, se identificó un séptimo registro homónimo `LUCIANAA` (`44244
 - **Invariantes de Cartera:** La cuenta familiar de Luciana refleja exactamente **S/ 750.00 contratado / S/ 750.00 abonado / S/ 0.00 pendiente**, más **S/ 100.00 de libros cancelados** y **S/ 250.00 de saldo a favor de la familia**.
 - **Cero Cartera Viciada:** Se eliminaron S/ 250 ficticios de deuda por cobrar en los reportes de cobranza y se separó la deuda de matrícula de Mendoza.
 - **Rollback Disponible:** Las 7 operaciones cuentan con snapshot previo y scripts idempotentes en `scratch/_a1.mjs` y `scratch/_a2.mjs`.
+
+---
+
+## 4. Regularización Caso EITHAN (Camino 1 Aprobado)
+
+- **Decisión de Dirección:** Cuota contractual confirmada en **8 clases** (Plan Mensual Regular, 1 solo instrumento).
+- **Ajuste de Cartera:** Se actualizaron `packageTotalSessions = 8`, `planType = 'Mensual'`, `modality = 'Regular (8 clases / 45 min)'`, `planPrice = 261`.
+- **Saldo a Favor:** De los S/ 783 abonados, S/ 261 cubren el mes 1 y **S/ 522** se registraron como saldo a favor familiar (`creditBalance = 522`) para cubrir los meses 2 y 3.
+- **Anulación de Recibo:** Se anuló el recibo erróneo `c947e6e9` (S/ 261 pendiente) con prefijo `[ANULADO 2026-11-09 ...]`, eliminando la falsa deuda.
+
+---
+
+## 5. Habilitación de Informe Trimestral Culminado (Andrea Fernanda Meza)
+
+- **Problema:** Andrea culminó sus 24 clases de Batería con Jeremy (02/07 al 09/10/2026). Al estar en `baja` y no tener bitácoras diarias previas (módulo nuevo), el docente no podía emitir el informe trimestral.
+- **Resolución:**
+  1. Se inyectó el borrador oficial en `progress_reports` (`e20fafea-0d49-4809-919f-3696bae11267`) asignado a Jeremy con 93% de asistencia (22 presentes, 2 faltas de 24 sesiones).
+  2. Se ajustó `TeacherProgressReports` para incluir en la cohorte docente a alumnos con informes asignados aunque estén en `baja`, permitiendo a Jeremy abrir y redactar la conclusión cualitativa para revisión de Dirección.
+
