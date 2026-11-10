@@ -259,14 +259,25 @@ export function TeacherKiosk() {
       modality.includes("90 min") ||
       (modality.includes("4 clases") && !modality.includes("45 min"));
 
+    const sessionDate = lesson.dateStr || dateStr || toIsoDate(new Date());
+    // ADR-0192 — "Ver / Editar" abre la bitácora con su contenido real.
+    const evaluation =
+      dayEvaluations.find(
+        (row) =>
+          row.student_id === student.id &&
+          row.session_date.slice(0, 10) === sessionDate &&
+          (row.start_time || "").slice(0, 5) === (lesson.time || "").slice(0, 5),
+      ) ?? null;
+
     setClassLogSeed({
       studentId: student.id,
       studentName: student.name,
       lessonId: lesson.id,
-      sessionDate: lesson.dateStr || dateStr || toIsoDate(new Date()),
+      sessionDate,
       startTime: lesson.time,
       durationMin: isIntensive ? 90 : 45,
       instrument: student.instrument || lesson.instrument,
+      evaluation,
       nonce: Date.now(),
     });
   };

@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.66] - 2026-11-10
+
+### Precarga y Edición Real de la Bitácora de Clase (`ClassLog`) (ADR-0192)
+- **Bug corregido (caso Prof. Fernando)**: `Ver / Editar` abría la bitácora **vacía** y, como `saveLessonEvaluation` hace PATCH de todas las columnas, guardar **borraba** el tema, el comentario, el repertorio y el estado general ya registrados. Afectaba a los tres docentes del piloto (Jeremy, Fernando y Nathaly), no solo a Fernando.
+- **Diagnóstico descartado primero**: no era acceso. Fernando está en `pilot_teacher_ids` (`...0004`), tiene 12 criterios de Piano y 13 de Violín con `draft = false` y los `feature_flags` están en `false`. El defecto estaba en el formulario.
+- **Fix**: `ClassLog` ahora lee la bitácora de **esa** sesión con `getStudentEvaluations` (filtra `is_test = false`, AGENTS §86.6), empareja por **alumno + fecha + hora** y precarga `class_mode`, `overall_status`, `score`, `topic`, `repertoire`, `homework`, `teacher_comment` y `extra_scores`. Una sola consulta por sesión, sin N+1 y sin bloquear la clase si falla la red.
+- **Seed con la fila ya conocida**: `ClassLogSeed` gana `evaluation?` (aditivo). El Kiosco (`/teacher`) y el dossier (`/teacher/informes`) pasan la bitácora que ya tienen en memoria, así el formulario nace con contenido y sin parpadeo.
+- **Señales claras**: cabecera “Editar bitácora”, banner *“✏️ Editando la bitácora ya registrada… no se crea un duplicado”*, spinner de búsqueda y toast **“✓ Bitácora actualizada”** frente a “✓ Bitácora de clase guardada”.
+- **Defecto secundario**: `teacher-progress-reports.tsx` identificaba la bitácora solo por fecha y en Plan Intensivo (dos bloques de 45 min el mismo día) marcaba la clase equivocada. Ahora empareja por fecha **y** hora, con fallback por fecha solo si hay una única bitácora ese día.
+- **Verificación**: `scratch/test-adr-0192-bitacora-edicion.mjs` **37/37** sobre fixture con filas reales (emparejamiento, hidratación de 12 y 8 criterios, **re-guardado con 0 diferencias** en 6 filas, `session_key` reconstruida con sufijo `::INT`, y dossier de informes). `npm run build` en verde y `tsc --noEmit` sin errores nuevos (843 preexistentes). Sin tocar `kardex-calculator.ts`, `student-cycle.ts`, `app-store.ts`, asistencia, Kardex ni facturación; sin DDL y sin borrados.
+
 ## [2.0.65] - 2026-11-09
 
 ### Consolidación de Familias Duplicadas: Saneamiento Fase 5 Luciana (ADR-0191)

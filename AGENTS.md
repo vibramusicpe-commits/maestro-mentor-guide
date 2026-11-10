@@ -2100,3 +2100,25 @@ inferencia.
    - **Anulación trazable de recibos huérfanos**: No se eliminan recibos emitidos (`invoices`). La anulación se realiza actualizando `concept` con prefijo fechado `[ANULADO YYYY-MM-DD · motivo]`, forzando `remaining_balance = 0`, `amount_paid = 0` y `status = "pagado"` para garantizar impacto cero en cartera y en caja.
    - **Reconocimiento de saldos a favor**: Todo dinero efectivamente cobrado en un registro archivado que pertenezca a la familia se preserva como saldo a favor (`creditBalance`, `creditNote`, `creditSetAt` en `emergency_contact`) en el registro principal activo.
 2. **Referencia**: `docs/adr/0191-consolidacion-familias-duplicadas-y-renovacion-con-horario.md` y `docs/logs/2026-11-09-fase5-luciana-consolidacion.log`.
+
+---
+
+### 97. Precarga y Edición Real de la Bitácora de Clase (`ClassLog`) (ADR-0192)
+
+1. **Regla inquebrantable: editar una bitácora NUNCA puede destruirla**:
+   - `saveLessonEvaluation` hace **PATCH de todas las columnas** (`basePayload`). Por lo tanto, todo formulario que permita re-guardar una evaluación existente **debe precargar** antes `class_mode`, `overall_status`, `score`, `topic`, `repertoire`, `homework`, `teacher_comment` y `extra_scores`. Un formulario que abre en blanco y guarda es una **pérdida de datos silenciosa**, no un simple defecto de UI.
+   - Antes de declarar que "el docente no puede editar", revisar accesos (`pilot_teacher_ids`, criterios con `draft = false`, `feature_flags`). En el caso del Prof. Fernando (2026-11-10) los accesos eran correctos y el defecto estaba en el formulario.
+2. **Lectura de bitácoras: solo `getStudentEvaluations`**:
+   - Filtra `is_test = eq.false` y es la única fuente válida para precargar en producción (§86.6). Sigue **prohibido** `getEvaluationBySessionKey` (no filtra pruebas).
+   - Emparejamiento obligatorio por **`student_id` + `session_date` + `start_time` (HH:MM)**. La fecha sola es insuficiente: el Plan Intensivo tiene dos bloques de 45 min el mismo día y marcaba la clase equivocada.
+3. **`ClassLogSeed.evaluation` (aditivo)**:
+   - Cuando el llamador ya tiene la fila en memoria (Kiosco con `dayEvaluations`, dossier con `evaluations`), la pasa al seed y el formulario nace con contenido. Si no viene, `ClassLog` la consulta una vez por sesión.
+   - El estado de hidratación se guarda en `hydratedKeyRef` (`studentId::fecha::hora`) para **no pisar lo que el docente está escribiendo**. Al cambiar de alumno se limpia.
+   - Si la consulta falla (sin red), el formulario **sigue editable** y se registra `console.warn`: la clase nunca se bloquea.
+4. **`session_key` determinista = guardar actualiza, no duplica**:
+   - `buildSessionKey` produce `<student_id>::<YYYY-MM-DD>::<HH:MM>` y `<student_id>::<YYYY-MM-DD>::INT` en 90 min. Cualquier cambio en ese formato duplicaría bitácoras; está **prohibido** alterarlo sin migración.
+5. **Señales mínimas exigidas en la UI del docente**:
+   - Cabecera “Editar bitácora” cuando hay registro previo, banner *“✏️ Editando la bitácora ya registrada… no se crea un duplicado”*, spinner mientras busca, y toast **“✓ Bitácora actualizada”** vs “✓ Bitácora de clase guardada”.
+6. **Alcance blindado**: sin DDL, sin `DELETE`/`TRUNCATE`, sin tocar `kardex-calculator.ts`, `student-cycle.ts`, `app-store.ts`, asistencia, Kardex ni facturación; cero datos financieros y cero filas `is_test` en producción.
+7. **Verificación de referencia**: `scratch/test-adr-0192-bitacora-edicion.mjs` **37/37** (fixture con filas reales: emparejamiento del par 17:30/18:15, hidratación de 12 y 8 criterios, **re-guardado con 0 diferencias** en 6 filas, `session_key` con `::INT`, dossier de informes), `npm run build` en verde y `tsc --noEmit` sin errores nuevos (§92). Documentación: `docs/adr/0192-precarga-y-edicion-bitacora-classlog.md` y `docs/logs/2026-11-10-adr-0192-bitacora-edicion.log`.
+

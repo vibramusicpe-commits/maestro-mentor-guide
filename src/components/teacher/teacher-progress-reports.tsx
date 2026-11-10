@@ -61,7 +61,7 @@ import type {
   ProgressReportPeriodType,
   ProgressReportRow,
 } from "@/lib/informes/types";
-import { InformesValidationError } from "@/lib/informes/utils";
+import { InformesValidationError, toIsoDate } from "@/lib/informes/utils";
 import { formatIsoDateShort } from "@/lib/informes/progress-report-format";
 import { getStudentEvaluations } from "@/lib/services/evaluations.service";
 import { TeacherReportViewer } from "@/components/teacher/teacher-report-viewer";
@@ -769,9 +769,22 @@ export function TeacherProgressReports({
 
                   <div className="max-h-56 divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/60 bg-muted/20">
                     {attendedSessions.map((session) => {
-                      const evalForSession = evaluations.find(
-                        (ev) => ev.session_date === session.dateStr,
+                      /**
+                       * ADR-0192 — la bitácora se identifica por fecha + hora.
+                       * Antes bastaba la fecha, y en Plan Intensivo (dos bloques
+                       * de 45 min el mismo día) marcaba la clase equivocada.
+                       * El fallback por fecha solo aplica si hay una única
+                       * bitácora ese día.
+                       */
+                      const evalsForDate = evaluations.filter(
+                        (ev) => toIsoDate(ev.session_date) === session.dateStr,
                       );
+                      const evalForSession =
+                        evalsForDate.find(
+                          (ev) =>
+                            (ev.start_time || "").slice(0, 5) ===
+                            session.time.slice(0, 5),
+                        ) || (evalsForDate.length === 1 ? evalsForDate[0] : undefined);
                       const isEvaluated = Boolean(evalForSession);
 
                       return (
@@ -817,6 +830,7 @@ export function TeacherProgressReports({
                                 startTime: session.time,
                                 durationMin: readiness.plan.isIntensive ? 90 : 45,
                                 instrument: session.instrument || selectedStudent.instrument,
+                                evaluation: evalForSession ?? null,
                                 nonce: Date.now(),
                               });
                             }}

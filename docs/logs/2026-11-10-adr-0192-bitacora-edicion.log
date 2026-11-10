@@ -1,0 +1,167 @@
+================================================================================
+LOG ADR-0192 - PRECARGA Y EDICION DE BITACORA EN CLASSLOG
+Fecha: 2026-11-10
+Referencia: docs/adr/0192-precarga-y-edicion-bitacora-classlog.md
+Tipo de cambio: UI docentes (solo lectura + edicion del mismo registro). Sin DDL.
+================================================================================
+
+--- 1. REPORTE ORIGINAL ---
+Prof. Fernando: "no puede actualizar sus bitacoras diarias como si puede Jeremy".
+Se sospechaba logica incompleta. Se revisaron accesos antes de tocar codigo:
+
+  org_settings.pilot_teacher_ids:
+    00000000-0000-0000-0000-000000000003  Jeremy
+    00000000-0000-0000-0000-000000000004  Fernando
+    00000000-0000-0000-0000-000000000005  Nathaly
+
+  evaluation_fields (Fernando):
+    Piano   12 criterios -> draft = false, visible_in_report = true
+    Violin  13 criterios -> draft = false, visible_in_report = true
+
+  feature_flags: todos en false (acceso por piloto, correcto)
+
+Conclusion: NO era permisos ni criterios. Era el formulario.
+
+
+--- 2. EVIDENCIA EN VIVO (lesson_evaluations, solo lectura) ---
+Inventario al momento del diagnostico:
+  Nathaly 14 bitacoras | Fernando 2 | Jeremy 2 | filas is_test = 0
+  progress_reports: 0
+
+Bitacora reportada - Hans, 2026-11-10 16:45
+  session_key = f700e1d8-3cd8-416e-ad9f-56377ecf7496::2026-11-10::16:45
+  extra_scores     = 12 criterios (7,7,7,7,6,5,5,8,7,8,5,8)
+  overall_status   = sin_evaluar   <-- perdido
+  topic            = null          <-- perdido
+  teacher_comment  = null          <-- perdido
+  repertoire       = []            <-- perdido
+
+Bitacora previa - Hans, 2026-10-22 16:45
+  overall_status   = en_proceso
+  score            = 7.0
+  repertoire       = Cuento Azul
+  teacher_comment  = 187 caracteres
+  extra_scores     = 12 criterios
+
+Firma del bug: el docente abre en blanco y al guardar se PATCHean todas las
+columnas con vacios. Los criterios sobreviven (se re-marcan), el texto no.
+
+
+--- 3. CAUSA RAIZ ---
+a) ClassLog no leia la bitacora existente (ClassLogSeed sin contenido).
+b) saveLessonEvaluation -> PATCH de basePayload completo
+   (src/lib/services/evaluations.service.ts:413-436).
+c) Resultado: destruccion silenciosa de topic, teacher_comment, repertoire,
+   overall_status y score al re-guardar desde "Ver / Editar" (los 3 docentes).
+
+Defecto secundario:
+  teacher-progress-reports.tsx emparejaba por session_date solamente; en Plan
+  Intensivo (dos bloques de 45 min el mismo dia) marcaba la clase equivocada.
+
+
+--- 4. CAMBIOS (MVP) ---
+src/components/teacher/class-log.tsx
+  - ClassLogSeed.evaluation?: LessonEvaluationRow | null (opcional, aditivo).
+  - Estado inicial hidratado desde el seed (sin parpadeo).
+  - useEffect de hidratacion: getStudentEvaluations(studentId, {from,to})
+    (filtra is_test = false, AGENTS 86.6), match exacto por fecha + hora,
+    una sola consulta por sesion, sin reintentos; en error el formulario
+    sigue editable + console.warn.
+  - Guardas: hydratedKeyRef evita re-hidratar y pisar lo que se escribe.
+  - handleStudentChange limpia existing / existingLoading / hydratedKeyRef.
+  - handleSave: toast "Bitacora actualizada" vs "Bitacora de clase guardada".
+  - UI: "Editar bitacora", banner de edicion, spinner de busqueda.
+  - formatDate normaliza ISO con toIsoDate dentro de try/catch.
+
+src/routes/teacher.index.tsx
+  - openClassLog: calcula sessionDate una vez y pasa evaluation desde
+    dayEvaluations (student_id + fecha + hora).
+
+src/components/teacher/teacher-progress-reports.tsx
+  - Match por fecha + hora con fallback solo si hay UNA bitacora ese dia.
+  - Pasa evaluation al seed al abrir ClassLog.
+
+
+--- 5. VERIFICACION EN RUNTIME ---
+Herramienta: scratch/test-adr-0192-bitacora-edicion.mjs
+Fixture: filas reales extraidas de lesson_evaluations (lecturas PostgREST
+exigen JWT de usuario; el harness corre sin sesion y RLS devuelve 0 filas).
+
+=== ADR-0192 . Precarga y edicion de bitacora (runtime) ===
+
+A. Emparejamiento por alumno + fecha + hora
+  OK Encuentra la bitacora de Hans del 10/11 16:45
+  OK Encuentra la bitacora de Hans del 22/10 16:45
+  OK Sesion 17:30 del 05/10 resuelve su propia fila - EL BEISBOL
+  OK Sesion 18:15 del 05/10 resuelve la otra (no la de 17:30) - EL BUHO
+  OK Dos bitacoras el mismo dia se mantienen distintas
+  OK Una sesion sin bitacora devuelve null (formulario en blanco)
+  OK No confunde al alumno (mismo dia/hora, otro student_id)
+
+B. Hidratacion del contenido guardado
+  OK 22/10: nota numerica recuperada - 7
+  OK 22/10: estado recuperado - en_proceso
+  OK 22/10: repertorio recuperado - Cuento Azul
+  OK 22/10: comentario recuperado - 187 caracteres
+  OK 22/10: los 12 criterios recuperados - 12 criterios
+  OK 22/10: valores por criterio intactos
+  OK 10/11 (el caso reportado): los 12 criterios NO se pierden al abrir
+  OK 10/11: estado sin_evaluar se muestra tal cual
+  OK Kayra (90 min): modo de clase 'individual' recuperado
+  OK Kayra (90 min): tema y repertorio recuperados - Digitacion . Las nubes
+  OK Jeremy: tema, tarea y comentario recuperados
+  OK Jeremy: criterios de guitarra recuperados - 8 criterios
+
+C. Re-guardado sin perdida de datos
+  OK Re-guardar Hans 2026-10-22 16:45 conserva todo - 0 diferencias
+  OK Re-guardar Hans 2026-11-10 16:45 conserva todo - 0 diferencias
+  OK Re-guardar ALEXIS 2026-10-23 17:30 conserva todo - 0 diferencias
+  OK Re-guardar Kayra Valery 2026-10-03 09:00 conserva todo - 0 diferencias
+  OK Re-guardar Ethan Paolo 2026-10-05 17:30 conserva todo - 0 diferencias
+  OK Re-guardar Ethan Paolo 2026-10-05 18:15 conserva todo - 0 diferencias
+
+D. session_key reconstruida = almacenada
+  OK Hans 2026-10-22 16:45 (45 min)
+  OK Hans 2026-11-10 16:45 (45 min)
+  OK ALEXIS 2026-10-23 17:30 (90 min) -> ::INT
+  OK Kayra Valery 2026-10-03 09:00 (90 min) -> ::INT
+  OK Ethan Paolo 2026-10-05 17:30 (45 min)
+  OK Ethan Paolo 2026-10-05 18:15 (45 min)
+  OK Intensivo 90 min usa el sufijo ::INT
+  OK 45 min usa HH:MM en la clave
+
+E. Emparejamiento de bitacora en el dossier de informes
+  OK 05/10 18:15 con dos bitacoras ese dia -> devuelve la de 18:15
+  OK 05/10 17:30 con dos bitacoras ese dia -> devuelve la de 17:30
+  OK 05/10 19:00 (hora sin bitacora) -> no marca una clase ajena como evaluada
+  OK 22/10 con una sola bitacora -> el fallback por fecha si aplica
+
+=== Resultado: 37/37 ===
+
+
+--- 6. BUILD Y TYPESCRIPT ---
+npm run build                     -> verde (built in 674ms)
+npx tsc --noEmit -p tsconfig.json  -> 843 errores preexistentes en el repo
+  class-log.tsx                 10 errores, todos de categorias previas
+                                (TS4111 index-signature, TS2322
+                                 findLessonForStudent, TS2379)
+  teacher-progress-reports.tsx   6 errores TS18047 previos (selectedStudent)
+  teacher.index.tsx              3 errores previos (TS2367, TS4111)
+  Errores nuevos: 0. Ninguno dentro del bloque de hidratacion.
+
+
+--- 7. ALCANCE NO TOCADO ---
+kardex-calculator.ts, student-cycle.ts, app-store.ts, asistencia, Kardex,
+facturacion, students.notes, notification_logs, payment_audit_logs.
+Sin DDL, sin DELETE, sin TRUNCATE. Sin filas is_test.
+
+
+--- 8. PENDIENTE DE CIERRE ---
+Confirmacion en dispositivo del Prof. Fernando:
+  1. /teacher -> tarjeta de una clase ya registrada -> "Ver / Editar".
+  2. El formulario debe mostrar su contenido anterior (no vacio).
+  3. Anotar tema y estado, guardar.
+  4. Reabrir: el contenido debe seguir ahi y conservar los 12 criterios.
+  5. Verificar en /admin/informes (Bitacora Diaria) que no hay duplicados.
+
+================================================================================

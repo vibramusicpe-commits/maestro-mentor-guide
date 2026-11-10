@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   BookOpen,
@@ -19,6 +19,7 @@ import type { AdminStudent, ScheduledLesson } from "@/store/app-store";
 import {
   getCriteria,
   getLatestEvaluation,
+  getStudentEvaluations,
   saveLessonEvaluation,
 } from "@/lib/services/evaluations.service";
 import { resolveTeacherUserId } from "@/lib/services/teacher-resolver";
@@ -45,6 +46,12 @@ export interface ClassLogSeed {
   startTime: string;
   durationMin: number;
   instrument?: string;
+  /**
+   * ADR-0192 — bitácora ya guardada de esta sesión. Cuando el llamador ya la
+   * tiene en memoria (kiosco / informes), se abre con su contenido en vez de
+   * consultarla de nuevo. Si no viene, `ClassLog` la busca por fecha y hora.
+   */
+  evaluation?: LessonEvaluationRow | null;
   nonce: number;
 }
 
@@ -134,9 +141,14 @@ const DEFAULT_TRAFFIC_OPTIONS = [
 
 function formatDate(iso: string): string {
   if (!iso) return "—";
-  const [year, month, day] = iso.split("-");
-  if (!year || !month || !day) return iso;
-  return `${day}/${month}/${year}`;
+  // Admite tanto `YYYY-MM-DD` como el timestamp que puede devolver la API.
+  try {
+    const [year, month, day] = toIsoDate(iso).split("-");
+    if (!year || !month || !day) return iso;
+    return `${day}/${month}/${year}`;
+  } catch {
+    return iso;
+  }
 }
 
 function detectDuration(student: AdminStudent): number {
@@ -389,23 +401,68 @@ export function ClassLog({
   const [lessonId, setLessonId] = useState<string | null>(
     () => initialSeed?.lessonId || null,
   );
-  const [classMode, setClassMode] = useState<ClassMode>("no_aplica");
-  const [overallStatus, setOverallStatus] =
-    useState<OverallStatus>("sin_evaluar");
-  const [numericScore, setNumericScore] = useState("");
-  const [topic, setTopic] = useState("");
+  /**
+   * ADR-0192 — si el llamador ya conoce la bitácora de esta sesión, el
+   * formulario nace con su contenido (sin parpadeo de campo vacío).
+   */
+  const seededEvaluation = initialSeed?.evaluation ?? null;
+  const [classMode, setClassMode] = useState<ClassMode>(
+    () => seededEvaluation?.class_mode || "no_aplica",
+  );
+  const [overallStatus, setOverallStatus] = useState<OverallStatus>(
+    () => seededEvaluation?.overall_status || "sin_evaluar",
+  );
+  const [numericScore, setNumericScore] = useState(() =>
+    seededEvaluation?.score === null || seededEvaluation?.score === undefined
+      ? ""
+      : String(seededEvaluation.score),
+  );
+  const [topic, setTopic] = useState(() => seededEvaluation?.topic || "");
   const [repertoire, setRepertoire] = useState<
     Array<{ title: string; status: RepertoireStatus }>
-  >([{ title: "", status: "en_proceso" }]);
-  const [homework, setHomework] = useState("");
-  const [comment, setComment] = useState("");
-  const [extraValues, setExtraValues] = useState<Record<string, unknown>>({});
+  >(() =>
+    seededEvaluation?.repertoire?.length
+      ? seededEvaluation.repertoire.map((item) => ({
+          title: item.title || "",
+          status: item.status || "en_proceso",
+        }))
+      : [{ title: "", status: "en_proceso" }],
+  );
+  const [homework, setHomework] = useState(
+    () => seededEvaluation?.homework || "",
+  );
+  const [comment, setComment] = useState(
+    () => seededEvaluation?.teacher_comment || "",
+  );
+  const [extraValues, setExtraValues] = useState<Record<string, unknown>>(() =>
+    (seededEvaluation?.extra_scores || []).reduce<Record<string, unknown>>(
+      (values, item) => {
+        if (item?.field_key) values[item.field_key] = item.raw_value;
+        return values;
+      },
+      {},
+    ),
+  );
   const [criteria, setCriteria] = useState<EvaluationFieldRow[]>([]);
   const [criteriaLoading, setCriteriaLoading] = useState(false);
   const [latest, setLatest] = useState<LessonEvaluationRow | null>(null);
   const [latestLoading, setLatestLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  /**
+   * ADR-0192 — bitácora ya guardada de ESTA sesión (mismo alumno, fecha y hora).
+   * Antes el formulario siempre abría vacío y al guardar sobrescribía el
+   * registro previo (se perdían tema, comentario, repertorio y estado).
+   */
+  const [existing, setExisting] = useState<LessonEvaluationRow | null>(
+    () => seededEvaluation,
+  );
+  const [existingLoading, setExistingLoading] = useState(false);
+  const hydratedKeyRef = useRef<string | null>(
+    seededEvaluation && initialSeed?.studentId && initialSeed?.sessionDate
+      ? `${initialSeed.studentId}::${toIsoDate(initialSeed.sessionDate)}::${(initialSeed.startTime || "").slice(0, 5)}`
+      : null,
+  );
 
   const teacherId = useMemo(
     () => resolveTeacherUserId(undefined, teacherName),
@@ -524,6 +581,106 @@ export function ClassLog({
     };
   }, [selectedStudent?.id, savedAt]);
 
+  /**
+   * ADR-0192 — "Ver / Editar" abre la bitácora con su contenido real.
+   *
+   * Reglas:
+   *   - Una sola consulta por sesión (`getStudentEvaluations`, que filtra
+   *     `is_test = false`; prohibido `getEvaluationBySessionKey`, AGENTS §86.6).
+   *   - Solo hidrata una vez por clave (alumno + fecha + hora) para no pisar
+   *     lo que el docente está escribiendo.
+   *   - Si cambia a otra sesión SIN bitácora previa, el formulario vuelve a
+   *     blanco para no arrastrar contenido de otra clase.
+   */
+  useEffect(() => {
+    const studentId = selectedStudent?.id || "";
+    if (!studentId || !sessionDate || !startTime) return;
+
+    const date = toIsoDate(sessionDate);
+    const time = startTime.slice(0, 5);
+    const key = `${studentId}::${date}::${time}`;
+    if (hydratedKeyRef.current === key) return;
+
+    const previousKey = hydratedKeyRef.current;
+    hydratedKeyRef.current = key;
+
+    const resetToBlank = () => {
+      setOverallStatus("sin_evaluar");
+      setNumericScore("");
+      setTopic("");
+      setRepertoire([{ title: "", status: "en_proceso" }]);
+      setHomework("");
+      setComment("");
+      setExtraValues({});
+    };
+
+    let cancelled = false;
+    setExistingLoading(true);
+    getStudentEvaluations(studentId, { from: date, to: date })
+      .then((rows) => {
+        if (cancelled) return;
+
+        const match =
+          rows.find(
+            (row) =>
+              toIsoDate(row.session_date) === date &&
+              (row.start_time || "").slice(0, 5) === time,
+          ) || null;
+
+        setExisting(match);
+
+        if (!match) {
+          // Solo limpia si venía de otra sesión; el primer render se respeta.
+          if (previousKey) resetToBlank();
+          return;
+        }
+
+        setClassMode(match.class_mode || "no_aplica");
+        setOverallStatus(match.overall_status || "sin_evaluar");
+        setNumericScore(
+          match.score === null || match.score === undefined
+            ? ""
+            : String(match.score),
+        );
+        setTopic(match.topic || "");
+        setRepertoire(
+          match.repertoire?.length
+            ? match.repertoire.map((item) => ({
+                title: item.title || "",
+                status: item.status || "en_proceso",
+              }))
+            : [{ title: "", status: "en_proceso" }],
+        );
+        setHomework(match.homework || "");
+        setComment(match.teacher_comment || "");
+        setExtraValues(
+          (match.extra_scores || []).reduce<Record<string, unknown>>(
+            (values, item) => {
+              if (item?.field_key) values[item.field_key] = item.raw_value;
+              return values;
+            },
+            {},
+          ),
+        );
+        setLessonId((previous) => previous || match.lesson_id || null);
+        if (match.duration_min) setDurationMin(match.duration_min);
+        setInstrument((previous) => previous || match.instrument || "");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        // Sin red se mantiene el formulario editable: nunca se bloquea la clase.
+        setExisting(null);
+        console.warn("[ClassLog] No se pudo precargar la bitácora:", error);
+      })
+      .finally(() => {
+        if (!cancelled) setExistingLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedStudent?.id, sessionDate, startTime]);
+
   const handleStudentChange = (studentId: string) => {
     setSelectedStudentId(studentId);
     setOverallStatus("sin_evaluar");
@@ -535,6 +692,9 @@ export function ClassLog({
     setExtraValues({});
     setLatest(null);
     setSavedAt(null);
+    setExisting(null);
+    setExistingLoading(false);
+    hydratedKeyRef.current = null;
 
     const student = students.find((item) => item.id === studentId);
     if (!student) return;
@@ -644,6 +804,7 @@ export function ClassLog({
     }
 
     setSaving(true);
+    const wasEditing = Boolean(existing);
     try {
       const saved = await saveLessonEvaluation({
         lessonId,
@@ -674,10 +835,15 @@ export function ClassLog({
       });
 
       setLatest(saved);
+      setExisting(saved);
+      hydratedKeyRef.current = `${selectedStudent.id}::${toIsoDate(sessionDate)}::${startTime.slice(0, 5)}`;
       setSavedAt(Date.now());
-      toast.success("✓ Registro de clase guardado", {
-        description: `${selectedStudent.name} · ${formatDate(sessionDate)} ${startTime}`,
-      });
+      toast.success(
+        wasEditing ? "✓ Bitácora actualizada" : "✓ Bitácora de clase guardada",
+        {
+          description: `${selectedStudent.name} · ${formatDate(sessionDate)} ${startTime}`,
+        },
+      );
       onSaved?.();
     } catch (error: any) {
       toast.error(
@@ -712,11 +878,12 @@ export function ClassLog({
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-sm font-black text-foreground">
-              Registro de clase
+              {existing ? "Editar bitácora" : "Registro de clase"}
             </p>
             <p className="text-xs text-muted-foreground">
-              Objetivo: 30–90 segundos. Se guarda por sesión y puedes corregirlo
-              después.
+              {existing
+                ? "Corrige lo que necesites: se actualiza esta misma sesión."
+                : "Objetivo: 30–90 segundos. Se guarda por sesión y puedes corregirlo después."}
             </p>
           </div>
           <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-black text-primary">
@@ -771,6 +938,24 @@ export function ClassLog({
                 </span>
               )}
             </div>
+
+            {existingLoading && (
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-2.5 py-2 text-xs font-semibold text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Buscando la bitácora de esta sesión…
+              </div>
+            )}
+
+            {existing && !existingLoading && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 px-2.5 py-2 text-xs font-bold text-primary">
+                ✏️ Editando la bitácora ya registrada ·{" "}
+                {formatDate(existing.session_date)} {existing.start_time}
+                <span className="mt-0.5 block text-xs font-medium text-muted-foreground">
+                  Al guardar se actualiza este registro; no se crea un
+                  duplicado.
+                </span>
+              </div>
+            )}
 
             <div className="rounded-xl border border-border/70 bg-background/70 p-2.5 space-y-1">
               <div className="flex items-center justify-between gap-2">
