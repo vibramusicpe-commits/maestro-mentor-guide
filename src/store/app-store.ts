@@ -1068,12 +1068,11 @@ export const useAppStore = create<AppState>()(
                   (!dbSt.teacher || dbSt.teacher === "Prof. por Asignar");
 
                 const isEmma = isMatchingStudentName(dbSt.name, "Emma Micaela") || isMatchingStudentName(dbSt.name, "Emma Sevilla");
-                const isJonathan =
-                  isMatchingStudentName(dbSt.name, "Jonathan Ticona Cachay") ||
-                  isMatchingStudentName(dbSt.name, "Ticona Cachay, Jonathan");
 
+                // 🛡️ ADR-0193: la detección de Paquete Flexible es 100% por DATOS (packageTotalSessions,
+                // planType o modality). Nada hardcodeado por alumno: el homónimo histórico de Jonathan
+                // ya está archivado (status=baja) y el activo trae sus 24 clases en PostgreSQL.
                 const isFlexibleStudent =
-                  isJonathan ||
                   (Boolean(dbSt.packageTotalSessions) && Number(dbSt.packageTotalSessions) > 8) ||
                   (Boolean(localSt.packageTotalSessions) && Number(localSt.packageTotalSessions) > 8) ||
                   dbSt.planType === "Paquete Flexible" ||
@@ -1081,7 +1080,7 @@ export const useAppStore = create<AppState>()(
                   (typeof dbSt.modality === "string" && dbSt.modality.includes("Flexible")) ||
                   (typeof localSt.modality === "string" && localSt.modality.includes("Flexible"));
 
-                const effectiveStartDate = dbSt.planStartDate || localSt.planStartDate || (isEmma ? "2026-08-28" : (isJonathan ? "2026-08-18" : "2026-08-01"));
+                const effectiveStartDate = dbSt.planStartDate || localSt.planStartDate || (isEmma ? "2026-08-28" : "2026-08-01");
                 const effectiveEndDate = isFlexibleStudent
                   ? (dbSt.planEndDate && dbSt.planEndDate >= "2026-12-31" ? dbSt.planEndDate : "2026-12-31")
                   : (dbSt.planEndDate || localSt.planEndDate || (isEmma ? "2026-09-27" : "2026-09-30"));
@@ -1110,10 +1109,10 @@ export const useAppStore = create<AppState>()(
                   planStartDate: effectiveStartDate,
                   planEndDate: effectiveEndDate,
                   packageTotalSessions: effectivePackage,
-                  amountPaid: isJonathan ? 500 : (dbSt.amountPaid !== undefined ? dbSt.amountPaid : localSt.amountPaid),
-                  balance: isJonathan ? 0 : (dbSt.balance !== undefined ? dbSt.balance : localSt.balance),
-                  planPrice: isJonathan ? 500 : (dbSt.planPrice !== undefined ? dbSt.planPrice : localSt.planPrice),
-                  payment: isJonathan ? "al-dia" : ((dbSt.balance !== undefined && dbSt.balance > 0) ? "pendiente" : (localSt.payment || dbSt.payment || "al-dia")),
+                  amountPaid: dbSt.amountPaid !== undefined ? dbSt.amountPaid : localSt.amountPaid,
+                  balance: dbSt.balance !== undefined ? dbSt.balance : localSt.balance,
+                  planPrice: dbSt.planPrice !== undefined ? dbSt.planPrice : localSt.planPrice,
+                  payment: (dbSt.balance !== undefined && dbSt.balance > 0) ? "pendiente" : (localSt.payment || dbSt.payment || "al-dia"),
                 };
                 return;
               } else {
@@ -3747,14 +3746,14 @@ export const useAppStore = create<AppState>()(
           const isCamila = isMatchingStudentName(st.name, "Camila Valentina Pastor Conco");
           const isEmma = isMatchingStudentName(st.name, "Emma Micaela") || isMatchingStudentName(st.name, "Emma Sevilla");
           const isMarco = isMatchingStudentName(st.name, "Marco Antonio Adrian");
-          const isJonathan = isMatchingStudentName(st.name, "Ticona Cachay, Jonathan") || isMatchingStudentName(st.name, "Jonathan Ticona Cachay");
           const isAlreadyActive = st.status === "activo";
-          const isActive = isAlreadyActive || isCamila || isEmma || isMarco || isJonathan;
+          // 🛡️ ADR-0193: sin casos por alumno. El homónimo histórico de Jonathan (baja) ya no se
+          // reactiva por código: su estado, docente y plan viajan en PostgreSQL (emergency_contact).
+          const isActive = isAlreadyActive || isCamila || isEmma || isMarco;
 
           let resolvedTeacher = st.teacher;
           if (isCamila || isEmma) resolvedTeacher = "Fernando";
           else if (isMarco) resolvedTeacher = "Jeremy";
-          else if (isJonathan) resolvedTeacher = "Nathaly";
 
           let planStartDate = st.planStartDate || "2026-08-01";
           let planEndDate = st.planEndDate || "2026-08-31";
@@ -3771,15 +3770,6 @@ export const useAppStore = create<AppState>()(
           } else if (isEmma) {
             planStartDate = "2026-08-28";
             planEndDate = "2026-09-27";
-          } else if (isJonathan) {
-            planStartDate = "2026-08-18";
-            planEndDate = "2026-12-31";
-            modality = "Paquete Flexible (A demanda)";
-            planType = "Paquete Flexible";
-            planPrice = 500;
-            amountPaid = 500;
-            balance = 0;
-            packageTotalSessions = 24;
           }
 
           return {

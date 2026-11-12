@@ -81,19 +81,15 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
   const ecFamily = ec.family || db.families?.family_name || `Familia ${db.full_name}`;
   const isCamilaDB = isMatchingStudentName(db.full_name, "Camila Valentina Pastor Conco");
   const isEmmaDB = isMatchingStudentName(db.full_name, "Emma Micaela") || isMatchingStudentName(db.full_name, "Emma Sevilla");
-  const isJonathanDB =
-    isMatchingStudentName(db.full_name, "Jonathan Ticona Cachay") ||
-    isMatchingStudentName(db.full_name, "Ticona Cachay, Jonathan");
 
   let resolvedTeacher = (db.assigned_teacher_id && teacherNames[db.assigned_teacher_id]) || ec.teacher;
   if (!resolvedTeacher || resolvedTeacher === "Prof. por Asignar") {
     if (isCamilaDB || isEmmaDB) resolvedTeacher = "Fernando";
-    else if (isJonathanDB) resolvedTeacher = "Nathaly";
     else resolvedTeacher = "Prof. por Asignar";
   }
 
-  const planPrice = typeof ec.planPrice === "number" ? ec.planPrice : (isJonathanDB ? 500 : 297);
-  const amountPaid = typeof ec.amountPaid === "number" ? ec.amountPaid : (isJonathanDB ? 500 : undefined);
+  const planPrice = typeof ec.planPrice === "number" ? ec.planPrice : 297;
+  const amountPaid = typeof ec.amountPaid === "number" ? ec.amountPaid : undefined;
   const calculatedBalance = typeof ec.balance === "number"
     ? ec.balance
     : (amountPaid !== undefined ? Math.max(0, planPrice - amountPaid) : 0);
@@ -103,10 +99,10 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     name: db.full_name,
     family: ecFamily,
     ...(db.family_id ? { familyId: db.family_id } : {}),
-    instrument: db.instrument || (isCamilaDB ? "Violín" : (isJonathanDB ? "Canto" : "Piano")),
+    instrument: db.instrument || (isCamilaDB ? "Violín" : "Piano"),
     level: db.level || "Nivel 1",
     teacher: resolvedTeacher,
-    modality: (ec.modality as any) || (db.modality as any) || (isJonathanDB ? "Paquete Flexible (A demanda)" : "Regular (8 clases / 45 min)"),
+    modality: (ec.modality as any) || (db.modality as any) || "Regular (8 clases / 45 min)",
     status: db.status || "activo",
     attendanceRate: typeof ec.attendanceRate === "number"
       ? ec.attendanceRate
@@ -119,7 +115,7 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     recentAttendance: Array.isArray(ec.recentAttendance)
       ? ec.recentAttendance
       : [],
-    teacherNote: db.notes || ec.notes || (isJonathanDB ? "Ex-alumno Alex. Paquete Flexible 24 clases a demanda por S/ 500 pagado el 20/08/2026." : ""),
+    teacherNote: db.notes || ec.notes || "",
     email: ecEmail,
     phone: ecPhone,
     age: (() => {
@@ -137,7 +133,6 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
       const effectiveAge = rawAge !== undefined && rawAge > 0 ? rawAge : (birthAge !== null && birthAge > 0 ? birthAge : undefined);
       let cat = ec.ageCategory === "ADULTO" ? "MASTER" : ec.ageCategory;
       if (!cat) {
-        if (isJonathanDB) return "MASTER";
         if (effectiveAge !== undefined) return getCategoryFromAge(effectiveAge);
       } else if (effectiveAge !== undefined && effectiveAge >= 18) {
         return "MASTER";
@@ -154,10 +149,10 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
       relation: ec.relation || "Apoderado",
     },
     birthdate: db.birthdate || ec.birthdate || "15 de Agosto",
-    planType: ec.planType || (isJonathanDB ? "Paquete Flexible" : "Mensual"),
+    planType: ec.planType || "Mensual",
     planPrice,
     amountPaid,
-    packageTotalSessions: ec.packageTotalSessions ? Number(ec.packageTotalSessions) : (isJonathanDB ? 24 : 8),
+    packageTotalSessions: ec.packageTotalSessions ? Number(ec.packageTotalSessions) : 8,
     matriculaType: ec.matriculaType || "Promo Demo (S/ 30)",
     enrollmentDate: ec.enrollmentDate || (db.created_at ? db.created_at.slice(0, 10) : "2026-08-01"),
     paymentMethod: ec.paymentMethod || "Yape / Plin",
@@ -171,9 +166,9 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
       ? ec.packUtilesDelivered
       : (ec.packUtilesPaid !== false),
     packUtilesNotes: ec.packUtilesNotes || "",
-    planStartDate: ec.planStartDate || (isCamilaDB ? "2026-09-10" : (isJonathanDB ? "2026-08-18" : (isEmmaDB ? "2026-08-28" : "2026-08-01"))),
-    planEndDate: ec.planEndDate || (isCamilaDB ? "2026-10-09" : (isJonathanDB ? "2026-12-31" : (isEmmaDB ? "2026-09-27" : "2026-12-31"))),
-    planStartMonth: ec.planStartMonth || (ec.planStartDate ? ec.planStartDate.slice(0, 7) : (isCamilaDB ? "2026-09" : (isJonathanDB ? "2026-08" : (isEmmaDB ? "2026-08" : "2026-08")))),
+    planStartDate: ec.planStartDate || (isCamilaDB ? "2026-09-10" : (isEmmaDB ? "2026-08-28" : "2026-08-01")),
+    planEndDate: ec.planEndDate || (isCamilaDB ? "2026-10-09" : (isEmmaDB ? "2026-09-27" : "2026-12-31")),
+    planStartMonth: ec.planStartMonth || (ec.planStartDate ? ec.planStartDate.slice(0, 7) : (isCamilaDB ? "2026-09" : (isEmmaDB ? "2026-08" : "2026-08"))),
     scheduleLessons: Array.isArray(ec.scheduleLessons)
       ? ec.scheduleLessons.map((l: any) => ({
           ...l,

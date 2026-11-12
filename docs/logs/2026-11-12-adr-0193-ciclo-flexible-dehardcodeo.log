@@ -1,0 +1,120 @@
+================================================================================
+LOG ADR-0193 — Ciclo de Paquete Flexible + de-hardcodeo de Jonathan
+Fecha: 2026-11-12
+Autor: agente OpenCode (surgical, production)
+================================================================================
+
+[1] SINTOMA REPORTADO
+    "Porque no aparece Jonathan Ticona en el kiosco de la profesora Nathaly
+     si el tiene clase hoy con ella?"
+    "Porque me aparece edi jack hardcodeado? ... no quiero nada hardcodeado"
+
+[2] INVENTARIO DE FUENTES (sin leer archivos completos: MCP + grep dirigido)
+    - grep -ri "Edi Jack"  -> 0 resultados en el repo
+    - git log --all -S "Edi Jack" -> 0 commits (nunca estuvo en el repo)
+    - grep -i "Jack" src/  -> solo "Jackeline" (Secretaría) en
+                              asistencia-docente.ts / time-tracking.service.ts
+    - grep "Jonathan" src/ -> 40 hits: semillas official-seeds.ts (sch-jt-c1..c6),
+                              official-control-pagos-seeds.ts, students.service.ts,
+                              app-store.ts, admin-seeds.ts (comentario)
+
+[3] DATOS VIVOS (insforge-postgres)
+    students con teacher=Nathaly y nombre Jonathan:
+      0022a7f2-0fca-48da-904e-d7f8f7066636 "Jonathan"                         ACTIVO
+          planType=Paquete Flexible, packageTotalSessions=24,
+          planStartDate=2026-08-18, planEndDate=2026-12-31, ageCategory=MASTER
+          lessons: Mar 18:15 | Mié 18:15 + 10 puntuales (Lun/Vie/Jue/Mié)
+      00000000-0000-0000-0002-000000000001 "Ticona Cachay, Jonathan"          BAJA
+          sin scheduleLessons; 12 claves en emergency_contact
+
+    Jueves 2026-11-12 (hoy): la unica clase de Nathaly es Gael Mathias 18:15.
+    Jonathan NO tiene clase de Jueves en la base (tiene Mar y Mié).
+
+    attendance_logs de Jonathan (18 marcas): 17 "presente" + 1 "ausente"
+    (2026-11-04, Mié). Notables del registro legacy: "Sesión 1/24 ... 6/24".
+
+[4] HALLAZGO "EDI JACK" = DATO, NO CÓDIGO
+    families.e1212cf7-5c51-4c74-99b0-963a775a9fd8
+        "Familia VASQUEZ ASCATE", titular NN, phone NN,
+        email edi.jack.@gmail.com, created 2026-11-07T17:21:21.200Z, SIN ALUMNOS
+    invoices.d836aa94-f8aa-4ee1-9ce4-1e7870673b7b
+        "Plan Mensual (Canto) — EDI JACK "  S/261  pagado  saldo 0
+        created 2026-11-07T17:21:21.492Z  (0.29 s después de la familia)
+    students: 0 filas con %edi% / %jack%  -> el alumno fue eliminado.
+    => huérfano de facturación creado por el autoaprovisionamiento de matrícula
+       (ADR-0109/0116). NO reintroducir nada: anular según ADR-0191 si no
+       debe existir; matricular desde la UI si sí debe existir.
+
+[5] DIAGNÓSTICO DEL BUG (runtime, motor oficial)
+    src/lib/student-cycle.ts, rama no intensiva:
+        chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
+    pendingRegular se ordena desde planStartDate => el BACKLOG ya pasado y no
+    marcado consumía la cuota del Paquete Flexible:
+        evaluatedCount=18, targetQuota=24 => slotsNeeded=6
+        slots elegidos (TODOS en el pasado):
+          2026-09-22, 2026-10-20, 2026-10-27, 2026-10-28, 2026-11-03, 2026-11-10
+        => validSlots solo contenía fechas pasadas
+        => isLessonInStudentCycle() rechazaba TODAS las clases futuras
+
+    Medición (scratch/test-jonathan-kiosco.ts, datos vivos):
+      ANTES:  Mar 10/11 -> 1 (Jonathan)      Mié 11/11 -> 5 (sin Jonathan)
+              Jue 12/11 -> 0                  Mar 17/11 -> 0   <-- BUG
+              Mié 18/11 -> 4 (sin Jonathan)                      <-- BUG
+      DESPUÉS: Mar 10/11 -> 1 (Jonathan)      Mié 11/11 -> 7 (Jonathan 18:15)
+              Jue 12/11 -> 0 (correcto)      Mar 17/11 -> 1 (Jonathan)
+              Mié 18/11 -> 6 (Jonathan 18:15)
+
+[6] FIX APLICADO
+    A) src/lib/student-cycle.ts (motor oficial, rama no intensiva):
+         if (isFlexiblePackage) {
+           const futureRegular = pendingRegular.filter(p => p.dateStr >= todayStr);
+           const pastRegular   = pendingRegular.filter(p => p.dateStr <  todayStr);
+           chosenPendingRegular = [...pastRegular, ...futureRegular.slice(0, slotsNeeded)];
+         } else {
+           chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);  // sin cambios
+         }
+       Alcance: SOLO Paquete Flexible. Regular/Intensivo sin cambios.
+       Justificación: la vista mensual del Kardex filtra por validSlots solo
+       para !isFlexiblePackage (kardex-calculator.ts:543) => el backlog sigue
+       visible en el Kardex de los flexibles; cero regresión de historial.
+       todayStr se construye con getters LOCALES (nunca toISOString, ADR-0150).
+
+    B) De-hardcodeo (0 cambios de comportamiento, verificado):
+       - students.service.ts: eliminado isJonathanDB (docente, planPrice 500,
+         amountPaid 500, instrumento Canto, modalidad, teacherNote, ageCategory
+         MASTER, planType, 24 sesiones, fechas 18/08 y 31/12).
+       - app-store.ts (hidratación): eliminado isJonathan (fuerza de flexible,
+         fecha inicio, amountPaid/balance/planPrice/payment).
+       - app-store.ts (migrate): eliminado isJonathan (fuerza status=activo y
+         plan 500/24). El homónimo histórico queda archivado (baja).
+       - Precondición verificada: isMatchingStudentName ya resuelve los
+         homónimos ("Jonathan" <-> "Ticona Cachay, Jonathan" => true).
+       - Migración de datos (PostgreSQL, aditiva, sin DDL):
+         students.00000000-0000-0000-0002-000000000001
+           emergency_contact.ageCategory = "MASTER"
+           12 -> 13 claves, 0 claves perdidas, montos intactos.
+
+[7] VERIFICACION FINAL
+    scratch/test-jonathan-kiosco.ts ....... OK (Jonathan visible 10,11,17,18 nov)
+    scratch/test-facundo-intensive.ts ...... OK (Intensivo 90 min intacto)
+    scratch/test-adr-0192-bitacora-edicion .. 37/37
+    npm run build ......................... verde
+    npx tsc --noEmit ...................... 210 errores en archivos tocados
+                                          ANTES y DESPUES (0 nuevos; 843 en repo)
+    git stash push/pop usado para el baseline de tsc (ADR §92)
+
+[8] ARCHIVOS TOCADOS
+    M src/lib/student-cycle.ts
+    M src/lib/services/students.service.ts
+    M src/store/app-store.ts
+    A docs/adr/0193-ciclo-paquete-flexible-y-de-hardcodeo-jonathan.md
+    A docs/logs/2026-11-12-adr-0193-ciclo-flexible-dehardcodeo.log
+    M docs/CHANGELOG.md
+    M AGENTS.md
+    (scratch/ queda sin trackear, como el resto de la carpeta)
+
+[9] PENDIENTE DE DECISION DE DIRECCION (no ejecutado)
+    Recibo huerfano d836aa94 (EDI JACK, S/261 pagado): anular con el patron
+    ADR-0191 o re-matricular al alumno. NO se ejecuto ninguna escritura
+    sobre el recibo; queda intacto y trazable.
+================================================================================

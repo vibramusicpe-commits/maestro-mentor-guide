@@ -270,7 +270,23 @@ export function computeStudentCycle(
       );
     } else {
       const slotsNeeded = Math.max(0, targetQuota - evaluatedCount - pendingMakeups.length);
-      chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
+      if (isFlexiblePackage) {
+        // 🛡️ FIX ADR-0193 — Paquete Flexible (bolsa a demanda con vigencia larga):
+        // las clases pendientes YA PASADAS y no marcadas (backlog) NO pueden seguir consumiendo
+        // la cuota pendiente: es materialmente imposible dictarlas. Antes se elegían las MÁS
+        // ANTIGUAS (slice), de modo que el alumno desaparecía del Kiosco y de la Agenda en
+        // TODAS sus fechas futuras (caso real: Jonathan, Paquete Flexible 24 clases, sus
+        // clases fijas de Mar/Mié desaparecían desde el 17/11 pese a tener 6 sesiones por dictar).
+        // Ahora la cuota pendiente se cubre con las clases FUTURAS y el backlog pasado se
+        // conserva visible en el ciclo (jamás se borra historial de clases no dictadas).
+        const nowLocal = new Date();
+        const todayStr = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, "0")}-${String(nowLocal.getDate()).padStart(2, "0")}`;
+        const futureRegular = pendingRegular.filter((p) => p.dateStr >= todayStr);
+        const pastRegular = pendingRegular.filter((p) => p.dateStr < todayStr);
+        chosenPendingRegular = [...pastRegular, ...futureRegular.slice(0, slotsNeeded)];
+      } else {
+        chosenPendingRegular = pendingRegular.slice(0, slotsNeeded);
+      }
     }
     const chosenPending = [...pendingMakeups, ...chosenPendingRegular];
 

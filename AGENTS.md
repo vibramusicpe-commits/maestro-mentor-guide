@@ -2122,3 +2122,23 @@ inferencia.
 6. **Alcance blindado**: sin DDL, sin `DELETE`/`TRUNCATE`, sin tocar `kardex-calculator.ts`, `student-cycle.ts`, `app-store.ts`, asistencia, Kardex ni facturación; cero datos financieros y cero filas `is_test` en producción.
 7. **Verificación de referencia**: `scratch/test-adr-0192-bitacora-edicion.mjs` **37/37** (fixture con filas reales: emparejamiento del par 17:30/18:15, hidratación de 12 y 8 criterios, **re-guardado con 0 diferencias** en 6 filas, `session_key` con `::INT`, dossier de informes), `npm run build` en verde y `tsc --noEmit` sin errores nuevos (§92). Documentación: `docs/adr/0192-precarga-y-edicion-bitacora-classlog.md` y `docs/logs/2026-11-10-adr-0192-bitacora-edicion.log`.
 
+---
+
+### 98. Ciclo de Paquete Flexible sin clases futuras y Cero Hardcodeo por Alumno (ADR-0193)
+
+> **Origen (2026-11-12)**: Jonathan (Paquete Flexible de 24 clases, Prof. Nathaly) desapareció del Kiosco y de la Agenda desde el 17/11 pese a tener 6 sesiones por dictar. En la misma jornada se reportó que "Edi Jack" aparecía *hardcodeado*.
+
+1. **La cuota pendiente de un Paquete Flexible se cubre con las clases FUTURAS** (`src/lib/student-cycle.ts`, rama no intensiva):
+   - Está **PROHIBIDO** volver a usar `pendingRegular.slice(0, slotsNeeded)` para flexibles: `pendingRegular` arranca en `planStartDate`, así que el backlog pasado y no marcado consumía la cuota y `validSlots` quedaba con fechas pasadas ⇒ `isLessonInStudentCycle` rechazaba **toda** clase futura.
+   - Regla vigente: `chosenPendingRegular = [...pastRegular, ...futureRegular.slice(0, slotsNeeded)]` **solo si `isFlexiblePackage`**. Plan Regular e Intensivo conservan `slice(0, slotsNeeded)` sin cambios.
+   - El backlog pasado **se conserva visible** (jamás se borra historial) y `evaluatedSlots` queda intacto. `todayStr` se construye con getters **locales**, nunca con `toISOString()` (ADR-0150).
+   - La vista mensual del Kardex filtra por `cycle.validSlots` **solo para `!isFlexiblePackage`** (`kardex-calculator.ts:543`); por eso el fix no oculta el backlog de los flexibles.
+2. **Cero hardcodeo por alumno**: queda **PROHIBIDO** reintroducir ramas tipo `isJonathanDB` / `isEmmaDB` que inyecten docente, `planPrice`, `amountPaid`, instrumento, modalidad, `teacherNote`, `ageCategory`, `planType`, `packageTotalSessions` o fechas.
+   - Todo valor de ficha debe vivir en `students.emergency_contact` (JSONB). Si falta, se **migra a PostgreSQL** (PATCH aditivo, sin DDL, preservando todas las claves) y recién ahí se retira el código.
+   - Para **homónimos** se usa el matcher genérico `isMatchingStudentName` (ya resuelve *"Jonathan"* ↔ *"Ticona Cachay, Jonathan"*, nombres invertidos y alias). No se necesitan casos por alumno.
+   - La detección de **Paquete Flexible** es por datos: `packageTotalSessions > 8`, `planType` o `modality` con "Flexible".
+   - Queda **PROHIBIDO** forzar `status = "activo"` a un homónimo histórico desde la migración de `localStorage`: los duplicados se archivan (`baja`, ADR-0191) y su trazabilidad vive en PostgreSQL.
+3. **Las semillas heredadas no son fuente de verdad**: `src/store/official-seeds.ts` (generado desde `public/horarios_final.csv`) puede contener clases de alumnos que **hoy** tienen horario oficial en PostgreSQL. `hydrateFromBackend` (ADR-0118.4) **nunca** las inyecta cuando el alumno activo ya tiene `scheduleLessons`. No usar las semillas para afirmar el horario real de un alumno: **consultar siempre PostgreSQL**.
+4. **Un nombre que aparece y no existe en `students` NO es hardcode**: es un **huérfano de facturación** (recibo + familia sin alumno) creado por el autoaprovisionamiento de matrícula (ADR-0109/0116). Procedimiento: `grep`/`git log -S` para descartar código (si no aparece, es dato) → revisar `families`/`invoices` → si el alumno debe existir, matricularlo desde la UI (no a mano en la base); si no, **anular** el recibo con el patrón ADR-0191 (`[ANULADO <fecha> · motivo]`, saldos a 0) y **conservar** la familia vacía (ADR-0190 §8b). **Nunca** borrar recibos.
+5. **Verificación de referencia**: `scratch/test-jonathan-kiosco.ts` (runtime con datos vivos: Jonathan visible el 10, 11, 17 y 18/11), `scratch/test-facundo-intensive.ts` (regresión del motor, ✅), `scratch/test-adr-0192-bitacora-edicion.mjs` (37/37), `npm run build` verde y `tsc --noEmit` con **0 errores nuevos** en los archivos tocados (baseline 210 antes y después, §92). Documentación: `docs/adr/0193-ciclo-paquete-flexible-y-de-hardcodeo-jonathan.md` y `docs/logs/2026-11-12-adr-0193-ciclo-flexible-dehardcodeo.log`.
+

@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.67] - 2026-11-12
+
+### Ciclo de Paquete Flexible que borraba las clases futuras + de-hardcodeo de Jonathan (ADR-0193)
+- **Bug corregido (Kiosco de la Prof. Nathaly)**: los alumnos de **Paquete Flexible (a demanda)** dejaban de aparecer en el Kiosco y en la Agenda a mitad de ciclo. `computeStudentCycle` elegía las clases pendientes con `pendingRegular.slice(0, slotsNeeded)`, y como esa lista arranca en `planStartDate`, el **backlog ya pasado y no marcado** consumía la cuota pendiente: `validSlots` quedaba con fechas pasadas y `isLessonInStudentCycle` rechazaba **todas** las clases futuras (caso Jonathan: Paquete Flexible de 24 clases, desaparecería desde el 17/11 con 6 sesiones aún por dictar).
+- **Fix acotado al motor oficial** (`src/lib/student-cycle.ts`, rama no intensiva): para Paquete Flexible la cuota pendiente se cubre con las clases **futuras** y el backlog pasado **se conserva visible** (nunca se borra historial). Plan Regular e Intensivo quedan **sin cambios**.
+- **Cero regresión de historial**: la vista mensual del Kardex filtra por `cycle.validSlots` solo para `!isFlexiblePackage` (`kardex-calculator.ts:543`), de modo que el backlog sigue visible en el Kardex de los flexibles. `evaluatedSlots` queda intacto.
+- **De-hardcodeo de Jonathan**: eliminado **todo** el tratamiento por alumno (`isJonathanDB` / `isJonathan`) de `students.service.ts` y `app-store.ts` (docente, `planPrice` 500, `amountPaid` 500, instrumento Canto, modalidad, `teacherNote`, `ageCategory` MASTER, 24 sesiones, fechas 18/08–31/12 y la fuerza de `status = activo` en el homónimo histórico). Verificado que `isMatchingStudentName` ya resolvía los homónimos (`"Jonathan" ↔ "Ticona Cachay, Jonathan"` → `true`), por lo que el hardcode era redundante.
+- **Migración de datos (aditiva, sin DDL)**: `ageCategory = "MASTER"` persistido en la ficha legacy `00000000-0000-0000-0002-000000000001` (12 → 13 claves, **0 claves perdidas**, montos intactos). Todos los demás valores que el código inyectaba **ya existían** en `emergency_contact` ⇒ **0 cambios de comportamiento** (perfiles comparados antes/después).
+- **"Edi Jack" NO era hardcode**: `grep` del repo y `git log --all -S` devuelven **0 resultados**; nunca estuvo en el código. Es un par de **datos** creado el 07/11/2026 por el autoaprovisionamiento de matrícula (ADR-0109/0116): familia `e1212cf7` ("Familia VASQUEZ ASCATE", email `edi.jack.@gmail.com`, **sin alumnos**) y recibo `d836aa94` ("Plan Mensual (Canto) — EDI JACK ", S/ 261, pagado). El alumno fue eliminado de `students` y el recibo no se borra (ADR-0191): se anula. **No hay que agregarlo manualmente.**
+- **Verificación**: `scratch/test-jonathan-kiosco.ts` con datos vivos (Jonathan reaparece el 10/11, 11/11, **17/11** y **18/11**; el jueves 12/11 sigue en 0 clases porque hoy no tiene clase en la base), `scratch/test-facundo-intensive.ts` ✅, `scratch/test-adr-0192-bitacora-edicion.mjs` **37/37**, `npm run build` verde y `tsc --noEmit` con **0 errores nuevos** en los archivos tocados (210 antes y después; 843 preexistentes en el repo).
+
 ## [2.0.66] - 2026-11-10
 
 ### Precarga y Edición Real de la Bitácora de Clase (`ClassLog`) (ADR-0192)
