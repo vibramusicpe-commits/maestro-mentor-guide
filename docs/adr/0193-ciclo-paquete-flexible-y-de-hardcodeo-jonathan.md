@@ -112,6 +112,28 @@ Búsqueda exhaustiva (código + historial Git + base de datos):
 - El **alumno "EDI JACK" fue eliminado de `students`** (búsqueda `%edi%` / `%jack%` → 0 filas). Lo que sobrevive es el par recibo + familia huérfanos, porque las facturas **nunca se borran** (ADR-0191): se anulan.
 - **No hay que agregarlo manualmente.** Si debe existir como alumno, se matricula desde la interfaz (el sistema reutiliza/aprovisiona familia y recibo). Si no debe existir, el recibo se anula con el patrón ADR-0191 (`[ANULADO <fecha> · motivo]`, saldos a 0) y la familia vacía se conserva (ADR-0190 §8b).
 
+**Resolución ejecutada (2026-11-12, con autorización de Dirección)**: el alumno fue matriculado el **07/11/2026 17:21:21** con un abono Yape de **S/ 261** (voucher `ABONO-MATRICULA`, nota *"Abono inicial al matricular (Mensual)"*, titular `NN` → registro de prueba). El alumno se eliminó después y quedaron el recibo y la familia vacíos. Se **anuló** el recibo `d836aa94-f8aa-4ee1-9ce4-1e7870673b7b`:
+
+| Campo | Antes | Después |
+|---|---|---|
+| `concept` | `Plan Mensual (Canto) — EDI JACK ` | `[ANULADO 2026-11-12 · alumno dado de baja (sin alumno activo)] Plan Mensual (Canto) — EDI JACK` |
+| `amount_paid` | 261 | **0** |
+| `remaining_balance` | 0 | 0 |
+| `status` | pagado | pagado |
+| `amount` | 261 | 261 (sin cambios) |
+| `payment_audit_logs` | 1 log (261, Yape) | **preservado intacto** (rastro del cobro) |
+
+**Impacto cero verificado con el motor del panel** (`scratch/anular-edi-jack.ts`, lógica `activeInvoices` de `/admin/facturacion` replicada sobre datos vivos):
+
+| Total del panel | Antes | Después |
+|---|---|---|
+| Facturas | 93 | 93 |
+| Total facturado | S/ 31,591.00 | S/ 31,591.00 |
+| Total cobrado | S/ 29,253.00 | S/ 29,253.00 |
+| Saldo pendiente | S/ 2,615.00 | S/ 2,615.00 |
+
+El recibo **ya estaba excluido** del panel antes de anularlo (no coincide con ningún alumno activo), por lo que el cambio no mueve ninguna cifra. La familia `e1212cf7` se conserva vacía (ADR-0190 §8b: las familias vacías no se eliminan).
+
 ## 4. Verificación
 
 | Prueba | Resultado |

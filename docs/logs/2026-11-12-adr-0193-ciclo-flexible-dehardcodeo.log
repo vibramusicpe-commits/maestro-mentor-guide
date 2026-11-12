@@ -113,8 +113,25 @@ Autor: agente OpenCode (surgical, production)
     M AGENTS.md
     (scratch/ queda sin trackear, como el resto de la carpeta)
 
-[9] PENDIENTE DE DECISION DE DIRECCION (no ejecutado)
-    Recibo huerfano d836aa94 (EDI JACK, S/261 pagado): anular con el patron
-    ADR-0191 o re-matricular al alumno. NO se ejecuto ninguna escritura
-    sobre el recibo; queda intacto y trazable.
+[9] RESOLUCION DEL RECIBO EDI JACK (autorizado por Direccion: "Anular el recibo huerfano")
+    Facturacion real del alumno: matriculado 2026-11-07 17:21:21 con abono Yape
+    S/261 (voucher ABONO-MATRICULA, nota "Abono inicial al matricular (Mensual)",
+    titular "NN" -> registro de prueba). Alumno eliminado despues.
+
+    PATCH invoices d836aa94-f8aa-4ee1-9ce4-1e7870673b7b:
+      concept: "Plan Mensual (Canto) - EDI JACK "
+            -> "[ANULADO 2026-11-12 - alumno dado de baja (sin alumno activo)]
+                Plan Mensual (Canto) - EDI JACK"
+      amount_paid: 261 -> 0        remaining_balance: 0 (sin cambio)
+      status: pagado (sin cambio)  amount: 261 (sin cambio)
+      payment_audit_logs: 1 log preservado INTACTO (261, Yape, staff)
+
+    Verificacion de impacto (scratch/anular-edi-jack.ts, replica del filtro
+    activeInvoices de /admin/facturacion sobre datos vivos):
+      ANTES   : 93 facturas | facturado 31591 | cobrado 29253 | pendiente 2615
+      DESPUES : 93 facturas | facturado 31591 | cobrado 29253 | pendiente 2615
+      => IDENTICOS, impacto cero. El recibo ya estaba excluido del panel
+         (no coincide con ningun alumno activo).
+    Familia e1212cf7 "Familia VASQUEZ ASCATE" se conserva VACIA (ADR-0190 8b).
+    NO se borro ningun registro.
 ================================================================================
