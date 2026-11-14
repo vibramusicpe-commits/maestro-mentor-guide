@@ -65,7 +65,22 @@ export function computeStudentCycle(
     studentProfile.planType === "Paquete Flexible" ||
     studentProfile.planType === "Paquete Especial" ||
     (studentProfile.packageTotalSessions !== undefined && studentProfile.packageTotalSessions > 8);
-  const targetQuota = studentProfile.packageTotalSessions || (isDemoNivelacion ? 1 : isFlexiblePackage ? 24 : isIntensivo ? 4 : 8);
+
+  // ADR-0194: Plan Regular Compartido (8 clases = 4 Canto + 4 Guitarra).
+  // Cuando packageTotalSessions es un número positivo explícito (ej. 4) se respeta
+  // DIRECTAMENTE como cuota contractual, sin pasar por la rama isFlexiblePackage
+  // (que requiere > 8) ni por el default de 8. Esto permite que cada matrícula
+  // vinculada muestre exactamente 4 sesiones en su Kardex.
+  const explicitQuota =
+    typeof studentProfile.packageTotalSessions === "number" &&
+    studentProfile.packageTotalSessions > 0 &&
+    !isFlexiblePackage
+      ? studentProfile.packageTotalSessions
+      : undefined;
+
+  const targetQuota =
+    explicitQuota ??
+    (isDemoNivelacion ? 1 : isFlexiblePackage ? (studentProfile.packageTotalSessions || 24) : isIntensivo ? 4 : 8);
 
   const startStr = studentProfile.planStartDate || "2026-08-01";
   const [sy, sm, sd] = startStr.split("-").map(Number);

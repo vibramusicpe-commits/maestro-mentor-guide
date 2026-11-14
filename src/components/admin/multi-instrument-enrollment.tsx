@@ -170,6 +170,23 @@ export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: 
     emptySlot("Piano"),
     emptySlot("Canto"),
   ]);
+
+  /**
+   * ADR-0194 — Modo de distribución del plan.
+   *
+   * "completo": Cada instrumento tiene sus propias 8 clases (modo original).
+   *   → packageTotalSessions = 8 por ficha.
+   *
+   * "compartido": Un solo Plan Regular (8 clases) dividido en 4+4.
+   *   El alumno viene 4 veces/mes; en cada visita asiste 45 min a un
+   *   instrumento y 45 min al otro (de corrido, salas distintas).
+   *   → packageTotalSessions = 4 por ficha.
+   *   → El precio del plan se registra en el Instrumento 1 (el que
+   *     cobra). El Instrumento 2 queda con planPrice = 0 y nota
+   *     explicativa para que facturación no lo duplique.
+   *   → Cada docente ve exactamente 4 sesiones en su Kardex y Kiosco.
+   */
+  const [planMode, setPlanMode] = useState<"completo" | "compartido">("completo");
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [saving, setSaving] = useState(false);
   // ADR-0189 — confirmación visible con códigos y acceso a cada Kardex.
@@ -231,6 +248,7 @@ export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: 
     setPayments([]);
     setMatriculaType("Promo Demo (S/ 30)");
     setMatriculaAmountPaid(30);
+    setPlanMode("completo");
   };
 
   const updateSlot = (index: number, patch: Partial<InstrumentSlot>) => {
@@ -295,7 +313,16 @@ export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: 
         const slotPayments = payments.filter((entry) => entry.slotIndex === index && entry.amount > 0);
         const paidTotal = slotPayments.reduce((sum, entry) => sum + entry.amount, 0);
         const abonado = paidTotal > 0 ? paidTotal : slot.amountPaid || 0;
-        const balance = Math.max(0, (slot.planPrice || 0) - abonado);
+
+        // ADR-0194: En modo "compartido" (Plan 4+4) el precio del plan solo se
+        // registra en el Instrumento 1 para que facturación no lo duplique.
+        // El Instrumento 2 lleva planPrice = 0 con nota explicativa.
+        const effectivePlanPrice =
+          planMode === "compartido" && index > 0 ? 0 : slot.planPrice;
+        const balance = Math.max(0, (effectivePlanPrice || 0) - abonado);
+
+        // ADR-0194: cuota por ficha = 4 en modo compartido, 8 en modo completo.
+        const sessionsPerSlot = planMode === "compartido" ? 4 : 8;
 
         addNewStudent({
           name: index === 0 ? name.trim() : `${name.trim()} (${slot.instrument})`,
@@ -305,17 +332,13 @@ export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: 
           email: "",
           instrument: slot.instrument,
           level: "Principiante",
-          // Modalidad explícita: sin ella, el directorio y el ciclo del alumno
-          // recibían `undefined` y el badge de modalidad lanzaba TypeError.
           modality: "Regular (8 clases / 45 min)" as AdminStudent["modality"],
-          // Docente por NOMBRE resuelto desde el UUID: si renuncia y cambia el
-          // resolver, el dato se mantiene coherente con la fuente única.
           teacher: slot.teacherId ? (resolveTeacherNameById(slot.teacherId) || "") : "",
           age: 0,
           ageCategory: "JUNIOR" as AdminStudent["ageCategory"],
           status: "activo",
           planType: "Mensual" as AdminStudent["planType"],
-          planPrice: slot.planPrice,
+          planPrice: effectivePlanPrice,
           amountPaid: abonado,
           balance,
           birthdate: birthdate || "15 de Agosto",
@@ -327,19 +350,18 @@ export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: 
             name: guardian.trim() || name.trim(),
             phone: phone.trim(),
             relation: "Tutor Legal",
-            // Matrícula familiar: trazabilidad en `emergency_contact` JSONB.
             matriculaScope: "familia",
             matriculaAmountPaid: index === 0 ? Math.max(0, matriculaAmountPaid || 0) : 0,
             matriculaFamilyNote:
               index === 0
                 ? `Matrícula institucional única de la familia (${matriculaType}).`
                 : "Matrícula institucional ya cubierta por el primer instrumento de la familia.",
+            // ADR-0194: traza el modo para que futuras consultas sean transparentes.
+            sharedPlanType: planMode === "compartido" ? "compartido_4+4" : undefined,
           },
           paymentMethod: method,
           enrollmentDate,
           planStartDate: enrollmentDate,
-          // Solo el primer registro asume la matrícula. Los demás quedan
-          // exonerados para que la ficha financiera no la cobre dos veces.
           matriculaType: index === 0 ? matriculaType : "Exonerada",
           packUtilesCost: slot.packUtilesCost,
           packUtilesAmountPaid: slot.packUtilesAmountPaid,
@@ -352,8 +374,13 @@ export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: 
           packUtilesDelivered: slot.packUtilesAmountPaid >= slot.packUtilesCost,
           personGroupId,
           personGroupLabel: label,
-          teacherNote: slot.note,
-        } as AdminStudent);
+          teacherNote:
+            planMode === "compartido"
+              ? `Plan Compartido 4+4: ${slots[0]?.instrument ?? "Instr. 1"} (Sesiones 1–4) + ${slots[1]?.instrument ?? "Instr. 2"} (Sesiones 1–4). ${slot.note}`.trim()
+              : slot.note,
+          // ADR-0194: cuota explícita → el Kardex proyecta exactamente N sesiones.
+          packageTotalSessions: sessionsPerSlot,
+        } as unknown as AdminStudent);
 
         // Notas de cada abono: se guardan en el historial del alumno.
         if (slotPayments.length > 0) {
@@ -538,6 +565,58 @@ export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: 
             )}
           </div>
 
+          {/* ADR-0194 — Selector de distribución del plan */}
+          <div className="rounded-xl border border-border bg-background p-3 space-y-2">
+            <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+              🎵 Distribución del Plan
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setPlanMode("completo")}
+                className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                  planMode === "completo"
+                    ? "border-primary bg-primary/10 font-bold text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/50"
+                }`}
+              >
+                <span className="block font-black">Dos Planes Completos</span>
+                <span className="text-[10px]">
+                  Cada instrumento tiene sus propias 8 clases al mes. Total: 16 clases.
+                  (Ej. Luciana: Piano 8 + Canto 8)
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlanMode("compartido")}
+                className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                  planMode === "compartido"
+                    ? "border-orange-500 bg-orange-500/10 font-bold text-orange-700 dark:text-orange-300"
+                    : "border-border text-muted-foreground hover:border-orange-400/50"
+                }`}
+              >
+                <span className="block font-black">🔗 Plan Regular Compartido (4+4)</span>
+                <span className="text-[10px]">
+                  Un solo Plan Regular dividido en 2 instrumentos. El alumno viene
+                  4 veces/mes: 45 min Instrumento 1 → 45 min Instrumento 2 de corrido.
+                  Cada Kardex proyecta exactamente 4 sesiones.
+                </span>
+              </button>
+            </div>
+            {planMode === "compartido" && (
+              <div className="rounded-lg border border-orange-400/40 bg-orange-400/10 px-2.5 py-2 text-[10px] text-orange-900 dark:text-orange-100 space-y-1">
+                <p className="font-bold">📋 Reglas del Plan Compartido (ADR-0194):</p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>El <strong>precio del plan se registra solo en el Instrumento 1</strong>. El Instrumento 2 queda con precio S/ 0 para no duplicar en facturación.</li>
+                  <li>Cada docente verá <strong>4 sesiones</strong> en su Kiosco y Kardex.</li>
+                  <li>El <strong>libro (S/ 67) sí es por instrumento</strong>: se cobran 2 libros (con flexibilidad de pago según secretaría).</li>
+                  <li>La <strong>matrícula es UNA sola</strong> por familia.</li>
+                  <li>Agenda: registra ambas clases el mismo día, horas contiguas, salas distintas.</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
           {/* Instrumentos */}
           {slots.map((slot, index) => {
             const balance = Math.max(0, (slot.planPrice || 0) - (slot.amountPaid || 0));
@@ -547,9 +626,19 @@ export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: 
             return (
               <div key={index} className="rounded-xl border border-border bg-background p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">
-                    Instrumento {index + 1}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+                      Instrumento {index + 1}
+                    </p>
+                    {/* ADR-0194: Badge de cuota según modo */}
+                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                      planMode === "compartido"
+                        ? "bg-orange-500/15 text-orange-700 dark:text-orange-300"
+                        : "bg-muted text-muted-foreground"
+                    }`}>
+                      {planMode === "compartido" ? "4 sesiones / mes" : "8 sesiones / mes"}
+                    </span>
+                  </div>
                   {slots.length > 2 && (
                     <button
                       type="button"
@@ -603,13 +692,30 @@ export function MultiInstrumentEnrollment({ open, onOpenChange, onOpenKardex }: 
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className="text-[11px] font-semibold text-muted-foreground">
                     Costo del plan
-                    <Input
-                      type="number"
-                      min={0}
-                      value={slot.planPrice}
-                      onChange={(e) => updateSlot(index, { planPrice: parseFloat(e.target.value) || 0 })}
-                      className="mt-1 h-8 text-xs"
-                    />
+                    {/* ADR-0194: En modo compartido el Instrumento 2 lleva precio S/ 0
+                        para que facturación no duplique el cobro. */}
+                    {planMode === "compartido" && index > 0 ? (
+                      <>
+                        <Input
+                          type="number"
+                          value={0}
+                          readOnly
+                          disabled
+                          className="mt-1 h-8 text-xs opacity-60"
+                        />
+                        <p className="text-[9px] text-orange-600 dark:text-orange-400 font-semibold mt-0.5">
+                          S/ 0 — precio registrado en el Instrumento 1 (Plan Compartido)
+                        </p>
+                      </>
+                    ) : (
+                      <Input
+                        type="number"
+                        min={0}
+                        value={slot.planPrice}
+                        onChange={(e) => updateSlot(index, { planPrice: parseFloat(e.target.value) || 0 })}
+                        className="mt-1 h-8 text-xs"
+                      />
+                    )}
                   </label>
                   <label className="text-[11px] font-semibold text-muted-foreground">
                     Abonado

@@ -5900,11 +5900,15 @@ function ScheduleStudentForm({
   }, [liveStudent.modality]);
 
   const modStr = (selectedModality || "Regular").toLowerCase();
-  const isIntensive = modStr.includes("inten") || modStr.includes("90 min") || modStr.includes("4 clases");
-  const isRegular1x = !isIntensive && (modStr.includes("1x") || modStr.includes("1x/sem") || modStr.includes("1 vez") || modStr.includes("2 meses"));
+  const isSharedPlan4 =
+    liveStudent.packageTotalSessions === 4 ||
+    liveStudent.emergencyContact?.sharedPlanType === "compartido_4+4" ||
+    modStr.includes("compartido");
+  const isIntensive = !isSharedPlan4 && (modStr.includes("inten") || modStr.includes("90 min") || (modStr.includes("4 clases") && !modStr.includes("45 min")));
+  const isRegular1x = !isSharedPlan4 && !isIntensive && (modStr.includes("1x") || modStr.includes("1x/sem") || modStr.includes("1 vez") || modStr.includes("2 meses"));
   const isFlexible = modStr.includes("flex") || modStr.includes("demanda");
   const isDemoNivelacion = modStr.includes("nivelaci") || modStr.includes("demo nivel");
-  const isRegular2x = !isRegular1x && !isIntensive && !isFlexible && !isDemoNivelacion;
+  const isRegular2x = !isSharedPlan4 && !isRegular1x && !isIntensive && !isFlexible && !isDemoNivelacion;
   
   // Frecuencia para Paquete Flexible (1 clase o 2 clases semanales · 45 min)
   const [flexibleFrequency, setFlexibleFrequency] = useState<1 | 2>(
@@ -6374,7 +6378,7 @@ function ScheduleStudentForm({
       teacher: finalTeacher,
       instrument: instrument,
       room: room1,
-      ...(isIntensive ? { packageTotalSessions: 4 } : {}),
+      ...(isIntensive || isSharedPlan4 ? { packageTotalSessions: 4 } : {}),
     });
 
     // Agendar clases semanales reemplazando atómicamente cualquier horario previo
@@ -6441,6 +6445,8 @@ function ScheduleStudentForm({
         ? `Plan Regular (8 clases): ${day1} ${time1} (${room1}) y ${day2} ${time2} (${room2}) con Prof. ${finalTeacher}.`
         : isRegular1x
         ? `Plan Regular 1x/sem (8 clases · 2 meses): ${day1} ${time1} (${room1}) con Prof. ${finalTeacher}.`
+        : isSharedPlan4
+        ? `Plan Compartido (4 clases / 45 min · 1 mes): ${day1} ${time1} (${room1}) con Prof. ${finalTeacher}.`
         : `Plan Intensivo (4 clases de 90 min): ${day1} ${time1} a ${intensiveSecondTime || time1} (${room1}) con Prof. ${finalTeacher}.`,
     });
 
@@ -6697,6 +6703,20 @@ function ScheduleStudentForm({
               ⚙️ <strong>Modo Personalizado Activo</strong>: Puedes escoger libremente cualquier combinación de días de la semana según disponibilidad (ej. Miércoles + Viernes, Lunes + Sábado).
             </p>
           )}
+        </div>
+      ) : isSharedPlan4 ? (
+        <div className="p-3.5 rounded-2xl border border-orange-500/30 bg-orange-500/10 space-y-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-[11px] font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
+              🔗 Plan Regular Compartido (4 clases · 1x semana · 45 min)
+            </span>
+            <Badge variant="outline" className="text-[10px] font-bold border-orange-500/40 text-orange-600 dark:text-orange-400">
+              1 clase / semana (45 min · Vigencia 1 mes)
+            </Badge>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Este instrumento contempla <strong>4 clases al mes (1 clase semanal de 45 min)</strong> con Prof. <strong>{finalTeacher}</strong> ({room1}). La otra mitad del plan regular (4 clases) se imparte en el otro instrumento vinculado.
+          </p>
         </div>
       ) : isRegular1x ? (
         <div className="p-3.5 rounded-2xl border border-blue-500/30 bg-blue-500/10 space-y-2">
@@ -6965,7 +6985,7 @@ function ScheduleStudentForm({
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" />
-            {isRegular2x ? "Primera Clase Semanal (Día 1)" : isRegular1x ? "Clase Semanal (45 min)" : isIntensive ? "Horario Intensivo (90 min de corrido)" : "Horario Semanal Oficial"}
+            {isRegular2x ? "Primera Clase Semanal (Día 1)" : isSharedPlan4 ? "Clase Semanal (45 min · Plan Compartido)" : isRegular1x ? "Clase Semanal (45 min)" : isIntensive ? "Horario Intensivo (90 min de corrido)" : "Horario Semanal Oficial"}
           </span>
           {scheduleMode === "pareadas" && isRegular2x && (
             <Badge variant="outline" className="text-[10px] text-primary border-primary/30">

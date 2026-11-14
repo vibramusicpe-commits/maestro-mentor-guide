@@ -2144,3 +2144,34 @@ inferencia.
    - Los recibos sin alumno activo **ya están excluidos** del panel por el filtro `activeInvoices`; si aun así el nombre se ve en pantalla, es **caché del navegador** (ADR-0119): purgar `localStorage` y recargar.
 5. **Verificación de referencia**: `scratch/test-jonathan-kiosco.ts` (runtime con datos vivos: Jonathan visible el 10, 11, 17 y 18/11), `scratch/test-facundo-intensive.ts` (regresión del motor, ✅), `scratch/test-adr-0192-bitacora-edicion.mjs` (37/37), `npm run build` verde y `tsc --noEmit` con **0 errores nuevos** en los archivos tocados (baseline 210 antes y después, §92). Documentación: `docs/adr/0193-ciclo-paquete-flexible-y-de-hardcodeo-jonathan.md` y `docs/logs/2026-11-12-adr-0193-ciclo-flexible-dehardcodeo.log`.
 
+---
+
+### 99. Plan Regular Compartido Bi-Instrumental (4+4) y Cuota Contractual Explícita (ADR-0194)
+
+> **Origen (2026-11-14)**: Un apoderado contrata un Plan Regular de 8 clases al mes pero solicita dividirlo entre 2 instrumentos (Canto con Nathaly en Sala C y Guitarra con Jeremy en Sala A), asistiendo 4 veces al mes (en cada visita: 45 min Canto + 45 min Guitarra de corrido).
+
+1. **Arquitectura de 2 matrículas vinculadas (ADR-0186/ADR-0188)**:
+   - **PROHIBIDO** fusionar 2 instrumentos o 2 docentes en un solo registro de `students`.
+   - Se crean 2 registros de alumno vinculados por `personGroupId` y con el mismo `familyId`.
+   - Matrícula 1 (ej. Canto): Docente Nathaly, Sala C, `planPrice = 261/297`.
+   - Matrícula 2 (ej. Guitarra): Docente Jeremy, Sala A, `planPrice = 0` (evita duplicar el cobro en facturación).
+   - Ambos registros llevan `packageTotalSessions = 4` y `emergencyContact.sharedPlanType = "compartido_4+4"`.
+   - Matrícula institucional: se cobra una sola vez por familia en la primera ficha (ADR-0188 §10).
+   - Libros (Pack de útiles S/ 67): independientes por instrumento con flexibilidad de pago.
+
+2. **Cuota explícita en motores de cálculo (`student-cycle.ts` y `kardex-calculator.ts`)**:
+   - `targetQuota` respeta `packageTotalSessions` directamente sin caer en el default de 8 ni requerir `> 8` como las bolsas flexibles.
+   - Cada Kardex proyecta exactamente **4 sesiones al mes** sin clases pendientes fantasma.
+
+3. **Organizador de Horarios (`ScheduleStudentForm` en `students-table.tsx`)**:
+   - Detecta `isSharedPlan4` (`packageTotalSessions === 4` o `sharedPlanType === "compartido_4+4"`):
+     - Pide únicamente **1 clase semanal de 45 minutos** (`hasTwoWeeklySessions = false`).
+     - Calcula vigencia contractual de **1 mes** (`monthsToAdd = 1`).
+     - Muestra el banner naranja identificativo *“🔗 Plan Regular Compartido (4 clases · 1x sem · 45 min)”*.
+     - Permite que ambas clases se agenden el mismo día en horas contiguas y salas distintas (ej. Vie 16:00 Sala C y Vie 16:45 Sala A) sin cruce de aforo.
+
+4. **Referencia y Trazabilidad**:
+   - Documentación: `docs/adr/0194-plan-regular-compartido-bi-instrumental-4+4.md`.
+   - Build verificado: `npm run build` en verde, 0 errores TypeScript en los archivos tocados.
+
+

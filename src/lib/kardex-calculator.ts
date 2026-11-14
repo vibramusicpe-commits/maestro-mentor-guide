@@ -207,9 +207,21 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
     student.planType === "Paquete Especial" ||
     (Boolean(student.packageTotalSessions) && Number(student.packageTotalSessions) > 8);
 
-  let targetQuota = 8;
-  if (isIntensive) targetQuota = 4;
-  else if (isFlexiblePackage) targetQuota = Number(student.packageTotalSessions) || 24;
+  // ADR-0194: Cuota explícita de 1–8 (Plan Compartido 4+4) se respeta directamente
+  // sin pasar por isFlexiblePackage (que exige > 8). Así el Kardex de Canto y el de
+  // Guitarra proyectan exactamente 4 sesiones cada uno.
+  const explicitQuota =
+    typeof student.packageTotalSessions === "number" &&
+    student.packageTotalSessions > 0 &&
+    !isFlexiblePackage
+      ? student.packageTotalSessions
+      : undefined;
+
+  let targetQuota = explicitQuota ?? 8;
+  if (!explicitQuota) {
+    if (isIntensive) targetQuota = 4;
+    else if (isFlexiblePackage) targetQuota = Number(student.packageTotalSessions) || 24;
+  }
 
   const effectivePlanStartDate = student.planStartDate || student.joinedAt || undefined;
   const effectivePlanEndDate = student.planEndDate || undefined;
