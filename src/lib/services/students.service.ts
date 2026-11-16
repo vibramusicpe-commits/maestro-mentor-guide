@@ -147,6 +147,17 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
       name: ec.name || db.families?.primary_guardian_name || ecFamily,
       phone: ecPhone,
       relation: ec.relation || "Apoderado",
+      // ADR-0188 §10 / ADR-0190 / ADR-0194 — Estos metadatos viven SOLO en el
+      // JSONB `emergency_contact`. Si no se leen de vuelta aquí, se pierden al
+      // recargar la página (el JSONB los tiene, pero la ficha no los ve).
+      ...(ec["matriculaScope"] === "familia" || ec["matriculaScope"] === "instrumento"
+        ? { matriculaScope: ec["matriculaScope"] }
+        : {}),
+      ...(typeof ec["matriculaAmountPaid"] === "number"
+        ? { matriculaAmountPaid: ec["matriculaAmountPaid"] }
+        : {}),
+      ...(ec["matriculaFamilyNote"] ? { matriculaFamilyNote: String(ec["matriculaFamilyNote"]) } : {}),
+      ...(ec["sharedPlanType"] ? { sharedPlanType: String(ec["sharedPlanType"]) } : {}),
     },
     birthdate: db.birthdate || ec.birthdate || "15 de Agosto",
     planType: ec.planType || "Mensual",

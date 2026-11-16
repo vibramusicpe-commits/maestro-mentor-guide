@@ -153,6 +153,12 @@ export type EmergencyContact = {
   matriculaScope?: "familia" | "instrumento";
   matriculaAmountPaid?: number;
   matriculaFamilyNote?: string;
+  // ADR-0194 — Modo "Plan Regular Compartido (4+4)" entre 2 instrumentos.
+  // Vive SOLO en el JSONB `emergency_contact` (sin DDL). Se lee de vuelta en
+  // `mapDBStudentToAdminStudent`; sin esa lectura el marcador se perdía al
+  // recargar la página y el formulario dependía únicamente de
+  // `packageTotalSessions === 4`.
+  sharedPlanType?: string | undefined;
 };
 
 export type AnnualMonthRecord = {
