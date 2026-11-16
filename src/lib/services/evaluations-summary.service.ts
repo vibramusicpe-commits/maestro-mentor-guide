@@ -42,7 +42,12 @@ export async function getEvaluationsSummaryMap(
   if (studentIds && studentIds.length > 0) {
     // Si la lista es finita y manejable (< 100), filtramos en PostgREST
     if (studentIds.length <= 100) {
-      params.student_id = `in.(${studentIds.join(",")})`;
+      // `params` es un `Record<string, string>` (mapa dinámico de query params
+      // de PostgREST), no un objeto con propiedades declaradas. Con
+      // `noPropertyAccessFromIndexSignature` el acceso con punto (TS4111) no es
+      // válido sobre una firma de índice; el corchete es la forma correcta aquí,
+      // no un atajo. No se cambia el tipo: la clave depende del filtro pedido.
+      params["student_id"] = `in.(${studentIds.join(",")})`;
     }
   }
 
@@ -76,3 +81,4 @@ export async function getEvaluationsSummaryMap(
 
   return summaryMap;
 }
+
