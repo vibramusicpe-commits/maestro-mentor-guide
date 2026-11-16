@@ -2174,4 +2174,10 @@ inferencia.
    - Documentación: `docs/adr/0194-plan-regular-compartido-bi-instrumental-4+4.md`.
    - Build verificado: `npm run build` en verde, 0 errores TypeScript en los archivos tocados.
 
+5. **Mapeo Insforge completo (2026-11-16)**:
+   - Los dos registros se crean con `packageTotalSessions = 4`, `personGroupId` común, `familyId` común y `emergencyContact.sharedPlanType = "compartido_4+4"`. Todo viaja dentro del JSONB `emergency_contact`; **no hay DDL**.
+   - **Gap cerrado**: `mapDBStudentToAdminStudent` reconstruía `emergencyContact` solo con `name/phone/relation`, así que `sharedPlanType` y los metadatos de matrícula (`matriculaScope`, `matriculaAmountPaid`, `matriculaFamilyNote`) se perdían al recargar. Ahora se leen de vuelta; `EmergencyContact` declara `sharedPlanType?: string | undefined`.
+   - Regla que aplica sin excepción: **todo campo nuevo debe escribirse en `performSyncStudentToDB` y leerse en `mapDBStudentToAdminStudent`**. Si solo se escribe, el dato existe en PostgreSQL pero la ficha no lo ve.
+   - El formulario de horario mantiene el doble criterio `packageTotalSessions === 4` **o** `sharedPlanType === "compartido_4+4"`, para que un registro sin el marcador (matriculado antes de este fix) siga reconociéndose como 4+4.
+
 
