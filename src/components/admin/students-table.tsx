@@ -40,9 +40,11 @@ import {
   type AdminStudent,
   type AgeCategory,
   type LessonModality,
+  type ScheduledLesson,
   type StudentStatus,
   type DeletionReasonCategory,
   type DeletedStudentLog,
+  type VibraPlanType,
 } from "@/store/app-store";
 import {
   teachers,
@@ -1804,7 +1806,7 @@ export function StudentsTable() {
                           />
                         </div>
 
-                        {(selectedStudent.packUtilesStatus === "PARCIAL" || (!selectedStudent.packUtilesStatus && !selectedStudent.packUtilesPaid)) && (
+                        {(selectedStudent.packUtilesStatus === "parcial" || (!selectedStudent.packUtilesStatus && !selectedStudent.packUtilesPaid)) && (
                           <div>
                             <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
                               Monto Abonado Hoy (S/)
@@ -1826,7 +1828,7 @@ export function StudentsTable() {
                       </div>
 
                       {/* Cálculo en vivo de Saldo Pendiente del Libro */}
-                      {(selectedStudent.packUtilesStatus === "PARCIAL" || (!selectedStudent.packUtilesStatus && !selectedStudent.packUtilesPaid)) && (
+                      {(selectedStudent.packUtilesStatus === "parcial" || (!selectedStudent.packUtilesStatus && !selectedStudent.packUtilesPaid)) && (
                         <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-xs">
                           <span className="font-semibold text-amber-900 dark:text-amber-200">
                             Saldo restante por cobrar del Libro:
@@ -3775,7 +3777,7 @@ function NewStudentDialog() {
                   if (val === "MASTER" || val === "ADULTO") {
                     setIsAdult(true);
                     if (age < 18) setAge(25);
-                  } else if (val !== "MASTER" && val !== "ADULTO" && isAdult) {
+                  } else if (isAdult) {
                     setIsAdult(false);
                     if (age >= 18) setAge(8);
                   }
@@ -4626,7 +4628,7 @@ function EditStudentSheetInner({
     student.ageCategory === "ADULTO" || initialAge >= 18 || (student.age || 0) >= 18
       ? "MASTER"
       : (student.ageCategory || (initialIsAdult ? "MASTER" : "AUTO"));
-  const [selectedCategory, setSelectedCategory] = useState<AgeCategory | "AUTO">(rawCat === "ADULTO" ? "MASTER" : rawCat);
+  const [selectedCategory, setSelectedCategory] = useState<AgeCategory | "AUTO">(rawCat);
   const [isPersonalized, setIsPersonalized] = useState(student.ageCategory === "PERSONALIZADA");
   const [email, setEmail] = useState(student.email || "");
   const [phone, setPhone] = useState(student.phone || "");
@@ -4996,7 +4998,7 @@ function EditStudentSheetInner({
                   if (val === "MASTER" || val === "ADULTO") {
                     setIsAdult(true);
                     if (age < 18) setAge(25);
-                  } else if (val !== "MASTER" && val !== "ADULTO" && isAdult) {
+                  } else if (isAdult) {
                     setIsAdult(false);
                     if (age >= 18) setAge(8);
                   }

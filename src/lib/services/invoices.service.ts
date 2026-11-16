@@ -43,6 +43,21 @@ import type { Role } from "@/store/app-store";
 export type PaymentMethodDB = "Yape" | "Efectivo" | "Transferencia" | "Culqi";
 export type InvoiceStatusDB = "pagado" | "parcial" | "pendiente" | "vencido";
 
+/**
+ * Normaliza el medio de pago que llega desde la UI (que sí admite `Plin` y
+ * textos heredados como "Yape / Plin" o "Tarjeta") al enum persistido en la
+ * columna `payment_method`. Fuente única: antes esta misma lógica estaba
+ * duplicada en `app-store.ts` y dentro de `registerPayment`, cada copia con
+ * sus propios casts a `any`.
+ */
+export function normalizePaymentMethodDB(input: string | null | undefined): PaymentMethodDB {
+  const raw = (input || "").toLowerCase().trim();
+  if (raw.includes("yape") || raw.includes("plin")) return "Yape";
+  if (raw.includes("efectivo")) return "Efectivo";
+  if (raw.includes("culqi") || raw.includes("tarjeta")) return "Culqi";
+  return "Transferencia";
+}
+
 export interface DBInvoice {
   id: string;
   family_id: string;
@@ -232,15 +247,10 @@ export async function registerPayment(
     );
   }
 
-  const cleanMethod: PaymentMethodDB = (
-    payload.method === "Plin" || (payload.method as string)?.includes("Yape")
-      ? "Yape"
-      : payload.method === "Efectivo"
-      ? "Efectivo"
-      : (payload.method as string)?.includes("Culqi") || (payload.method as string)?.includes("Tarjeta")
-      ? "Culqi"
-      : "Transferencia"
-  );
+  // Defensa en profundidad: aunque la firma declare el enum, este edge puede
+  // recibir textos heredados de la UI (p. ej. "Plin"). Se normaliza con la
+  // fuente única en lugar de repetir ternarios con casts.
+  const cleanMethod: PaymentMethodDB = normalizePaymentMethodDB(payload.method);
 
   // [Anti-Fraude Gate] — PASO 1: Insertar audit log (inmutable)
   const auditLog = await postgrestInsert<DBPaymentAuditLog>("payment_audit_logs", {

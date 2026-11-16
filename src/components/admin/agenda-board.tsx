@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import {
   useAppStore,
   playSyntheticBellChime,
+  type AgeCategory,
   type ScheduledLesson,
   type WeekDay,
   type AdminStudent,
@@ -149,8 +150,8 @@ function dedupeLessonsForCell(lessons: ScheduledLesson[], dateStr?: string): Sch
     if (!existing) {
       map.set(sKey, l);
     } else {
-      const lIsEval = Boolean(dateStr && l.attendanceByDate?.[dateStr] && l.attendanceByDate[dateStr] !== "pendiente");
-      const exIsEval = Boolean(dateStr && existing.attendanceByDate?.[dateStr] && existing.attendanceByDate[dateStr] !== "pendiente");
+      const lIsEval = Boolean(dateStr && l.attendanceByDate?.[dateStr]);
+      const exIsEval = Boolean(dateStr && existing.attendanceByDate?.[dateStr]);
       if (lIsEval && !exIsEval) {
         map.set(sKey, l);
       } else if (!exIsEval && (l.dateStr || l.isMakeup) && (!existing.dateStr && !existing.isMakeup)) {
@@ -3048,7 +3049,7 @@ export function AgendaBoard() {
                   studentLessons.forEach((l) => {
                     if (l.attendanceByDate) {
                       Object.entries(l.attendanceByDate).forEach(([dStr, st]) => {
-                        if (st && st !== "pendiente") {
+                        if (st) {
                           if (dStr.startsWith(monthPrefix) || !dStr.includes("-")) {
                             dateAttendanceMap.set(dStr, st);
                           }
@@ -3061,7 +3062,7 @@ export function AgendaBoard() {
                     studentLessons.forEach((l) => {
                       if (l.attendanceByWeek) {
                         Object.entries(l.attendanceByWeek).forEach(([wIdx, st]) => {
-                          if (st && st !== "pendiente") {
+                          if (st) {
                             dateAttendanceMap.set(`semana-${wIdx}`, st);
                           }
                         });
@@ -3910,11 +3911,11 @@ export function AgendaBoard() {
 
                 // Auto-sincronizar la pestaña visible al par de días
                 if (pairedDays.day1 === "Lun" || pairedDays.day1 === "Mié") {
-                  setActivePair(0);
+                  setSelectedPairIndex(0);
                 } else if (pairedDays.day1 === "Mar" || pairedDays.day1 === "Jue") {
-                  setActivePair(1);
+                  setSelectedPairIndex(1);
                 } else {
-                  setActivePair(2);
+                  setSelectedPairIndex(2);
                 }
 
                 setIsAddLessonOpen(false);
@@ -3964,11 +3965,11 @@ export function AgendaBoard() {
 
               // Auto-sincronizar la pestaña visible al par de días correspondiente
               if (newLessonDay === "Lun" || newLessonDay === "Mié") {
-                setActivePair(0);
+                setSelectedPairIndex(0);
               } else if (newLessonDay === "Mar" || newLessonDay === "Jue") {
-                setActivePair(1);
+                setSelectedPairIndex(1);
               } else if (newLessonDay === "Vie" || newLessonDay === "Sáb") {
-                setActivePair(2);
+                setSelectedPairIndex(2);
               }
 
               setIsAddLessonOpen(false);
@@ -4597,9 +4598,9 @@ export function AgendaBoard() {
               });
 
               setCurrentWeekIndex(makeupWeekIndex);
-              if (makeupDay === "Lun" || makeupDay === "Mié") setActivePair(0);
-              else if (makeupDay === "Mar" || makeupDay === "Jue") setActivePair(1);
-              else if (makeupDay === "Vie" || makeupDay === "Sáb") setActivePair(2);
+              if (makeupDay === "Lun" || makeupDay === "Mié") setSelectedPairIndex(0);
+              else if (makeupDay === "Mar" || makeupDay === "Jue") setSelectedPairIndex(1);
+              else if (makeupDay === "Vie" || makeupDay === "Sáb") setSelectedPairIndex(2);
 
               setIsMakeupModalOpen(false);
               setMakeupOriginalDate("");

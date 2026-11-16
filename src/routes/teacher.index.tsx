@@ -196,8 +196,8 @@ export function TeacherKiosk() {
       if (!existing) {
         dedupedMap.set(key, l);
       } else {
-        const lIsEval = Boolean(targetDateStr && l.attendanceByDate?.[targetDateStr] && l.attendanceByDate[targetDateStr] !== "pendiente");
-        const exIsEval = Boolean(targetDateStr && existing.attendanceByDate?.[targetDateStr] && existing.attendanceByDate[targetDateStr] !== "pendiente");
+        const lIsEval = Boolean(targetDateStr && l.attendanceByDate?.[targetDateStr]);
+        const exIsEval = Boolean(targetDateStr && existing.attendanceByDate?.[targetDateStr]);
         if (lIsEval && !exIsEval) {
           dedupedMap.set(key, l);
         } else if (!exIsEval && (l.dateStr || l.isMakeup) && (!existing.dateStr && !existing.isMakeup)) {

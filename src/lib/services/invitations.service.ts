@@ -46,7 +46,19 @@ import type { Role } from "@/store/app-store";
 // Tipos DB
 // ---------------------------------------------------------------
 export type InviteStatus = "pendiente" | "aceptado" | "expirado" | "revocado";
+/**
+ * Valores reales del enum SQL `invite_target_role` (verificado en PostgreSQL:
+ * `pg_enum` solo define `teacher` y `family`). Es lo ÚNICO que la columna
+ * acepta en un INSERT/UPDATE, por eso el payload de escritura se tipa con esto.
+ */
 export type InviteTargetRole = "teacher" | "family";
+/**
+ * Rol efectivo de una invitación dentro de la app. `staff` NO existe en el
+ * enum SQL: se deriva del correo del personal (karla / fabricio / nayeli) o de
+ * los tokens permanentes de contingencia, y solo aparece en objetos de lectura
+ * (listado del panel, verificación de enlace). Nunca se escribe a PostgreSQL.
+ */
+export type InviteEffectiveRole = InviteTargetRole | "staff";
 export type PasswordEvent =
   | "master_set"
   | "user_changed"
@@ -56,7 +68,11 @@ export type PasswordEvent =
 export interface DBInvitation {
   id: string;
   token: string;
-  target_role: InviteTargetRole;
+  /**
+   * Modelo de lectura: el enum SQL (`teacher` | `family`) más `staff` derivado
+   * del correo. En escritura se sigue usando `InviteTargetRole`.
+   */
+  target_role: InviteEffectiveRole;
   target_name: string;
   target_email: string;
   target_family_id: string | null;
@@ -69,6 +85,16 @@ export interface DBInvitation {
   expires_at: string;
   created_at: string;
 }
+
+/**
+ * Invitación tal como vive en la caché local (`localStorage`) y en las
+ * semillas de contingencia: agrega los secretos que la tabla `invitations`
+ * no expone en el modelo de lectura.
+ */
+export type LocalInvitation = DBInvitation & {
+  master_password?: string;
+  custom_password?: string;
+};
 
 export interface DBUserPassword {
   id: string;
@@ -95,7 +121,7 @@ export interface DBPasswordAuditTrail {
 export interface InviteVerifyResult {
   invitation_id: string | null;
   target_name: string | null;
-  target_role: InviteTargetRole | null;
+  target_role: InviteEffectiveRole | null;
   target_email: string | null;
   target_family_id: string | null;
   master_password?: string | null;
@@ -149,6 +175,34 @@ export function buildInviteWhatsAppMessage(
     `• Guarda este mensaje para futuras sesiones.\n\n` +
     `_Academia Vibra Music — Transformando vidas a través de la música._`
   );
+}
+
+// ---------------------------------------------------------------
+// Fuente única de la etiqueta visible del rol de una invitación.
+// Antes vivía duplicada (dos ternarios idénticos) en el panel admin.
+// Acepta `string | null` a propósito: filas heredadas y semillas pueden traer
+// valores fuera del enum actual y no deben romper el tipado (ADR-0119.3).
+// ---------------------------------------------------------------
+export function invitationRoleLabel(inv: {
+  target_role?: string | null;
+  target_email?: string | null;
+}): string {
+  const email = (inv.target_email || "").toLowerCase();
+  if (email.includes("fabricio")) return "Marketing (Staff)";
+  if (email.includes("karla") || email.includes("nayeli")) return "Secretaría (Staff)";
+  if (inv.target_role === "teacher") return "Profesor";
+  if (inv.target_role === "staff") return "Staff";
+  return "Familia";
+}
+
+/**
+ * Traduce el rol efectivo de la app al único valor que el enum SQL
+ * `invite_target_role` puede almacenar. `staff` no existe en PostgreSQL: se
+ * persiste como `teacher` (acceso de personal) y la verificación lo vuelve a
+ * reconocer por el correo institucional (ADR-0174).
+ */
+export function toPersistedInviteRole(role: InviteEffectiveRole): InviteTargetRole {
+  return role === "staff" ? "teacher" : role;
 }
 
 // ---------------------------------------------------------------
@@ -322,7 +376,7 @@ export async function verifyInvitationToken(
         inv.target_email?.toLowerCase().includes("karla") ||
         inv.target_email?.toLowerCase().includes("fabricio") ||
         inv.target_email?.toLowerCase().includes("nayeli");
-      const effectiveRole = isStaff ? ("staff" as unknown as InviteTargetRole) : inv.target_role;
+      const effectiveRole: InviteEffectiveRole = isStaff ? "staff" : inv.target_role;
 
       // 🛡️ ADR-0174: La caducidad de 30 días aplica SOLO a invitaciones de
       // FAMILIA (onboarding de un apoderado). Los accesos de personal
@@ -332,7 +386,7 @@ export async function verifyInvitationToken(
       // La revocación deliberada (status = "revocado") SÍ invalida a todos.
       const isStaffOrTeacherInvite =
         inv.target_role === "teacher" ||
-        effectiveRole === ("staff" as unknown as InviteTargetRole);
+        effectiveRole === "staff";
       const blocksByExpiry = isExpired && !isStaffOrTeacherInvite;
       const isValid = !isRevoked && !blocksByExpiry;
 
@@ -400,7 +454,7 @@ export async function verifyInvitationToken(
     return {
       invitation_id: "inv-nayeli-001",
       target_name: "Nayeli (Secretaria)",
-      target_role: "staff" as unknown as InviteTargetRole,
+      target_role: "staff",
       target_email: "nayeli@vibramusic.pe",
       target_family_id: null,
       master_password: "NayeliVibra2026*",
@@ -559,9 +613,11 @@ export async function acceptInvitation(
   token?: string,
   customPassword?: string,
   targetName?: string,
-  targetRole: InviteTargetRole = "teacher",
+  targetRole: InviteEffectiveRole = "teacher",
 ): Promise<void> {
   const nowIso = new Date().toISOString();
+  // `staff` no existe en el enum SQL: se persiste como `teacher`.
+  const persistedRole = toPersistedInviteRole(targetRole);
 
   // 1. Intentar actualizar / insertar en Insforge PostgreSQL
   try {
@@ -616,7 +672,7 @@ export async function acceptInvitation(
       try {
         await postgrestInsert<DBInvitation>("invitations", {
           token: token || `inv-${targetEmail}-${Date.now()}`,
-          target_role: targetRole,
+          target_role: persistedRole,
           target_name: targetName || targetEmail.split("@")[0],
           target_email: targetEmail,
           master_password: customPassword || "Vibra-2026",
@@ -1058,7 +1114,7 @@ export async function getInvitations(
     {
       id: "a79a0a0a-9d13-4020-ac68-413bd3d17842",
       token: "karla-secretaria-vibra",
-      target_role: "staff" as unknown as InviteTargetRole,
+      target_role: "staff",
       target_name: "Karla (Secretaría)",
       target_email: "karla@vibramusic.pe",
       target_family_id: null,
@@ -1075,7 +1131,7 @@ export async function getInvitations(
     {
       id: "3b2df6a6-5fc5-459e-9cf5-8b3c22bf8882",
       token: "fabricio-marketing-vibra",
-      target_role: "staff" as unknown as InviteTargetRole,
+      target_role: "staff",
       target_name: "Fabricio (Marketing)",
       target_email: "fabricio@vibramusic.pe",
       target_family_id: null,
@@ -1092,7 +1148,7 @@ export async function getInvitations(
     {
       id: "decd405b-f0b0-4211-8a72-2d00b42ce65f",
       token: "nayeli-secretaria-vibra",
-      target_role: "staff" as unknown as InviteTargetRole,
+      target_role: "staff",
       target_name: "Nayeli (Secretaria)",
       target_email: "nayeli@vibramusic.pe",
       target_family_id: null,
@@ -1235,7 +1291,7 @@ export async function getInvitations(
         inv.id !== "inv-profe-jeremy" &&
         inv.id !== "inv-profe-fernando",
     )
-    .map((inv) => {
+    .map((inv): LocalInvitation => {
       const isStaff =
         inv.target_email.toLowerCase().includes("karla") ||
         inv.target_email.toLowerCase().includes("fabricio") ||
@@ -1243,7 +1299,7 @@ export async function getInvitations(
       if (isStaff) {
         return {
           ...inv,
-          target_role: "staff" as unknown as InviteTargetRole,
+          target_role: "staff",
         };
       }
       return inv;

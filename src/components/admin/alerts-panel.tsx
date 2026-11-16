@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, type ScheduledLesson } from "@/store/app-store";
 import { rooms } from "@/store/admin-seeds";
 
 export type MaintenanceReport = {

@@ -145,11 +145,10 @@ function InvitePage() {
         return;
       }
 
-      // Si la invitación ya fue aceptada en PostgreSQL o es staff/super_admin, ingresar directamente
+      // Si la invitación ya fue aceptada en PostgreSQL o es staff, ingresar directamente
       const isStaffUser =
         invite?.status === "aceptado" ||
         invite?.target_role === "staff" ||
-        invite?.target_role === ("super_admin" as string) ||
         invite?.target_email?.toLowerCase().includes("karla") ||
         invite?.target_email?.toLowerCase().includes("fabricio") ||
         invite?.target_email?.toLowerCase().includes("nayeli");
@@ -234,8 +233,6 @@ function InvitePage() {
     // 2. Autenticar en el store de Zustand con su rol y nombre real
     const isStaff =
       invite.target_role === "staff" ||
-      invite.target_role === ("super_admin" as unknown as any) ||
-      invite.target_role === ("admin" as unknown as any) ||
       invite.target_email.toLowerCase().includes("karla") ||
       invite.target_email.toLowerCase().includes("fabricio") ||
       invite.target_email.toLowerCase().includes("nayeli");
@@ -338,14 +335,12 @@ function InvitePage() {
       ? "Profesor/a"
       : invite?.target_role === "staff"
       ? "Secretaría (Staff)"
-      : invite?.target_role === "super_admin"
-      ? "Dirección (Dueña)"
       : "Apoderado/a";
 
   const portalLabel =
     invite?.target_role === "teacher"
       ? "Kiosco de Profesores"
-      : invite?.target_role === "staff" || invite?.target_role === "super_admin"
+      : invite?.target_role === "staff"
       ? "Panel de Dirección Admin"
       : "Portal de Familias";
 

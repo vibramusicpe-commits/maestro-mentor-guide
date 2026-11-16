@@ -137,8 +137,8 @@ export function MinimalAgendaCalendar({
         list.push(l);
       } else {
         const ex = list[existingIdx] as ScheduledLesson;
-        const lIsEval = Boolean(schL.attendanceByDate?.[dayInfo.dateStr] && schL.attendanceByDate[dayInfo.dateStr] !== "pendiente");
-        const exIsEval = Boolean(ex.attendanceByDate?.[dayInfo.dateStr] && ex.attendanceByDate[dayInfo.dateStr] !== "pendiente");
+        const lIsEval = Boolean(schL.attendanceByDate?.[dayInfo.dateStr]);
+        const exIsEval = Boolean(ex.attendanceByDate?.[dayInfo.dateStr]);
         if (lIsEval && !exIsEval) {
           list[existingIdx] = l;
         } else if (!exIsEval && (schL.dateStr || schL.isMakeup) && (!ex.dateStr && !ex.isMakeup)) {

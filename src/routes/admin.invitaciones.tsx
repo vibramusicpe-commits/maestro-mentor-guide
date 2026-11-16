@@ -4,11 +4,13 @@ import { useAppStore } from "@/store/app-store";
 import {
   createInvitation,
   getInvitations,
+  invitationRoleLabel,
   renewInvitation,
   resetUserToMasterPassword,
   revokeInvitation,
+  toPersistedInviteRole,
   type DBInvitation,
-  type InviteTargetRole,
+  type InviteEffectiveRole,
 } from "@/lib/services/invitations.service";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -52,7 +54,7 @@ function AdminInvitationsPage() {
   // Form states
   const [targetName, setTargetName] = useState("");
   const [targetEmail, setTargetEmail] = useState("");
-  const [targetRole, setTargetRole] = useState<InviteTargetRole>("teacher");
+  const [targetRole, setTargetRole] = useState<InviteEffectiveRole>("teacher");
   const [selectedSkill, setSelectedSkill] = useState<string>("Piano");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [inviteType, setInviteType] = useState<"teacher" | "family_apoderado" | "adult_student" | "staff_member">("teacher");
@@ -122,11 +124,20 @@ function AdminInvitationsPage() {
         ? `${targetName.trim()} (${selectedSkill})`
         : targetName.trim();
 
+    // El enum SQL `invite_target_role` solo admite `teacher` | `family`
+    // (verificado en PostgreSQL). `staff` es un rol DERIVADO del correo
+    // institucional (ADR-0174): `toPersistedInviteRole` lo persiste como
+    // `teacher` —el único valor no-familia disponible— y la verificación lo
+    // reconoce por email. Antes se enviaba `staff` al INSERT, PostgreSQL lo
+    // rechazaba contra el enum y la invitación solo quedaba en el
+    // localStorage de ese navegador.
+    const persistedRole = toPersistedInviteRole(targetRole);
+
     try {
       const res = await createInvitation(activeRole, currentUser?.email ?? "admin-id", {
         targetName: finalName,
         targetEmail,
-        targetRole,
+        targetRole: persistedRole,
         targetFamilyId: selectedStudentId || undefined,
       });
 
@@ -175,7 +186,7 @@ function AdminInvitationsPage() {
 
   const handleResetPassword = async (targetUser: DBInvitation) => {
     // Seguridad estricta: Nadie excepto la dueña puede alterar accesos de super_admin
-    if (targetUser.target_role === ("super_admin" as unknown as InviteTargetRole) || targetUser.target_name.toLowerCase().includes("dueña")) {
+    if (targetUser.target_name.toLowerCase().includes("dueña")) {
       toast.error("Acción denegada", {
         description: "Solo la Dirección General puede gestionar las credenciales de la Dueña.",
       });
@@ -201,7 +212,7 @@ function AdminInvitationsPage() {
   };
 
   const handleRevokeInvite = async (inv: DBInvitation) => {
-    if (inv.target_role === ("super_admin" as unknown as InviteTargetRole) || inv.target_name.toLowerCase().includes("dueña")) {
+    if (inv.target_name.toLowerCase().includes("dueña")) {
       toast.error("Acción denegada", {
         description: "No se puede eliminar el acceso de la Dirección General.",
       });
@@ -226,7 +237,7 @@ function AdminInvitationsPage() {
     new Date(inv.expires_at).getTime() < Date.now();
 
   const handleRenewInvite = async (inv: DBInvitation) => {
-    if (inv.target_role === ("super_admin" as unknown as InviteTargetRole) || inv.target_name.toLowerCase().includes("dueña")) {
+    if (inv.target_name.toLowerCase().includes("dueña")) {
       toast.error("Acción denegada", {
         description: "Solo la Dirección General puede gestionar sus propios accesos.",
       });
@@ -324,7 +335,7 @@ function AdminInvitationsPage() {
             type="button"
             onClick={() => {
               setInviteType("staff_member");
-              setTargetRole("staff" as unknown as InviteTargetRole);
+              setTargetRole("staff");
               setSelectedStudentId("");
               setTargetName("");
               setTargetEmail("");
@@ -510,15 +521,7 @@ function AdminInvitationsPage() {
                           : "bg-primary/15 text-primary border-primary/30"
                       }`}
                     >
-                      {inv.target_email.toLowerCase().includes("fabricio")
-                        ? "Marketing (Staff)"
-                        : inv.target_email.toLowerCase().includes("karla") || inv.target_email.toLowerCase().includes("nayeli")
-                        ? "Secretaría (Staff)"
-                        : inv.target_role === "teacher"
-                        ? "Profesor"
-                        : inv.target_role === "staff"
-                        ? "Staff"
-                        : "Familia"}
+                      {invitationRoleLabel(inv)}
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground">{inv.target_email}</p>
@@ -538,7 +541,7 @@ function AdminInvitationsPage() {
                   </span>
 
                   {/* Botón de Ojo: Ver Enlace Generado y Contraseña (Todos excepto la Dueña) */}
-                  {!inv.target_name.toLowerCase().includes("dueña") && inv.target_role !== ("super_admin" as unknown as InviteTargetRole) && (
+                  {!inv.target_name.toLowerCase().includes("dueña") && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -551,7 +554,7 @@ function AdminInvitationsPage() {
                   )}
 
                   {/* Renovar Acceso Vencido: extiende la vigencia 30 días con el mismo enlace */}
-                  {isInviteExpired(inv) && !inv.target_name.toLowerCase().includes("dueña") && inv.target_role !== ("super_admin" as unknown as InviteTargetRole) && (
+                  {isInviteExpired(inv) && !inv.target_name.toLowerCase().includes("dueña") && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -574,7 +577,7 @@ function AdminInvitationsPage() {
                   </Button>
 
                   {/* Eliminación / Revocación para Secretaría (Nayeli) y Dirección */}
-                  {!inv.target_name.toLowerCase().includes("dueña") && inv.target_role !== ("super_admin" as unknown as InviteTargetRole) && (
+                  {!inv.target_name.toLowerCase().includes("dueña") && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -621,15 +624,7 @@ function AdminInvitationsPage() {
                         : "bg-primary/15 text-primary border-primary/30"
                     }`}
                   >
-                    {viewModalInvite.target_email.toLowerCase().includes("fabricio")
-                      ? "Marketing (Staff)"
-                      : viewModalInvite.target_email.toLowerCase().includes("karla") || viewModalInvite.target_email.toLowerCase().includes("nayeli")
-                      ? "Secretaría (Staff)"
-                      : viewModalInvite.target_role === "teacher"
-                      ? "Profesor"
-                      : viewModalInvite.target_role === "staff"
-                      ? "Staff"
-                      : "Familia"}
+                    {invitationRoleLabel(viewModalInvite)}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono truncate">{viewModalInvite.target_email}</p>

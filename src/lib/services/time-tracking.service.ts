@@ -122,14 +122,13 @@ export function clearShiftFromLocalCache(shiftId: string) {
   }
 }
 
-export function purgeStaleShiftsFromLocalCache(teacherId?: string) {
+export function purgeStaleShiftsFromLocalCache(_teacherId?: string) {
   try {
     const now = Date.now();
     const maxAgeMs = MAX_SHIFT_DURATION_HOURS * 3600 * 1000;
     const existing = getShiftsFromLocalCache();
     const filtered = existing.filter((s) => {
       if (s.status === "finalizado") return false;
-      if (teacherId && s.teacher_id === teacherId && s.status === "finalizado") return false;
       const clockInMs = new Date(s.clock_in).getTime();
       if (isNaN(clockInMs) || now - clockInMs > maxAgeMs) {
         return false; // eliminar turnos zombies de más de 14 horas

@@ -41,6 +41,10 @@ import { getCurrentWeekIndex } from "@/lib/calendar-utils";
 import { isMatchingStudentName, resolveStudentUUID, isSameStudentId, normalizeStudentName } from "@/lib/student-matching";
 import type { TeacherParentNote } from "@/lib/services/teacher-notes.service";
 import { triggerDataSyncBroadcast } from "@/lib/sync-broadcast";
+import {
+  normalizePaymentMethodDB,
+  type PaymentMethodDB,
+} from "@/lib/services/invoices.service";
 
 export type { AttendanceStatus, BillingLine, Kid, Lesson, PayrollWeek, StudentRow, TeacherParentNote };
 export type {
@@ -579,9 +583,7 @@ function backgroundCreateInvoiceInDB(role: Role, invoice: Invoice, student: Admi
 
       // 2. Insertar factura en tabla invoices de PostgreSQL
       const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";
-      const dbMethod: any = invoice.paymentMethod === "Yape / Plin" || invoice.paymentMethod === "Yape" || invoice.paymentMethod === "Plin"
-        ? "Yape"
-        : (invoice.paymentMethod === "Efectivo" ? "Efectivo" : (invoice.paymentMethod?.includes("Tarjeta") || invoice.paymentMethod?.includes("Culqi") ? "Culqi" : "Transferencia"));
+      const dbMethod: PaymentMethodDB = normalizePaymentMethodDB(invoice.paymentMethod);
 
       try {
         await createInvoice(syncRole, {
@@ -956,15 +958,7 @@ function backgroundSyncPaymentToDB(
         amount_paid: 0,
         remaining_balance: Math.max(297, amount),
       };
-      const cleanMethod: any = (
-        method === "Plin" || (method as string)?.includes("Yape")
-          ? "Yape"
-          : method === "Efectivo"
-          ? "Efectivo"
-          : (method as string)?.includes("Culqi") || (method as string)?.includes("Tarjeta")
-          ? "Culqi"
-          : "Transferencia"
-      );
+      const cleanMethod: PaymentMethodDB = normalizePaymentMethodDB(method);
       registerPayment(
         role,
         userId,

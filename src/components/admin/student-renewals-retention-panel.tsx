@@ -387,7 +387,7 @@ export function StudentRenewalsRetentionPanel() {
                               ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40"
                               : retention.color === "red"
                               ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/40"
-                              : retention.color === "zinc"
+                              : retention.color === "gray"
                               ? "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/40"
                               : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
                           }`}
