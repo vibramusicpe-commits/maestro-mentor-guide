@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Search, User, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import type { AdminStudent } from "@/store/app-store";
 
 /**
  * Selector de alumno optimizado para celular (ADR-0176).
@@ -12,9 +11,32 @@ import type { AdminStudent } from "@/store/app-store";
  * evitando scroll innecesario en el kiosco.
  */
 
+/**
+ * Forma mínima que el selector necesita de un alumno.
+ *
+ * No se tipa como `AdminStudent[]` a propósito: este selector es compartido
+ * por el Kiosco (que sí tiene `AdminStudent` completos), la nota a familia y
+ * la nota interna (que solo reciben id/nombre/instrumento). Exigir el tipo
+ * completo obligaba a esos formularios a construir alumnos falsos con campos
+ * `family`, `level`, `modality`… que nunca usan.
+ *
+ * `AdminStudent` sigue siendo asignable a esta interfaz (es estructural), así
+ * que ningún llamador existente necesita cambios. Fuente única: si el selector
+ * empieza a mostrar otro dato, se agrega aquí y no se duplica en cada vista
+ * (ADR-0119.3).
+ */
+export interface StudentPickerOption {
+  id: string;
+  name: string;
+  /** Se acepta `null` porque las fichas livianas llegan así desde la API. */
+  instrument?: string | null | undefined;
+  teacher?: string | null | undefined;
+  ageCategory?: string | null | undefined;
+}
+
 export interface StudentPickerProps {
   id?: string;
-  students: AdminStudent[];
+  students: StudentPickerOption[];
   value: string;
   onChange: (studentId: string) => void;
   placeholder?: string;

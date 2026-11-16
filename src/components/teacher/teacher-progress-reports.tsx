@@ -673,7 +673,11 @@ export function TeacherProgressReports({
             </div>
           )}
 
-          {readiness && (
+          {/* `readiness` solo se calcula cuando hay alumno (línea ~299), pero
+              TypeScript no puede inferirlo: el bloque usa `selectedStudent`
+              dentro de callbacks y necesita la guarda explícita. Sin ella,
+              los 6 accesos de las tarjetas de clase daban TS18047. */}
+          {readiness && selectedStudent && (
             <>
               <div className="grid grid-cols-2 gap-1.5">
                 {REPORT_KIND_OPTIONS.map((option) => (
