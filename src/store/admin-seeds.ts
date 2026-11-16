@@ -144,16 +144,75 @@ export const HISTORICAL_BASE_METADATA = {
   totalRecords: 83,
 };
 
+/**
+ * Contrato real del JSONB `students.emergency_contact`.
+ *
+ * Es la superficie de persistencia documentada para todo lo que no tiene
+ * columna propia (ADR-0188/0190/0191/0194): metadatos de matrícula, pack de
+ * útiles, horario (`scheduleLessons`), vigencias, categoría de edad y el
+ * vínculo de misma persona entre instrumentos (ADR-0186).
+ *
+ * Antes estaba tipado solo con `name/phone/relation`, así que cada servicio
+ * tenía que leerlo como `Record<string, any>` y perdía el chequeo de tipos en
+ * más de 200 accesos. Este tipo es la fuente única para leerlo y escribirlo.
+ */
 export type EmergencyContact = {
   name: string;
   phone: string;
   relation: string;
-  // ADR-0188 §10 — Metadatos de la matrícula institucional (JSONB, sin DDL).
+  // ── Contacto y datos del alumno ──
+  email?: string | undefined;
+  family?: string | undefined;
+  teacher?: string | undefined;
+  birthdate?: string | undefined;
+  notes?: string | undefined;
+  /** El JSONB puede traerlo como número o como texto ("7"). */
+  age?: number | string | undefined;
+  ageCategory?: AgeCategory | undefined;
+  fatherName?: string | undefined;
+  fatherPhone?: string | undefined;
+  motherName?: string | undefined;
+  motherPhone?: string | undefined;
+  // ── Plan contratado y cobros ──
+  planType?: VibraPlanType | undefined;
+  planPrice?: number | undefined;
+  amountPaid?: number | undefined;
+  balance?: number | undefined;
+  packageTotalSessions?: number | undefined;
+  modality?: LessonModality | undefined;
+  matriculaType?: MatriculaType | undefined;
+  enrollmentDate?: string | undefined;
+  paymentMethod?: string | undefined;
+  // ── Pack de útiles / libros ──
+  packUtilesPaid?: boolean | undefined;
+  packUtilesCost?: number | undefined;
+  packUtilesAmountPaid?: number | undefined;
+  packUtilesStatus?: "cancelado" | "parcial" | "pendiente" | "exonerado" | undefined;
+  packUtilesDelivered?: boolean | undefined;
+  packUtilesNotes?: string | undefined;
+  // ── Vigencia contractual ──
+  planStartDate?: string | undefined;
+  planEndDate?: string | undefined;
+  planStartMonth?: string | undefined;
+  planEndMonth?: string | undefined;
+  // ── Asistencia ──
+  attendanceRate?: number | undefined;
+  recentAttendance?: ("presente" | "ausente" | "tarde" | "justificada")[] | undefined;
+  // ── Horario persistido (ADR-0118.4) ──
+  scheduleLessons?: ScheduledLesson[] | undefined;
+  // ── Saldo a favor de la familia (ADR-0190 §6 / ADR-0191) ──
+  creditBalance?: number | undefined;
+  creditNote?: string | undefined;
+  creditSetAt?: string | undefined;
+  // ── ADR-0186 — Vínculo de misma persona con varios instrumentos ──
+  personGroupId?: string | undefined;
+  personGroupLabel?: string | undefined;
+  // ── ADR-0188 §10 — Metadatos de la matrícula institucional (JSONB, sin DDL).
   // La matrícula se paga UNA vez por familia; el libro sí es por instrumento.
-  matriculaScope?: "familia" | "instrumento";
-  matriculaAmountPaid?: number;
-  matriculaFamilyNote?: string;
-  // ADR-0194 — Modo "Plan Regular Compartido (4+4)" entre 2 instrumentos.
+  matriculaScope?: "familia" | "instrumento" | undefined;
+  matriculaAmountPaid?: number | undefined;
+  matriculaFamilyNote?: string | undefined;
+  // ── ADR-0194 — Modo "Plan Regular Compartido (4+4)" entre 2 instrumentos.
   // Vive SOLO en el JSONB `emergency_contact` (sin DDL). Se lee de vuelta en
   // `mapDBStudentToAdminStudent`; sin esa lectura el marcador se perdía al
   // recargar la página y el formulario dependía únicamente de

@@ -642,7 +642,7 @@ function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<
         ...updates,
       };
 
-      const payload: Record<string, unknown> = {};
+      const payload: import("@/lib/services/students.service").DBStudentUpdate = {};
       if (mergedStudent.name) payload.full_name = mergedStudent.name;
       if (mergedStudent.instrument) payload.instrument = mergedStudent.instrument;
       if (mergedStudent.level) payload.level = mergedStudent.level;
@@ -700,9 +700,15 @@ function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<
         payload.birthdate = normalizedBirthdate;
       }
 
-      // Persistir metadatos extendidos en columna JSONB emergency_contact
-      const ecData: Record<string, any> = {
-        ...(typeof currentStudent?.emergencyContact === "object" ? currentStudent.emergencyContact : {}),
+      // Persistir metadatos extendidos en columna JSONB emergency_contact.
+      // `name/phone/relation` son obligatorios en el contrato, así que se
+      // siembran con la ficha actual (o vacío) y el spread conserva lo real.
+      const currentEc = currentStudent?.emergencyContact;
+      const ecData: import("@/store/admin-seeds").EmergencyContact = {
+        name: currentEc?.name ?? "",
+        phone: currentEc?.phone ?? "",
+        relation: currentEc?.relation ?? "Apoderado",
+        ...(typeof currentEc === "object" ? currentEc : {}),
         ...(typeof updates.emergencyContact === "object" ? updates.emergencyContact : {}),
       };
 
@@ -781,7 +787,7 @@ function performSyncStudentToDB(role: Role, studentId: string, updates: Partial<
         "00000000-0000-0000-0001-",
       );
       if (familyId !== resolvedStudentId) {
-        const famPayload: Record<string, string> = {};
+        const famPayload: import("@/lib/services/students.service").DBFamilyUpdate = {};
         if (mergedStudent.family) famPayload.family_name = mergedStudent.family;
         if (mergedStudent.email) famPayload.email = mergedStudent.email;
         if (mergedStudent.phone) famPayload.primary_guardian_phone = mergedStudent.phone;

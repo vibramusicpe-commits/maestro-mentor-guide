@@ -29,7 +29,11 @@ import {
 import type { Role } from "@/store/app-store";
 import { isMatchingStudentName } from "@/lib/student-matching";
 import { calculateAgeFromBirthdate } from "@/lib/calendar-utils";
-import { getCategoryFromAge } from "@/store/admin-seeds";
+import {
+  getCategoryFromAge,
+  type EmergencyContact,
+  type LessonModality,
+} from "@/store/admin-seeds";
 
 // ---------------------------------------------------------------
 // Tipos de la capa de servicio (reflejan el schema SQL)
@@ -41,12 +45,14 @@ export interface DBStudent {
   instrument: string;
   level: string;
   assigned_teacher_id: string | null;
-  modality: import("@/store/app-store").LessonModality | string;
+  /** Columna `modality` con enum `lesson_modality_enum` (ADR-0112). */
+  modality: LessonModality | null;
   status: "activo" | "pausa" | "baja";
   makeup_credits: number;
   birthdate: string | null;
   attendance_rate: number;
-  emergency_contact: { name: string; phone: string; relation: string } | null;
+  /** JSONB con el contrato completo de la ficha (ver `EmergencyContact`). */
+  emergency_contact: EmergencyContact | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -58,6 +64,19 @@ export interface DBStudent {
     primary_guardian_phone: string;
   };
 }
+
+export type DBStudentUpdate = Partial<
+  Omit<DBStudent, "id" | "created_at" | "updated_at" | "families">
+>;
+export type DBStudentCreate = Omit<DBStudent, "id" | "created_at" | "updated_at" | "families">;
+
+/** Columnas editables de `families` (join del apoderado). */
+export type DBFamilyUpdate = {
+  family_name?: string;
+  email?: string;
+  primary_guardian_phone?: string;
+  primary_guardian_name?: string;
+};
 
 export interface BirthdayAlert {
   student_id: string;
@@ -75,7 +94,9 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     "00000000-0000-0000-0000-000000000006": "Demo",
   };
 
-  const ec = (db.emergency_contact as Record<string, any>) || {};
+  // Contrato JSONB de la ficha (ver `EmergencyContact`). Se lee como parcial
+  // porque las filas históricas no traen todas las claves.
+  const ec: Partial<EmergencyContact> = db.emergency_contact ?? {};
   const ecPhone = ec.phone || db.families?.primary_guardian_phone || "987654321";
   const ecEmail = ec.email || db.families?.email || `alumno_${db.id.slice(0, 4)}@vibramusic.pe`;
   const ecFamily = ec.family || db.families?.family_name || `Familia ${db.full_name}`;
@@ -102,7 +123,7 @@ export function mapDBStudentToAdminStudent(db: DBStudent): import("@/store/app-s
     instrument: db.instrument || (isCamilaDB ? "Violín" : "Piano"),
     level: db.level || "Nivel 1",
     teacher: resolvedTeacher,
-    modality: (ec.modality as any) || (db.modality as any) || "Regular (8 clases / 45 min)",
+    modality: ec.modality || db.modality || "Regular (8 clases / 45 min)",
     status: db.status || "activo",
     attendanceRate: typeof ec.attendanceRate === "number"
       ? ec.attendanceRate
@@ -254,7 +275,7 @@ export async function setStudentModality(
   return postgrestPatch<DBStudent>(
     "students",
     { id: `eq.${studentId}` },
-    { modality: sqlModality as any },
+    { modality: sqlModality },
   );
 }
 
@@ -328,7 +349,7 @@ export async function getBirthdaysThisMonth(userRole: Role): Promise<DBStudent[]
 // ---------------------------------------------------------------
 export async function createStudent(
   userRole: Role,
-  payload: Omit<DBStudent, "id" | "created_at" | "updated_at" | "families">,
+  payload: DBStudentCreate,
 ): Promise<DBStudent> {
   assertRole(userRole, ["super_admin", "staff"], "registrar matrícula de nuevo alumno");
   return postgrestInsert<DBStudent>("students", payload);
@@ -341,7 +362,7 @@ export async function createStudent(
 export async function updateStudent(
   userRole: Role,
   studentId: string,
-  payload: Partial<Omit<DBStudent, "id" | "created_at" | "updated_at" | "families">>,
+  payload: DBStudentUpdate,
 ): Promise<DBStudent> {
   assertRole(userRole, ["super_admin", "staff"], "editar datos del alumno");
   return postgrestPatch<DBStudent>(
@@ -358,7 +379,7 @@ export async function updateStudent(
 export async function updateFamily(
   userRole: Role,
   familyId: string,
-  payload: { family_name?: string; email?: string; primary_guardian_phone?: string; primary_guardian_name?: string },
+  payload: DBFamilyUpdate,
 ): Promise<void> {
   assertRole(userRole, ["super_admin", "staff"], "editar datos de familia");
   await postgrestPatch(
