@@ -167,13 +167,13 @@ export type AdminStudent = {
   id: string;
   name: string;
   family: string;
-  familyId?: string; // UUID de families en PostgreSQL (vínculo exacto invitación-padre-hijos, Fase 1 modo padre)
+  familyId?: string | undefined; // UUID de families en PostgreSQL (vínculo exacto invitación-padre-hijos, Fase 1 modo padre)
   instrument: string;
   level: string;
   teacher: string;
   modality: LessonModality;
-  ageCategory?: AgeCategory;
-  age?: number;
+  ageCategory?: AgeCategory | undefined;
+  age?: number | undefined;
   status: StudentStatus;
   attendanceRate: number;
   payment: PaymentStatus;
@@ -186,44 +186,59 @@ export type AdminStudent = {
   email: string;
   phone: string;
   // Datos completos de Padres y Contacto de Emergencia
-  fatherName?: string;
-  fatherPhone?: string;
-  motherName?: string;
-  motherPhone?: string;
+  fatherName?: string | undefined;
+  fatherPhone?: string | undefined;
+  motherName?: string | undefined;
+  motherPhone?: string | undefined;
   emergencyContact: EmergencyContact;
   birthdate: string;
   // Campos del Dossier con control exacto día por día
-  planType?: VibraPlanType;
-  planPrice?: number;
-  amountPaid?: number; // Monto abonado al momento de la matrícula
-  paymentMethod?: "Yape / Plin" | "Tarjeta de Débito" | "Tarjeta de Crédito" | "Efectivo" | "Transferencia Bancaria" | string;
-  enrollmentDate?: string; // Fecha de matrícula / pago (YYYY-MM-DD)
-  packageTotalSessions?: number; // Total de clases del paquete (ej. 24 para Jonathan, 8 para regular)
-  matriculaType?: MatriculaType;
+  planType?: VibraPlanType | undefined;
+  planPrice?: number | undefined;
+  amountPaid?: number | undefined; // Monto abonado al momento de la matrícula
+  paymentMethod?: ("Yape / Plin" | "Tarjeta de Débito" | "Tarjeta de Crédito" | "Efectivo" | "Transferencia Bancaria" | string) | undefined;
+  enrollmentDate?: string | undefined; // Fecha de matrícula / pago (YYYY-MM-DD)
+  packageTotalSessions?: number | undefined; // Total de clases del paquete (ej. 24 para Jonathan, 8 para regular)
+  matriculaType?: MatriculaType | undefined;
   // Pack de Útiles / Libro (S/ 67)
-  packUtilesPaid?: boolean; // legacy compatibility
-  packUtilesCost?: number; // Costo base (S/ 67 por defecto)
-  packUtilesAmountPaid?: number; // Monto efectivamente abonado (ej. S/ 30 o S/ 67)
-  packUtilesStatus?: "cancelado" | "parcial" | "pendiente" | "exonerado";
-  packUtilesDelivered?: boolean; // Entregado físicamente
-  packUtilesNotes?: string; // Notas de prorrateo (ej. "Pagó S/ 30, saldo S/ 37 la próxima clase")
-  planStartDate?: string; // "2026-08-03" (Día exacto de primera clase)
-  planEndDate?: string; // "2026-08-31" (Día exacto de fin de ciclo)
-  planStartMonth?: string; // "2026-08"
-  planEndMonth?: string; // "2026-08"
+  packUtilesPaid?: boolean | undefined; // legacy compatibility
+  packUtilesCost?: number | undefined; // Costo base (S/ 67 por defecto)
+  packUtilesAmountPaid?: number | undefined; // Monto efectivamente abonado (ej. S/ 30 o S/ 67)
+  packUtilesStatus?: ("cancelado" | "parcial" | "pendiente" | "exonerado") | undefined;
+  packUtilesDelivered?: boolean | undefined; // Entregado físicamente
+  packUtilesNotes?: string | undefined; // Notas de prorrateo (ej. "Pagó S/ 30, saldo S/ 37 la próxima clase")
+  planStartDate?: string | undefined; // "2026-08-03" (Día exacto de primera clase)
+  planEndDate?: string | undefined; // "2026-08-31" (Día exacto de fin de ciclo)
+  planStartMonth?: string | undefined; // "2026-08"
+  planEndMonth?: string | undefined; // "2026-08"
   // Matriz Anual de Pagos (Reemplazo definitivo de Excel Ene-Dic)
-  annualRecords?: Record<string, AnnualMonthRecord>;
+  annualRecords?: Record<string, AnnualMonthRecord> | undefined;
   rawMontoText?: string;
   // Historial de Reingreso y Seguimiento
   isReentry?: boolean;
   reentryHistory?: Array<{ date: string; reason: string; notes?: string }>;
   // Horario persistido desde PostgreSQL (emergency_contact.scheduleLessons)
-  scheduleLessons?: ScheduledLesson[];
+  scheduleLessons?: ScheduledLesson[] | undefined;
   // ADR-0186 — Vínculo de misma persona con varios instrumentos.
   // Los registros de un mismo alumno con 2+ instrumentos comparten este UUID.
   // NO fusiona las matrículas: solo indica que son la misma persona.
   personGroupId?: string;
   personGroupLabel?: string;
+  // Sala oficial asignada (ADR-0102: A=Jeremy, B=Fernando, C=Nathaly, D=Claudia).
+  room?: string | undefined;
+  // Categoría de edad efectiva usada en el Dossier de auditoría (ADR-0121).
+  category?: AgeCategory | undefined;
+  // Marca de última sincronización con PostgreSQL (invalida cachés de ciclo, ADR-0119).
+  updatedAt?: string | undefined;
+  // ADR-0129 — Transición de curso/instrumento con fecha de corte.
+  courseTransition?: {
+    originalInstrument?: string;
+    newInstrument?: string;
+    cutOffDate?: string;
+    effectiveDate?: string;
+  } | undefined;
+  // Recibos atribuidos a ESTA matrícula (ADR-0190 — jamás al homónimo).
+  invoices?: Invoice[] | undefined;
 };
 
 export type DeletionReasonCategory =
@@ -268,18 +283,28 @@ export type Invoice = {
   // ADR-0190 — UUID de `families` en PostgreSQL. Necesario para atribuir un
   // recibo a UNA matrícula cuando dos alumnos comparten exactamente el mismo
   // nombre (caso Luciana: 2 registros "Luciana"). Opcional por compatibilidad.
-  familyId?: string;
+  familyId?: string | undefined;
   concept: string;
-  students: number;
+  students?: number; // Nº de alumnos facturados en este recibo
   amount: number; // Precio total inmutable
   amountPaid: number; // Monto abonado hasta el momento
   remainingBalance: number; // Saldo pendiente
   dueDate: string;
-  daysToDue: number; // Alerta a los 2 días de vencer
+  daysToDue?: number; // Alerta a los 2 días de vencer
   status: InvoiceStatus;
   paymentMethod?: PaymentMethod | null;
-  remindedAt: string | null;
-  paymentLogs: PaymentLog[];
+  remindedAt?: string | null | undefined;
+  paymentLogs?: PaymentLog[];
+  // Nombre del alumno al que pertenece el recibo (atribución exacta, ADR-0190).
+  student?: string;
+  // Teléfono de contacto del apoderado (dato operativo del recibo).
+  phone?: string;
+  // Fecha de emisión del comprobante.
+  issueDate?: string | undefined;
+  // Detalle de conceptos del recibo (jsonb `items` en PostgreSQL).
+  items?: Array<Record<string, unknown>> | undefined;
+  // Notas del recibo (observaciones de secretaría).
+  notes?: string;
 };
 
 export type RecurringConcept = {

@@ -33,6 +33,7 @@ import {
   computeStudentRetentionStatus,
   computeStudentMonthSessions,
   computeStudentCycleSessions,
+  type StudentSessionItem,
 } from "@/lib/kardex-calculator";
 import { toast } from "sonner";
 import {
@@ -79,26 +80,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-export interface StudentSessionItem {
-  id: string; // Key única: `${lesson.id}-w${weekIndex}`
-  lessonId: string;
-  sessionIndex: number;
-  weekIndex: number;
-  weekLabel: string;
-  dateStr: string; // YYYY-MM-DD
-  dayNum: number;
-  dayName: string; // "Lunes 03 de Agosto 2026"
-  dayShort: string; // "Lun 03 Ago"
-  dayKey: WeekDay;
-  time: string; // "16:00"
-  timeEnd: string; // "16:45"
-  teacher: string;
-  room: string;
-  instrument: string;
-  isMakeup: boolean;
-  recoveringLessonDate?: string;
-  status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente";
-}
+// ADR-0119.3 — `StudentSessionItem` vive ÚNICAMENTE en `@/lib/kardex-calculator`.
+// Antes vivía duplicado aquí y en el motor, lo que generaba incompatibilidades
+// de tipo (`isMakeup` opcional vs. requerido) y riesgo de divergencia de datos.
+// Este archivo sólo lo IMPORTA: no lo re-declara.
 
 interface StudentAttendanceKardexProps {
   student: AdminStudent;
@@ -455,7 +440,10 @@ export function StudentAttendanceKardex({
 
   // 🔄 Helper: Obtener fecha exacta en el futuro para reprogramación
   const getTargetDateInFuture = (originDateStr: string, targetDay: WeekDay): string => {
-    const [y, m, d] = originDateStr.split("-").map(Number);
+    const originParts = originDateStr.split("-").map(Number);
+    const y = originParts[0] ?? 0;
+    const m = originParts[1] ?? 1;
+    const d = originParts[2] ?? 1;
     const origin = new Date(y, m - 1, d);
     const originJsDay = origin.getDay(); // 0 Dom, 1 Lun, 2 Mar, 3 Mié, 4 Jue, 5 Vie, 6 Sáb
     const dayOrder: Record<WeekDay, number> = { Lun: 1, Mar: 2, Mié: 3, Jue: 4, Vie: 5, Sáb: 6 };
@@ -537,7 +525,10 @@ export function StudentAttendanceKardex({
   // 🔄 Acción: Extender Vigencia del Plan (+X días) ante inasistencias ("La clase no se pierde, se recupera")
   const handleExtendPlan = (daysToAdd: number = 7) => {
     const currentEndStr = effectivePlanEndDate || "2026-09-27";
-    const [y, m, d] = currentEndStr.split("-").map(Number);
+    const endParts = currentEndStr.split("-").map(Number);
+    const y = endParts[0] ?? 0;
+    const m = endParts[1] ?? 1;
+    const d = endParts[2] ?? 1;
     const curEnd = new Date(y, m - 1, d);
     const newEnd = new Date(curEnd.getFullYear(), curEnd.getMonth(), curEnd.getDate() + daysToAdd);
     const newEndStr = `${newEnd.getFullYear()}-${String(newEnd.getMonth() + 1).padStart(2, "0")}-${String(newEnd.getDate()).padStart(2, "0")}`;
@@ -620,7 +611,8 @@ export function StudentAttendanceKardex({
       room: addSessionRoom,
       category: liveStudent.ageCategory || "JUNIOR",
       status: "programada",
-      dateStr: computedDateStr,
+      // `exactOptionalPropertyTypes`: `dateStr` sólo se envía si existe.
+      ...(computedDateStr ? { dateStr: computedDateStr } : {}),
       weekIndex: addSessionWeekIndex,
       month: selectedMonth,
       year: selectedYear,
@@ -1466,12 +1458,15 @@ export function StudentAttendanceKardex({
                     const val = e.target.value;
                     setReschedDate(val);
                     if (val) {
-                      const [y, m, d] = val.split("-").map(Number);
-                      const dt = new Date(y, m - 1, d);
+                      const valParts = val.split("-").map(Number);
+                      const vy = valParts[0] ?? 0;
+                      const vm = valParts[1] ?? 1;
+                      const vd = valParts[2] ?? 1;
+                      const dt = new Date(vy, vm - 1, vd);
                       const jsDay = dt.getDay();
                       if (jsDay >= 1 && jsDay <= 6) {
                         const newD = WEEKDAYS_ORDER[jsDay - 1];
-                        setReschedDay(newD);
+                        if (newD) setReschedDay(newD);
                         const slots = newD === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
                         if (!slots.includes(reschedTime)) {
                           setReschedTime(slots[0] || "16:00");

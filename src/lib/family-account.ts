@@ -37,35 +37,35 @@ export interface FamilyStudentInput {
   name: string;
   instrument?: string;
   status?: string;
-  familyId?: string;
-  personGroupId?: string;
-  personGroupLabel?: string;
-  planPrice?: number;
-  amountPaid?: number;
-  balance?: number;
-  planType?: string;
-  matriculaType?: string;
-  matriculaScope?: "familia" | "instrumento";
-  packUtilesCost?: number;
-  packUtilesAmountPaid?: number;
-  packUtilesStatus?: string;
-  packUtilesDelivered?: boolean;
-  invoices?: Array<{ id: string }>;
-  emergencyContact?: unknown;
+  familyId?: string | undefined;
+  personGroupId?: string | undefined;
+  personGroupLabel?: string | undefined;
+  planPrice?: number | undefined;
+  amountPaid?: number | undefined;
+  balance?: number | undefined;
+  planType?: string | undefined;
+  matriculaType?: string | undefined;
+  matriculaScope?: "familia" | "instrumento" | undefined;
+  packUtilesCost?: number | undefined;
+  packUtilesAmountPaid?: number | undefined;
+  packUtilesStatus?: string | undefined;
+  packUtilesDelivered?: boolean | undefined;
+  invoices?: Array<{ id: string }> | undefined;
+  emergencyContact?: unknown | undefined;
 }
 
 export interface FamilyInvoiceInput {
   id: string;
-  family?: string;
+  family?: string | undefined;
   /** UUID de `families` en PostgreSQL (ADR-0190: desambigua homónimos). */
-  familyId?: string;
-  student?: string;
-  concept?: string;
+  familyId?: string | undefined;
+  student?: string | undefined;
+  concept?: string | undefined;
   amount: number;
   amountPaid: number;
   remainingBalance: number;
-  status?: string;
-  paymentLogs?: Array<{ amount: number; method?: string; note?: string }>;
+  status?: string | undefined;
+  paymentLogs?: Array<{ amount: number; method?: string | undefined; note?: string | undefined }> | undefined;
 }
 
 // ---------------------------------------------------------------

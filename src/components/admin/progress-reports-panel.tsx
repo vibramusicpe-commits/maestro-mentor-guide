@@ -88,10 +88,10 @@ function currentMonthRange(): { start: string; end: string } {
 }
 
 function resolveGuardianPhone(student: {
-  phone?: string | null;
-  motherPhone?: string | null;
-  fatherPhone?: string | null;
-  emergencyContact?: { phone?: string | null } | null;
+  phone?: string | null | undefined;
+  motherPhone?: string | null | undefined;
+  fatherPhone?: string | null | undefined;
+  emergencyContact?: { phone?: string | null | undefined; } | null | undefined;
 }): string {
   return (
     student.phone ||

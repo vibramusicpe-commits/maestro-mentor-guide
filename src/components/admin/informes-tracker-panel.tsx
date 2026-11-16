@@ -96,10 +96,10 @@ const STATUS_BADGES: Record<string, { label: string; className: string }> = {
 type ReadinessStatus = "con_informe" | "listo" | "insuficiente" | "sin_evaluaciones";
 
 function resolveGuardianPhone(student: {
-  phone?: string | null;
-  motherPhone?: string | null;
-  fatherPhone?: string | null;
-  emergencyContact?: { phone?: string | null } | null;
+  phone?: string | null | undefined;
+  motherPhone?: string | null | undefined;
+  fatherPhone?: string | null | undefined;
+  emergencyContact?: { phone?: string | null | undefined; } | null | undefined;
 }): string {
   return (
     student.phone ||

@@ -214,10 +214,10 @@ function AdminFacturacionPage() {
     family: string;
     amount: number;
     method: string;
-    voucherRef?: string;
+    voucherRef?: string | undefined;
     timestamp: string;
     registeredBy: string;
-    note?: string;
+    note?: string | undefined;
   } | null>(null);
 
   // Form states para abono a recibo existente
@@ -319,7 +319,7 @@ function AdminFacturacionPage() {
   const activeInvoices = useMemo(() => {
     // 1. Filtrar solo los recibos que corresponden a los alumnos activos oficiales de PostgreSQL
     const matched = invoices.filter((inv) => {
-      const rawStudentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+      const rawStudentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "") || "";
       return activeStudents.some((st) =>
         isMatchingStudentName(st.name, rawStudentName) ||
         st.invoices?.some((i) => i.id === inv.id) ||
@@ -333,7 +333,7 @@ function AdminFacturacionPage() {
     // 2. Deduplicar recibos si hubieran registros históricos repetidos para el mismo alumno y concepto
     const uniqueMap = new Map<string, Invoice>();
     matched.forEach((inv) => {
-      const rawStudentName = (inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "")).toLowerCase();
+      const rawStudentName = (inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "") || "").toLowerCase();
       const studentMatch = activeStudents.find((st) => isMatchingStudentName(st.name, rawStudentName));
       const baseConcept = inv.concept?.split("—")[0]?.trim() || "Mensualidad";
       const key = studentMatch ? `${studentMatch.id}-${baseConcept}` : inv.id;
@@ -406,7 +406,7 @@ function AdminFacturacionPage() {
   );
 
   const dueSoonInvoices = useMemo(
-    () => activeInvoices.filter((i) => i.status !== "pagado" && i.daysToDue <= 2 && i.daysToDue >= 0),
+    () => activeInvoices.filter((i) => i.status !== "pagado" && (i.daysToDue ?? 0) <= 2 && (i.daysToDue ?? 0) >= 0),
     [activeInvoices],
   );
 
@@ -986,7 +986,7 @@ function AdminFacturacionPage() {
     });
 
     if (monthInv) {
-      if (monthInv.status === "pagada" || monthInv.remainingBalance === 0) {
+      if (monthInv.status === "pagado" || monthInv.remainingBalance === 0) {
         return (
           <span
             className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-500/20"

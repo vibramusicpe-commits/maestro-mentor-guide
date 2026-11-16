@@ -48,8 +48,8 @@ export interface LessonCategoryVisualInput {
 /** Estructura mínima de perfil de alumno requerida (evita depender del store). */
 export interface StudentProfileLike {
   name: string;
-  status?: string;
-  ageCategory?: string | null;
+  status?: string | undefined;
+  ageCategory?: string | null | undefined;
 }
 
 export interface RecoveryCategoryVisual {

@@ -7,7 +7,7 @@ export interface StudentCycleCalculation {
   validDates: Set<string>; // "YYYY-MM-DD"
   evaluatedSlots: Set<string>; // "YYYY-MM-DD-HH:mm"
   evaluatedDates: Set<string>; // "YYYY-MM-DD"
-  lastEvaluatedDate?: string; // YYYY-MM-DD
+  lastEvaluatedDate?: string | undefined; // YYYY-MM-DD
   isCycleCompleted: boolean;
   targetQuota: number;
   evaluatedCount: number;
@@ -47,7 +47,7 @@ export function computeStudentCycle(
     };
   }
 
-  const cacheKey = `${studentProfile.id}-${studentProfile.updatedAt || ""}-${allScheduleLessons.length}`;
+  const cacheKey = `${studentProfile.id}-${studentProfile.updatedAt || studentProfile.planStartDate || ""}-${allScheduleLessons.length}`;
   const cached = cycleCache.get(cacheKey);
   const now = Date.now();
   if (cached && now - cached.timestamp < 1000) {
@@ -146,7 +146,7 @@ export function computeStudentCycle(
         if (l.excludedDates && l.excludedDates.includes(dateStr)) {
           return;
         }
-        if (att && att !== "pendiente") {
+        if (att && (att as string) !== "pendiente") {
           const slot = `${dateStr}-${l.time || "16:00"}`;
           evaluatedSlots.add(slot);
           evaluatedDates.add(dateStr);
@@ -351,7 +351,7 @@ export function isLessonInStudentCycle(
 
   // B. Preservación incondicional de asistencias evaluadas en esta fecha
   const evaluatedAtt = lesson.attendanceByDate?.[lessonDateStr];
-  if (evaluatedAtt && evaluatedAtt !== "pendiente") {
+  if (evaluatedAtt && (evaluatedAtt as string) !== "pendiente") {
     return true;
   }
 

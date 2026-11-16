@@ -1001,31 +1001,34 @@ export function StudentsTable() {
                             {(() => {
                               const bookCost = st.packUtilesCost ?? 67;
                               const isLegacyPaid = st.packUtilesPaid ?? true;
-                              const status = st.packUtilesStatus || (isLegacyPaid ? "CANCELADO" : "PENDIENTE");
+                              // ADR-0146: el estado canónico del libro es en minúsculas
+                              // ("cancelado" | "parcial" | "pendiente" | "exonerado").
+                              // Se normaliza en LECTURA para tolerar registros heredados en mayúsculas.
+                              const status = (st.packUtilesStatus || (isLegacyPaid ? "cancelado" : "pendiente")).toLowerCase();
                               const bookPaid = st.packUtilesAmountPaid !== undefined
                                 ? st.packUtilesAmountPaid
-                                : (status === "CANCELADO" ? bookCost : 0);
+                                : (status === "cancelado" ? bookCost : 0);
                               const bookDebt = Math.max(0, bookCost - bookPaid);
                               const isDelivered = st.packUtilesDelivered ?? isLegacyPaid;
 
                               return (
                                 <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                                  {status === "CANCELADO" && (
+                                  {status === "cancelado" && (
                                     <Badge className="bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-bold">
                                       📙 Libro: Cancelado (S/ {bookCost})
                                     </Badge>
                                   )}
-                                  {status === "PARCIAL" && (
+                                  {status === "parcial" && (
                                     <Badge className="bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/40 text-[10px] font-bold">
                                       📙 Libro: Debe S/ {bookDebt} (Abonó S/ {bookPaid})
                                     </Badge>
                                   )}
-                                  {status === "PENDIENTE" && (
+                                  {status === "pendiente" && (
                                     <Badge className="bg-rose-500/15 text-rose-800 dark:text-rose-300 border-rose-500/30 text-[10px] font-bold">
                                       📙 Libro: Debe S/ {bookCost} (Pendiente)
                                     </Badge>
                                   )}
-                                  {status === "EXONERADO" && (
+                                  {status === "exonerado" && (
                                     <Badge variant="outline" className="text-muted-foreground text-[10px]">
                                       📙 Libro: Exonerado
                                     </Badge>
@@ -1759,11 +1762,11 @@ export function StudentsTable() {
                             Estado de Pago del Libro
                           </label>
                           <Select
-                            value={selectedStudent.packUtilesStatus || (selectedStudent.packUtilesPaid ? "CANCELADO" : "PENDIENTE")}
-                            onValueChange={(v: "CANCELADO" | "PARCIAL" | "PENDIENTE" | "EXONERADO") => {
+                            value={(selectedStudent.packUtilesStatus || "").toLowerCase() || (selectedStudent.packUtilesPaid ? "cancelado" : "pendiente")}
+                            onValueChange={(v: "cancelado" | "parcial" | "pendiente" | "exonerado") => {
                               const cost = selectedStudent.packUtilesCost ?? 67;
-                              const isPaid = v === "CANCELADO";
-                              const paidAmount = v === "CANCELADO" ? cost : v === "EXONERADO" ? 0 : (selectedStudent.packUtilesAmountPaid || 0);
+                              const isPaid = v === "cancelado";
+                              const paidAmount = v === "cancelado" ? cost : v === "exonerado" ? 0 : (selectedStudent.packUtilesAmountPaid || 0);
                               updateStudentDetails(selectedStudent.id, {
                                 packUtilesStatus: v,
                                 packUtilesPaid: isPaid,
@@ -1776,10 +1779,10 @@ export function StudentsTable() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="CANCELADO">✓ Cancelado Total</SelectItem>
-                              <SelectItem value="PARCIAL">⏳ Prorrateado / Abono Parcial</SelectItem>
-                              <SelectItem value="PENDIENTE">⚠️ Pendiente (Debe Total)</SelectItem>
-                              <SelectItem value="EXONERADO">🎁 Exonerado (S/ 0)</SelectItem>
+                              <SelectItem value="cancelado">✓ Cancelado Total</SelectItem>
+                              <SelectItem value="parcial">⏳ Prorrateado / Abono Parcial</SelectItem>
+                              <SelectItem value="pendiente">⚠️ Pendiente (Debe Total)</SelectItem>
+                              <SelectItem value="exonerado">🎁 Exonerado (S/ 0)</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

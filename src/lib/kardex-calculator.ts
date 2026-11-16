@@ -15,9 +15,20 @@
  *   y exportación dual (Humano y LLM/Auditoría).
  */
 
-import type { AdminStudent, ScheduledLesson, WeekDay, Invoice, DBPaymentAuditLog } from "@/store/app-store";
+import type { AdminStudent, ScheduledLesson, WeekDay, Invoice } from "@/store/app-store";
 import { isMatchingStudentName } from "@/lib/student-matching";
 import { computeStudentCycle } from "@/lib/student-cycle";
+
+export interface DBPaymentAuditLog {
+  id?: string;
+  amount: number;
+  payment_method?: string;
+  created_at?: string;
+  registered_by?: string;
+  voucher_ref?: string;
+  voucher_image?: string;
+  [key: string]: unknown;
+}
 
 export const WEEKDAYS_ORDER: WeekDay[] = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -71,13 +82,13 @@ export interface StudentSessionItem {
   teacher: string;
   room: string;
   instrument: string;
-  isMakeup?: boolean;
-  recoveringLessonDate?: string;
+  isMakeup?: boolean | undefined;
+  recoveringLessonDate?: string | undefined;
   status: "presente" | "ausente" | "tarde" | "justificada" | "pendiente";
-  notes?: string;
-  creditDelta?: number; // 1 si genera crédito de recuperación
-  makeupCreditTransferred?: boolean; // True si este crédito migró a otro instrumento
-  targetInstrument?: string; // Instrumento al cual migró el crédito
+  notes?: string | undefined;
+  creditDelta?: number | undefined; // 1 si genera crédito de recuperación
+  makeupCreditTransferred?: boolean | undefined; // True si este crédito migró a otro instrumento
+  targetInstrument?: string | undefined; // Instrumento al cual migró el crédito
 }
 
 export interface ComputeCycleOptions {
@@ -148,15 +159,15 @@ export interface StudentCycleLiquidation {
   planPrice: number;
   amountPaid: number;
   remainingBalance: number;
-  financialAudit?: StudentFinancialAuditSummary;
+  financialAudit?: StudentFinancialAuditSummary | undefined;
   verdictText: string;
   isCompleted: boolean;
   hasInstrumentTransition: boolean;
-  originalInstrument?: string;
-  newInstrument?: string;
-  transitionCutOffDate?: string;
-  transitionDate?: string;
-  transitionScheduleText?: string;
+  originalInstrument?: string | undefined;
+  newInstrument?: string | undefined;
+  transitionCutOffDate?: string | undefined;
+  transitionDate?: string | undefined;
+  transitionScheduleText?: string | undefined;
   sessionsInOriginal: number;
   sessionsInNew: number;
   stages: InstrumentStageBreakdown[];
@@ -176,7 +187,7 @@ export function getMonthWeeks(year: number, month: number) {
     const curDate = new Date(year, month, d);
     const jsDay = curDate.getDay();
     if (jsDay === 0) continue; // Domingo
-    const dayKey = WEEKDAYS_ORDER[jsDay - 1];
+    const dayKey: WeekDay = WEEKDAYS_ORDER[jsDay - 1] ?? "Lun";
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
     currentWeek.push({ dateStr, dayKey });
@@ -294,7 +305,7 @@ export function computeStudentCycleSessions(options: ComputeCycleOptions): Stude
 
     const jsDay = cur.getDay(); // 0 Dom, 1 Lun, 2 Mar, 3 Mié, 4 Jue, 5 Vie, 6 Sáb
     if (jsDay === 0) continue; // No domingos
-    const dayKey = WEEKDAYS_ORDER[jsDay - 1]; // "Lun", "Mar", etc.
+    const dayKey: WeekDay = WEEKDAYS_ORDER[jsDay - 1] ?? "Lun"; // "Lun", "Mar", etc.
 
     // 🛡️ REGLA (ADR-0113 & ADR-0150): Para Paquete Flexible, la vigencia se rige por clases consumidas (no por mes calendario rígido)
     const isBeyondEnd = (!isFlexiblePackage && effectivePlanEndDate) ? curDateStr > effectivePlanEndDate : false;
@@ -511,7 +522,7 @@ export function computeStudentMonthSessions(options: ComputeMonthSessionsOptions
 
     const jsDay = curDate.getDay();
     if (jsDay === 0) continue; // Domingos no lectivos
-    const dayKey = WEEKDAYS_ORDER[jsDay - 1];
+    const dayKey: WeekDay = WEEKDAYS_ORDER[jsDay - 1] ?? "Lun";
 
     // 🛡️ REGLA (ADR-0153 & Regla 3.3 AGENTS.md): En vista de mes calendario, proyectar las clases regulares del mes sin truncar
 
@@ -642,11 +653,11 @@ export function computeStudentInstrumentBreakdown(
 ): {
   stages: InstrumentStageBreakdown[];
   hasTransition: boolean;
-  originalInstrument?: string;
-  newInstrument?: string;
-  transitionCutOffDate?: string;
-  transitionDate?: string;
-  transitionScheduleText?: string;
+  originalInstrument?: string | undefined;
+  newInstrument?: string | undefined;
+  transitionCutOffDate?: string | undefined;
+  transitionDate?: string | undefined;
+  transitionScheduleText?: string | undefined;
   totalMakeupCredits: number;
   makeupCreditsMigrated: number;
   regularPendingInNew: number;
@@ -660,14 +671,15 @@ export function computeStudentInstrumentBreakdown(
     }
   });
 
-  const hasTransition = !!(student.courseTransition || uniqueInstruments.length > 1);
-  const currentInst = student.instrument || (uniqueInstruments.length > 0 ? uniqueInstruments[uniqueInstruments.length - 1] : "Música");
-  const originalInst = student.courseTransition?.originalInstrument || (uniqueInstruments.length > 1 ? uniqueInstruments[0] : currentInst);
-  const newInst = student.courseTransition?.newInstrument || (uniqueInstruments.length > 1 ? uniqueInstruments[uniqueInstruments.length - 1] : currentInst);
+  const courseTrans = student.courseTransition;
+  const hasTransition = !!(courseTrans || uniqueInstruments.length > 1);
+  const currentInst = student.instrument || (uniqueInstruments.length > 0 ? (uniqueInstruments[uniqueInstruments.length - 1] ?? "Música") : "Música");
+  const originalInst = courseTrans?.originalInstrument || (uniqueInstruments.length > 1 ? (uniqueInstruments[0] ?? currentInst) : currentInst);
+  const newInst = courseTrans?.newInstrument || (uniqueInstruments.length > 1 ? (uniqueInstruments[uniqueInstruments.length - 1] ?? currentInst) : currentInst);
 
   // Extraer barreras temporales y fechas de corte desde las lecciones o metadatos
-  let transitionCutOffDate = student.courseTransition?.cutOffDate;
-  let transitionDate = student.courseTransition?.effectiveDate;
+  let transitionCutOffDate = courseTrans?.cutOffDate;
+  let transitionDate = courseTrans?.effectiveDate;
   let transitionScheduleText = "";
 
   (student.scheduleLessons || []).forEach((l) => {
@@ -683,10 +695,11 @@ export function computeStudentInstrumentBreakdown(
     (l) => l.instrument === newInst && (!l.effectiveUntil || l.effectiveFrom)
   );
   if (newInstLessons.length > 0) {
+    const firstLesson = newInstLessons[0];
     const days = Array.from(new Set(newInstLessons.map((l) => WEEKDAY_FULL_NAMES[l.day] || l.day)));
-    const time = newInstLessons[0].time || "17:30";
-    const room = newInstLessons[0].room || "Sala A";
-    const teacher = newInstLessons[0].teacher || student.teacher || "Jeremy";
+    const time = firstLesson?.time || "17:30";
+    const room = firstLesson?.room || "Sala A";
+    const teacher = firstLesson?.teacher || student.teacher || "Jeremy";
     const daysStr = days.length === 2 ? `${days[0]} y ${days[1]}` : days.join(", ");
     transitionScheduleText = `${daysStr} ${time} (${room} · Prof. ${teacher})`;
   }
@@ -695,14 +708,16 @@ export function computeStudentInstrumentBreakdown(
     const originalSessions = sessions.filter((s) => s.instrument === originalInst);
     const newSessions = sessions.filter((s) => s.instrument === newInst);
     if (!transitionCutOffDate && originalSessions.length > 0) {
-      transitionCutOffDate = originalSessions[originalSessions.length - 1].dateStr;
+      transitionCutOffDate = originalSessions[originalSessions.length - 1]?.dateStr;
     }
     if (!transitionDate && newSessions.length > 0) {
-      transitionDate = newSessions[0].dateStr;
+      transitionDate = newSessions[0]?.dateStr;
     }
     if (newSessions.length > 0 && !transitionScheduleText) {
       const s0 = newSessions[0];
-      transitionScheduleText = `${s0.dayShort.split(' ')[0]} ${s0.time} (${s0.room} · Prof. ${s0.teacher})`;
+      if (s0) {
+        transitionScheduleText = `${s0.dayShort.split(' ')[0]} ${s0.time} (${s0.room} · Prof. ${s0.teacher})`;
+      }
     }
   }
 
@@ -767,7 +782,7 @@ export function computeStudentInstrumentBreakdown(
     }
 
     stages.push({
-      instrument: inst,
+      instrument: inst || "Música",
       teacher: firstSess?.teacher || student.teacher || "Por asignar",
       room: firstSess?.room || student.room || "Sala A",
       startDate: firstSess?.dateStr || student.planStartDate || "N/A",
@@ -822,10 +837,11 @@ export function computeStudentFinancialAudit(
 
   // Filtrar los recibos que corresponden a este alumno
   const matchedInvoices = invoices.filter((inv) => {
-    const studentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+    const studentName =
+      inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "") || "";
     return (
       isMatchingStudentName(student.name, studentName) ||
-      (student.invoices && student.invoices.some((i) => i.id === inv.id))
+      (student.invoices?.some((i) => i.id === inv.id) ?? false)
     );
   });
 
@@ -1364,7 +1380,7 @@ export function generateStudentAuditMarkdown(params: {
 
   sessions.forEach((s, idx) => {
     // Si hay cambio de instrumento entre sesiones, agregar fila divisoria en Markdown
-    if (idx > 0 && sessions[idx - 1].instrument !== s.instrument) {
+    if (idx > 0 && sessions[idx - 1]?.instrument !== s.instrument) {
       lines.push(`| -- | ${s.dateStr} | TRANSICIÓN | ${s.time} | ${s.instrument.padEnd(11)} | ${s.room.padEnd(6)} | ${s.teacher.padEnd(13)} | CAMBIO     | Transición  | Inicio formal en ${s.instrument} con Prof. ${s.teacher} (${liquidation.regularPendingInNew} regulares + ${liquidation.makeupCreditsMigrated} créditos) |`);
     }
 

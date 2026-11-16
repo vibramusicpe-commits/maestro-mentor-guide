@@ -35,17 +35,21 @@ export function KidSummary({ kid }: { kid: Kid }) {
       modality: kid.id === "k1" ? "Regular (8 clases / 45 min)" : "Intensivo (4 clases / 90 min)",
       planType: "Mensual",
       status: "activo",
-      risk: "bajo",
+      // `AdminStudent.risk` es numérico (0-100, mayor = más riesgo). El fallback
+      // usa 0 porque este alumno de ejemplo no tiene riesgo declarado.
+      risk: 0,
       attendanceRate: 85,
       makeupCredits: kid.makeupCredits,
       recentAttendance: ["presente", "presente"],
       balance: 0,
+      payment: "al-dia",
+      teacherNote: "",
       lastPayment: "03/08/2026",
       joinedAt: "01/03/2026",
       emergencyContact: { name: "Contacto Familiar", relation: "Apoderado", phone: "+51 984 000 000" },
       email: "familia@vibramusic.pe",
       phone: "+51 984 000 000",
-      level: 1,
+      level: "1",
     };
   }, [adminStudents, kid]);
 

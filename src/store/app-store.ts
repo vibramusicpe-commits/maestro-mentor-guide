@@ -140,6 +140,9 @@ type AppState = {
   // Dirección (admin)
   schedule: ScheduledLesson[];
   adminStudents: AdminStudent[];
+  // Cartera de recibos (ADR-0099 / ADR-0106 / ADR-0190). El estado ya lo
+  // mantenía en runtime; faltaba la declaración en el tipo de AppState.
+  invoices: Invoice[];
   historicalStudents: AdminStudent[];
   rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number, teacher?: string, room?: string, originalDateStr?: string, newDateStr?: string) => void;
   removeLessonFromSchedule: (id: string) => void;
@@ -3161,7 +3164,7 @@ export const useAppStore = create<AppState>()(
                 remainingBalance: 0,
                 paymentMethod: method,
                 paymentLogs: [
-                  ...i.paymentLogs,
+                  ...(i.paymentLogs || []),
                   {
                     id: `log-${Date.now()}`,
                     timestamp: new Date().toLocaleString("es-PE"),
@@ -3236,7 +3239,7 @@ export const useAppStore = create<AppState>()(
                   remainingBalance: newRemaining,
                   status: newStatus,
                   paymentMethod: method,
-                  paymentLogs: [...i.paymentLogs, newLog],
+                  paymentLogs: [...(i.paymentLogs || []), newLog],
                 }
                 : i,
             ),
@@ -3287,7 +3290,7 @@ export const useAppStore = create<AppState>()(
                     remainingBalance: newRemaining,
                     status: newStatus,
                     paymentMethod: method,
-                    paymentLogs: [...i.paymentLogs, newLog],
+                    paymentLogs: [...(i.paymentLogs || []), newLog],
                   }
                   : i
               ),
@@ -3362,7 +3365,7 @@ export const useAppStore = create<AppState>()(
                 remainingBalance: newRemaining,
                 status: newStatus,
                 paymentMethod: p.method || existing.paymentMethod,
-                paymentLogs: [...existing.paymentLogs, newLog],
+                paymentLogs: [...(existing.paymentLogs || []), newLog],
               };
             } else {
               const now = new Date();

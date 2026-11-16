@@ -120,7 +120,7 @@ export function isSameStudentId(
  * Esto evita que perfiles históricos o dados de baja con el mismo nombre oculten
  * a un alumno activo y sus clases en el Horario de Clases o Kardex.
  */
-export function findStudentProfileByName<T extends { name: string; status?: string }>(
+export function findStudentProfileByName<T extends { name: string; status?: string | undefined }>(
   students: T[],
   queryName: string,
 ): T | undefined {
