@@ -4,6 +4,16 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.68] - 2026-11-18
+
+### Depuración sistemática de TypeScript por causa raíz (ADR-0195)
+- **568 → 360 errores** de `tsc --noEmit` en tres lotes (`2f9c07d`, `0027030`, `bf6902c`), con **0 regresiones** medidas por `(archivo, código TS)` en cada lote y `npm run build` verde. Cero `as any` / `as unknown as` nuevos; se eliminaron los existentes en los archivos tocados.
+- **Lote 1**: API real `setSelectedPairIndex` en la Agenda; guardas muertas `!== "pendiente"` (el mapa de asistencia nunca guarda ese valor); `"PARCIAL"` → `"parcial"` —el bloque de abono del libro estaba inalcanzable—; `"zinc"` → `"gray"`; rol `staff` persistido como `teacher` porque el enum SQL `invite_target_role` solo admite `teacher|family` (antes PostgreSQL rechazaba el INSERT y la invitación solo sobrevivía en un navegador).
+- **Lote 2**: `EmergencyContact` ahora declara el contrato completo del JSONB `students.emergency_contact` (sin DDL) y es la fuente única de lectura/escritura; `DBStudent`, `DBStudentUpdate`, `DBStudentCreate` y `DBFamilyUpdate` tipan los payloads reales. 128 errores TS4111/TS2339 eliminados sin cambiar ningún valor persistido.
+- **Lote 3 — bug funcional en la papelera**: los 33 errores del modal revelaban que se leían `phone`, `fatherName`, `fatherPhone`, `motherName`, `motherPhone` y `modality` desde la raíz de `DeletedStudentLog`, donde nunca se escriben (los datos están en `studentSnapshot`). El buscador por teléfono no encontraba nada y el CSV exportaba vacías esas columnas. `resolveContactInfo()` centraliza la lectura.
+- **Sin tocar**: `kardex-calculator.ts`, `student-cycle.ts`, `isMatchingStudentName`/`normalizeStudentName`, asistencia, Kardex, facturación ni auditorías. Sin DDL, `DROP`, `TRUNCATE` ni borrados masivos.
+- **Referencia**: `docs/adr/0195-depuracion-sistematica-typescript-por-causa-raiz.md` y `docs/logs/2026-11-18-adr-0195-depuracion-typescript-lotes-1-3.md`.
+
 ## [2.0.67] - 2026-11-12
 
 ### Ciclo de Paquete Flexible que borraba las clases futuras + de-hardcodeo de Jonathan (ADR-0193)
