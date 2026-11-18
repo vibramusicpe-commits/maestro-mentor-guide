@@ -165,6 +165,41 @@ export interface LessonEvaluationRow {
   updated_at: string;
 }
 
+/**
+ * Estructura conocida del JSONB `progress_reports.content` (y de
+ * `published_snapshot`, que el servicio fusiona en la fila antes de formatear).
+ * Mantiene el índice libre porque es JSONB: las claves declaradas son solo las
+ * que el formateador consume, y las filas históricas pueden traer menos.
+ */
+export type ReportContent = Record<string, unknown> & {
+  student?: {
+    id?: string | null;
+    name?: string | null;
+    instrument?: string | null;
+    level?: string | null;
+    teacher?: string | null;
+    modality?: string | null;
+    ageCategory?: string | null;
+  };
+  period?: {
+    type?: string | null;
+    start?: string | null;
+    end?: string | null;
+    label?: string | null;
+  };
+  attendance?: {
+    period?: AttendancePeriodSummary;
+    cycle?: AttendanceCycleSummary;
+    extraScores?: ExtraScoreSnapshot[];
+    repertoire?: RepertoireItem[];
+  };
+  plan?: ReportPlanContext;
+  evidence?: ReportEvidence;
+  sessionLog?: SessionLogEntry[];
+  criteria?: ExtraScoreSnapshot[];
+  generatedAt?: string;
+};
+
 export interface ProgressReportRow {
   id: string;
   org_id: string | null;
@@ -184,7 +219,7 @@ export interface ProgressReportRow {
   recommendations: string | null;
   family_message: string | null;
   teacher_comment: string | null;
-  content: Record<string, unknown>;
+  content: ReportContent;
   published_snapshot: Record<string, unknown> | null;
   status: ProgressReportStatus;
   submitted_at: string | null;

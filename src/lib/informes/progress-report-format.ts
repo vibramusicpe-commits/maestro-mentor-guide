@@ -19,7 +19,9 @@
 import type {
   AttendanceCycleSummary,
   AttendancePeriodSummary,
+  ExtraScoreSnapshot,
   ProgressReportRow,
+  ReportContent,
   ReportEvidence,
   ReportPlanContext,
   RepertoireItem,
@@ -85,10 +87,19 @@ export interface ProgressReportView {
   generatedAt: string | null;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+type StudentSnapshot = NonNullable<ReportContent["student"]>;
+type PeriodSnapshot = NonNullable<ReportContent["period"]>;
+type AttendanceSnapshot = NonNullable<ReportContent["attendance"]>;
+
+/**
+ * Convierte un valor del JSONB en el tipo de snapshot que se espera leer.
+ * Es el único cast de contenido en el módulo: `content` es dinámico por diseño,
+ * pero los consumidores sí conocen las claves que producen los servicios.
+ */
+function asRecord<T extends object = Record<string, unknown>>(value: unknown): T {
   return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+    ? (value as T)
+    : ({} as T);
 }
 
 function asString(value: unknown): string {
@@ -111,7 +122,8 @@ function formatValue(raw: unknown): string {
   }
   if (typeof raw === "object") {
     const record = raw as Record<string, unknown>;
-    const label = asString(record.label) || asString(record.name) || asString(record.value);
+    const label =
+      asString(record["label"]) || asString(record["name"]) || asString(record["value"]);
     return label || "—";
   }
   return "—";
@@ -237,34 +249,28 @@ export function formatAttendanceRate(period?: AttendancePeriodSummary | null): s
 
 /** Construye el modelo de vista a partir de la fila de PostgreSQL. */
 export function buildProgressReportView(report: ProgressReportRow): ProgressReportView {
-  const content = asRecord(report.content);
-  const student = asRecord(content.student);
-  const period = asRecord(content.period);
-  const attendanceSnapshot = asRecord(content.attendance);
+  const content = asRecord<ReportContent>(report.content);
+  const student = asRecord<StudentSnapshot>(content.student);
+  const period = asRecord<PeriodSnapshot>(content.period);
+  const attendanceSnapshot = asRecord<AttendanceSnapshot>(content.attendance);
 
-  const attendance =
-    (attendanceSnapshot.period as AttendancePeriodSummary | undefined) ||
-    (report.attendance_summary as unknown as AttendancePeriodSummary | undefined) ||
-    null;
+  const legacyAttendance = Object.keys(report.attendance_summary || {}).length
+    ? asRecord<AttendancePeriodSummary>(report.attendance_summary)
+    : undefined;
+  const attendance = attendanceSnapshot.period || legacyAttendance || null;
+  const cycle = attendanceSnapshot.cycle || null;
 
-  const cycle =
-    (attendanceSnapshot.cycle as AttendanceCycleSummary | undefined) || null;
-
-  const planRecord = asRecord(content.plan);
-  const plan = Object.keys(planRecord).length
-    ? (planRecord as unknown as ReportPlanContext)
-    : null;
-  const evidenceRecord = asRecord(content.evidence);
-  const evidence = Object.keys(evidenceRecord).length
-    ? (evidenceRecord as unknown as ReportEvidence)
-    : null;
+  const planRecord = asRecord<ReportPlanContext>(content.plan);
+  const plan = Object.keys(planRecord).length ? planRecord : null;
+  const evidenceRecord = asRecord<ReportEvidence>(content.evidence);
+  const evidence = Object.keys(evidenceRecord).length ? evidenceRecord : null;
 
   // La bitácora es la evidencia del informe: qué se trabajó en cada clase.
   const sessionLog = asArray<SessionLogEntry>(content.sessionLog).filter(
     (entry) => Boolean(entry) && typeof entry.date === "string",
   );
 
-  const criteriaRaw = asArray<Record<string, unknown>>(
+  const criteriaRaw = asArray<ExtraScoreSnapshot>(
     content.criteria ?? attendanceSnapshot.extraScores,
   );
 

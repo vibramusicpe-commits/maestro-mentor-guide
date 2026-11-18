@@ -1,4 +1,4 @@
-# 2026-11-18 — ADR-0195: depuración de TypeScript, lotes 1 a 3
+# 2026-11-18 — ADR-0195: depuración de TypeScript, lotes 1 a 4
 
 ## Lote 1 — `2f9c07d` (568 → 520, 48 fix, 0 regresiones)
 
@@ -41,6 +41,19 @@
   alimenta filtro, CSV, copia de teléfonos, WhatsApp promo y ficha de contactos.
 - Selector de fecha sin `(v: any)`: `isDateFilterValue` con `DATE_FILTERS`.
 - Commit: `git add … && git commit -F scratch/.commit-msg-fix16.txt`.
+
+## Lote 4 — `4d7990f` (360 → 330, 30 fix, 0 regresiones)
+
+- `informes/types.ts`: `ReportContent` tipa las claves conocidas del JSONB
+  `progress_reports.content` y `ProgressReportRow.content` lo usa. Sin DDL.
+- `progress-report-format.ts`: `asRecord<T>` centraliza el parseo del JSONB;
+  desaparecen los `as unknown as` de `plan`, `evidence` y del resumen de
+  asistencia legado; `formatValue` usa corchetes solo donde el objeto es
+  verdaderamente dinámico.
+- Regresión detectada y corregida en el tipo (no con cast): `student.ageCategory`
+  y `period.label` pueden ser `null` — el servicio los escribe así — y el
+  nuevo tipo no lo declaraba (TS2322). Tras ampliarlos, 0 regresiones.
+- `npm run build` verde (`BUILD_EXIT=0`).
 
 ## Verificación repetida en cada lote
 

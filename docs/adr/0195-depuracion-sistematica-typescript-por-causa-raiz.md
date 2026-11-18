@@ -38,6 +38,10 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
    contiene la ficha completa; los campos de contacto y modalidad **nunca**
    existieron en la raíz del log. `resolveContactInfo` es el único punto de
    lectura (ADR-0119.3: una sola implementación de la lógica compartida).
+8. **Los snapshots del JSONB de informes tienen tipo.** `ReportContent` declara
+   las claves que el propio servicio escribe en `progress_reports.content`
+   (mantiene el índice libre para filas históricas). `asRecord<T>` es el único
+   punto de parseo; acceso por corchete solo donde el objeto sí es dinámico.
 
 ## 3. Cambios entregados
 
@@ -46,6 +50,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 1 | `2f9c07d` | 568 → 520 | 48 | 0 |
 | 2 | `0027030` | 520 → 393 | 127 | 0 |
 | 3 | `bf6902c` | 393 → 360 | 33 | 0 |
+| 4 | `4d7990f` | 360 → 330 | 30 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
@@ -66,6 +71,12 @@ desaparecen sin cambiar un solo valor escrito o leído.
 **Lote 3 — papelera.** Ver §2.7. Efecto funcional real: el buscador por teléfono
 y las columnas Papa/Mamá/Modalidad del CSV dejaron de salir vacías.
 
+**Lote 4 — informes de progreso.** Ver §2.8. 30 TS4111 eliminados; se retiran
+además los `as unknown as` de `plan`, `evidence` y del resumen de asistencia
+legado. Los tipos `ageCategory` y `period.label` se ampliaron a `| null` porque
+el servicio ya escribía `null` allí (el error TS2322 resultante se corrigió en
+el tipo, no con un cast).
+
 ## 4. Restricciones cumplidas
 
 - Sin `ALTER TABLE`, `DROP`, `TRUNCATE` ni borrado masivo.
@@ -85,8 +96,8 @@ y las columnas Papa/Mamá/Modalidad del CSV dejaron de salir vacías.
 
 ## 6. Pendiente
 
-Quedan **360 errores**. Siguientes causas raíz, en orden: `progress-report-format.ts`
-(30), `students-table.tsx` (29), `invitations.service.ts` (29), `laya-engine.ts`
+Quedan **330 errores**. Siguientes causas raíz, en orden: `students-table.tsx`
+(29), `invitations.service.ts` (29), `laya-engine.ts`
 (18), `progress-reports.service.ts` (16), `evaluations.service.ts` (15), y los
 clusters TS18048/TS2532/TS2345/TS2322/TS2379. Cada lote conserva el mismo
 protocolo de verificación y su entrada en `docs/logs/`.
