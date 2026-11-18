@@ -43,6 +43,42 @@ interface DeletedStudentsTrashModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const DATE_FILTERS = ["all", "today", "last7", "last30", "thisMonth", "custom"] as const;
+type DateFilterValue = (typeof DATE_FILTERS)[number];
+
+function isDateFilterValue(value: string): value is DateFilterValue {
+  return (DATE_FILTERS as readonly string[]).includes(value);
+}
+
+type DeletedStudentContactInfo = {
+  phone: string;
+  fatherName: string;
+  fatherPhone: string;
+  motherName: string;
+  motherPhone: string;
+  modality: string;
+};
+
+/**
+ * Los datos de contacto y la modalidad NO viven en la raíz de
+ * `DeletedStudentLog`: los dos puntos de escritura (`deleteStudent` y
+ * `deleteStudents` en `app-store.ts`) guardan la ficha completa dentro de
+ * `studentSnapshot`. Leerlos como `del.phone` / `del.fatherPhone` devolvía
+ * siempre `undefined`, así que la búsqueda por teléfono no encontraba nada y
+ * las columnas «Teléfono / Papá / Mamá / Modalidad» del CSV salían vacías.
+ */
+function resolveContactInfo(del: DeletedStudentLog): DeletedStudentContactInfo {
+  const snapshot = del.studentSnapshot;
+  return {
+    phone: snapshot?.phone ?? "",
+    fatherName: snapshot?.fatherName ?? "",
+    fatherPhone: snapshot?.fatherPhone ?? "",
+    motherName: snapshot?.motherName ?? "",
+    motherPhone: snapshot?.motherPhone ?? "",
+    modality: snapshot?.modality ?? "",
+  };
+}
+
 export function DeletedStudentsTrashModal({
   open,
   onOpenChange,
@@ -53,7 +89,7 @@ export function DeletedStudentsTrashModal({
   // Estados de Filtros
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedReason, setSelectedReason] = useState<string>("all");
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "last7" | "last30" | "thisMonth" | "custom">("all");
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>("all");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [segmentTab, setSegmentTab] = useState<"reincorporacion" | "all" | "descartables">("reincorporacion");
@@ -101,9 +137,10 @@ export function DeletedStudentsTrashModal({
         const matchName = del.studentName.toLowerCase().includes(q);
         const matchFamily = del.family?.toLowerCase().includes(q);
         const matchInstrument = del.instrument?.toLowerCase().includes(q);
-        const matchPhone = del.phone?.includes(q);
-        const matchFather = del.fatherName?.toLowerCase().includes(q) || del.fatherPhone?.includes(q);
-        const matchMother = del.motherName?.toLowerCase().includes(q) || del.motherPhone?.includes(q);
+        const contact = resolveContactInfo(del);
+        const matchPhone = contact.phone.includes(q);
+        const matchFather = contact.fatherName.toLowerCase().includes(q) || contact.fatherPhone.includes(q);
+        const matchMother = contact.motherName.toLowerCase().includes(q) || contact.motherPhone.includes(q);
         const matchReason = del.reasonText?.toLowerCase().includes(q);
         if (!matchName && !matchFamily && !matchInstrument && !matchPhone && !matchFather && !matchMother && !matchReason) {
           return false;
@@ -150,12 +187,14 @@ export function DeletedStudentsTrashModal({
 
   // Helper para extraer el teléfono prioritario del alumno / familia
   const getPrimaryPhone = (del: DeletedStudentLog) => {
-    return del.motherPhone || del.fatherPhone || del.phone || del.studentSnapshot?.emergencyContact?.phone || "";
+    const contact = resolveContactInfo(del);
+    return contact.motherPhone || contact.fatherPhone || contact.phone || del.studentSnapshot?.emergencyContact?.phone || "";
   };
 
   const getPrimaryContactName = (del: DeletedStudentLog) => {
-    if (del.motherName) return `Sra. ${del.motherName}`;
-    if (del.fatherName) return `Sr. ${del.fatherName}`;
+    const contact = resolveContactInfo(del);
+    if (contact.motherName) return `Sra. ${contact.motherName}`;
+    if (contact.fatherName) return `Sr. ${contact.fatherName}`;
     if (del.family) return `Familia ${del.family}`;
     return del.studentName;
   };
@@ -186,24 +225,27 @@ export function DeletedStudentsTrashModal({
       "Telefono Emergencia",
     ];
 
-    const rows = filteredList.map((del) => [
-      del.id,
-      `"${(del.studentName || "").replace(/"/g, '""')}"`,
-      `"${(del.family || "").replace(/"/g, '""')}"`,
-      `"${(del.instrument || "").replace(/"/g, '""')}"`,
-      `"${(del.modality || "").replace(/"/g, '""')}"`,
-      `"${del.reasonCategory}"`,
-      `"${(del.reasonText || "").replace(/"/g, '""')}"`,
-      `"${new Date(del.deletedAt).toLocaleString("es-PE")}"`,
-      `"${del.deletedBy}"`,
-      `"${del.phone || ""}"`,
-      `"${(del.fatherName || "").replace(/"/g, '""')}"`,
-      `"${del.fatherPhone || ""}"`,
-      `"${(del.motherName || "").replace(/"/g, '""')}"`,
-      `"${del.motherPhone || ""}"`,
-      `"${(del.studentSnapshot?.emergencyContact?.name || "").replace(/"/g, '""')} (${del.studentSnapshot?.emergencyContact?.relation || ""})"`,
-      `"${del.studentSnapshot?.emergencyContact?.phone || ""}"`,
-    ]);
+    const rows = filteredList.map((del) => {
+      const contact = resolveContactInfo(del);
+      return [
+        del.id,
+        `"${(del.studentName || "").replace(/"/g, '""')}"`,
+        `"${(del.family || "").replace(/"/g, '""')}"`,
+        `"${(del.instrument || "").replace(/"/g, '""')}"`,
+        `"${contact.modality.replace(/"/g, '""')}"`,
+        `"${del.reasonCategory}"`,
+        `"${(del.reasonText || "").replace(/"/g, '""')}"`,
+        `"${new Date(del.deletedAt).toLocaleString("es-PE")}"`,
+        `"${del.deletedBy}"`,
+        `"${contact.phone}"`,
+        `"${contact.fatherName.replace(/"/g, '""')}"`,
+        `"${contact.fatherPhone}"`,
+        `"${contact.motherName.replace(/"/g, '""')}"`,
+        `"${contact.motherPhone}"`,
+        `"${(del.studentSnapshot?.emergencyContact?.name || "").replace(/"/g, '""')} (${del.studentSnapshot?.emergencyContact?.relation || ""})"`,
+        `"${del.studentSnapshot?.emergencyContact?.phone || ""}"`,
+      ];
+    });
 
     const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -232,7 +274,8 @@ export function DeletedStudentsTrashModal({
 
     const phoneSet = new Set<string>();
     filteredList.forEach((del) => {
-      [del.phone, del.fatherPhone, del.motherPhone, del.studentSnapshot?.emergencyContact?.phone].forEach((p) => {
+      const contact = resolveContactInfo(del);
+      [contact.phone, contact.fatherPhone, contact.motherPhone, del.studentSnapshot?.emergencyContact?.phone].forEach((p) => {
         if (p) {
           const clean = p.replace(/\D/g, "");
           if (clean.length >= 9) {
@@ -400,7 +443,7 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
 
             {/* Filtro por Fecha y Hora */}
             <div>
-              <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
+              <Select value={dateFilter} onValueChange={(v) => { if (isDateFilterValue(v)) setDateFilter(v); }}>
                 <SelectTrigger className="text-xs bg-background h-8">
                   <SelectValue placeholder="Filtrar por fecha" />
                 </SelectTrigger>
@@ -501,6 +544,7 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
 
                 const isPromoLead = del.reasonCategory === "falta_pago" || del.reasonCategory === "retiro_voluntario";
                 const primaryPhone = getPrimaryPhone(del);
+                const contact = resolveContactInfo(del);
 
                 return (
                   <div
@@ -519,7 +563,7 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
                             {categoryBadge.label}
                           </span>
                           <span className="text-[11px] text-muted-foreground">
-                            {del.family} · {del.instrument} · {del.modality}
+                            {del.family} · {del.instrument} · {contact.modality}
                           </span>
                         </div>
 
@@ -565,15 +609,15 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
                       {/* Papá */}
                       <div className="bg-background/80 p-2 rounded-xl border border-border">
                         <span className="text-[10px] font-bold text-muted-foreground block">👨 Papá</span>
-                        <p className="font-semibold text-foreground truncate">{del.fatherName || "No registrado"}</p>
-                        {del.fatherPhone ? (
+                        <p className="font-semibold text-foreground truncate">{contact.fatherName || "No registrado"}</p>
+                        {contact.fatherPhone ? (
                           <a
-                            href={`https://wa.me/51${del.fatherPhone.replace(/\D/g, "")}`}
+                            href={`https://wa.me/51${contact.fatherPhone.replace(/\D/g, "")}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-emerald-600 font-bold hover:underline inline-flex items-center gap-1"
                           >
-                            <MessageCircle className="h-3 w-3" /> {del.fatherPhone}
+                            <MessageCircle className="h-3 w-3" /> {contact.fatherPhone}
                           </a>
                         ) : (
                           <span className="text-muted-foreground text-[10px]">Sin teléfono</span>
@@ -583,15 +627,15 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
                       {/* Mamá */}
                       <div className="bg-background/80 p-2 rounded-xl border border-border">
                         <span className="text-[10px] font-bold text-muted-foreground block">👩 Mamá</span>
-                        <p className="font-semibold text-foreground truncate">{del.motherName || "No registrada"}</p>
-                        {del.motherPhone ? (
+                        <p className="font-semibold text-foreground truncate">{contact.motherName || "No registrada"}</p>
+                        {contact.motherPhone ? (
                           <a
-                            href={`https://wa.me/51${del.motherPhone.replace(/\D/g, "")}`}
+                            href={`https://wa.me/51${contact.motherPhone.replace(/\D/g, "")}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-emerald-600 font-bold hover:underline inline-flex items-center gap-1"
                           >
-                            <MessageCircle className="h-3 w-3" /> {del.motherPhone}
+                            <MessageCircle className="h-3 w-3" /> {contact.motherPhone}
                           </a>
                         ) : (
                           <span className="text-muted-foreground text-[10px]">Sin teléfono</span>
@@ -606,14 +650,14 @@ Recordamos con mucho aprecio a ${del.studentName} y sus clases de ${del.instrume
                         <p className="font-semibold text-foreground truncate">
                           {del.studentSnapshot?.emergencyContact?.name || del.studentName}
                         </p>
-                        {del.studentSnapshot?.emergencyContact?.phone || del.phone ? (
+                        {del.studentSnapshot?.emergencyContact?.phone || contact.phone ? (
                           <a
-                            href={`https://wa.me/51${(del.studentSnapshot?.emergencyContact?.phone || del.phone || "").replace(/\D/g, "")}`}
+                            href={`https://wa.me/51${(del.studentSnapshot?.emergencyContact?.phone || contact.phone).replace(/\D/g, "")}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-emerald-600 font-bold hover:underline inline-flex items-center gap-1"
                           >
-                            <MessageCircle className="h-3 w-3" /> {del.studentSnapshot?.emergencyContact?.phone || del.phone}
+                            <MessageCircle className="h-3 w-3" /> {del.studentSnapshot?.emergencyContact?.phone || contact.phone}
                           </a>
                         ) : (
                           <span className="text-muted-foreground text-[10px]">Sin teléfono</span>
