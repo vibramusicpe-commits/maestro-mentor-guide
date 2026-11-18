@@ -56,7 +56,10 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 12. **`ScheduledLesson` refleja el JSONB real.** Todas sus claves opcionales
     aceptan `undefined` explícito (ADR-0118.4), eliminando TS2379/TS2375 en
     todos los constructores de lección sin casts en los llamadores.
-13. **Opcionales que el propio código pasa como `undefined`.** Los tipos de
+14. **Acciones reales del store declaradas.** `cancelLesson` ya existía en la
+    implementación y lo usaba la Agenda, pero faltaba en la interfaz
+    `AppState`. Se declara la firma real; no se crea lógica nueva.
+15. **Opcionales que el propio código pasa como `undefined`.** Los tipos de
     `BuildSessionKeyInput` y `resolveTestFlags` lo declaran explícitamente;
     no se cambió la generación de `session_key` ni el CHECK
     `is_test ⇔ test_run_id`.
@@ -80,6 +83,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 8 | `cde9237` | 252 → 238 | 14 | 0 |
 | 9 | `a3e3288` | 238 → 222 | 16 | 0 |
 | 10 | `c7fdce0` | 222 → 205 | 17 | 0 |
+| 11 | `eb85cde` | 205 → 191 | 14 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
@@ -129,9 +133,15 @@ entrega. Ninguna regla de visibilidad ni de ciclo se modificó.
 recastear `content` (ya tipado en el lote 4). El bloqueo de criterios en
 borrador (ADR-0175) sigue idéntico y se verificó contra datos vivos.
 
-**Lote 10 — evaluaciones.** Ver §2.13. 17 errores eliminados en
+**Lote 10 — evaluaciones.** Ver §2.15. 17 errores eliminados en
 `evaluations.service.ts` e `informes/utils.ts`. `session_key` determinista y
 el CHECK `is_test ⇔ test_run_id` permanecen intactos.
+
+**Lote 11 — agenda admin.** Ver §2.14. 14 errores eliminados. Único cambio de
+comportamiento: el preview del CSV deja de crear lecciones con el status
+inválido `"confirmada"` (usado solo por demos/leads) y normaliza la categoría;
+`grep` confirmó que ningún consumidor de `ScheduledLesson` dependía de ese
+valor. `cancelLesson` ya existía en el store, solo faltaba en la interfaz.
 
 ## 4. Restricciones cumplidas
 
@@ -152,7 +162,7 @@ el CHECK `is_test ⇔ test_run_id` permanecen intactos.
 
 ## 6. Pendiente
 
-Quedan **205 errores**. Siguientes causas raíz, en orden: `agenda-board.tsx`
+Quedan **191 errores**. Siguientes causas raíz, en orden: `app-store.ts`
 (18), `progress-reports.service.ts` (16), `evaluations.service.ts` (15), y los
 clusters TS18048/TS2532/TS2345/TS2322/TS2379. Cada lote conserva el mismo
 protocolo de verificación y su entrada en `docs/logs/`.

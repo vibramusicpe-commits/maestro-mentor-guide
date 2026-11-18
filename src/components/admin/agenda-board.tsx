@@ -895,6 +895,11 @@ export function AgendaBoard() {
   };
 
   // Parser inteligente de CSV/Excel para Nayeli
+  const AGE_CATEGORIES_FOR_CSV: AgeCategory[] = [
+    "ESTIMULACION", "INFANTIL", "JUNIOR", "JUVENIL", "MASTER",
+    "ADULTO", "RECUPERACION", "PERSONALIZADA",
+  ];
+
   function parseCsvContent(text: string) {
     const lines = text
       .split(/\r?\n/)
@@ -968,7 +973,9 @@ export function AgendaBoard() {
 
       const teacher = teacherRaw || "Prof. por Asignar";
       const instrument = instrumentRaw || "Piano";
-      const category = categoryRaw || "JUNIOR";
+      // El CSV trae texto libre: solo se aceptan categorías canónicas y se
+      // cae a JUNIOR como hacía el valor por defecto anterior.
+      const category = AGE_CATEGORIES_FOR_CSV.find((c) => c === categoryRaw) ?? "JUNIOR";
 
       parsed.push({
         id: `csv-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
@@ -979,7 +986,7 @@ export function AgendaBoard() {
         teacher,
         instrument,
         category,
-        status: "confirmada",
+        status: "programada",
       });
     }
 
@@ -1542,7 +1549,7 @@ export function AgendaBoard() {
                                             : ((lesson.category && lesson.category !== "RECUPERACION")
                                                 ? lesson.category
                                                 : (studentProfile?.ageCategory ?? "JUNIOR"));
-                                          const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
+                                          const catStyle = categoryStyles[catKey] || categoryStyles["JUNIOR"]!;
 
                                           // Puntito indicador de categoría de edad (ADR-0169):
                                           // en recuperaciones recupera la categoría real que el rojo de la píldora oculta.
@@ -1639,6 +1646,7 @@ export function AgendaBoard() {
               { day: "Vie", label: "Viernes", offset: 4, badge: "Intensivo" },
               { day: "Sáb", label: "Sábado", offset: 5, badge: "Intensivo" },
             ];
+            const activeSingleDay = singleDays[excelSingleDayIndex] ?? singleDays[0];
 
             return (
               <div className="space-y-3">
@@ -1737,9 +1745,9 @@ export function AgendaBoard() {
                   </div>
                 ) : (
                   <div className="w-full">
-                    {renderSingleDayTable(
-                      singleDays[excelSingleDayIndex].day,
-                      singleDays[excelSingleDayIndex].offset
+                    {activeSingleDay && renderSingleDayTable(
+                      activeSingleDay.day,
+                      activeSingleDay.offset
                     )}
                   </div>
                 )}
@@ -1920,7 +1928,7 @@ export function AgendaBoard() {
                                           : ((lesson.category && lesson.category !== "RECUPERACION")
                                               ? lesson.category
                                               : (studentProfile?.ageCategory ?? "JUNIOR"));
-                                        const catStyle = categoryStyles[catKey] || categoryStyles.JUNIOR!;
+                                        const catStyle = categoryStyles[catKey] || categoryStyles["JUNIOR"]!;
                                         
                                         // Puntito indicador de categoría de edad (ADR-0169):
                                         // en recuperaciones recupera la categoría real que el rojo de la píldora oculta.
@@ -2123,7 +2131,7 @@ export function AgendaBoard() {
                                 : ((lesson.category && lesson.category !== "RECUPERACION")
                                     ? lesson.category
                                     : (studentProfile?.ageCategory ?? "JUNIOR"));
-                              const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
+                              const catStyle = categoryStyles[catKey] ?? categoryStyles["JUNIOR"]!;
                               
                               // Puntito indicador de categoría de edad (ADR-0169):
                               // en recuperaciones recupera la categoría real que el rojo de la píldora oculta.
@@ -2263,7 +2271,7 @@ export function AgendaBoard() {
                               : ((lesson.category && lesson.category !== "RECUPERACION")
                                   ? lesson.category
                                   : (studentProfile?.ageCategory ?? "JUNIOR"));
-                            const catStyle = categoryStyles[catKey] ?? categoryStyles.JUNIOR!;
+                            const catStyle = categoryStyles[catKey] ?? categoryStyles["JUNIOR"]!;
                             
                             // Puntito indicador de categoría de edad (ADR-0169):
                             // en recuperaciones recupera la categoría real que el rojo de la píldora oculta.

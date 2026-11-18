@@ -40,9 +40,9 @@ const FALLBACK_AGE_CATEGORY = "JUNIOR";
 /** Estructura mínima de lección requerida (evita depender del store). */
 export interface LessonCategoryVisualInput {
   student: string;
-  category?: string | null;
-  isMakeup?: boolean;
-  dateStr?: string;
+  category?: string | null | undefined;
+  isMakeup?: boolean | undefined;
+  dateStr?: string | undefined;
 }
 
 /** Estructura mínima de perfil de alumno requerida (evita depender del store). */

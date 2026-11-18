@@ -119,6 +119,17 @@
   `is_test ⇔ test_run_id`.
 - `npm run build` verde.
 
+## Lote 11 — `eb85cde` (205 → 191, 14 fix, 0 regresiones)
+
+- `app-store.ts`: `cancelLesson` ya tenía implementación (marca la lección
+  `cancelada` y emite crédito) pero faltaba en `AppState`.
+- `agenda-board.tsx`: preview CSV con `status: "programada"` y categoría
+  normalizada a las canónicas (antes texto libre + `"confirmada"`). `grep`
+  confirma que `"confirmada"` solo pertenece a demos/leads.
+- `singleDays[excelSingleDayIndex]` con fallback al primer día.
+- `lesson-category-visual.ts`: opcionales con `| undefined` (4 TS2379).
+- Sin cambios en el filtro de visibilidad ni en los motores de ciclo.
+
 ## Verificación repetida en cada lote
 
 ```

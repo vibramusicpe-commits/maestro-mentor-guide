@@ -149,6 +149,8 @@ type AppState = {
   invoices: Invoice[];
   historicalStudents: AdminStudent[];
   rescheduleLesson: (id: string, day: WeekDay, time: string, scope?: "only-this-week" | "all", targetWeekIndex?: number, teacher?: string, room?: string, originalDateStr?: string, newDateStr?: string) => void;
+  /** Cancela una clase (status = "cancelada") emitiendo crédito si aplica. */
+  cancelLesson: (id: string) => void;
   removeLessonFromSchedule: (id: string) => void;
   deleteLessonFromSchedule: (id: string) => void;
   revertMakeupLesson: (makeupId: string, recoveringLessonDate?: string) => void;
