@@ -586,11 +586,11 @@ export function StudentsTable() {
     lessons.forEach((l) => {
       if (l.attendanceByDate) {
         Object.entries(l.attendanceByDate).forEach(([dStr, st]) => {
-          if (st && st !== "pendiente") {
+          if (st) {
             const parts = dStr.split("-");
             if (parts.length === 3) {
               const mNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Set", "Oct", "Nov", "Dic"];
-              const shortDate = `${parts[2]} ${mNames[parseInt(parts[1], 10) - 1] || parts[1]}`;
+              const shortDate = `${parts[2] ?? ""} ${mNames[parseInt(parts[1] ?? "", 10) - 1] || (parts[1] ?? "")}`;
               datesMap.set(dStr, { status: st, label: shortDate });
             }
           }
@@ -975,7 +975,9 @@ export function StudentsTable() {
                           ? "MASTER"
                           : cat;
 
-                        const cs = categoryStyles[cat] || categoryStyles.MASTER;
+                        const cs = categoryStyles[cat] ?? categoryStyles["MASTER"] ?? {
+                          bg: "", text: "", border: "", label: "MASTER",
+                        };
 
                         return (
                           <div className="space-y-0.5">
@@ -2205,7 +2207,7 @@ export function StudentsTable() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        setReentryDate(new Date().toISOString().split("T")[0]);
+                        setReentryDate(new Date().toISOString().split("T")[0] ?? "");
                         setReentryReason("");
                         setReentryNotes("");
                         setIsReentryFormOpen(true);
@@ -2830,7 +2832,7 @@ export function StudentsTable() {
               <div className="flex items-center justify-between">
                 <p className="font-bold text-foreground">
                   {studentsToDelete.length === 1
-                    ? `Alumno: ${studentsToDelete[0].name}`
+                    ? `Alumno: ${studentsToDelete[0]?.name ?? ""}`
                     : `Se eliminarán ${studentsToDelete.length} alumnos seleccionados:`}
                 </p>
                 {studentsToDelete.length > 1 && (
@@ -2842,7 +2844,7 @@ export function StudentsTable() {
 
               {studentsToDelete.length === 1 ? (
                 <p className="text-[11px] text-muted-foreground">
-                  {studentsToDelete[0].family} · {studentsToDelete[0].instrument} · Prof. {studentsToDelete[0].teacher} · {studentsToDelete[0].modality}
+                  {studentsToDelete[0]?.family ?? ""} · {studentsToDelete[0]?.instrument ?? ""} · Prof. {studentsToDelete[0]?.teacher ?? ""} · {studentsToDelete[0]?.modality ?? ""}
                 </p>
               ) : (
                 <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
@@ -2966,8 +2968,8 @@ export function StudentsTable() {
                   const operatorName = activeRole === "staff" ? "Nayeli (Secretaría)" : "Dirección (Dueña)";
                   
                   if (ids.length === 1) {
-                    deleteStudent(ids[0], deletionReasonCategory, deletionReasonText, operatorName);
-                    toast.success(`🗑️ Alumno ${studentsToDelete[0].name} movido a la papelera [${deletionReasonCategory}]`);
+                    deleteStudent(ids[0] ?? "", deletionReasonCategory, deletionReasonText, operatorName);
+                    toast.success(`🗑️ Alumno ${studentsToDelete[0]?.name ?? ""} movido a la papelera [${deletionReasonCategory}]`);
                   } else {
                     deleteStudents(ids, deletionReasonCategory, deletionReasonText, operatorName);
                     toast.success(`🗑️ ${ids.length} alumnos movidos a la papelera [${deletionReasonCategory}]`);
@@ -3427,7 +3429,7 @@ function NewStudentDialog() {
   useEffect(() => {
     if (!teacher || teacher === "Prof. por Asignar") {
       if (availableTeachers.length > 0 && availableTeachers[0] !== "Prof. por Asignar") {
-        setTeacher(availableTeachers[0]);
+        setTeacher(availableTeachers[0] ?? "Prof. por Asignar");
       }
     }
   }, [availableTeachers, teacher]);
@@ -3508,8 +3510,6 @@ function NewStudentDialog() {
       ageCategory: effectiveCategory === "ADULTO" ? "MASTER" : effectiveCategory,
       age: isAdultStudent ? Math.max(18, age) : age,
       status: "activo",
-      attendanceRate: 0,
-      recentAttendance: [],
       payment: livePaymentStatus,
       balance: liveTotalBalance,
       email: email || `${name.toLowerCase().replace(/\s+/g, ".")}@gmail.com`,
@@ -4569,8 +4569,8 @@ function EditStudentSheet({
       availableTeachers={availableTeachers}
       open={open}
       onOpenChange={onOpenChange}
-      onOpenKardex={onOpenKardex}
-      onOpenAudit={onOpenAudit}
+      {...(onOpenKardex ? { onOpenKardex } : {})}
+      {...(onOpenAudit ? { onOpenAudit } : {})}
       updateStudentDetails={updateStudentDetails}
     />
   );
@@ -4752,7 +4752,7 @@ function EditStudentSheetInner({
       balance: liveTotalBalance,
       payment: livePaymentStatus,
       packageTotalSessions: isFlexiblePlan ? packageTotalSessions : undefined,
-      teacherNote: customPriceReason.trim() || undefined,
+      teacherNote: customPriceReason.trim(),
       matriculaType,
       enrollmentDate,
       paymentMethod,
@@ -5840,7 +5840,7 @@ function getNextConsecutiveSlot(day: string, time: string): string | null {
   const slots = day === "Sáb" ? timeSlotsSaturday : timeSlotsWeekday;
   const idx = slots.indexOf(time);
   if (idx !== -1 && idx + 1 < slots.length) {
-    return slots[idx + 1];
+    return slots[idx + 1] ?? null;
   }
   return null;
 }
@@ -5955,17 +5955,20 @@ function ScheduleStudentForm({
   const [instrument, setInstrument] = useState(
     existingL1?.instrument || liveStudent.instrument || musicalInstruments[0] || "Piano"
   );
+  // Las fichas históricas pueden no traer `age` (solo `birthdate`); 0 es el
+  // valor neutro para la deducción de categoría por rango de edad.
+  const studentAge = liveStudent.age ?? 0;
   const [category, setCategory] = useState<AgeCategory>(
     (existingL1?.category as AgeCategory) ||
       (liveStudent.category as AgeCategory) ||
       (liveStudent.ageCategory as AgeCategory) ||
-      (liveStudent.age >= 18
+      (studentAge >= 18
         ? "MASTER"
-        : liveStudent.age <= 4
+        : studentAge <= 4
         ? "ESTIMULACION"
-        : liveStudent.age <= 6
+        : studentAge <= 6
         ? "INFANTIL"
-        : liveStudent.age <= 12
+        : studentAge <= 12
         ? "JUNIOR"
         : "JUVENIL")
   );
@@ -6634,7 +6637,7 @@ function ScheduleStudentForm({
         </Select>
         {category === "PERSONALIZADA" && (
           <p className="text-[10px] text-primary font-semibold mt-1">
-            🩵 Clase Personalizada: Se identificará con el puntito {liveStudent.age >= 18 ? "⚫ Plomo (Adulto)" : liveStudent.age >= 13 ? "🟢 Verde (Juvenil)" : liveStudent.age >= 7 ? "🟡 Amarillo (Junior)" : "🟣 Morado (Infantil)"} en la agenda.
+            🩵 Clase Personalizada: Se identificará con el puntito {studentAge >= 18 ? "⚫ Plomo (Adulto)" : studentAge >= 13 ? "🟢 Verde (Juvenil)" : studentAge >= 7 ? "🟡 Amarillo (Junior)" : "🟣 Morado (Infantil)"} en la agenda.
           </p>
         )}
       </div>

@@ -66,6 +66,20 @@
   fallback a `""`; `target_name` cae al email si no hay nombre.
 - `npm run build` verde (`BUILD_EXIT=0`).
 
+## Lote 6 — `168f9b4` (301 → 268, 33 fix, 0 regresiones)
+
+- `students-table.tsx`: guarda `!== "pendiente"` muerta, índices de `split` y
+  de primeros elementos con `??`, `getNextConsecutiveSlot` con `?? null`,
+  `studentAge = liveStudent.age ?? 0` para fichas sin edad, props de función
+  por spread condicional y `teacherNote: ""` en la edición.
+- `room-compatibility.ts`: `modality?`/`instrument?` de las lecciones de sala
+  aceptan `undefined` explícito (JSONB). Sin cambios en las reglas pedaggóicas.
+- `app-store.ts`: `addNewStudent` declara `teacherNote?` y `balance?`, que el
+  store ya leía.
+- `student-cleanup-panel.tsx`: alta desde CSV completada con `level`,
+  `birthdate` y `emergencyContact` (error enmascarado por un TS2353 previo).
+- `npm run build` verde.
+
 ## Verificación repetida en cada lote
 
 ```

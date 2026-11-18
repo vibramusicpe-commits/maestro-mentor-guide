@@ -159,7 +159,12 @@ type AppState = {
   importStudentsFromCSV: (newStudents: AdminStudent[]) => void;
   clearStudents: () => void;
   resetToOfficialStudents: () => void;
-  addNewStudent: (newSt: Omit<AdminStudent, "id" | "risk" | "joinedAt" | "attendanceRate" | "makeupCredits" | "balance" | "recentAttendance" | "teacherNote">) => void;
+  addNewStudent: (newSt: Omit<AdminStudent, "id" | "risk" | "joinedAt" | "attendanceRate" | "makeupCredits" | "balance" | "recentAttendance" | "teacherNote"> & {
+    /** Motivo del precio personalizado; el store lo por defecto a "". */
+    teacherNote?: string | undefined;
+    /** El store lo respeta si viene definido; si no, lo calcula del plan+libro. */
+    balance?: number | undefined;
+  }) => void;
   deletedStudents: DeletedStudentLog[];
   deleteStudent: (id: string, reasonCategory?: DeletionReasonCategory, reasonText?: string, deletedBy?: string) => void;
   deleteStudents: (ids: string[], reasonCategory?: DeletionReasonCategory, reasonText?: string, deletedBy?: string) => void;

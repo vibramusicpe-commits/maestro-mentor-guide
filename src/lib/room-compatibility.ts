@@ -215,8 +215,11 @@ export interface EvaluateCompatibilityParams {
   room: string;
   existingRoomLessons: Array<
     Pick<ScheduledLesson, "student" | "teacher" | "room" | "category" | "status"> & {
-      modality?: string;
-      instrument?: string;
+      // Las lecciones de `scheduleLessons` traen estas claves como opcionales
+      // (pueden venir explícitamente `undefined` del JSONB). Declararlo evita
+      // tener que ocultarlo con un cast en cada llamador.
+      modality?: string | undefined;
+      instrument?: string | undefined;
     }
   >;
 }

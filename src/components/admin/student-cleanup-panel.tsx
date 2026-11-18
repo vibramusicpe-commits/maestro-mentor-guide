@@ -313,6 +313,13 @@ export function StudentCleanupPanel({ isOpen, onClose }: StudentCleanupPanelProp
         family: `Familia ${un.name.split(" ").slice(-1)[0] || un.name}`,
         phone: un.phone || "51900000000",
         instrument: un.instrument || "Piano",
+        level: "Nivel 1",
+        birthdate: "",
+        emergencyContact: {
+          name: un.name,
+          phone: un.phone || "51900000000",
+          relation: "Apoderado",
+        },
         teacher: un.teacher || "Jeremy",
         modality: "Regular (8 clases / 45 min)",
         status: "activo",

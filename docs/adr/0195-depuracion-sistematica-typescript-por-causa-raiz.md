@@ -46,6 +46,10 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
    es el modelo de lectura (sin secretos); `DBInvitationWrite` declara las
    columnas que realmente se INSERT/PATCHean (incluye `master_password`).
    Los índices de respuestas PostgREST se acceden con `?.[0]` y se validan.
+10. **Los payloads de matrícula declaran lo que el store consume.**
+    `addNewStudent` acepta `teacherNote?` y `balance?` (el store ya los leía);
+    las props opcionales de funciones se pasan por spread condicional
+    (AGENTS §92.4), nunca como `undefined` explícito.
 
 ## 3. Cambios entregados
 
@@ -56,6 +60,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 3 | `bf6902c` | 393 → 360 | 33 | 0 |
 | 4 | `4d7990f` | 360 → 330 | 30 | 0 |
 | 5 | `c4df3f0` | 330 → 301 | 29 | 0 |
+| 6 | `168f9b4` | 301 → 268 | 33 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
@@ -86,6 +91,14 @@ el tipo, no con un cast).
 TS18048/TS2532, TS2345/TS2379). Sin cambios en la verificación de vigencia
 permanente del personal (ADR-0174) ni en el enum SQL.
 
+**Lote 6 — matrícula y horario.** Ver §2.10. 33 errores eliminados en
+`students-table.tsx`, `room-compatibility.ts`, `app-store.ts` y
+`student-cleanup-panel.tsx`. La compatibilidad pedagógica **no cambió**: solo
+se declaró que `modality`/`instrument` de una lección pueden venir `undefined`
+del JSONB. Un error enmascarado en el alta por CSV (`student-cleanup-panel`)
+salió a la luz al corregir el payload y se cerró completando `level`,
+`birthdate` y `emergencyContact`.
+
 ## 4. Restricciones cumplidas
 
 - Sin `ALTER TABLE`, `DROP`, `TRUNCATE` ni borrado masivo.
@@ -105,8 +118,7 @@ permanente del personal (ADR-0174) ni en el enum SQL.
 
 ## 6. Pendiente
 
-Quedan **301 errores**. Siguientes causas raíz, en orden: `students-table.tsx`
-(29), `laya-engine.ts`
+Quedan **268 errores**. Siguientes causas raíz, en orden: `laya-engine.ts`
 (18), `progress-reports.service.ts` (16), `evaluations.service.ts` (15), y los
 clusters TS18048/TS2532/TS2345/TS2322/TS2379. Cada lote conserva el mismo
 protocolo de verificación y su entrada en `docs/logs/`.
