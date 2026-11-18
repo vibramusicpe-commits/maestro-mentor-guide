@@ -42,6 +42,10 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
    las claves que el propio servicio escribe en `progress_reports.content`
    (mantiene el índice libre para filas históricas). `asRecord<T>` es el único
    punto de parseo; acceso por corchete solo donde el objeto sí es dinámico.
+9. **Lectura y escritura de invitaciones son tipos distintos.** `DBInvitation`
+   es el modelo de lectura (sin secretos); `DBInvitationWrite` declara las
+   columnas que realmente se INSERT/PATCHean (incluye `master_password`).
+   Los índices de respuestas PostgREST se acceden con `?.[0]` y se validan.
 
 ## 3. Cambios entregados
 
@@ -51,6 +55,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 2 | `0027030` | 520 → 393 | 127 | 0 |
 | 3 | `bf6902c` | 393 → 360 | 33 | 0 |
 | 4 | `4d7990f` | 360 → 330 | 30 | 0 |
+| 5 | `c4df3f0` | 330 → 301 | 29 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
@@ -77,6 +82,10 @@ legado. Los tipos `ageCategory` y `period.label` se ampliaron a `| null` porque
 el servicio ya escribía `null` allí (el error TS2322 resultante se corrigió en
 el tipo, no con un cast).
 
+**Lote 5 — invitaciones.** Ver §2.9. 29 errores eliminados (3 TS2561, 18
+TS18048/TS2532, TS2345/TS2379). Sin cambios en la verificación de vigencia
+permanente del personal (ADR-0174) ni en el enum SQL.
+
 ## 4. Restricciones cumplidas
 
 - Sin `ALTER TABLE`, `DROP`, `TRUNCATE` ni borrado masivo.
@@ -96,8 +105,8 @@ el tipo, no con un cast).
 
 ## 6. Pendiente
 
-Quedan **330 errores**. Siguientes causas raíz, en orden: `students-table.tsx`
-(29), `invitations.service.ts` (29), `laya-engine.ts`
+Quedan **301 errores**. Siguientes causas raíz, en orden: `students-table.tsx`
+(29), `laya-engine.ts`
 (18), `progress-reports.service.ts` (16), `evaluations.service.ts` (15), y los
 clusters TS18048/TS2532/TS2345/TS2322/TS2379. Cada lote conserva el mismo
 protocolo de verificación y su entrada en `docs/logs/`.

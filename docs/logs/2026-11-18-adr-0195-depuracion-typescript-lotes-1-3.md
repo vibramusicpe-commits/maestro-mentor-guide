@@ -55,6 +55,17 @@
   nuevo tipo no lo declaraba (TS2322). Tras ampliarlos, 0 regresiones.
 - `npm run build` verde (`BUILD_EXIT=0`).
 
+## Lote 5 — `c4df3f0` (330 → 301, 29 fix, 0 regresiones)
+
+- `invitations.service.ts`: `DBInvitationWrite` separa el modelo de lectura
+  (sin secretos) del de escritura (con `master_password`, y `target_role`
+  restringido al enum SQL). Los 4 INSERT/PATCH lo usan.
+- Recuperación de la primera fila de PostgREST con `?.[0]` y guarda explicita
+  en `verifyInvitationToken`; mismo comportamiento cuando no hay fila.
+- Índices bajo `noUncheckedIndexedAccess` (`parts[2]`, `split("(")[0]`) con
+  fallback a `""`; `target_name` cae al email si no hay nombre.
+- `npm run build` verde (`BUILD_EXIT=0`).
+
 ## Verificación repetida en cada lote
 
 ```

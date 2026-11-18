@@ -96,6 +96,17 @@ export type LocalInvitation = DBInvitation & {
   custom_password?: string;
 };
 
+/**
+ * Columnas que se escriben en `invitations`. La tabla SÍ tiene
+ * `master_password`, pero el modelo de lectura `DBInvitation` no lo expone
+ * (secrets fuera del payload que viaja a la UI). Separar ambos tipos evita
+ * tener que ocultar el campo con un cast en cada INSERT/PATCH.
+ */
+export type DBInvitationWrite = Omit<DBInvitation, "target_role"> & {
+  target_role: InviteTargetRole;
+  master_password?: string | null;
+};
+
 export interface DBUserPassword {
   id: string;
   user_id: string;
@@ -264,7 +275,7 @@ export async function createInvitation(
 
   let invitation: DBInvitation;
   try {
-    invitation = await postgrestInsert<DBInvitation>("invitations", {
+    invitation = await postgrestInsert<DBInvitationWrite>("invitations", {
       token,
       target_role: payload.targetRole,
       target_name: payload.targetName,
@@ -367,8 +378,8 @@ export async function verifyInvitationToken(
       }
     }
 
-    if (remoteInvites && remoteInvites.length > 0) {
-      const inv = remoteInvites[0];
+    const inv = remoteInvites?.[0];
+    if (inv) {
       const isExpired = inv.expires_at ? new Date(inv.expires_at).getTime() < Date.now() : false;
       const isRevoked = inv.status === "revocado";
 
@@ -504,7 +515,7 @@ export async function verifyInvitationToken(
     for (const [seedToken, seed] of Object.entries(TEACHER_SEEDS)) {
       const name = seed.target_name.toLowerCase();
       // Extraer solo el nombre (primera palabra entre paréntesis o antes del espacio)
-      const firstName = name.split("(")[0].trim().split(" ")[0];
+      const firstName = (name.split("(")[0] ?? "").trim().split(" ")[0] ?? "";
       if (normalizedToken.includes(firstName)) {
         matchedSeed = seed;
         break;
@@ -573,9 +584,9 @@ export async function verifyInvitationToken(
   if (parts.length >= 3 && (parts[1] === "teacher" || parts[1] === "family" || parts[1] === "staff")) {
     detectedRole = parts[1] as InviteTargetRole;
     try {
-      detectedName = decodeURIComponent(parts[2]).replace(/_/g, " ");
+      detectedName = decodeURIComponent(parts[2] ?? "").replace(/_/g, " ");
     } catch {
-      detectedName = parts[2].replace(/_/g, " ");
+      detectedName = (parts[2] ?? "").replace(/_/g, " ");
     }
   } else {
     const isTeacher = token.toLowerCase().includes("profesor") || 
@@ -628,10 +639,11 @@ export async function acceptInvitation(
       const existing = await postgrestSelect<DBInvitation>("invitations", {
         target_email: `eq.${targetEmail}`,
       });
-      if (existing && existing.length > 0) {
-        await postgrestPatch<DBInvitation>(
+      const existingRow = existing?.[0];
+      if (existingRow) {
+        await postgrestPatch<DBInvitationWrite>(
           "invitations",
-          { id: `eq.${existing[0].id}` },
+          { id: `eq.${existingRow.id}` },
           {
             status: "aceptado",
             accepted_at: nowIso,
@@ -650,10 +662,11 @@ export async function acceptInvitation(
         const existingByToken = await postgrestSelect<DBInvitation>("invitations", {
           token: `eq.${token}`,
         });
-        if (existingByToken && existingByToken.length > 0) {
-          await postgrestPatch<DBInvitation>(
+        const existingByTokenRow = existingByToken?.[0];
+        if (existingByTokenRow) {
+          await postgrestPatch<DBInvitationWrite>(
             "invitations",
-            { id: `eq.${existingByToken[0].id}` },
+            { id: `eq.${existingByTokenRow.id}` },
             {
               status: "aceptado",
               accepted_at: nowIso,
@@ -670,10 +683,10 @@ export async function acceptInvitation(
     // C. Si no existía en PostgreSQL, insertar el registro directamente
     if (!updated) {
       try {
-        await postgrestInsert<DBInvitation>("invitations", {
+        await postgrestInsert<DBInvitationWrite>("invitations", {
           token: token || `inv-${targetEmail}-${Date.now()}`,
           target_role: persistedRole,
-          target_name: targetName || targetEmail.split("@")[0],
+          target_name: targetName || targetEmail.split("@")[0] || targetEmail,
           target_email: targetEmail,
           master_password: customPassword || "Vibra-2026",
           created_by_user_id: "00000000-0000-0000-0000-000000000001",
@@ -1030,29 +1043,29 @@ export async function resetUserToMasterPassword(
     // A. Buscar por id si es UUID
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUserId)) {
       const byId = await postgrestSelect<DBInvitation>("invitations", { id: `eq.${targetUserId}` });
-      if (byId && byId.length > 0) matchedId = byId[0].id;
+      matchedId = byId?.[0]?.id ?? null;
     }
 
     // B. Buscar por target_email
     if (!matchedId && targetEmail) {
       const byEmail = await postgrestSelect<DBInvitation>("invitations", { target_email: `eq.${targetEmail}` });
-      if (byEmail && byEmail.length > 0) matchedId = byEmail[0].id;
+      matchedId = byEmail?.[0]?.id ?? null;
     }
 
     // C. Buscar por token
     if (!matchedId && token) {
       const byToken = await postgrestSelect<DBInvitation>("invitations", { token: `eq.${token}` });
-      if (byToken && byToken.length > 0) matchedId = byToken[0].id;
+      matchedId = byToken?.[0]?.id ?? null;
     }
 
     // D. Buscar por coincidencia con targetUserId
     if (!matchedId) {
       const byTarget = await postgrestSelect<DBInvitation>("invitations", { target_email: `eq.${targetUserId}` });
-      if (byTarget && byTarget.length > 0) matchedId = byTarget[0].id;
+      matchedId = byTarget?.[0]?.id ?? null;
     }
 
     if (matchedId) {
-      await postgrestPatch<DBInvitation>(
+      await postgrestPatch<DBInvitationWrite>(
         "invitations",
         { id: `eq.${matchedId}` },
         {
