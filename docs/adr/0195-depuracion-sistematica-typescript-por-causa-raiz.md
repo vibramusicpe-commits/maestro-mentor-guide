@@ -56,7 +56,11 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 12. **`ScheduledLesson` refleja el JSONB real.** Todas sus claves opcionales
     aceptan `undefined` explícito (ADR-0118.4), eliminando TS2379/TS2375 en
     todos los constructores de lección sin casts en los llamadores.
-13. **Confirmación contra datos vivos (MCP Insforge, solo lectura).** Los
+13. **Opcionales que el propio código pasa como `undefined`.** Los tipos de
+    `BuildSessionKeyInput` y `resolveTestFlags` lo declaran explícitamente;
+    no se cambió la generación de `session_key` ni el CHECK
+    `is_test ⇔ test_run_id`.
+14. **Confirmación contra datos vivos (MCP Insforge, solo lectura).** Los
     contratos tipados se validan contra PostgreSQL antes de darlos por buenos:
     `evaluation_fields.ui_config.draft` y `progress_reports.content.*`
     (criteria = array, student = object). El acceso por corchete se reserva a
@@ -75,6 +79,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 7 | `f95b3cc` | 268 → 252 | 16 | 0 |
 | 8 | `cde9237` | 252 → 238 | 14 | 0 |
 | 9 | `a3e3288` | 238 → 222 | 16 | 0 |
+| 10 | `c7fdce0` | 222 → 205 | 17 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
@@ -120,9 +125,13 @@ tocar esquemas, plantillas ni el matching de homónimos (ADR-0141).
 global: el tipo de `ScheduledLesson` ahora coincide con lo que el JSONB real
 entrega. Ninguna regla de visibilidad ni de ciclo se modificó.
 
-**Lote 9 — servicio de informes.** Ver §2.13. 16 TS4111 eliminados al dejar de
+**Lote 9 — servicio de informes.** Ver §2.14. 16 TS4111 eliminados al dejar de
 recastear `content` (ya tipado en el lote 4). El bloqueo de criterios en
 borrador (ADR-0175) sigue idéntico y se verificó contra datos vivos.
+
+**Lote 10 — evaluaciones.** Ver §2.13. 17 errores eliminados en
+`evaluations.service.ts` e `informes/utils.ts`. `session_key` determinista y
+el CHECK `is_test ⇔ test_run_id` permanecen intactos.
 
 ## 4. Restricciones cumplidas
 
@@ -143,7 +152,7 @@ borrador (ADR-0175) sigue idéntico y se verificó contra datos vivos.
 
 ## 6. Pendiente
 
-Quedan **222 errores**. Siguientes causas raíz, en orden: `evaluations.service.ts`
+Quedan **205 errores**. Siguientes causas raíz, en orden: `agenda-board.tsx`
 (18), `progress-reports.service.ts` (16), `evaluations.service.ts` (15), y los
 clusters TS18048/TS2532/TS2345/TS2322/TS2379. Cada lote conserva el mismo
 protocolo de verificación y su entrada en `docs/logs/`.

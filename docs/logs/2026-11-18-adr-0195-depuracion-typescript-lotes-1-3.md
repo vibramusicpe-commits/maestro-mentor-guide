@@ -108,6 +108,17 @@
   `progress_reports.content.criteria` = array y `content.student` = object.
 - Sin cambios en consultas, estados del informe ni portal familia.
 
+## Lote 10 — `c7fdce0` (222 → 205, 17 fix, 0 regresiones)
+
+- `evaluations.service.ts`: `normalizeExtraScores` conserva la validación de
+  runtime y tipa el snapshot con `Partial<ExtraScoreSnapshot>`; se retiran 4
+  casts redundantes.
+- Filtros PostgREST y `ui_config.draft` por corchete.
+- `informes/utils.ts`: `BuildSessionKeyInput` y `resolveTestFlags` aceptan
+  `undefined` explícito. Sin cambios en `session_key` ni en el CHECK
+  `is_test ⇔ test_run_id`.
+- `npm run build` verde.
+
 ## Verificación repetida en cada lote
 
 ```

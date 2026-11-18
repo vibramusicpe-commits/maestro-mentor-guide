@@ -109,7 +109,9 @@ function normalizeExtraScores(value: unknown): ExtraScoreSnapshot[] {
         `El campo extra ${index + 1} tiene un formato inválido.`,
       );
     }
-    const item = raw as Record<string, unknown>;
+    // Validación de runtime arriba; el tipo solo describe el snapshot que
+    // este propio servicio construye (fuente única en informes/types.ts).
+    const item = raw as Partial<ExtraScoreSnapshot>;
     const label = String(item.label || "").trim();
     if (!label) {
       throw new InformesValidationError(
@@ -117,12 +119,12 @@ function normalizeExtraScores(value: unknown): ExtraScoreSnapshot[] {
       );
     }
     return {
-      field_id: (item.field_id as string | null | undefined) ?? null,
-      field_key: (item.field_key as string | null | undefined) ?? null,
+      field_id: item.field_id ?? null,
+      field_key: item.field_key ?? null,
       label,
       type: String(item.type || "short_text"),
       raw_value: item.raw_value ?? null,
-      band: (item.band as string | null | undefined) ?? null,
+      band: item.band ?? null,
     };
   });
 }
@@ -142,7 +144,7 @@ export async function getDraftCriteriaFields(): Promise<EvaluationFieldRow[]> {
     "*",
   );
   return fields.filter(
-    (field) => (field.ui_config as Record<string, unknown> | null)?.draft === true,
+    (field) => (field.ui_config as Record<string, unknown> | null)?.["draft"] === true,
   );
 }
 
@@ -174,7 +176,7 @@ export async function getCriteria(
   const params: Record<string, string> = {
     order: "report_order.asc,label.asc",
   };
-  if (!query.includeInactive) params.is_active = "eq.true";
+  if (!query.includeInactive) params["is_active"] = "eq.true";
 
   const fields = await postgrestSelect<EvaluationFieldRow>(
     "evaluation_fields",
@@ -273,16 +275,16 @@ export async function getStudentEvaluations(
         "La fecha inicial no puede ser posterior a la fecha final.",
       );
     }
-    params.and = `(session_date.gte.${from},session_date.lte.${to})`;
+    params["and"] = `(session_date.gte.${from},session_date.lte.${to})`;
   } else if (from) {
-    params.session_date = `gte.${from}`;
+    params["session_date"] = `gte.${from}`;
   } else if (to) {
-    params.session_date = `lte.${to}`;
+    params["session_date"] = `lte.${to}`;
   }
 
-  if (!query.includeTest) params.is_test = "eq.false";
+  if (!query.includeTest) params["is_test"] = "eq.false";
   if (query.limit && query.limit > 0) {
-    params.limit = String(Math.trunc(query.limit));
+    params["limit"] = String(Math.trunc(query.limit));
   }
 
   const rows = await postgrestSelect<LessonEvaluationRow>(

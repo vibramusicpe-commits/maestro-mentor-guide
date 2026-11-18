@@ -85,9 +85,9 @@ export interface BuildSessionKeyInput {
   studentId: string;
   sessionDate: string;
   startTime: string;
-  durationMin?: number | null;
-  modality?: string | null;
-  sessionKey?: string | null;
+  durationMin?: number | null | undefined;
+  modality?: string | null | undefined;
+  sessionKey?: string | null | undefined;
 }
 
 /**
@@ -156,8 +156,8 @@ export function deepFreeze<T>(value: T): T {
  *   is_test = (test_run_id IS NOT NULL)
  */
 export function resolveTestFlags(input: {
-  isTest?: boolean | null;
-  testRunId?: string | null;
+  isTest?: boolean | null | undefined;
+  testRunId?: string | null | undefined;
 }): TestFlags {
   const testRunId = (input.testRunId || "").trim() || null;
   if (testRunId) {
