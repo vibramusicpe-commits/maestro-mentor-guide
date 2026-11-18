@@ -478,14 +478,9 @@ export async function getReportsForStudent(
 /** Instrumento del informe, leído del snapshot de contenido (jsonb `content`). */
 export function getReportInstrument(report: ProgressReportRow | null): string {
   if (!report) return "";
-  const content =
-    report.content && typeof report.content === "object"
-      ? (report.content as Record<string, unknown>)
-      : null;
-  const student =
-    content && content.student && typeof content.student === "object"
-      ? (content.student as Record<string, unknown>)
-      : null;
+  // `content` ya está tipado como `ReportContent` (ADR-0195 lote 4): volver a
+  // castearlo a Record<string, unknown> solo ocultaría el contrato real.
+  const student = report.content?.student;
   const value = student?.instrument;
   return typeof value === "string" ? value.trim() : "";
 }
@@ -525,23 +520,24 @@ export async function listProgressReports(
     limit: String(limit),
   };
 
+  // Las claves de un filtro PostgREST son dinámicas: acceso por corchete.
   const status = (filters.status || "").trim();
-  if (status) query.status = `eq.${status}`;
+  if (status) query["status"] = `eq.${status}`;
 
   const studentId = (filters.studentId || "").trim();
-  if (studentId) query.student_id = `eq.${studentId}`;
+  if (studentId) query["student_id"] = `eq.${studentId}`;
 
   const periodType = (filters.periodType || "").trim();
-  if (periodType) query.period_type = `eq.${periodType}`;
+  if (periodType) query["period_type"] = `eq.${periodType}`;
 
   const teacherName = (filters.teacherName || "").trim();
-  if (teacherName) query.teacher_name = `ilike.*${teacherName}*`;
+  if (teacherName) query["teacher_name"] = `ilike.*${teacherName}*`;
 
   const periodFrom = asIsoDateOrNull(filters.periodFrom);
-  if (periodFrom) query.period_start = `gte.${periodFrom}`;
+  if (periodFrom) query["period_start"] = `gte.${periodFrom}`;
 
   const periodTo = asIsoDateOrNull(filters.periodTo);
-  if (periodTo) query.period_end = `lte.${periodTo}`;
+  if (periodTo) query["period_end"] = `lte.${periodTo}`;
 
   const rows = await postgrestSelect<ProgressReportRow>(
     "progress_reports",
@@ -590,7 +586,7 @@ async function fetchReportsForFamily(
     status: "eq.published",
     order: "period_end.desc",
   };
-  if (!includeTest) query.is_test = "eq.false";
+  if (!includeTest) query["is_test"] = "eq.false";
 
   const rows = await postgrestSelect<ProgressReportRow>(
     "progress_reports",
@@ -659,12 +655,8 @@ export async function getPublishedReportsForStudent(
 }
 
 function collectReportFieldIds(report: ProgressReportRow): string[] {
-  const content =
-    report.content && typeof report.content === "object"
-      ? (report.content as Record<string, unknown>)
-      : {};
-  const criteria = Array.isArray(content.criteria)
-    ? (content.criteria as Array<Record<string, unknown>>)
+  const criteria = Array.isArray(report.content?.criteria)
+    ? report.content.criteria
     : [];
   const ids = criteria
     .map((item) => (item?.field_id ? String(item.field_id).trim() : ""))
@@ -694,7 +686,7 @@ export async function getDraftCriteriaInReport(
   return rows
     .filter((row) => {
       const config = row.ui_config;
-      return Boolean(config && typeof config === "object" && config.draft === true);
+      return Boolean(config && typeof config === "object" && config["draft"] === true);
     })
     .map((row) => (row.label || row.id).trim());
 }

@@ -96,6 +96,18 @@
   leía (`joinedAt`, `attendanceRate`, `makeupCredits`, `recentAttendance`).
 - `npm run build` verde. Sin cambios en motores ni en reglas de visibilidad.
 
+## Lote 9 — `a3e3288` (238 → 222, 16 fix, 0 regresiones)
+
+- `progress-reports.service.ts`: se eliminan los recasteos de `content` a
+  `Record<string, unknown>` en `getReportInstrument` y
+  `collectReportFieldIds` (ADR-0195 lote 4 ya lo tipa como `ReportContent`).
+- Filtros PostgREST y `ui_config.draft` con acceso por corchete (claves
+  dinámicas reales).
+- Verificación en vivo con el MCP de Insforge (solo lectura):
+  `ui_config.draft` = `false` en 17 filas y `null` en 49;
+  `progress_reports.content.criteria` = array y `content.student` = object.
+- Sin cambios en consultas, estados del informe ni portal familia.
+
 ## Verificación repetida en cada lote
 
 ```
