@@ -50,6 +50,9 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
     `addNewStudent` acepta `teacherNote?` y `balance?` (el store ya los leía);
     las props opcionales de funciones se pasan por spread condicional
     (AGENTS §92.4), nunca como `undefined` explícito.
+11. **Estructuras auxiliares completas.** La matriz de Levenshtein se inicializa
+    con todas sus celdas (antes era dispersa); los tokens se leen con `?? ""`.
+    Mismo algoritmo, sin cambios en el matching fonético de ADR-0141.
 
 ## 3. Cambios entregados
 
@@ -61,6 +64,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 4 | `4d7990f` | 360 → 330 | 30 | 0 |
 | 5 | `c4df3f0` | 330 → 301 | 29 | 0 |
 | 6 | `168f9b4` | 301 → 268 | 33 | 0 |
+| 7 | `f95b3cc` | 268 → 252 | 16 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
@@ -99,6 +103,9 @@ del JSONB. Un error enmascarado en el alta por CSV (`student-cleanup-panel`)
 salió a la luz al corregir el payload y se cerró completando `level`,
 `birthdate` y `emergencyContact`.
 
+**Lote 7 — Laya.** Ver §2.11. 16 errores eliminados en el motor Sistema 1 sin
+tocar esquemas, plantillas ni el matching de homónimos (ADR-0141).
+
 ## 4. Restricciones cumplidas
 
 - Sin `ALTER TABLE`, `DROP`, `TRUNCATE` ni borrado masivo.
@@ -118,7 +125,7 @@ salió a la luz al corregir el payload y se cerró completando `level`,
 
 ## 6. Pendiente
 
-Quedan **268 errores**. Siguientes causas raíz, en orden: `laya-engine.ts`
+Quedan **252 errores**. Siguientes causas raíz, en orden: `evaluations.service.ts`
 (18), `progress-reports.service.ts` (16), `evaluations.service.ts` (15), y los
 clusters TS18048/TS2532/TS2345/TS2322/TS2379. Cada lote conserva el mismo
 protocolo de verificación y su entrada en `docs/logs/`.

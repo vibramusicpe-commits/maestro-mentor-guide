@@ -80,6 +80,13 @@
   `birthdate` y `emergencyContact` (error enmascarado por un TS2353 previo).
 - `npm run build` verde.
 
+## Lote 7 — `f95b3cc` (268 → 252, 16 fix, 0 regresiones)
+
+- `laya-engine.ts`: matriz de Levenshtein inicializada completa (fila 0
+  `[0,1,…]`, filas i `[i,0,…]`), lecturas con `?? 0`; tokens con `?? ""`;
+  `remoteUrl?: string | undefined`.
+- `npm run build` verde. Algoritmo y resultados de similitud sin cambios.
+
 ## Verificación repetida en cada lote
 
 ```

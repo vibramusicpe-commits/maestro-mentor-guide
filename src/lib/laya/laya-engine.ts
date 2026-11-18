@@ -67,23 +67,25 @@ export function levenshteinDistance(a: string, b: string): number {
   if (a === b) return 0;
   if (!a.length) return b.length;
   if (!b.length) return a.length;
-  const matrix: number[][] = [];
-  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  // Fila 0 = [0,1,2,…]; fila i = [i,0,0,…]. Se inicializa completa para que
+  // cada celda exista antes de leerse (antes era un array disperso).
+  const matrix: number[][] = Array.from({ length: b.length + 1 }, (_, i) =>
+    Array.from({ length: a.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
   for (let i = 1; i <= b.length; i++) {
     for (let j = 1; j <= a.length; j++) {
       if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
+        matrix[i][j] = matrix[i - 1]![j - 1] ?? 0;
       } else {
         matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
+          (matrix[i - 1]![j - 1] ?? 0) + 1,
+          (matrix[i]![j - 1] ?? 0) + 1,
+          (matrix[i - 1]![j] ?? 0) + 1,
         );
       }
     }
   }
-  return matrix[b.length][a.length];
+  return matrix[b.length]?.[a.length] ?? 0;
 }
 
 /**
@@ -129,7 +131,7 @@ export function tokenizeText(text: string): string[] {
  * Motor central de predicción Laya (Sistema 1)
  */
 export class LayaEngine {
-  private remoteUrl?: string;
+  private remoteUrl?: string | undefined;
 
   constructor(remoteUrl?: string) {
     this.remoteUrl = remoteUrl;
@@ -206,8 +208,8 @@ export class LayaEngine {
 
       // Coincidencias de tokens clave exactos y lematizados (ej: 'faltan' coincide con 'falta', 'clases' con 'clase')
       for (let i = 0; i < tokens.length; i++) {
-        const t = tokens[i];
-        const sT = stemmedTokens[i];
+        const t = tokens[i] ?? "";
+        const sT = stemmedTokens[i] ?? "";
 
         if (descTokens.includes(t)) {
           matchCount += 2.0;
