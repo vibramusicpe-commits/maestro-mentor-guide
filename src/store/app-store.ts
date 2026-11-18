@@ -164,6 +164,11 @@ type AppState = {
     teacherNote?: string | undefined;
     /** El store lo respeta si viene definido; si no, lo calcula del plan+libro. */
     balance?: number | undefined;
+    /** El store aplica defaults para todos estos campos derivados. */
+    joinedAt?: string | undefined;
+    attendanceRate?: number | undefined;
+    makeupCredits?: number | undefined;
+    recentAttendance?: AdminStudent["recentAttendance"] | undefined;
   }) => void;
   deletedStudents: DeletedStudentLog[];
   deleteStudent: (id: string, reasonCategory?: DeletionReasonCategory, reasonText?: string, deletedBy?: string) => void;

@@ -111,21 +111,24 @@ export type ScheduledLesson = {
   teacher: string;
   room: string;
   status: "programada" | "cancelada";
-  category?: AgeCategory;
-  sessionNumber?: 1 | 2; // 1ra Clase o 2da Clase de la semana
-  weekIndex?: number; // 0, 1, 2, 3 (semana específica) o undefined si aplica a todo el mes
-  year?: number; // Año de vigencia (ej: 2026)
-  month?: number; // Mes de vigencia 0 a 11 (ej: 7 para Agosto)
-  attendanceStatus?: "presente" | "ausente" | "tarde" | "justificada";
-  attendanceByWeek?: Record<number, "presente" | "ausente" | "tarde" | "justificada">;
-  attendanceByDate?: Record<string, "presente" | "ausente" | "tarde" | "justificada">;
-  excludedWeeks?: number[];
-  isMakeup?: boolean;
-  recoveringLessonDate?: string;
-  dateStr?: string; // Fecha exacta YYYY-MM-DD si es una sesión única o reprogramada
-  excludedDates?: string[]; // Fechas específicas YYYY-MM-DD excluidas de una lección recurrente
-  effectiveUntil?: string; // Fecha límite YYYY-MM-DD hasta la cual esta lección es válida
-  effectiveFrom?: string; // Fecha de inicio YYYY-MM-DD a partir de la cual esta lección es válida
+  // Todas las claves opcionales pueden llegar EXPLÍCITAMENTE `undefined`
+  // desde el JSONB `scheduleLessons` (no están en todas las filas). Declararlo
+  // evita tener que ocultarlo con un cast en cada constructor de lección.
+  category?: AgeCategory | undefined;
+  sessionNumber?: 1 | 2 | undefined; // 1ra Clase o 2da Clase de la semana
+  weekIndex?: number | undefined; // 0, 1, 2, 3 o undefined si aplica a todo el mes
+  year?: number | undefined; // Año de vigencia (ej: 2026)
+  month?: number | undefined; // Mes de vigencia 0 a 11 (ej: 7 para Agosto)
+  attendanceStatus?: "presente" | "ausente" | "tarde" | "justificada" | undefined;
+  attendanceByWeek?: Record<number, "presente" | "ausente" | "tarde" | "justificada"> | undefined;
+  attendanceByDate?: Record<string, "presente" | "ausente" | "tarde" | "justificada"> | undefined;
+  excludedWeeks?: number[] | undefined;
+  isMakeup?: boolean | undefined;
+  recoveringLessonDate?: string | undefined;
+  dateStr?: string | undefined; // Fecha exacta YYYY-MM-DD si es una sesión única o reprogramada
+  excludedDates?: string[] | undefined; // Fechas específicas YYYY-MM-DD excluidas
+  effectiveUntil?: string | undefined; // Fecha límite YYYY-MM-DD de vigencia
+  effectiveFrom?: string | undefined; // Fecha de inicio YYYY-MM-DD de vigencia
 };
 
 export type StudentStatus = "activo" | "pausa" | "baja";

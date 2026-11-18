@@ -87,6 +87,15 @@
   `remoteUrl?: string | undefined`.
 - `npm run build` verde. Algoritmo y resultados de similitud sin cambios.
 
+## Lote 8 — `cde9237` (252 → 238, 14 fix, 0 regresiones)
+
+- `admin-seeds.ts`: claves opcionales de `ScheduledLesson` con `| undefined`
+  (coinciden con el JSONB `scheduleLessons`). Causa raíz de TS2379/TS2375 en
+  app-store y vistas de agenda.
+- `app-store.ts`: `addNewStudent` declara los campos derivados que el store ya
+  leía (`joinedAt`, `attendanceRate`, `makeupCredits`, `recentAttendance`).
+- `npm run build` verde. Sin cambios en motores ni en reglas de visibilidad.
+
 ## Verificación repetida en cada lote
 
 ```
