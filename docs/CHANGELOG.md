@@ -4,6 +4,16 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.69] - 2026-11-18
+
+### Caso "Mathias Gutierrez Chavez": alumno invisible y falso duplicado (ADR-0196)
+- **Causa real**: el registro existe (`539feb70…`, activo, Batería) pero se guardó como **`"Mathias "`** (solo el nombre y con espacio final); los apellidos quedaron en `family = "Familia Gutierrez Chavéz"`. El recibo también dice "— Mathias ". No hay un registro con el nombre completo: el alta se hizo incompleta.
+- **Por qué "no aparecía"**: el buscador del Directorio hacía `includes()` literal, sin normalizar tildes ni repartir tokens; "Mathias Gutierrez Chavez" no coincidía con "Mathias " ni con "Gutierrez Chavéz". Ahora se normaliza y exige todos los tokens (la búsqueda por código sigue intacta, ADR-0189).
+- **Por qué decía "ya existe" con la casilla marcada**: `isMatchingStudentName` considera duplicado un nombre completo frente a un registro de una sola palabra ("Mathias"); la casilla de homónimo sí habilitaba el guard, pero se desmarcaba en cada tecla del input. Ahora la confirmación persiste y solo se reinicia al cambiar el alumno detectado o al abrir el formulario.
+- **No se tocó** `isMatchingStudentName`/`normalizeStudentName` (ADR-0107/0119): los Mathias con apellidos distintos **ya** se diferencian (`"Mathias Gutierrez"` vs `"Mathias Chavez"` → `false`, verificado en runtime). Sin DDL y sin escrituras en PostgreSQL.
+- **Pendiente de Secretaría**: corregir el nombre en la ficha desde la UI para que quede "Mathias Gutierrez Chavez".
+- **Verificación**: runtime con las funciones reales, `tsc` 150 → 150 (0 nuevos), `npm run build` verde. Referencia: `docs/adr/0196-…` y `docs/logs/2026-11-18-adr-0196-….md`.
+
 ## [2.0.68] - 2026-11-18
 
 ### Depuración sistemática de TypeScript por causa raíz (ADR-0195)

@@ -99,7 +99,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { money } from "@/lib/format";
-import { isSameStudentId, isMatchingStudentName } from "@/lib/student-matching";
+import { isSameStudentId, isMatchingStudentName, normalizeStudentName } from "@/lib/student-matching";
 import {
   findLinkedSiblingsAtRisk,
   describeInstrumentBundle,
@@ -538,12 +538,17 @@ export function StudentsTable() {
       // La base histórica/inactiva (baja, pausa) se consulta y reactiva exclusivamente en "Depuración & Reactivación 2026".
       if (st.status !== "activo") return false;
 
-      const term = search.toLowerCase();
+      // Búsqueda tolerante a tildes y a que el apellido esté en la familia
+      // (caso "Mathias Gutierrez Chavez" ↔ nombre "Mathias" + familia
+      // "Familia Gutierrez Chavéz"). Cada token debe aparecer en algunos de
+      // los campos; no se usa matching difuso para no ocultar homónimos.
+      const searchTokens = normalizeStudentName(search).split(" ").filter(Boolean);
+      const haystack = normalizeStudentName(
+        [st.name, st.family, st.instrument, st.email].filter(Boolean).join(" "),
+      );
       const matchSearch =
         search.trim() === "" ||
-        [st.name, st.family, st.instrument, st.email].some((value) =>
-          (value || "").toLowerCase().includes(term),
-        ) ||
+        (searchTokens.length > 0 && searchTokens.every((token) => haystack.includes(token))) ||
         // ADR-0189 — búsqueda por código de matrícula (ej. `VM-2307EF`).
         matchesStudentCode(st.id, search);
 
@@ -3325,6 +3330,13 @@ function NewStudentDialog() {
     return students.find((st) => isMatchingStudentName(st.name, cleanName));
   }, [students, name]);
 
+  // La confirmación de homónimo es por registro detectado: no se pierde al
+  // seguir escribiendo el mismo nombre, pero se pide de nuevo si el match
+  // pasa a ser otro alumno (o al abrir el formulario, ver resetForm).
+  useEffect(() => {
+    setAllowDuplicateConfirmed(false);
+  }, [duplicateMatch?.id]);
+
   const [family, setFamily] = useState("");
   const [isAdult, setIsAdult] = useState(false);
   const [instrument, setInstrument] = useState("Piano");
@@ -3648,10 +3660,7 @@ function NewStudentDialog() {
               data-tour="input-student-name"
               placeholder="Ej. Mateo García"
               value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setAllowDuplicateConfirmed(false);
-              }}
+              onChange={(e) => setName(e.target.value)}
               required
             />
           </div>
