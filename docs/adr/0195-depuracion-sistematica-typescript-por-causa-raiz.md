@@ -56,6 +56,10 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 12. **`ScheduledLesson` refleja el JSONB real.** Todas sus claves opcionales
     aceptan `undefined` explícito (ADR-0118.4), eliminando TS2379/TS2375 en
     todos los constructores de lección sin casts en los llamadores.
+13. **Contratos verificados en producción.** Antes de declarar una clave nueva
+    en un tipo de JSONB se comprueba con el MCP de Insforge (solo lectura) que
+    la fila real la contiene; `teacherNote` aparece en 7 registros de
+    `emergency_contact`.
 14. **Acciones reales del store declaradas.** `cancelLesson` ya existía en la
     implementación y lo usaba la Agenda, pero faltaba en la interfaz
     `AppState`. Se declara la firma real; no se crea lógica nueva.
@@ -63,7 +67,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
     `BuildSessionKeyInput` y `resolveTestFlags` lo declaran explícitamente;
     no se cambió la generación de `session_key` ni el CHECK
     `is_test ⇔ test_run_id`.
-14. **Confirmación contra datos vivos (MCP Insforge, solo lectura).** Los
+16. **Confirmación contra datos vivos (MCP Insforge, solo lectura).** Los
     contratos tipados se validan contra PostgreSQL antes de darlos por buenos:
     `evaluation_fields.ui_config.draft` y `progress_reports.content.*`
     (criteria = array, student = object). El acceso por corchete se reserva a
@@ -84,6 +88,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 9 | `a3e3288` | 238 → 222 | 16 | 0 |
 | 10 | `c7fdce0` | 222 → 205 | 17 | 0 |
 | 11 | `eb85cde` | 205 → 191 | 14 | 0 |
+| 12 | `2934724` | 191 → 173 | 18 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
@@ -143,6 +148,10 @@ inválido `"confirmada"` (usado solo por demos/leads) y normaliza la categoría;
 `grep` confirmó que ningún consumidor de `ScheduledLesson` dependía de ese
 valor. `cancelLesson` ya existía en el store, solo faltaba en la interfaz.
 
+**Lote 12 — store central.** Ver §2.13. 18 errores eliminados. El JSONB de
+alta de alumno usa el contrato `EmergencyContact`; `teacherNote` se comprobó
+en producción con el MCP de Insforge. Sin cambios en créditos ni ciclos.
+
 ## 4. Restricciones cumplidas
 
 - Sin `ALTER TABLE`, `DROP`, `TRUNCATE` ni borrado masivo.
@@ -162,7 +171,7 @@ valor. `cancelLesson` ya existía en el store, solo faltaba en la interfaz.
 
 ## 6. Pendiente
 
-Quedan **191 errores**. Siguientes causas raíz, en orden: `app-store.ts`
+Quedan **173 errores**. Siguientes causas raíz, en orden: `laya-copilot-flow.tsx`
 (18), `progress-reports.service.ts` (16), `evaluations.service.ts` (15), y los
 clusters TS18048/TS2532/TS2345/TS2322/TS2379. Cada lote conserva el mismo
 protocolo de verificación y su entrada en `docs/logs/`.

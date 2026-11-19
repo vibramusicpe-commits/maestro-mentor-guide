@@ -471,7 +471,10 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
         else if (cleanT.includes("fernando")) assigned_teacher_id = "00000000-0000-0000-0000-000000000004";
         else if (cleanT.includes("nathaly")) assigned_teacher_id = "00000000-0000-0000-0000-000000000005";
         else if (cleanT.includes("demo")) assigned_teacher_id = "00000000-0000-0000-0000-000000000006";
-        else if (teacherIdMap[student.teacher]) assigned_teacher_id = teacherIdMap[student.teacher];
+        else {
+          const mappedTeacherId = teacherIdMap[student.teacher];
+          if (mappedTeacherId) assigned_teacher_id = mappedTeacherId;
+        }
       }
 
       // Modality compatible con enum PostgreSQL lesson_modality_enum
@@ -479,7 +482,7 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
         ? "Intensivo (4 clases / 90 min)"
         : "Regular (8 clases / 45 min)";
 
-      const ecData: Record<string, any> = {
+      const ecData: import("@/store/admin-seeds").EmergencyContact = {
         ...(typeof student.emergencyContact === "object" ? student.emergencyContact : {}),
         name: student.emergencyContact?.name || student.family || student.name,
         phone: student.phone || student.emergencyContact?.phone || "",
@@ -1049,7 +1052,7 @@ export const useAppStore = create<AppState>()(
             const activeStudents = s.adminStudents.filter((st) => st.status === "activo");
             const rawInvs = Array.isArray(data.invoices) ? data.invoices : s.invoices;
             const filteredInvs = rawInvs.filter((inv) => {
-              const studentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+              const studentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "") || "";
               return activeStudents.some((st) =>
                 isMatchingStudentName(st.name, studentName) ||
                 st.invoices?.some((i) => i.id === inv.id) ||
@@ -1272,7 +1275,7 @@ export const useAppStore = create<AppState>()(
 
               // D. Si es lección semanal recurrente (sin dateStr), debe coincidir el día de la semana
               if (!lesson.dateStr && lesson.day) {
-                const [ly, lm, ld] = dStr.split("-").map(Number);
+                const [ly = 0, lm = 0, ld = 0] = dStr.split("-").map(Number);
                 const jsDay = new Date(ly, lm - 1, ld).getDay();
                 const logDayNorm = jsDays[jsDay];
                 if (logDayNorm && normalizeDay(lesson.day) !== logDayNorm) return false;
@@ -1380,7 +1383,7 @@ export const useAppStore = create<AppState>()(
           // 🛡️ REGLA (ADR-0106, ADR-0132): Facturación exclusiva para alumnos activos.
           // Filtrar rigurosamente los recibos para que SOLO pertenezcan a alumnos con status === "activo".
           const activeCleanInvoices = mergedInvoices.filter((inv) => {
-            const studentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "");
+            const studentName = inv.student || (inv.concept?.includes("—") ? inv.concept.split("—")[1]?.trim() : "") || "";
             return activeStudents.some((st) =>
               isMatchingStudentName(st.name, studentName) ||
               st.invoices?.some((i) => i.id === inv.id) ||
@@ -1652,7 +1655,7 @@ export const useAppStore = create<AppState>()(
             // Filtrar duplicados pendientes previos que recuperaban esta misma inasistencia aún sin evaluar
             const isPendingMakeupForSameDate = (l: ScheduledLesson) =>
               Boolean(originalDateStr && l.isMakeup && l.recoveringLessonDate === originalDateStr &&
-                (!l.attendanceByDate || Object.values(l.attendanceByDate).every((st) => st === "pendiente")));
+                (!l.attendanceByDate || Object.keys(l.attendanceByDate).length === 0));
 
             const applyLessonUpdates = (lessons: ScheduledLesson[]) => {
               const base = lessons.filter((l) => !isPendingMakeupForSameDate(l));
@@ -2163,9 +2166,11 @@ export const useAppStore = create<AppState>()(
           }
 
           // Tomar instrumento, profesor y sala originales de la primera lección restaurada
-          const restoredInstrument = restoredPreviousLessons[0].instrument || targetSt.instrument;
-          const restoredTeacher = restoredPreviousLessons[0].teacher || targetSt.teacher;
-          const restoredRoom = restoredPreviousLessons[0].room || targetSt.room;
+          const firstRestored = restoredPreviousLessons[0];
+          if (!firstRestored) return s;
+          const restoredInstrument = firstRestored.instrument || targetSt.instrument;
+          const restoredTeacher = firstRestored.teacher || targetSt.teacher;
+          const restoredRoom = firstRestored.room || targetSt.room;
 
           // Reemplazar lecciones del alumno en el horario global
           const otherScheduleLessons = s.schedule.filter(
@@ -2675,7 +2680,7 @@ export const useAppStore = create<AppState>()(
       markLessonAttendance: (lessonId, status, notes = "", targetWeekIndex?: number, dateStr?: string) =>
         set((s) => {
           const lesson = s.schedule.find((l) => l.id === lessonId);
-          const studentName = lesson?.student;
+          const studentName = lesson?.student ?? "";
           const isJustificada = status === "justificada";
           const weekIdx = targetWeekIndex ?? lesson?.weekIndex ?? getCurrentWeekIndex();
           const effectiveDateStr = dateStr || lesson?.dateStr;
@@ -3660,7 +3665,7 @@ export const useAppStore = create<AppState>()(
         let newStartDate = options?.newStartDate;
         if (!newStartDate) {
           if (target.planEndDate) {
-            const [ey, em, ed] = target.planEndDate.split("-").map(Number);
+            const [ey = 0, em = 0, ed = 0] = target.planEndDate.split("-").map(Number);
             const nextD = new Date(ey, em - 1, ed + 1);
             if (nextD.getDay() === 0) nextD.setDate(nextD.getDate() + 1);
             newStartDate = `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, "0")}-${String(nextD.getDate()).padStart(2, "0")}`;
@@ -3669,7 +3674,7 @@ export const useAppStore = create<AppState>()(
           }
         }
 
-        const [sy, sm, sd] = newStartDate.split("-").map(Number);
+        const [sy = 0, sm = 0, sd = 0] = newStartDate.split("-").map(Number);
         const endD = new Date(sy, (sm - 1) + durationMonths, sd);
         endD.setDate(endD.getDate() - 1);
         const newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, "0")}-${String(endD.getDate()).padStart(2, "0")}`;

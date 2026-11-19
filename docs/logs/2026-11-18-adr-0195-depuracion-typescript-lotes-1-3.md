@@ -130,6 +130,17 @@
 - `lesson-category-visual.ts`: opcionales con `| undefined` (4 TS2379).
 - Sin cambios en el filtro de visibilidad ni en los motores de ciclo.
 
+## Lote 12 — `2934724` (191 → 173, 18 fix, 0 regresiones)
+
+- `app-store.ts`: `ecData` del alta de alumno usa `EmergencyContact` en vez de
+  `Record<string, any>`. `teacherNote` se declaró en el contrato tras confirmar
+  con el MCP de Insforge que 7 filas reales lo contienen.
+- Guarda `st === "pendiente"` en makeups reemplazada por "mapa sin marcas"
+  (equivalente estricto: ese valor nunca se persiste).
+- Primeros elementos con guarda/fallback y fechas con defaults a 0.
+- `invoices.service.ts`: `voucherRef`/`note` aceptan `undefined` explícito.
+- `npm run build` verde; sin cambios en créditos, ciclos ni consultas.
+
 ## Verificación repetida en cada lote
 
 ```

@@ -226,8 +226,8 @@ export async function registerPayment(
   payload: {
     amount: number;
     method: PaymentMethodDB;
-    voucherRef?: string;
-    note?: string;
+    voucherRef?: string | undefined;
+    note?: string | undefined;
     culqiTokenId?: string;
     culqiChargeId?: string;
   },

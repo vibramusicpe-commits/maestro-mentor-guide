@@ -169,6 +169,8 @@ export type EmergencyContact = {
   teacher?: string | undefined;
   birthdate?: string | undefined;
   notes?: string | undefined;
+  /** Nota pedagógica histórica escrita en la ficha (columna legacy congelada). */
+  teacherNote?: string | undefined;
   /** El JSONB puede traerlo como número o como texto ("7"). */
   age?: number | string | undefined;
   ageCategory?: AgeCategory | undefined;
