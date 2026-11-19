@@ -177,7 +177,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
 
   // Estado del análisis de Laya
   const [parsedData, setParsedData] = useState<{
-    detectedStudent?: AdminStudent;
+    detectedStudent?: AdminStudent | undefined;
     studentConfidence: number;
     candidates: DisambiguationCandidate[];
     isAmbiguous: boolean;
@@ -187,14 +187,14 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
     reason: string;
     isJustified: boolean;
     urgencyLabel: string;
-    kardexSummary?: StudentKardexSummary;
-    slotAnalysis?: MatchedSlotAnalysis;
-    academyKnowledge?: AcademyKnowledgeResponse | null;
+    kardexSummary?: StudentKardexSummary | undefined;
+    slotAnalysis?: MatchedSlotAnalysis | undefined;
+    academyKnowledge?: AcademyKnowledgeResponse | null | undefined;
     whatsAppReply: string;
-    clefResponse?: string;
-    clefIntent?: string;
-    clefConfidence?: number;
-    clefModel?: string;
+    clefResponse?: string | undefined;
+    clefIntent?: string | undefined;
+    clefConfidence?: number | undefined;
+    clefModel?: string | undefined;
   } | null>(null);
 
   // Ejecutar inferencia de Sistema 1 con Laya asistida por Clef & Workers AI
@@ -260,7 +260,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
       const prediction = await defaultLaya.predict(textToAnalyze, LAYA_REPROGRAMACION_QUESTIONS);
       const { answers, routing } = prediction;
 
-      let intentVal = clefResult?.intent || answers.intent?.choice || "general";
+      let intentVal = clefResult?.intent || answers["intent"]?.choice || "general";
       let isCobranzasQuery = intentVal === "cobranzas";
       // 🛡️ REGLA (ADR-0170, Bug #1): la consulta es de cobranza genérica cuando
       // el intent server-side es "cobranzas" O el texto pide lista de deudores
@@ -325,7 +325,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
               candidates = candidateMatches.map((c) => ({
                 student: c,
                 score: 0.95,
-                matchReason: "Coincidencia por entidad Clef",
+                matchReasons: ["Coincidencia por entidad Clef"],
               }));
               isAmbiguous = true;
             }
@@ -348,8 +348,8 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
       const academyKnowledge = resolveAcademyKnowledge(textToAnalyze);
 
       // 3. Resolución de docente y sala por pedagogía oficial (ADR-0102)
-      const dayVal = answers.dia?.choice || "indeterminado";
-      const timeVal = answers.horario?.choice || "indeterminado";
+      const dayVal = answers["dia"]?.choice || "indeterminado";
+      const timeVal = answers["horario"]?.choice || "indeterminado";
       // 🛡️ REGLA (ADR-0170, Bug #4): la inducción académica jamás secuestra
       // una consulta de cobranzas (preserva intentVal = "cobranzas").
       if (academyKnowledge && !isCobranzasQuery) {
@@ -368,9 +368,9 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
         intentVal = "cobranzas";
         isCobranzasQuery = true;
       }
-      const reasonVal = answers.motivo_falta?.choice || "injustificada";
-      const isJustifiedVal = !!answers.es_justificada?.noul;
-      const urgencyLabel = answers.urgencia?.label || "Normal";
+      const reasonVal = answers["motivo_falta"]?.choice || "injustificada";
+      const isJustifiedVal = !!answers["es_justificada"]?.noul;
+      const urgencyLabel = answers["urgencia"]?.label || "Normal";
 
       const { teacher: assignedTeacher, room: assignedRoom } = resolveTeacherAndRoomByPedagogy({
         instrument: matchedSt?.instrument,
@@ -474,6 +474,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
     } else {
       setParsedData(null);
       setManualStudent(null);
+      return undefined;
     }
   }, [inputPrompt, manualStudent]);
 
@@ -492,7 +493,7 @@ export function LayaCopilotFlow({ isOpen, onToggle, onClose, familyScope }: Laya
     if (newPrompt.includes("@")) {
       newPrompt = newPrompt.replace(/@[a-zA-ZÁ-ÿ0-9\s]+?(?=$|[,\.\?!]|\s{2,})/, mention);
     } else {
-      const firstName = student.name.split(" ")[0].toLowerCase();
+      const firstName = (student.name.split(" ")[0] ?? "").toLowerCase();
       const regex = new RegExp(`\\b${firstName}\\b`, "i");
       if (regex.test(newPrompt)) {
         newPrompt = newPrompt.replace(regex, mention);

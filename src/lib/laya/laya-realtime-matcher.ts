@@ -18,7 +18,7 @@ export interface DisambiguationCandidate {
 }
 
 export interface StudentMatchResult {
-  student?: AdminStudent;
+  student?: AdminStudent | undefined;
   confidence: number;
   candidates: DisambiguationCandidate[];
   isAmbiguous: boolean;
@@ -72,7 +72,7 @@ export interface MatchedSlotAnalysis {
     room: string;
     availableVacancies: number;
   }[];
-  pedagogicalNote?: string;
+  pedagogicalNote?: string | undefined;
 }
 
 export interface LayaParsedRequest {
@@ -96,9 +96,9 @@ export interface LayaParsedRequest {
  * Resuelve qué docente y sala corresponden según el instrumento y la edad (ADR-0102)
  */
 export function resolveTeacherAndRoomByPedagogy(params: {
-  instrument?: string;
-  age?: number;
-  preferredTeacher?: string;
+  instrument?: string | undefined;
+  age?: number | undefined;
+  preferredTeacher?: string | undefined;
 }): { teacher: string; room: string } {
   const { instrument = "", age, preferredTeacher } = params;
   const instLower = instrument.toLowerCase();
@@ -149,8 +149,9 @@ export function extractStudentFromText(
   // 🛡️ REGLA ADR-0142: Detección y prioridad absoluta de @Menciones explícitas
   // Si el texto incluye @Nombre (ej. @Sasha Dharma Contreras de la Cruz), otorga 100% de certeza inmediata
   const atMatch = text.match(/@([a-zA-ZÁ-ÿ0-9\s]+?)(?:$|[,\.\?!]|\n|\s{2,})/);
-  if (atMatch && atMatch[1].trim()) {
-    const rawMention = atMatch[1].trim();
+  const mentionRaw = atMatch?.[1]?.trim();
+  if (mentionRaw) {
+    const rawMention = mentionRaw;
     const normMention = normalizeStudentName(rawMention);
 
     // Buscar coincidencia exacta o por inclusión entre los alumnos
@@ -223,7 +224,7 @@ export function extractStudentFromText(
     // 3. Coincidencia Palabra por Palabra (Exacta + Levenshtein)
     for (const inWord of relevantInputWords) {
       for (let idx = 0; idx < nameParts.length; idx++) {
-        const nPart = nameParts[idx];
+        const nPart = nameParts[idx] ?? "";
         const sim = stringSimilarity(inWord, nPart);
 
         if (sim === 1.0) {
@@ -304,7 +305,8 @@ export function extractStudentFromText(
   }
 
   const topCandidate = scoredCandidates[0];
-  const secondCandidate = scoredCandidates.length > 1 ? scoredCandidates[1] : null;
+  if (!topCandidate) return { confidence: 0, candidates: [], isAmbiguous: false };
+  const secondCandidate = scoredCandidates[1] ?? null;
 
   // 🛡️ DETECCIÓN DE AMBIGÜEDAD / HOMÓNIMOS:
   // Si hay más de un candidato y la diferencia de puntuación es pequeña (< 25 puntos),
@@ -588,8 +590,8 @@ export function buildStudentPaymentReply(student: AdminStudent, invoices: Invoic
 }
 
 export function buildWhatsAppReply(params: {
-  studentName?: string;
-  familyName?: string;
+  studentName?: string | undefined;
+  familyName?: string | undefined;
   intent: string;
   day: string;
   time: string;
@@ -597,8 +599,8 @@ export function buildWhatsAppReply(params: {
   room: string;
   isAvailable: boolean;
   alternatives: { day: string; time: string }[];
-  kardexSummary?: StudentKardexSummary;
-  academyKnowledge?: AcademyKnowledgeResponse | null;
+  kardexSummary?: StudentKardexSummary | undefined;
+  academyKnowledge?: AcademyKnowledgeResponse | null | undefined;
 }): string {
   const {
     studentName = "el alumno",

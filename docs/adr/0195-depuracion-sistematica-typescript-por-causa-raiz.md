@@ -72,6 +72,10 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
     `evaluation_fields.ui_config.draft` y `progress_reports.content.*`
     (criteria = array, student = object). El acceso por corchete se reserva a
     claves verdaderamente dinámicas (filtros PostgREST y JSONB libre).
+17. **Laya: opcionales honestos y nombres de campo correctos.** Los tipos del
+    matcher declaran `undefined` donde el motor lo pasa realmente; el objeto
+    de desambiguación usa `matchReasons` (plural), que es lo que consume la
+    UI. Las reglas ADR-0102/0141/0142 permanecen intactas.
 
 ## 3. Cambios entregados
 
@@ -89,6 +93,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 10 | `c7fdce0` | 222 → 205 | 17 | 0 |
 | 11 | `eb85cde` | 205 → 191 | 14 | 0 |
 | 12 | `2934724` | 191 → 173 | 18 | 0 |
+| 13 | `1487c00` | 173 → 150 | 23 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
@@ -152,6 +157,12 @@ valor. `cancelLesson` ya existía en el store, solo faltaba en la interfaz.
 alta de alumno usa el contrato `EmergencyContact`; `teacherNote` se comprobó
 en producción con el MCP de Insforge. Sin cambios en créditos ni ciclos.
 
+**Lote 13 — Laya.** Ver §2.17. 23 errores eliminados en el copiloto y el
+matcher en vivo. Único cambio funcional: el motivo de desambiguación ahora
+llega en `matchReasons` (plural), clave que la UI sí lee; antes se escribía
+`matchReason` y el motivo nunca aparecía. Anti-homónimos y guardrails
+financieros sin cambios.
+
 ## 4. Restricciones cumplidas
 
 - Sin `ALTER TABLE`, `DROP`, `TRUNCATE` ni borrado masivo.
@@ -171,7 +182,7 @@ en producción con el MCP de Insforge. Sin cambios en créditos ni ciclos.
 
 ## 6. Pendiente
 
-Quedan **173 errores**. Siguientes causas raíz, en orden: `laya-copilot-flow.tsx`
+Quedan **150 errores**. Siguientes causas raíz, en orden: `class-log.tsx`
 (18), `progress-reports.service.ts` (16), `evaluations.service.ts` (15), y los
 clusters TS18048/TS2532/TS2345/TS2322/TS2379. Cada lote conserva el mismo
 protocolo de verificación y su entrada en `docs/logs/`.

@@ -141,6 +141,17 @@
 - `invoices.service.ts`: `voucherRef`/`note` aceptan `undefined` explícito.
 - `npm run build` verde; sin cambios en créditos, ciclos ni consultas.
 
+## Lote 13 — `1487c00` (173 → 150, 23 fix, 0 regresiones)
+
+- `laya-realtime-matcher.ts`: opcionales con `| undefined` en
+  `StudentMatchResult`, `MatchedSlotAnalysis`, `resolveTeacherAndRoomByPedagogy`
+  y `buildWhatsAppReply`; guarda para `topCandidate` y mención `@` con `?.`.
+- `laya-copilot-flow.tsx`: `answers` (Record dinámico del Sistema 1) por
+  corchete; `matchReason` → `matchReasons` (la UI de desambiguación por fin
+  muestra el motivo); `useEffect` con retorno explícito y `split()[0] ?? ""`.
+- Sin cambios en ADR-0102/0141/0142 ni en guardrails financieros.
+- `npm run build` verde.
+
 ## Verificación repetida en cada lote
 
 ```

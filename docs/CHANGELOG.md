@@ -7,7 +7,7 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 ## [2.0.68] - 2026-11-18
 
 ### Depuración sistemática de TypeScript por causa raíz (ADR-0195)
-- **568 → 173 errores** de `tsc --noEmit` en doce lotes (`2f9c07d`, `0027030`, `bf6902c`, `4d7990f`, `c4df3f0`, `168f9b4`, `f95b3cc`, `cde9237`, `a3e3288`, `c7fdce0`, `eb85cde`, `2934724`), con **0 regresiones** medidas por `(archivo, código TS)` en cada lote y `npm run build` verde. Cero `as any` / `as unknown as` nuevos; se eliminaron los existentes en los archivos tocados.
+- **568 → 150 errores** de `tsc --noEmit` en trece lotes (`2f9c07d`, `0027030`, `bf6902c`, `4d7990f`, `c4df3f0`, `168f9b4`, `f95b3cc`, `cde9237`, `a3e3288`, `c7fdce0`, `eb85cde`, `2934724`, `1487c00`), con **0 regresiones** medidas por `(archivo, código TS)` en cada lote y `npm run build` verde. Cero `as any` / `as unknown as` nuevos; se eliminaron los existentes en los archivos tocados.
 - **Lote 1**: API real `setSelectedPairIndex` en la Agenda; guardas muertas `!== "pendiente"` (el mapa de asistencia nunca guarda ese valor); `"PARCIAL"` → `"parcial"` —el bloque de abono del libro estaba inalcanzable—; `"zinc"` → `"gray"`; rol `staff` persistido como `teacher` porque el enum SQL `invite_target_role` solo admite `teacher|family` (antes PostgreSQL rechazaba el INSERT y la invitación solo sobrevivía en un navegador).
 - **Lote 2**: `EmergencyContact` ahora declara el contrato completo del JSONB `students.emergency_contact` (sin DDL) y es la fuente única de lectura/escritura; `DBStudent`, `DBStudentUpdate`, `DBStudentCreate` y `DBFamilyUpdate` tipan los payloads reales. 128 errores TS4111/TS2339 eliminados sin cambiar ningún valor persistido.
 - **Lote 3 — bug funcional en la papelera**: los 33 errores del modal revelaban que se leían `phone`, `fatherName`, `fatherPhone`, `motherName`, `motherPhone` y `modality` desde la raíz de `DeletedStudentLog`, donde nunca se escriben (los datos están en `studentSnapshot`). El buscador por teléfono no encontraba nada y el CSV exportaba vacías esas columnas. `resolveContactInfo()` centraliza la lectura.
@@ -20,6 +20,7 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - **Lote 10 — evaluaciones**: el snapshot de criterios usa la fuente única de tipos; `session_key` y el CHECK `is_test ⇔ test_run_id` quedan intactos.
 - **Lote 11 — agenda**: `cancelLesson` se declara en el store (ya existía en runtime) y el preview del CSV deja de emitir lecciones con `status: "confirmada"`, valor que solo corresponde a demos/leads.
 - **Lote 12 — store**: el JSONB de alta de alumno usa el contrato tipado; `teacherNote` se verificó en producción con el MCP de Insforge (7 filas). Sin cambios en créditos ni ciclos.
+- **Lote 13 — Laya**: el motivo de desambiguación ahora usa `matchReasons` (clave que la UI consume) y los tipos del matcher aceptan los `undefined` reales; reglas anti-homónimos y guardrails intactos.
 - **Sin tocar**: `kardex-calculator.ts`, `student-cycle.ts`, `isMatchingStudentName`/`normalizeStudentName`, asistencia, Kardex, facturación ni auditorías. Sin DDL, `DROP`, `TRUNCATE` ni borrados masivos.
 - **Referencia**: `docs/adr/0195-depuracion-sistematica-typescript-por-causa-raiz.md` y `docs/logs/2026-11-18-adr-0195-depuracion-typescript-lotes-1-3.md`.
 
