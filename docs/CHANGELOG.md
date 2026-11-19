@@ -4,6 +4,17 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.70] - 2026-11-18
+
+### Deduplicación por identidad y purga de fantasmas de `localStorage` (ADR-0197)
+- **"Mathias " invisible (2ª causa)**: el fix de búsqueda de ADR-0196 era necesario pero no suficiente; el registro **nunca llegaba al store**. `hydrateFromBackend` deduplicaba con `isMatchingStudentName`, que considera el mismo alumno a un nombre **contenido** en otro (`"Mathias"` ⊂ `"Gael Mathias"`). Con orden `full_name.asc` el compuesto ganaba y el corto desaparecía. Simulación con el matcher real compilado sobre datos vivos: **71 activos → 63 visibles, 8 ocultos** (incluía también `JAN`, `JAM` y los cuatro registros `Luciana*`), todos personas distintas.
+- **"Fernando Castillo" seguía en la Agenda tras eliminarlo**: verificado en PostgreSQL (0 filas en `students`, `emergency_contact.scheduleLessons` y `attendance_logs`). El fantasma era 100% `localStorage`: la hidratación solo añadía/actualizaba alumnos y **nunca eliminaba** a un activo local ausente en la base.
+- **Fix**: la deduplicación ahora exige **nombre normalizado exacto + evidencia de identidad** (misma familia normalizada o misma `birthdate`); la fusión resuelve `uuid → nombre exacto → difuso solo para altas en vuelo`; los activos ausentes de la lectura completa de `students` se purgan, protegidos por `pendingStudentCreateIds` (nuevo `Set` de módulo marcado en `backgroundCreateStudentInDB` y desmarcado en el `.then` confirmatorio). El paso 1 del horario prioriza coincidencia exacta y reescribe el nombre de la lección conservada al del perfil activo.
+- **Resultado con los mismos datos vivos**: **71 → 70 visibles**, `"Mathias "` visible, `JAN`/`JAM` visibles, fantasma de Fernando Castillo ausente del horario. El único ocultado restante es un **duplicado real confirmado** (dos `"Benjamin "` con misma `birthdate` 2015-08-28 y misma familia Baltazar Espinoza).
+- **No se tocó** `isMatchingStudentName`/`normalizeStudentName` (ADR-0107/0119), `kardex-calculator.ts`, `student-cycle.ts`, asistencia, Kardex ni facturación. Sin DDL y sin escrituras en PostgreSQL.
+- **Verificación**: runtime con datos vivos y matcher real (`scratch/check-dedupe-hydrate.mjs`), `tsc --noEmit` **150 → 150** (0 nuevos por `(archivo, código TS)`), `npm run build` verde. Referencia: `docs/adr/0197-dedupe-por-identidad-y-purga-de-fantasmas.md` y `docs/logs/2026-11-18-adr-0197-dedupe-identidad-fantasmas.md`.
+- **Pendiente de Secretaría**: pulsar **🔄 Sincronizar** para purgar el fantasma en el navegador afectado y renombrar `"Mathias "` a "Mathias Gutierrez Chavez" desde la ficha en la UI.
+
 ## [2.0.69] - 2026-11-18
 
 ### Caso "Mathias Gutierrez Chavez": alumno invisible y falso duplicado (ADR-0196)

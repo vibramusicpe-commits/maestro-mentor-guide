@@ -446,10 +446,21 @@ async function ensureFamilyRecord(familyId: string, student: AdminStudent): Prom
   return task;
 }
 
+/**
+ * Altas en vuelo en esta misma sesión (ADR-0197).
+ *
+ * `hydrateFromBackend` purga a los alumnos que ya no existen en la lectura
+ * completa de `students` (fantasmas de `localStorage`, ADR-0119). Este set
+ * evita que esa purga borre un alumno recién matriculado mientras su INSERT
+ * todavía viaja a PostgreSQL. No se persiste: al recargar, PostgreSQL manda.
+ */
+const pendingStudentCreateIds = new Set<string>();
+
 // Persiste alumnos nuevos en Insforge PostgreSQL de forma resiliente
 function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
   try {
     if (typeof window === "undefined") return;
+    pendingStudentCreateIds.add(student.id);
 
     import("@/lib/services/students.service").then(async ({ createStudent, updateStudent }) => {
       const teacherIdMap: Record<string, string> = {
@@ -571,13 +582,19 @@ function backgroundCreateStudentInDB(role: Role, student: AdminStudent) {
       const syncRole: Role = role === "super_admin" || role === "staff" ? role : "staff";
       try {
         await createStudent(syncRole, payload);
+        pendingStudentCreateIds.delete(student.id);
         console.log(`[Insforge Sync] Alumno nuevo ${student.name} (${payload.id}) creado exitosamente en PostgreSQL`);
         triggerDataSyncBroadcast("student-created");
       } catch (err) {
         console.warn(`[Insforge Sync] Aviso al crear alumno ${student.name} en PostgreSQL, aplicando fallback PATCH:`, err);
         updateStudent(syncRole, payload.id, payload).then(() => {
+          pendingStudentCreateIds.delete(student.id);
           triggerDataSyncBroadcast("student-created");
-        }).catch(() => {});
+        }).catch(() => {
+          // Sin confirmación de PostgreSQL el alta sigue "en vuelo": se mantiene
+          // visible en esta sesión y no se purga como fantasma (ADR-0197).
+          console.warn(`[Insforge Sync] El alta de ${student.name} no se confirmó en PostgreSQL; se conserva en esta sesión.`);
+        });
       }
     }).catch(() => {});
   } catch {}
@@ -1069,14 +1086,35 @@ export const useAppStore = create<AppState>()(
 
           // Fusión no destructiva: PostgreSQL es la fuente de verdad.
           // Purgamos cualquier residuo mock y solo preservamos alumnos activos locales en vuelo o reales.
+          // Lista ya validada como no vacía por el guardia superior; se captura en
+          // una constante para que las funciones anidadas conserven el tipado.
+          const incomingStudents: AdminStudent[] = data.students;
           const mergedStudents: AdminStudent[] = s.adminStudents.filter((st) => st.status === "activo");
 
-          data.students.forEach((dbSt) => {
+          // 🛡️ ADR-0197: la resolución de "¿ya existe este alumno en memoria?" va por
+          // identidad (UUID) y por nombre NORMALIZADO EXACTO; el parecido difuso solo
+          // puede unir a un registro que NO existe en PostgreSQL (alta local en vuelo).
+          // Antes el `findIndex` aceptaba un match difuso antes de llegar al registro
+          // con el UUID correcto y pisaba alumnos distintos ("Mathias" ⊂ "Gael Mathias").
+          const existsInDatabase = (localId: string) =>
+            incomingStudents.some((dbSt) => isSameStudentId(dbSt.id, localId));
+          const findExistingStudentIndex = (dbSt: AdminStudent): number => {
+            const byId = mergedStudents.findIndex((locSt) => isSameStudentId(locSt.id, dbSt.id));
+            if (byId >= 0) return byId;
+            const normalizedDbName = normalizeStudentName(dbSt.name);
+            const byExactName = mergedStudents.findIndex(
+              (locSt) => normalizeStudentName(locSt.name) === normalizedDbName,
+            );
+            if (byExactName >= 0) return byExactName;
+            return mergedStudents.findIndex(
+              (locSt) => !existsInDatabase(locSt.id) && isMatchingStudentName(locSt.name, dbSt.name),
+            );
+          };
+
+          incomingStudents.forEach((dbSt) => {
             // 🛡️ REGLA: Si el registro de PostgreSQL es ACTIVO, tiene prioridad absoluta y reemplaza cualquier registro previo
             if (dbSt.status === "activo") {
-              const existingIdx = mergedStudents.findIndex(
-                (locSt) => isSameStudentId(locSt.id, dbSt.id) || isMatchingStudentName(locSt.name, dbSt.name)
-              );
+              const existingIdx = findExistingStudentIndex(dbSt);
 
               if (existingIdx >= 0) {
                 const localSt = mergedStudents[existingIdx]!;
@@ -1140,10 +1178,7 @@ export const useAppStore = create<AppState>()(
             }
 
             // Para registros no activos (pausa, baja): jamás degradar un alumno que ya está activo
-            const existingIdx = mergedStudents.findIndex((locSt) => {
-              if (isSameStudentId(locSt.id, dbSt.id)) return true;
-              return isMatchingStudentName(locSt.name, dbSt.name);
-            });
+            const existingIdx = findExistingStudentIndex(dbSt);
 
             if (existingIdx >= 0) {
               const localSt = mergedStudents[existingIdx]!;
@@ -1154,27 +1189,56 @@ export const useAppStore = create<AppState>()(
             }
           });
 
+          // 🛡️ REGLA (ADR-0197 / ADR-0119): PostgreSQL es la única fuente de verdad.
+          // Un alumno "activo" que NO aparece en la lectura completa de `students` es un
+          // fantasma de `localStorage` (típico: alumno eliminado desde otra PC o pestaña).
+          // Antes se conservaba localmente para siempre y seguía apareciendo en la Agenda
+          // y en el Horario aunque ya no existiera en la base (caso Fernando Castillo).
+          // Solo se preservan las altas en vuelo de esta misma sesión.
+          const persistedActiveStudents = mergedStudents.filter((st) => {
+            if (st.status !== "activo") return true;
+            if (pendingStudentCreateIds.has(st.id)) return true;
+            return incomingStudents.some((dbSt) => isSameStudentId(dbSt.id, st.id));
+          });
+
           // Deduplicación estricta por nombre: eliminar registros en baja/pausa que tengan un homónimo activo
           const activeNormNames = new Set(
-            mergedStudents.filter((st) => st.status === "activo").map((st) => normalizeStudentName(st.name))
+            persistedActiveStudents.filter((st) => st.status === "activo").map((st) => normalizeStudentName(st.name))
           );
-          const initialCleanStudents = mergedStudents.filter((st) => {
+          const initialCleanStudents = persistedActiveStudents.filter((st) => {
             if (st.status === "activo") return true;
             return !Array.from(activeNormNames).some((act) => isMatchingStudentName(act, st.name));
           });
 
-          // 🛡️ REGLA (ADR-0164): Deduplicar alumnos activos para impedir que homónimos o duplicados en vuelo aparezcan repetidos en el directorio
+          // 🛡️ REGLA (ADR-0164): Deduplicar alumnos activos para impedir que el mismo alumno
+          // aparezca repetido en el directorio.
+          // 🛡️ REGLA (ADR-0197): para que dos registros se consideren el mismo alumno deben
+          // coincidir el nombre normalizado exacto Y una evidencia de identidad (misma familia
+          // o misma fecha de nacimiento). Antes bastaba `isMatchingStudentName`, que considera
+          // iguales los nombres contenidos en otro ("Mathias" ⊂ "Gael Mathias") y ocultaba
+          // alumnos reales y distintos. Nunca se oculta a un alumno por parecido de nombre:
+          // los casi-duplicados se ven en el Directorio y se archivan desde Depuración (ADR-0191).
           const dedupedStudents: AdminStudent[] = [];
           const seenActiveIds = new Set<string>();
+          const keptByNormalizedName = new Map<string, AdminStudent[]>();
           initialCleanStudents.forEach((st) => {
             if (seenActiveIds.has(st.id)) return;
             if (st.status === "activo") {
-              const alreadyHasActive = dedupedStudents.some(
-                (existing) =>
-                  existing.status === "activo" &&
-                  (isSameStudentId(existing.id, st.id) || isMatchingStudentName(existing.name, st.name))
-              );
-              if (alreadyHasActive) return;
+              const normalizedName = normalizeStudentName(st.name);
+              if (normalizedName) {
+                const sameName = keptByNormalizedName.get(normalizedName) ?? [];
+                const sameNormalizedFamily = (other: AdminStudent) =>
+                  Boolean(st.family && other.family) &&
+                  normalizeStudentName(st.family) === normalizeStudentName(other.family);
+                const sameBirthdate = (other: AdminStudent) =>
+                  Boolean(st.birthdate && other.birthdate) && st.birthdate === other.birthdate;
+                const isConfirmedDuplicate = sameName.some(
+                  (other) => sameNormalizedFamily(other) || sameBirthdate(other),
+                );
+                if (isConfirmedDuplicate) return;
+                sameName.push(st);
+                keptByNormalizedName.set(normalizedName, sameName);
+              }
             }
             seenActiveIds.add(st.id);
             dedupedStudents.push(st);
@@ -1194,11 +1258,18 @@ export const useAppStore = create<AppState>()(
           // 1. Conservar clases existentes en memoria local SOLO si el alumno NO tiene scheduleLessons oficial en PostgreSQL
           (s.schedule || []).forEach((l) => {
             if (l.status !== "cancelada") {
-              const matchedStudent = activeStudents.find((actSt) => isMatchingStudentName(actSt.name, l.student));
+              // ADR-0197: priorizar la coincidencia exacta de nombre para no atribuir
+              // clases de un alumno a otro cuyo nombre lo contiene ("Mathias" ⊂ "Gael Mathias").
+              const normalizedLessonStudent = normalizeStudentName(l.student);
+              const matchedStudent =
+                activeStudents.find((actSt) => normalizeStudentName(actSt.name) === normalizedLessonStudent) ??
+                activeStudents.find((actSt) => isMatchingStudentName(actSt.name, l.student));
               if (matchedStudent) {
                 // Si el alumno no tiene scheduleLessons oficial en la BD, conservar sus clases locales
                 if (!matchedStudent.scheduleLessons || matchedStudent.scheduleLessons.length === 0) {
-                  scheduleMap.set(l.id, l);
+                  // El nombre se reescribe al del perfil activo: ninguna clase puede
+                  // renderizarse en la Agenda con el nombre de un alumno eliminado.
+                  scheduleMap.set(l.id, { ...l, student: matchedStudent.name });
                 }
               }
             }
