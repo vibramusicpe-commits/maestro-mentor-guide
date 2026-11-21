@@ -94,6 +94,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 11 | `eb85cde` | 205 → 191 | 14 | 0 |
 | 12 | `2934724` | 191 → 173 | 18 | 0 |
 | 13 | `1487c00` | 173 → 150 | 23 | 0 |
+| 14 | `pend.` | 150 → 117 | 33 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
@@ -163,6 +164,15 @@ llega en `matchReasons` (plural), clave que la UI sí lee; antes se escribía
 `matchReason` y el motivo nunca aparecía. Anti-homónimos y guardrails
 financieros sin cambios.
 
+**Lote 14 — servicios de notas y portal docente.** 33 errores eliminados
+en `family-notes.service.ts` (10), `teacher-notes.service.ts` (9), `internal-notes.service.ts` (7),
+`internal-notes-inbox.tsx` (3), `family-notes-moderation.tsx` (2) y `teacher.alumnos.tsx` (2).
+`CohortStudentRow` ahora tipa `emergency_contact: EmergencyContact | null` permitiendo que
+`scheduleLessons` sea fuertemente tipado sin accesos por índice; `TeacherNoteMetaPayload` tipa el
+JSON de metadatos docentes; y las firmas de acción aceptan `actorId?: string | null` normalizado
+internamente. Cero cambios en la persistencia de PostgreSQL. Coincide con la entrega de ADR-0198
+(Panel 360° de Seguimiento y Retención Docente).
+
 ## 4. Restricciones cumplidas
 
 - Sin `ALTER TABLE`, `DROP`, `TRUNCATE` ni borrado masivo.
@@ -175,14 +185,14 @@ financieros sin cambios.
 
 ## 5. Verificación
 
-- `npx tsc --noEmit -p tsconfig.json` volcado a `scratch/.tsc-fix11.txt` …
-  `.tsc-fix16.txt` y comparado con el script de bucketing `(archivo, código)`.
-- `npm run build` → `✓ built in 844 ms`, `BUILD_EXIT=0`.
-- Filtro de errores por archivo tocado: 0 errores nuevos en cada uno (AGENTS §92).
+- `npx tsc --noEmit -p tsconfig.json` volcado a `scratch/.tsc-check-retention2.txt`
+  y comparado con el script de bucketing `(archivo, código)`.
+- `npm run build` → `✓ built in 1.04s`, `BUILD_EXIT=0`.
+- Filtro de errores por archivo tocado: 0 errores en todos los archivos modificados.
 
 ## 6. Pendiente
 
-Quedan **150 errores**. Siguientes causas raíz, en orden: `class-log.tsx`
-(18), `progress-reports.service.ts` (16), `evaluations.service.ts` (15), y los
-clusters TS18048/TS2532/TS2345/TS2322/TS2379. Cada lote conserva el mismo
-protocolo de verificación y su entrada en `docs/logs/`.
+Quedan **117 errores**. Siguientes causas raíz, en orden: `class-log.tsx`
+(10), `admin.campanas.tsx` (10), `course-transition-dialog.tsx` (7),
+`progress-reports-panel.tsx` (7), `admin.whatsapp.tsx` (6). Cada lote conserva
+el mismo protocolo de verificación y su entrada en `docs/logs/`.

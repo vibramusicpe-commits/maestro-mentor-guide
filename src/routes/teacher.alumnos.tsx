@@ -1,7 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, X, UserCheck, Phone, Clock, AlertCircle, Sparkles } from "lucide-react";
+import {
+  Search,
+  X,
+  UserCheck,
+  Phone,
+  Clock,
+  AlertCircle,
+  Sparkles,
+  RefreshCw,
+  Send,
+  MessageCircle,
+  CheckCircle2,
+  Calendar,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAppStore } from "@/store/app-store";
@@ -9,6 +22,12 @@ import { categoryStyles } from "@/components/admin/agenda-board";
 import type { AdminStudent } from "@/store/admin-seeds";
 import { StudentAttendanceKardex } from "@/components/admin/student-attendance-kardex";
 import { isMatchingStudentName, findStudentProfileByName } from "@/lib/student-matching";
+import {
+  resolveTeacherRetentionList,
+  sendTeacherRenewalAlert,
+  type TeacherRetentionItem,
+} from "@/lib/teacher-retention";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/teacher/alumnos")({
   head: () => ({
@@ -71,6 +90,9 @@ function TeacherStudents() {
 
   const [selectedTeacher, setSelectedTeacher] = useState<string>(initialTeacher);
   const [kardexStudent, setKardexStudent] = useState<AdminStudent | null>(null);
+  const [activeTab, setActiveTab] = useState<"activos" | "seguimiento">("activos");
+  const [sentAlerts, setSentAlerts] = useState<Set<string>>(new Set());
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   // Sincronizar reactivamente el filtro de profesor con el usuario logueado en RoleSwitcher
   useEffect(() => {
@@ -78,6 +100,46 @@ function TeacherStudents() {
       setSelectedTeacher(initialTeacher);
     }
   }, [initialTeacher]);
+
+  // Lista de retención 360° para el docente seleccionado
+  const retentionStudents = useMemo(() => {
+    return resolveTeacherRetentionList({
+      adminStudents,
+      schedule,
+      teacherClean: selectedTeacher,
+    });
+  }, [adminStudents, schedule, selectedTeacher]);
+
+  const filteredRetention = useMemo(() => {
+    const q = normalize(query);
+    if (!q) return retentionStudents;
+    return retentionStudents.filter((item) => {
+      const haystack = normalize(
+        `${item.student.name} ${item.contactName} ${item.instrument} ${item.contactPhone} ${item.scheduleText}`
+      );
+      return q.split(" ").every((token) => haystack.includes(token));
+    });
+  }, [retentionStudents, query]);
+
+  const handleSendAlert = async (item: TeacherRetentionItem) => {
+    try {
+      setSendingId(item.id);
+      await sendTeacherRenewalAlert({
+        item,
+        teacherName: item.teacherName || initialTeacher || "Profesor",
+        teacherId: null,
+      });
+      setSentAlerts((prev) => new Set([...prev, item.id]));
+      toast.success(
+        `Aviso enviado a secretaría para ${item.student.name}. Nayeli lo verá en su bandeja de notas internas.`
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "No se pudo enviar el aviso";
+      toast.error(msg);
+    } finally {
+      setSendingId(null);
+    }
+  };
 
   // Lista unificada y enriquecida de alumnos cruzando datos con el horario oficial (schedule)
   const unifiedStudents = useMemo(() => {
@@ -109,8 +171,11 @@ function TeacherStudents() {
         if (isEmma) resolvedInstrument = "Piano";
       } else if (matchingLessons.length > 0) {
         // 1. Si el alumno tiene clases agendadas, respetar el profesor e instrumento del horario
-        resolvedTeacher = matchingLessons[0].teacher;
-        resolvedInstrument = matchingLessons[0].instrument;
+        const firstLesson = matchingLessons[0];
+        if (firstLesson) {
+          resolvedTeacher = firstLesson.teacher;
+          resolvedInstrument = firstLesson.instrument;
+        }
       } else if (!resolvedTeacher || resolvedTeacher === "Prof. por Asignar") {
         // 2. Solo si NO tiene profesor asignado en su ficha, aplicar fallback según instrumento
         const instLower = (s.instrument || "").toLowerCase();
@@ -227,8 +292,41 @@ function TeacherStudents() {
           </p>
         </div>
         <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-black text-primary">
-          {filtered.length}/{unifiedStudents.length}
+          {activeTab === "activos" ? `${filtered.length}/${unifiedStudents.length}` : `${filteredRetention.length} por renovar`}
         </span>
+      </div>
+
+      {/* Selector de pestañas: Alumnos Activos vs Seguimiento de Renovación 360° (ADR-0198) */}
+      <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-card p-1 shadow-xs">
+        <button
+          type="button"
+          onClick={() => setActiveTab("activos")}
+          className={`flex items-center justify-center gap-1.5 rounded-lg py-2 px-3 text-xs font-black transition-all ${
+            activeTab === "activos"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          }`}
+        >
+          <UserCheck className="h-3.5 w-3.5" />
+          <span>Alumnos Activos ({filtered.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("seguimiento")}
+          className={`relative flex items-center justify-center gap-1.5 rounded-lg py-2 px-3 text-xs font-black transition-all ${
+            activeTab === "seguimiento"
+              ? "bg-warning text-warning-foreground shadow-xs"
+              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          }`}
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span>Por Renovar ({filteredRetention.length})</span>
+          {filteredRetention.length > 0 && (
+            <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.2 text-[10px] font-bold text-white">
+              {filteredRetention.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Acceso directo a mis informes de progreso (sin elegir alumno) */}
@@ -316,139 +414,327 @@ function TeacherStudents() {
         </div>
       </details>
 
-      {/* Lista compacta de Alumnos */}
-      <ul className="grid gap-2">
-        {filtered.map((s, i) => {
-          const cat = s.ageCategory || "JUNIOR";
-          const catStyle = categoryStyles[cat] ?? {
-            bg: "bg-muted",
-            text: "text-muted-foreground",
-            border: "border-border",
-            label: cat,
-          };
-          const catShort = SHORT_CATEGORY[cat] ?? cat;
+      {activeTab === "activos" ? (
+        /* Lista compacta de Alumnos Activos */
+        <ul className="grid gap-2">
+          {filtered.map((s, i) => {
+            const cat = s.ageCategory || "JUNIOR";
+            const catStyle = categoryStyles[cat] ?? {
+              bg: "bg-muted",
+              text: "text-muted-foreground",
+              border: "border-border",
+              label: cat,
+            };
+            const catShort = SHORT_CATEGORY[cat] ?? cat;
 
-          // Buscar el horario de la clase del alumno en la agenda
-          const studentLesson =
-            s.matchingLessons?.[0] ||
-            schedule.find(
-              (l) => normalize(l.student) === normalize(s.name) && l.status !== "cancelada",
-            );
+            // Buscar el horario de la clase del alumno en la agenda
+            const studentLesson =
+              s.matchingLessons?.[0] ||
+              schedule.find(
+                (l) => normalize(l.student) === normalize(s.name) && l.status !== "cancelada",
+              );
 
-          const isAdult = (s.age ?? 10) >= 18;
-          const contactName = s.emergencyContact?.name || s.family || "Sin apoderado";
-          const contactPhone = s.emergencyContact?.phone || s.phone || "sin tel.";
+            const isAdult = (s.age ?? 10) >= 18;
+            const contactName = s.emergencyContact?.name || s.family || "Sin apoderado";
+            const contactPhone = s.emergencyContact?.phone || s.phone || "sin tel.";
 
-          return (
-            <motion.li
-              key={s.id}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(i * 0.02, 0.2) }}
-              className="rounded-xl border border-border bg-card px-2.5 py-2 shadow-xs transition-all hover:border-primary/40"
-            >
-              <div className="flex items-center gap-2.5">
-                <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="bg-primary/15 text-xs font-bold text-primary">
-                    {s.name
-                      .split(" ")
-                      .map((p: string) => p[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </AvatarFallback>
-                </Avatar>
+            return (
+              <motion.li
+                key={s.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i * 0.02, 0.2) }}
+                className="rounded-xl border border-border bg-card px-2.5 py-2 shadow-xs transition-all hover:border-primary/40"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback className="bg-primary/15 text-xs font-bold text-primary">
+                      {s.name
+                        .split(" ")
+                        .map((p: string) => p[0])
+                        .join("")
+                        .slice(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-[13px] font-bold leading-tight text-foreground">
-                      {s.name}
-                    </span>
-                    <span
-                      className={`shrink-0 rounded border px-1 text-xs font-bold leading-4 ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
-                    >
-                      {catShort}
-                    </span>
-                    <span className="ml-auto shrink-0 text-xs font-bold text-muted-foreground">
-                      {s.age ? `${s.age}a` : ""}
-                    </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-[13px] font-bold leading-tight text-foreground">
+                        {s.name}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded border px-1 text-xs font-bold leading-4 ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
+                      >
+                        {catShort}
+                      </span>
+                      <span className="ml-auto shrink-0 text-xs font-bold text-muted-foreground">
+                        {s.age ? `${s.age}a` : ""}
+                      </span>
+                    </div>
+
+                    <p className="truncate text-xs font-medium text-muted-foreground">
+                      {s.instrument} ·{" "}
+                      <span className="font-semibold text-foreground">Prof. {s.teacher}</span>
+                      {studentLesson
+                        ? ` · ${studentLesson.day} ${studentLesson.time} · ${studentLesson.room}`
+                        : ""}
+                    </p>
+
+                    <p className="truncate text-xs text-muted-foreground">
+                      <Phone className="mr-1 inline h-2.5 w-2.5 text-primary" />
+                      {isAdult
+                        ? `Alumno (+18): ${s.phone || "sin tel."}`
+                        : `${contactName} · ${contactPhone}`}
+                    </p>
+
+                    {!studentLesson && (
+                      <p className="flex items-center gap-1 truncate text-xs italic text-muted-foreground">
+                        <Clock className="h-2.5 w-2.5 shrink-0" />
+                        Sin horario agendado · {s.modality}
+                      </p>
+                    )}
                   </div>
 
-                  <p className="truncate text-xs font-medium text-muted-foreground">
-                    {s.instrument} ·{" "}
-                    <span className="font-semibold text-foreground">Prof. {s.teacher}</span>
-                    {studentLesson
-                      ? ` · ${studentLesson.day} ${studentLesson.time} · ${studentLesson.room}`
-                      : ""}
-                  </p>
-
-                  <p className="truncate text-xs text-muted-foreground">
-                    <Phone className="mr-1 inline h-2.5 w-2.5 text-primary" />
-                    {isAdult
-                      ? `Alumno (+18): ${s.phone || "sin tel."}`
-                      : `${contactName} · ${contactPhone}`}
-                  </p>
-
-                  {!studentLesson && (
-                    <p className="flex items-center gap-1 truncate text-xs italic text-muted-foreground">
-                      <Clock className="h-2.5 w-2.5 shrink-0" />
-                      Sin horario agendado · {s.modality}
-                    </p>
-                  )}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setKardexStudent(s)}
+                      className="min-h-[44px] rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-black text-primary transition-colors hover:bg-primary/20"
+                      title="Ver Kardex de asistencias, fechas y horas"
+                    >
+                      📖 Kardex
+                    </button>
+                    <Link
+                      to="/teacher/informes"
+                      search={{ student: s.id }}
+                      className="flex min-h-[44px] items-center rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-black text-foreground transition-colors hover:border-primary/50"
+                      title="Generar borrador del informe de progreso con mis reportes de clase"
+                    >
+                      📄 Informe
+                    </Link>
+                    <span
+                      className={`text-xs font-bold ${
+                        s.attendanceRate > 0 ? "text-success" : "text-muted-foreground"
+                      }`}
+                    >
+                      {s.attendanceRate > 0 ? `${s.attendanceRate}% asist.` : "sin registros"}
+                    </span>
+                  </div>
                 </div>
+              </motion.li>
+            );
+          })}
 
-                <div className="flex shrink-0 flex-col items-end gap-1">
+          {filtered.length === 0 && (
+            <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              <AlertCircle className="mx-auto mb-2 h-7 w-7 text-muted-foreground opacity-50" />
+              {query ? (
+                <>
+                  Sin resultados para “{query}”. Prueba con el apellido o el instrumento.
                   <button
                     type="button"
-                    onClick={() => setKardexStudent(s)}
-                    className="min-h-[44px] rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-black text-primary transition-colors hover:bg-primary/20"
-                    title="Ver Kardex de asistencias, fechas y horas"
+                    onClick={() => {
+                      setQuery("");
+                      setSelectedTeacher("todos");
+                    }}
+                    className="mt-2 block w-full text-xs font-bold text-primary hover:underline"
                   >
-                    📖 Kardex
+                    Ver todos los alumnos
                   </button>
-                  <Link
-                    to="/teacher/informes"
-                    search={{ student: s.id }}
-                    className="flex min-h-[44px] items-center rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-black text-foreground transition-colors hover:border-primary/50"
-                    title="Generar borrador del informe de progreso con mis reportes de clase"
-                  >
-                    📄 Informe
-                  </Link>
-                  <span
-                    className={`text-xs font-bold ${
-                      s.attendanceRate > 0 ? "text-success" : "text-muted-foreground"
-                    }`}
-                  >
-                    {s.attendanceRate > 0 ? `${s.attendanceRate}% asist.` : "sin registros"}
-                  </span>
-                </div>
+                </>
+              ) : (
+                "No hay alumnos activos para los filtros seleccionados."
+              )}
+            </li>
+          )}
+        </ul>
+      ) : (
+        /* Lista de Seguimiento y Renovación 360° (ADR-0198) */
+        <div className="space-y-2">
+          {/* Banner explicativo */}
+          <div className="rounded-xl border border-warning/30 bg-warning/5 p-3 text-xs text-foreground">
+            <div className="flex items-start gap-2">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div className="space-y-1">
+                <p className="font-bold text-warning-foreground">
+                  Panel 360° de Seguimiento y Renovación Docente
+                </p>
+                <p className="text-muted-foreground">
+                  Aquí visualizas a tus alumnos que completaron sus clases contratadas (ej. 8/8), están a 1 clase de terminar o fueron pasados a pausa/baja. Puedes enviar un aviso directo a Secretaría (Nayeli) con 1 clic para coordinar su renovación sin interrumpir la recepción.
+                </p>
               </div>
-            </motion.li>
-          );
-        })}
+            </div>
+          </div>
 
-        {filtered.length === 0 && (
-          <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            <AlertCircle className="mx-auto mb-2 h-7 w-7 text-muted-foreground opacity-50" />
-            {query ? (
-              <>
-                Sin resultados para “{query}”. Prueba con el apellido o el instrumento.
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuery("");
-                    setSelectedTeacher("todos");
-                  }}
-                  className="mt-2 block w-full text-xs font-bold text-primary hover:underline"
+          <ul className="grid gap-2">
+            {filteredRetention.map((item, i) => {
+              const cat = item.student.ageCategory || "JUNIOR";
+              const catStyle = categoryStyles[cat] ?? {
+                bg: "bg-muted",
+                text: "text-muted-foreground",
+                border: "border-border",
+                label: cat,
+              };
+              const catShort = SHORT_CATEGORY[cat] ?? cat;
+              const isSent = sentAlerts.has(item.id);
+              const isSending = sendingId === item.id;
+
+              const badgeColorClasses =
+                item.retention.category === "culminado"
+                  ? "border-destructive/40 bg-destructive/10 text-destructive dark:bg-destructive/20"
+                  : item.retention.category === "proximo_culminar"
+                  ? "border-amber-400/40 bg-amber-400/10 text-amber-600 dark:text-amber-400"
+                  : "border-muted-foreground/30 bg-muted text-muted-foreground";
+
+              const whatsappMessage = encodeURIComponent(
+                `Hola Nayeli, te consulto por mi alumno ${item.student.name} (${item.instrument}). Veo que ${
+                  item.isInactiveStatus
+                    ? "está en pausa/baja"
+                    : item.retention.category === "culminado"
+                    ? "ya culminó sus clases contratadas"
+                    : "le resta 1 clase para terminar"
+                }. ¿Sabes si coordinaron su renovación para reservar su horario habitual (${item.scheduleText} en ${item.room})?`
+              );
+
+              return (
+                <motion.li
+                  key={item.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(i * 0.02, 0.2) }}
+                  className="rounded-xl border border-border bg-card p-3 shadow-xs transition-all hover:border-warning/40"
                 >
-                  Ver todos los alumnos
-                </button>
-              </>
-            ) : (
-              "No hay alumnos activos para los filtros seleccionados."
+                  <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                      <Avatar className="h-9 w-9 shrink-0">
+                        <AvatarFallback className="bg-warning/15 text-xs font-bold text-warning-foreground">
+                          {item.student.name
+                            .split(" ")
+                            .map((p) => p[0])
+                            .join("")
+                            .slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="truncate text-sm font-bold text-foreground">
+                            {item.student.name}
+                          </span>
+                          <span
+                            className={`shrink-0 rounded border px-1 text-xs font-bold leading-4 ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
+                          >
+                            {catShort}
+                          </span>
+                          <span
+                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-black ${badgeColorClasses}`}
+                            title={item.retention.badgeTooltip}
+                          >
+                            {item.isInactiveStatus ? "⚪ Inactivo / Pausa" : item.retention.badgeLabel}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-semibold text-foreground">{item.instrument}</span> · Prof. {item.teacherName} ·{" "}
+                          <span className="font-semibold text-primary">{item.room}</span> · {item.scheduleText}
+                        </p>
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3 text-warning" />
+                            {item.lastAttendedText}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-primary" />
+                            {item.contactName}: {item.contactPhone || "Sin tel."}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Botones de acción 360° */}
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:flex-col sm:items-end">
+                      <button
+                        type="button"
+                        disabled={isSent || isSending}
+                        onClick={() => handleSendAlert(item)}
+                        className={`flex min-h-[36px] items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-black transition-all ${
+                          isSent
+                            ? "border border-success/30 bg-success/15 text-success cursor-default"
+                            : "border border-warning/40 bg-warning/15 text-warning-foreground hover:bg-warning/25 active:scale-95"
+                        }`}
+                        title="Enviar nota interna a secretaría Nayeli para coordinar renovación"
+                      >
+                        {isSent ? (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                            <span>Aviso enviado</span>
+                          </>
+                        ) : isSending ? (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            <span>Enviando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-3.5 w-3.5" />
+                            <span>📢 Avisar a Secretaría</span>
+                          </>
+                        )}
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <a
+                          href={`https://wa.me/51984100000?text=${whatsappMessage}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex min-h-[32px] items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
+                          title="Consultar por WhatsApp a Nayeli (Secretaría)"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          <span>WhatsApp</span>
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => setKardexStudent(item.student)}
+                          className="min-h-[32px] rounded-lg border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-black text-primary transition-colors hover:bg-primary/20"
+                          title="Ver kardex de asistencias de este alumno"
+                        >
+                          📖 Kardex
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.li>
+              );
+            })}
+
+            {filteredRetention.length === 0 && (
+              <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                <CheckCircle2 className="mx-auto mb-2 h-7 w-7 text-success opacity-70" />
+                {query ? (
+                  <>
+                    Sin alumnos en seguimiento para “{query}”.
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery("");
+                        setSelectedTeacher("todos");
+                      }}
+                      className="mt-2 block w-full text-xs font-bold text-primary hover:underline"
+                    >
+                      Ver todos
+                    </button>
+                  </>
+                ) : (
+                  "¡Excelente! No tienes alumnos con ciclo culminado o pendientes de renovación para el filtro seleccionado."
+                )}
+              </li>
             )}
-          </li>
-        )}
-      </ul>
+          </ul>
+        </div>
+      )}
 
       {/* 📖 MODAL DE KARDEX DE ASISTENCIAS PARA PROFESORES */}
       {kardexStudent && (

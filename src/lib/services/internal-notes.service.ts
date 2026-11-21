@@ -123,17 +123,17 @@ export async function listInternalNotes(
         `Estado de nota interna inválido: "${params.status}".`,
       );
     }
-    query.status = `eq.${params.status}`;
+    query["status"] = `eq.${params.status}`;
   } else if (!params.includeArchived) {
-    query.status = "neq.archivada";
+    query["status"] = "neq.archivada";
   }
 
-  if (params.studentId) query.student_id = `eq.${params.studentId}`;
-  if (params.teacherId) query.teacher_id = `eq.${params.teacherId}`;
-  if (params.visibility) query.visibility = `eq.${params.visibility}`;
-  if (!params.includeTest) query.is_test = "eq.false";
+  if (params.studentId) query["student_id"] = `eq.${params.studentId}`;
+  if (params.teacherId) query["teacher_id"] = `eq.${params.teacherId}`;
+  if (params.visibility) query["visibility"] = `eq.${params.visibility}`;
+  if (!params.includeTest) query["is_test"] = "eq.false";
   if (params.limit && params.limit > 0) {
-    query.limit = String(Math.trunc(params.limit));
+    query["limit"] = String(Math.trunc(params.limit));
   }
 
   return postgrestSelect<InternalNoteRow>("internal_notes", query, "*");
@@ -145,8 +145,8 @@ export async function listInternalNotes(
  */
 export async function markInternalNoteRead(
   id: string,
-  actorId: string | null,
-  actorName: string | null,
+  actorId?: string | null,
+  actorName?: string | null,
 ): Promise<InternalNoteRow> {
   const cleanId = (id || "").trim();
   if (!cleanId) throw new InformesValidationError("id es obligatorio.");
@@ -161,6 +161,8 @@ export async function markInternalNoteRead(
   }
 
   const now = new Date().toISOString();
+  const cleanActorId = (actorId || "").trim() || null;
+  const cleanActorName = (actorName || "").trim() || null;
 
   if (existing.status === "archivada") {
     if (existing.read_at) return existing;
@@ -169,8 +171,8 @@ export async function markInternalNoteRead(
       { id: `eq.${cleanId}` },
       {
         read_at: now,
-        read_by_id: actorId,
-        read_by_name: actorName,
+        read_by_id: cleanActorId,
+        read_by_name: cleanActorName,
       },
     );
   }
@@ -181,8 +183,8 @@ export async function markInternalNoteRead(
     {
       status: "leida",
       read_at: now,
-      read_by_id: actorId,
-      read_by_name: actorName,
+      read_by_id: cleanActorId,
+      read_by_name: cleanActorName,
     },
   );
 }
@@ -193,8 +195,8 @@ export async function markInternalNoteRead(
  */
 export async function archiveInternalNote(
   id: string,
-  actorId: string | null,
-  actorName: string | null,
+  actorId?: string | null,
+  actorName?: string | null,
 ): Promise<InternalNoteRow> {
   const cleanId = (id || "").trim();
   if (!cleanId) throw new InformesValidationError("id es obligatorio.");
@@ -208,6 +210,8 @@ export async function archiveInternalNote(
   }
 
   const now = new Date().toISOString();
+  const cleanActorId = (actorId || "").trim() || null;
+  const cleanActorName = (actorName || "").trim() || null;
 
   return postgrestPatch<InternalNoteRow>(
     "internal_notes",
@@ -215,8 +219,8 @@ export async function archiveInternalNote(
     {
       status: "archivada",
       read_at: existing.read_at || now,
-      read_by_id: existing.read_by_id || actorId,
-      read_by_name: existing.read_by_name || actorName,
+      read_by_id: existing.read_by_id || cleanActorId,
+      read_by_name: existing.read_by_name || cleanActorName,
     },
   );
 }
@@ -227,8 +231,8 @@ export async function archiveInternalNote(
  */
 export async function reopenInternalNote(
   id: string,
-  actorId: string | null,
-  actorName: string | null,
+  actorId?: string | null,
+  actorName?: string | null,
 ): Promise<InternalNoteRow> {
   const cleanId = (id || "").trim();
   if (!cleanId) throw new InformesValidationError("id es obligatorio.");
@@ -242,6 +246,8 @@ export async function reopenInternalNote(
   }
 
   const now = new Date().toISOString();
+  const cleanActorId = (actorId || "").trim() || null;
+  const cleanActorName = (actorName || "").trim() || null;
 
   return postgrestPatch<InternalNoteRow>(
     "internal_notes",
@@ -249,10 +255,10 @@ export async function reopenInternalNote(
     {
       status: "leida",
       read_at: existing.read_at || now,
-      read_by_id: existing.read_by_id || actorId,
-      read_by_name: existing.read_by_name || actorName,
-      updated_by_id: actorId,
-      updated_by_name: actorName,
+      read_by_id: existing.read_by_id || cleanActorId,
+      read_by_name: existing.read_by_name || cleanActorName,
+      updated_by_id: cleanActorId,
+      updated_by_name: cleanActorName,
     },
   );
 }

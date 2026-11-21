@@ -4,6 +4,24 @@ Todas las modificaciones notables a este proyecto serán documentadas en este ar
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.71] - 2026-11-21
+
+### Panel 360° de Seguimiento y Renovación Docente (ADR-0198) y Lote 14 de TypeScript (ADR-0195)
+- **Panel de Seguimiento y Renovación Docente 360° (`/teacher/alumnos`)**:
+  - Resuelve la brecha operativa donde los docentes notan la ausencia de alumnos cuyos ciclos culminaron pero no sabían si habían renovado o si fueron dados de baja por secretaría.
+  - Selector de pestañas reactivo: **`[ 🟢 Alumnos Activos | 🔄 Por Renovar / Seguimiento ]`**.
+  - Aislamiento docente y categorización matemática: filtra alumnos del profesor que completaron el 100% de su ciclo (`retention.category === "culminado"`), están a 1 o 2 clases de culminar (`proximo_culminar`) o fueron colocados en `pausa`/`baja` administrativa.
+  - **Blindaje Estricto de Datos Financieros (ADR-0187, ADR-0183)**: Cero exposición de deudas (`balance`), precios (`planPrice`), recibos (`invoices`) ni vouchers. Solo datos pedagógicos, asistencias y teléfono de apoderado.
+  - **Puente 360° con Secretaría**:
+    - **📢 Avisar a Secretaría**: Dispara una nota interna formal en `internal_notes` con visibilidad `"staff"`, recibida en tiempo real por Nayeli en `/admin/alumnos?tab=notas-internas`. La tarjeta marca `✓ Aviso enviado` evitando duplicados.
+    - **💬 WhatsApp**: Enlace pre-redactado para consultar rápidamente por WhatsApp sin interrumpir la recepción física.
+    - **📖 Kardex**: Apertura directa del modal `StudentAttendanceKardex` para verificar el historial de asistencias.
+- **Depuración de TypeScript Lote 14 (ADR-0195)**:
+  - Erradicación de 33 errores TS de raíz (`150 → 117 errores repo-wide`, 0 regresiones, `npm run build` verde).
+  - Tipado de contratos en `family-notes.service.ts` (`CohortStudentRow` con `EmergencyContact | null`), `internal-notes.service.ts` (parámetros de actor opcionales normalizados), `teacher-notes.service.ts` (`TeacherNoteMetaPayload` tipado, interfaces con `exactOptionalPropertyTypes`) y `teacher.alumnos.tsx`.
+- **Cero ALTER TABLE**: No se modificaron esquemas de PostgreSQL; se utilizaron las tablas productivas existentes.
+- **Referencias**: `docs/adr/0198-panel-seguimiento-renovacion-docente-360.md` y `docs/logs/2026-11-21-adr-0198-panel-seguimiento-renovacion-docente.md`.
+
 ## [2.0.70] - 2026-11-18
 
 ### Deduplicación por identidad y purga de fantasmas de `localStorage` (ADR-0197)

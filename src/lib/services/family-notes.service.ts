@@ -31,6 +31,7 @@ import {
   resolveTestFlags,
   uniqueStrings,
 } from "@/lib/informes/utils";
+import type { EmergencyContact, ScheduledLesson } from "@/store/admin-seeds";
 
 const SCOPES: FamilyNoteScope[] = ["student", "teacher_cohort", "academy"];
 const STATUSES: FamilyNoteStatus[] = ["pendiente", "publicado", "rechazado"];
@@ -39,7 +40,7 @@ interface CohortStudentRow {
   id: string;
   full_name: string;
   assigned_teacher_id: string | null;
-  emergency_contact: Record<string, unknown> | null;
+  emergency_contact: EmergencyContact | null;
 }
 
 export interface ListFamilyNotesParams {
@@ -84,14 +85,10 @@ export async function resolveTeacherCohort(
 
     if (!cleanTeacherName) continue;
 
-    const ec = (row.emergency_contact as Record<string, unknown>) || {};
-    const lessons = Array.isArray(ec.scheduleLessons)
-      ? (ec.scheduleLessons as Array<Record<string, unknown>>)
-      : [];
-
+    const lessons = row.emergency_contact?.scheduleLessons ?? [];
     const teachesThisStudent = lessons.some(
-      (lesson) =>
-        normalizeTeacherName(String(lesson.teacher || "")) === cleanTeacherName,
+      (lesson: ScheduledLesson) =>
+        normalizeTeacherName(lesson.teacher) === cleanTeacherName,
     );
 
     if (teachesThisStudent) ids.add(row.id);
@@ -214,14 +211,14 @@ export async function listFamilyNotes(
         `Estado de nota inválido: "${params.status}".`,
       );
     }
-    query.status = `eq.${params.status}`;
+    query["status"] = `eq.${params.status}`;
   }
-  if (params.teacherId) query.teacher_id = `eq.${params.teacherId}`;
-  if (params.studentId) query.student_id = `eq.${params.studentId}`;
-  if (params.scope) query.scope = `eq.${params.scope}`;
-  if (!params.includeTest) query.is_test = "eq.false";
+  if (params.teacherId) query["teacher_id"] = `eq.${params.teacherId}`;
+  if (params.studentId) query["student_id"] = `eq.${params.studentId}`;
+  if (params.scope) query["scope"] = `eq.${params.scope}`;
+  if (!params.includeTest) query["is_test"] = "eq.false";
   if (params.limit && params.limit > 0) {
-    query.limit = String(Math.trunc(params.limit));
+    query["limit"] = String(Math.trunc(params.limit));
   }
 
   return postgrestSelect<FamilyNoteRow>("family_notes", query, "*");
@@ -233,8 +230,8 @@ export async function listFamilyNotes(
  */
 export async function approveFamilyNote(
   id: string,
-  actorId: string | null,
-  actorName: string | null,
+  actorId?: string | null,
+  actorName?: string | null,
 ): Promise<FamilyNoteRow> {
   const cleanId = (id || "").trim();
   if (!cleanId) throw new InformesValidationError("id es obligatorio.");
@@ -247,14 +244,16 @@ export async function approveFamilyNote(
     return existing;
   }
 
+  const cleanActorId = (actorId || "").trim() || null;
+  const cleanActorName = (actorName || "").trim() || null;
   const publishedAt = new Date().toISOString();
   const payload: Partial<FamilyNoteRow> = {
     status: "publicado",
     published_at: publishedAt,
-    published_by_id: actorId,
-    published_by_name: actorName,
-    reviewed_by_id: actorId,
-    reviewed_by_name: actorName,
+    published_by_id: cleanActorId,
+    published_by_name: cleanActorName,
+    reviewed_by_id: cleanActorId,
+    reviewed_by_name: cleanActorName,
     reviewed_at: publishedAt,
     rejection_reason: null,
   };
@@ -290,8 +289,8 @@ export async function approveFamilyNote(
 /** Dirección rechaza una nota con motivo obligatorio. */
 export async function rejectFamilyNote(
   id: string,
-  actorId: string | null,
-  actorName: string | null,
+  actorId: string | null | undefined,
+  actorName: string | null | undefined,
   reason: string,
 ): Promise<FamilyNoteRow> {
   const cleanId = (id || "").trim();
@@ -313,15 +312,18 @@ export async function rejectFamilyNote(
     );
   }
 
+  const cleanActorId = (actorId || "").trim() || null;
+  const cleanActorName = (actorName || "").trim() || null;
+
   return postgrestPatch<FamilyNoteRow>(
     "family_notes",
     { id: `eq.${cleanId}` },
     {
       status: "rechazado",
-      rejection_reason: cleanReason,
-      reviewed_by_id: actorId,
-      reviewed_by_name: actorName,
+      reviewed_by_id: cleanActorId,
+      reviewed_by_name: cleanActorName,
       reviewed_at: new Date().toISOString(),
+      rejection_reason: cleanReason,
     },
   );
 }
@@ -349,7 +351,7 @@ async function fetchPublishedFamilyNotesForStudent(
     status: "eq.publicado",
     order: "published_at.desc",
   };
-  if (!includeTest) base.is_test = "eq.false";
+  if (!includeTest) base["is_test"] = "eq.false";
 
   const [direct, cohort, academy] = await Promise.all([
     postgrestSelect<FamilyNoteRow>(

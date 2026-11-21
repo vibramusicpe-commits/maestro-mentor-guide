@@ -2181,3 +2181,27 @@ inferencia.
    - El formulario de horario mantiene el doble criterio `packageTotalSessions === 4` **o** `sharedPlanType === "compartido_4+4"`, para que un registro sin el marcador (matriculado antes de este fix) siga reconociéndose como 4+4.
 
 
+
+### 100. Panel 360° de Seguimiento y Renovación Docente (ADR-0198)
+
+> **Origen (2026-11-21)**: Los profesores en aula (Fernando, Nathaly, Jeremy) notan la ausencia de alumnos cuyos ciclos han culminado, pero no saben si renovaron o si secretaría los dio de baja. Esto generaba interrupciones constantes a secretaría (Nayeli) en recepción.
+
+1. **Pestaña de Doble Propósito en `/teacher/alumnos`**:
+   - **`[ 🟢 Alumnos Activos ]`**: Mantiene inmutable el directorio de alumnos con `status: "activo"` (ADR-0098/0100).
+   - **`[ 🔄 Por Renovar / Seguimiento ]`**: Nueva vista que aísla a los alumnos del docente que:
+     - Culminaron el 100% de clases contratadas (`retention.category === "culminado"`: ej. 8/8 clases dictadas).
+     - Están a 1 o 2 clases de culminar (`retention.category === "proximo_culminar"`: alerta preventiva).
+     - Están en estado `pausa` o `baja` administrativa sin renovar (`isInactiveStatus === true`).
+     - **Excluye** a los alumnos activos en progreso normal (`en_curso`).
+
+2. **Blindaje Estricto contra Exposición Financiera (ADR-0187, ADR-0183)**:
+   - Queda **TERMINANTEMENTE PROHIBIDO** mostrar a los profesores saldos (`balance`), precios de lista (`planPrice`), montos abonados (`amountPaid`), números de recibo (`invoices`) o vouchers.
+   - Solo se muestran datos pedagógicos: instrumento, sala, horario habitual, fecha de la última clase asistida, apoderado y teléfono de contacto para emergencias.
+
+3. **Puente 360° de Comunicación con Secretaría**:
+   - **📢 Avisar a Secretaría**: Dispara una nota interna formal en `internal_notes` con visibilidad `"staff"`, visible en tiempo real por Nayeli en `/admin/alumnos?tab=notas-internas`. La UI docente marca la tarjeta como `✓ Aviso enviado` evitando spam.
+   - **💬 WhatsApp**: Enlace pre-redactado a WhatsApp para consulta rápida sin interrumpir la recepción.
+   - **📖 Kardex**: Apertura directa del modal `StudentAttendanceKardex` para verificar el historial de asistencias.
+
+4. **Cero ALTER TABLE**: No se modifican esquemas en PostgreSQL. Se aprovechan las tablas existentes `internal_notes` y `students`.
+   - Verificación: `npm run build` verde, 0 errores TypeScript en `teacher-retention.ts` y `teacher.alumnos.tsx`. Documentación: `docs/adr/0198-panel-seguimiento-renovacion-docente-360.md`.

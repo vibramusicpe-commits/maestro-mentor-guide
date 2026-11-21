@@ -21,6 +21,17 @@ import type { Role } from "@/store/app-store";
 
 export type TeacherNoteStatus = "pendiente" | "aprobado" | "rechazado";
 
+export interface TeacherNoteMetaPayload {
+  teacherName?: string | undefined;
+  studentName?: string | undefined;
+  studentId?: string | undefined;
+  familyName?: string | undefined;
+  parentPhone?: string | undefined;
+  instrument?: string | undefined;
+  noteType?: "student" | "general" | undefined;
+  rejectionReason?: string | undefined;
+}
+
 export interface TeacherParentNote {
   id: string;
   teacherId: string;
@@ -28,16 +39,16 @@ export interface TeacherParentNote {
   studentId: string;
   studentName: string;
   familyName: string;
-  parentPhone?: string;
+  parentPhone?: string | undefined;
   instrument: string;
   noteType: "student" | "general";
   content: string;
   status: TeacherNoteStatus;
-  moderatedBy?: string;
-  moderatedAt?: string;
-  moderationComment?: string;
+  moderatedBy?: string | undefined;
+  moderatedAt?: string | undefined;
+  moderationComment?: string | undefined;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt?: string | undefined;
 }
 
 const STORAGE_KEY = "cadencia_teacher_parent_notes";
@@ -100,9 +111,9 @@ export async function submitTeacherNote(
     studentId: string;
     studentName: string;
     familyName: string;
-    parentPhone?: string;
+    parentPhone?: string | undefined;
     instrument: string;
-    noteType?: "student" | "general";
+    noteType?: "student" | "general" | undefined;
     content: string;
   }
 ): Promise<TeacherParentNote> {
@@ -189,16 +200,16 @@ export async function fetchAllTeacherNotes(): Promise<TeacherParentNote[]> {
       const dbNotes: TeacherParentNote[] = [];
 
       for (const log of dbLogs) {
-        let meta: Record<string, any> = {};
+        let meta: TeacherNoteMetaPayload = {};
         try {
           if (log.error_msg && log.error_msg.startsWith("{")) {
-            meta = JSON.parse(log.error_msg);
+            meta = JSON.parse(log.error_msg) as TeacherNoteMetaPayload;
           }
         } catch {}
 
         // Determinar nombre del profesor
-        let tName = meta.teacherName || "Profesor";
-        let sName = meta.studentName || log.subject?.replace(/^Nota Pedagógica:\s*/i, "") || "Alumno";
+        const tName = meta.teacherName || "Profesor";
+        const sName = meta.studentName || log.subject?.replace(/^Nota Pedagógica:\s*/i, "") || "Alumno";
 
         dbNotes.push({
           id: log.id,
