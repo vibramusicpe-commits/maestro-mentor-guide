@@ -94,7 +94,7 @@ desactualizados, ramas muertas y accesos a campos que nunca se escribieron.
 | 11 | `eb85cde` | 205 → 191 | 14 | 0 |
 | 12 | `2934724` | 191 → 173 | 18 | 0 |
 | 13 | `1487c00` | 173 → 150 | 23 | 0 |
-| 14 | `pend.` | 150 → 117 | 33 | 0 |
+| 14 | `77e0113` | 150 → 117 | 33 | 0 |
 
 **Lote 1 — ramas muertas y contratos de UI.** `setActivePair` → el API real
 `setSelectedPairIndex`; guardas `!== "pendiente"` retirados en 4 vistas porque
